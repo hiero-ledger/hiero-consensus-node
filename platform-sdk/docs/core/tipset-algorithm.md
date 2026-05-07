@@ -13,7 +13,7 @@ The tipset algorithm is a strategy for creating events that provides several key
 A tipset is similar to a [vector clock](https://en.wikipedia.org/wiki/Vector_clock). It is an array of integer values.
 
 For a particular network, there will be one entry in a tipset for each node in the address book.
-The value of each entry corresponds to an event generation. The index in the tipset corresponds to
+The value of each entry corresponds to an event sequence number. The index in the tipset corresponds to
 each node's index in the address book.
 
 ```
@@ -24,7 +24,7 @@ For an address book with 4 nodes: A, B, C, and D
 [1, 3, 5, 2]
        ^
        |
-       Node C has a generation of 5 in this tipset
+       Node C has a sequence number of 5 in this tipset
 ```
 
 ## Tipset of an Event
@@ -33,42 +33,42 @@ Each event in the hashgraph has a tipset.
 
 To calculate the tipset of an event, iterate over all ancestors of the event (in this context,
 an event is considered to be an ancestor to itself). From all of these ancestors, sort
-by event creator. For each event creator, choose the event with the highest generation. The entry for that node
-in the tipset is equal to the generation of that event. If there are no ancestors from a particular event
-creator, the entry for that node in the tipset is -1.
+by event creator. For each event creator, choose the event with the highest sequence number. The entry for that node
+in the tipset is equal to the sequence number of that event. If no event was ever seen for that creator, the number will
+be set to -1.
 
 ```
 Example
 
-Time starts at the bottom and moves forward as you go up the graph. Numbers for each event are generations.
+Time starts at the bottom and moves forward as you go up the graph. Numbers for each event are sequence numbers.
 
- |      (4)      |       |
+ |      (7)      |       |
  |      /|       |       |
  |     / |       |       |
  |    /  |       |       |
  |   /   |       |       |
  |  /    |       |       |
  | /     |       |       |
-(3)      |       |       |
+(6)      |       |       |
  |\      |       |       |
  | \     |       |       |
  |  \    |       |       |
  |   \   |       |       |
  |    \  |       |       |
  |     \ |       |       |
- |      (2)      |      (2)
+ |      (5)      |      (4)
  |       |\      |      /|
  |       | \     |     / |
  |       |  \    |    /  |
  |       |   \   |   /   |
  |       |    \  |  /    |
  |       |     \ | /     |
-(1)     (1)     (1)      |
+(1)     (2)     (3)      |
  |       |       |       |
  |       |       |       |
  A       B       C       D
 
- The tipset of B's most recent event is [3, 4, 1, -1]
+ The tipset of B's most recent event is [6, 7, 3, -1]
 
 ```
 
@@ -77,28 +77,16 @@ Time starts at the bottom and moves forward as you go up the graph. Numbers for 
 Although calculating an event tipset by iterating the graph is conceptually simple, in practice it's way too slow.
 This section describes a faster algorithm.
 
-Merging two tipsets is defined as taking two or more tipsets, for each event creator selecting the maximum generation
-across all tipsets being merged, and constructing the resulting tipset using those generations. Or to put it another
+Merging two tipsets is defined as taking two or more tipsets, for each event creator selecting the maximum sequence
+number
+across all tipsets being merged, and constructing the resulting tipset using those sequence numbers. Or to put it
+another
 way, just take the maximum for each element in the list.
 
 ```
 Example
 
 [1, 3, 5, 2] merged with [7, 3, 2, 11] == [7, 3, 5, 11]
-```
-
-To compute the tipset of a new event, merge the tipsets of the event's parents,
-and then update the generation for the node's creator.
-
-```
-Example
-
-In a 4 node network with nodes A, B, C, and D, suppose B is creating a new event. The self parent has a generation
-3 and a tipset [1, 3, 5, 2]. The other parent is created by node D, has a generation of 11,
-and a tipset of [7, 3, 5, 11].
-
-The new node has a generation of 12 (computed via max(3, 11) + 1). The merged tipsets of the parents results in a tipset
-of [7, 3, 5, 11]. Then, update the self generation to 12 and get [7, 12, 5, 11].
 ```
 
 # Tipset Advancement Score
@@ -110,13 +98,13 @@ strictly greater than the corresponding entry in tipset `X`.
 Example
 
 X = [1, 3, 5, 2]
-Y = [7, 3, 2, 11]
+Y = [7, 3, 4, 11]
 
-For computing the advancement score between X and Y, look at each pair of generations:
+For computing the advancement score between X and Y, look at each pair of sequence numbers:
 
 1 vs 7: 7 > 1, so this is an advancement
 3 vs 3: 3 == 3, so this is not an advancement
-5 vs 2: 2 < 5, so this is not an advancement
+5 vs 4: 4 < 5, so this is not an advancement
 2 vs 11: 11 > 2, so this is an advancement
 
 The total advancement count from X to Y is therefore 2. Note that the amount an entry advances is not important,
@@ -136,7 +124,7 @@ Suppose an address book has the following consensus weights: A = 5, B = 9, C = 1
 Find the weighed advancement score between X and Y.
 
 X = [1, 3, 5, 2]
-Y = [7, 3, 2, 11]
+Y = [7, 3, 4, 11]
 
 The entry for node `A` advances, add 5. The entry for `D` advances, add 2. Total weighted advancement score is 7 (5+2).
 ```
@@ -145,7 +133,7 @@ The entry for node `A` advances, add 5. The entry for `D` advances, add 2. Total
 
 This is similar to the weighed advancement score with one minor tweak. A partial weighted advancement score
 is always calculated from the perspective of a particular node. When computing a partial advancement score,
-ignore the advancement provided by the self generation.
+ignore the advancement provided by the self sequence number.
 
 ```
 Example
@@ -155,7 +143,7 @@ Suppose an address book has the following consensus weights: A = 5, B = 9, C = 1
 Find the partial weighted advancement score between X and Y from node A's perspective.
 
 X = [1, 3, 5, 2]
-Y = [7, 3, 2, 11]
+Y = [7, 3, 4, 11]
 
 The entry for node A advances, but we ignore it because A is ourselves.
 The entry for D advances, add 2. Total weighted advancement score is 2.
@@ -177,7 +165,8 @@ the previous event created.
 
 The snapshot tipset is defined as follows.
 
-The snapshot starts out empty, i.e. `[-1, -1, -1, ..., -1]` at genesis (in the current code, generations start at 0).
+The snapshot starts out empty, i.e. `[-1, -1, -1, ..., -1]` at genesis (in the current code, sequence numbers start at
+1).
 Periodically, the snapshot is updated to a more recent tipset.
 
 Each time a node creates a new event, compare that new event's tipset to the snapshot tipset and find the partial
@@ -211,7 +200,7 @@ Nodes are not permitted to create a new event unless one of the following two co
 1) this is the first event a node has ever created (i.e. this is genesis), or
 2) the snapshot improvement score exceeds the snapshot improvement score of the previous event, or
 3) the snapshot improvement score is greater than zero and this is the first event created since
-   we last updated the snapshot
+we last updated the snapshot
 
 By following this rule, this ensures that a given node stops creating new events in a finite amount of time if that
 node no longer is in communication with a quorum of its peers.
@@ -224,22 +213,23 @@ Consider from A's perspective. A's snapshot advancement threshold is 14.
 
 Initially, the snapshot is [-1, -1, -1, -1].
 
-A creates a genesis event with tipset [0, -1, -1, -1] (A's first event has generation 0 and doesn't have any parents).
+A creates a genesis event with tipset [1, -1, -1, -1] (A's first event has sequence number 1 in such case, as it
+hasn't seen any other events yet).
 The snapshot improvement score is 0, which is ok since this is a genesis event.
 (It will never again be ok to have an advancement score of 0.)
 
-Next, A creates an event with self parent [0, -1, -1, -1] and other parent [0, 2, -1, -1]. The other parent has
-a generation of 2. (Note: use of this particular tipset for the other parent is arbitrary
+Next, A creates an event with self parent [1, -1, -1, -1] and other parent [1, 2, -1, -1]. The other parent has
+a sequence number of 2. (Note: use of this particular tipset for the other parent is arbitrary
 and was just chosen for this example.)
 
-The tipset of the new event is [3, 2, -1, -1]. (Note that the generation for A is now 3, since that is the
-generation of the newly created self event.) The partial weighted snapshot advancement score is 9.
+The tipset of the new event is [1, 2, -1, -1]. (Note that the sequence number for A is still 1, as sequence numbers
+are assigned only after self event has gone through entire intake pipeline).
+The partial weighted snapshot advancement score is 14, because we add self weight of 5 in any case to node B 9.
 
-Next, A creates an event with self parent [3, 2, -1, -1] and other parent [3, 2, 5, 3] with generation 3. The tipset
-of the new event is [4, 2, 5, 3]. The partial weighted snapshot advancement score is 22, which exceeds the threshold
-of 14. Therefore, the snapshot is updated to [4, 2, 5, 3].
+Next, A creates an event with self parent [3, 2, -1, -1] and other parent [1, 2, 5, 7] with a sequence number 5. The tipset
+of the new event is [3, 2, 5, 7]. The partial weighted snapshot advancement score is 27, which exceeds the threshold
+of 14. Therefore, the snapshot is updated to [3, 2, 5, 7].
 
-When it next comes time for A to create an event, it will start comparing against this new snapshot [4, 2, 5, 3].
 ```
 
 # Optimizing Tipset Score
@@ -259,7 +249,7 @@ node.
 
 To compute the selfishness score against a node `X`, look at recent snapshot tipsets. Starting with the current
 snapshot and going backwards towards older snapshots, count the number of snapshots that need to be iterated
-over before an advancement in `X`'s generation is observed. That count is the selfishness score against `X`.
+over before an advancement in `X`'s sequence number is observed. That count is the selfishness score against `X`.
 
 In order to prevent nodes from being ignored too badly, it is important to periodically choose an event from an
 ignored node as an other parent, even if that choice of other parent does not improve the snapshot advancement

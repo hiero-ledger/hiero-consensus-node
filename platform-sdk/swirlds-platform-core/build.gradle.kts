@@ -25,7 +25,6 @@ mainModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("com.swirlds.common")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
@@ -47,6 +46,7 @@ testModuleInfo {
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.event.stream.test.fixtures")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.reconnect")

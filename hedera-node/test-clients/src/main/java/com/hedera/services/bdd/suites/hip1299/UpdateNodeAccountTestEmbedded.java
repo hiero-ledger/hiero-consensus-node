@@ -960,4 +960,119 @@ public class UpdateNodeAccountTestEmbedded {
                                     "Node accountId should not be updated")));
         }
     }
+
+    @Nested
+    class NodeCreateSignatureTests {
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateWithoutAccountOwnerSignatureShouldFail()
+                throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedBy(GENESIS, "adminKey")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .hasKnownStatus(INVALID_SIGNATURE));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateWithAccountOwnerSignatureShouldSucceed()
+                throws CertificateEncodingException {
+            final AtomicLong nodeAccountNum = new AtomicLong();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount").exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedByPayerAnd("adminKey", "nodeAccount")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                    viewNode(
+                            "testNode",
+                            node -> assertEquals(
+                                    nodeAccountNum.get(),
+                                    node.accountIdOrThrow().accountNum(),
+                                    "Node should be created with correct accountId")));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateSignedOnlyByAccountOwnerShouldFail() throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedBy(GENESIS, "nodeAccount")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .hasKnownStatus(INVALID_SIGNATURE));
+        }
+    }
+
+    @Nested
+    class NodeUpdateMultiFieldAccountIdTests {
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeUpdateAccountIdAndDescriptionWithCorrectSignaturesShouldSucceed()
+                throws CertificateEncodingException {
+            final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("initialNodeAccount"),
+                    cryptoCreate("newNodeAccount").exposingCreatedIdTo(newAccountId::set),
+                    sourcing(() -> {
+                        try {
+                            return nodeCreate("testNode", "initialNodeAccount")
+                                    .adminKey("adminKey")
+                                    .gossipCaCertificate(
+                                            gossipCertificates.getFirst().getEncoded());
+                        } catch (CertificateEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }),
+                    nodeUpdate("testNode")
+                            .accountId("newNodeAccount")
+                            .description("updatedDescription")
+                            .payingWith(DEFAULT_PAYER)
+                            .signedByPayerAnd("adminKey", "newNodeAccount"),
+                    viewNode(
+                            "testNode",
+                            node -> assertEquals(
+                                    toPbj(newAccountId.get()),
+                                    node.accountId(),
+                                    "Node accountId should be updated in multi-field update")));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeUpdateAccountIdAndDescriptionWithoutNewAccountShouldFail()
+                throws CertificateEncodingException {
+            final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("initialNodeAccount"),
+                    cryptoCreate("newNodeAccount").exposingCreatedIdTo(newAccountId::set),
+                    sourcing(() -> {
+                        try {
+                            return nodeCreate("testNode", "initialNodeAccount")
+                                    .adminKey("adminKey")
+                                    .gossipCaCertificate(
+                                            gossipCertificates.getFirst().getEncoded());
+                        } catch (CertificateEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }),
+                    nodeUpdate("testNode")
+                            .accountId("newNodeAccount")
+                            .description("updatedDescription")
+                            .payingWith(DEFAULT_PAYER)
+                            .signedByPayerAnd("adminKey")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    viewNode(
+                            "testNode",
+                            node -> assertNotEquals(
+                                    toPbj(newAccountId.get()),
+                                    node.accountId(),
+                                    "Node accountId should not be updated without new account signature")));
+        }
+    }
 }

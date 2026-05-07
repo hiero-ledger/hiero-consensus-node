@@ -3,7 +3,6 @@ package org.hiero.consensus.pcli;
 
 import static org.hiero.consensus.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
 
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,6 +11,7 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
 import picocli.CommandLine;

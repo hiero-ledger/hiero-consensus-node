@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
@@ -19,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;

@@ -460,11 +460,8 @@ public class GraphGeneratorTests {
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Standard Generator")
     public void testStandardGenerator() {
-        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setNumNodes(4)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter emitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).setNumNodes(4).build();
 
         generatorSanityChecks(emitter.getGraphGenerator());
     }
@@ -474,11 +471,8 @@ public class GraphGeneratorTests {
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Single Source Generator")
     public void testSingleSourceGenerator() {
-        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setNumNodes(1)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter emitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).setNumNodes(1).build();
 
         validateReset(emitter.getGraphGenerator());
         validateEventOrder(emitter.getGraphGenerator());
@@ -493,7 +487,9 @@ public class GraphGeneratorTests {
         final int numberOfEvents = 1000;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -608,7 +604,9 @@ public class GraphGeneratorTests {
 
         // A default generator uses a power distribution with alpha = 0.95
         StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -622,7 +620,9 @@ public class GraphGeneratorTests {
 
         // Completely disable old other parents
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -637,7 +637,9 @@ public class GraphGeneratorTests {
 
         // One node is much more likely to create events with old other parents
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -666,7 +668,9 @@ public class GraphGeneratorTests {
 
         // One node likes to consistently provide old other parents, all others always provide most recent parent
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -708,7 +712,9 @@ public class GraphGeneratorTests {
 
         // A default generator uses a power distribution with alpha = 0.95
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -748,7 +754,9 @@ public class GraphGeneratorTests {
     void nodeRemoveTest() {
         final int numberOfEvents = 10_000;
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
