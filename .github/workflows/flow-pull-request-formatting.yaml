@@ -40,22 +40,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  assignee-check:
-    name: Assignee Check
-    runs-on: hl-cn-default-lin-sm
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          egress-policy: audit
-
-      - name: Check Assignee
-        if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
-        run: |
-          echo "Assignee is not set. Failing the workflow."
-          exit 1
-
       - name: Get Commit Info
         id: commit-info
         run: |
@@ -79,3 +63,19 @@ jobs:
         run: |
           bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+  assignee-check:
+    name: Assignee Check
+    runs-on: hl-cn-default-lin-sm
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Check Assignee
+        if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
+        run: |
+          echo "Assignee is not set. Failing the workflow."
+          exit 1
