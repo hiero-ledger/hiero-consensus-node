@@ -27,7 +27,7 @@ class EventUtilsTest {
     }
 
     @Test
-    @DisplayName("Transaction timestamps include userTxnOffsetNanos offset")
+    @DisplayName("Transaction timestamps include transactionOffsetNanos offset")
     void transactionTimestampOffsetTest() {
         final PlatformEvent event = buildEvent(2);
 

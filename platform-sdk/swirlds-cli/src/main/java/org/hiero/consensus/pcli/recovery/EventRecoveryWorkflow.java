@@ -143,7 +143,7 @@ public final class EventRecoveryWorkflow {
                     platformContext
                             .getConfiguration()
                             .getConfigData(ConsensusConfig.class)
-                            .userTxnOffsetNanos());
+                            .transactionOffsetNanos());
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 

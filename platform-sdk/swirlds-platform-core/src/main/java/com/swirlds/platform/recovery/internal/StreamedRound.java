@@ -26,12 +26,12 @@ public class StreamedRound implements Round {
             @NonNull final Roster consensusRoster,
             @NonNull final List<CesEvent> events,
             final long roundNumber,
-            final long userTxnOffsetNanos) {
+            final long transactionOffsetNanos) {
         this.events = events;
         this.roundNumber = roundNumber;
         events.stream()
                 .map(CesEvent::getPlatformEvent)
-                .forEach(e -> e.setConsensusTimestampsOnTransactions(userTxnOffsetNanos));
+                .forEach(e -> e.setConsensusTimestampsOnTransactions(transactionOffsetNanos));
         consensusTimestamp = events.get(events.size() - 1).getPlatformEvent().getConsensusTimestamp();
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
     }

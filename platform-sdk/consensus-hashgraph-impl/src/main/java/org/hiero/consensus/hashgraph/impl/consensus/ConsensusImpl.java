@@ -182,10 +182,10 @@ public class ConsensusImpl implements Consensus {
     private boolean pcesMode = false;
 
     /**
-     * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving
-     * space for preceding and system records. Read from {@link ConsensusConfig#userTxnOffsetNanos()}.
+     * Nanoseconds to add to the first transaction's timestamp in an event. This allows space for the
+     * execution layer to insert items before the first transaction. Read from {@link ConsensusConfig#transactionOffsetNanos()}.
      */
-    private final long userTxnOffsetNanos;
+    private final long transactionOffsetNanos;
 
     /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
@@ -201,7 +201,7 @@ public class ConsensusImpl implements Consensus {
             @NonNull final ConsensusMetrics consensusMetrics,
             @NonNull final Roster roster) {
         this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
-        this.userTxnOffsetNanos = this.config.userTxnOffsetNanos();
+        this.transactionOffsetNanos = this.config.transactionOffsetNanos();
         this.time = time;
         this.consensusMetrics = consensusMetrics;
 
@@ -865,7 +865,7 @@ public class ConsensusImpl implements Consensus {
                     .setConsensusData(new EventConsensusData(
                             HapiUtils.asTimestamp(e.getPreliminaryConsensusTimestamp()), numConsensus));
 
-            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent(), userTxnOffsetNanos);
+            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent(), transactionOffsetNanos);
             numConsensus++;
             consensusMetrics.consensusReached(e);
         }

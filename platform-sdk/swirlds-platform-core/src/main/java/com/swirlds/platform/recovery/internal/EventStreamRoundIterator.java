@@ -20,7 +20,7 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
     private final IOIterator<CesEvent> eventIterator;
     private final boolean allowPartialRound;
     private final Roster consensusRoster;
-    private final long userTxnOffsetNanos;
+    private final long transactionOffsetNanos;
 
     private StreamedRound next;
     private boolean ended = false;
@@ -35,20 +35,20 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
      *                             be returned.
      * @param allowPartialRound    if true then allow the last round to contain just some of the events from that round.
      *                             If false then do not return a round that does not have all of its events.
-     * @param userTxnOffsetNanos   nanoseconds to offset user transactions from the event consensus timestamp
+     * @param transactionOffsetNanos   nanoseconds to offset user transactions from the event consensus timestamp
      */
     public EventStreamRoundIterator(
             @NonNull final Roster consensusRoster,
             final Path eventStreamDirectory,
             final long startingRound,
             final boolean allowPartialRound,
-            final long userTxnOffsetNanos)
+            final long transactionOffsetNanos)
             throws IOException {
         this(
                 consensusRoster,
                 new EventStreamMultiFileIterator(eventStreamDirectory, new EventStreamRoundLowerBound(startingRound)),
                 allowPartialRound,
-                userTxnOffsetNanos);
+                transactionOffsetNanos);
     }
 
     /**
@@ -56,17 +56,17 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
      *
      * @param consensusRoster    the consensus roster
      * @param eventIterator      an iterator that walks over events
-     * @param userTxnOffsetNanos nanoseconds to offset user transactions from the event consensus timestamp
+     * @param transactionOffsetNanos nanoseconds to offset user transactions from the event consensus timestamp
      */
     public EventStreamRoundIterator(
             @NonNull final Roster consensusRoster,
             final IOIterator<CesEvent> eventIterator,
             final boolean allowPartialRound,
-            final long userTxnOffsetNanos) {
+            final long transactionOffsetNanos) {
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
         this.eventIterator = Objects.requireNonNull(eventIterator);
         this.allowPartialRound = allowPartialRound;
-        this.userTxnOffsetNanos = userTxnOffsetNanos;
+        this.transactionOffsetNanos = transactionOffsetNanos;
     }
 
     /**
@@ -105,7 +105,7 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
             }
         }
 
-        next = new StreamedRound(consensusRoster, events, round, userTxnOffsetNanos);
+        next = new StreamedRound(consensusRoster, events, round, transactionOffsetNanos);
         return true;
     }
 
