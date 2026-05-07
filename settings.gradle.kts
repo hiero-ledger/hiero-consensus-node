@@ -10,6 +10,39 @@ plugins {
     id("org.hiero.gradle.feature.besu-native-patch")
 }
 
+// Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
+// Retries only in CI (when the CI env var is set).
+// Flaky tests (passed after retry) do not fail the build.
+gradle.allprojects {
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("io.tmio:tuweni-bytes"))
+                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
+            substitute(module("io.tmio:tuweni-units"))
+                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
+        }
+    }
+    pluginManager.withPlugin("java") {
+        tasks.withType(Test::class.java).configureEach {
+            develocity.testRetry {
+                maxRetries.set(providers.environmentVariable("CI").map { 2 }.orElse(0))
+                maxFailures.set(10)
+                failOnPassedAfterRetry.set(false)
+            }
+            reports.junitXml.mergeReruns.set(true)
+
+            // Write a marker when tests actually execute (not on cache restore).
+            // Resolve eagerly to avoid capturing Project in the doLast closure (configuration
+            // cache).
+            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+            doLast {
+                markerFile.parentFile.mkdirs()
+                markerFile.writeText(java.time.Instant.now().toString())
+            }
+        }
+    }
+}
+
 javaModules {
     // The Hedera API module
     directory("hapi") { group = "com.hedera.hashgraph" }
@@ -57,6 +90,7 @@ javaModules {
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
+
 gradle.lifecycle.beforeProject {
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
         configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
@@ -83,38 +117,38 @@ gradle.lifecycle.beforeProject {
             module("io.vertx:vertx-core", "io.vertx.core")
         }
     }
+}
 
-    // Flaky test handling
-    @Suppress("UnstableApiUsage")
-    gradle.lifecycle.afterProject {
-        tasks.withType<Test>().configureEach {
-            reports.junitXml.mergeReruns = true
+// Flaky test handling
+@Suppress("UnstableApiUsage")
+gradle.lifecycle.afterProject {
+    tasks.withType<Test>().configureEach {
+        reports.junitXml.mergeReruns = true
 
-            // CI: configure rerun to accept and track flakiness
-            develocity.testRetry {
-                maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
-                maxFailures = 10
-                failOnPassedAfterRetry = false
-            }
-            // Write a marker when tests actually execute (not on cache restore).
-            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+        // CI: configure rerun to accept and track flakiness
+        develocity.testRetry {
+            maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
+            maxFailures = 10
+            failOnPassedAfterRetry = false
+        }
+        // Write a marker when tests actually execute (not on cache restore).
+        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+        doLast {
+            markerFile.parentFile.mkdirs()
+            markerFile.writeText(java.time.Instant.now().toString())
+        }
+
+        // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
+        // not flaky
+        val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
+        if (runUntilFailure.isPresent) {
+            // no up-to-date or caching in 'runUntilFailure' mode
+            doNotTrackState("Run until failure mode")
+            // re-execute task action (executeTests()) until failure or max rerun reached
             doLast {
-                markerFile.parentFile.mkdirs()
-                markerFile.writeText(java.time.Instant.now().toString())
-            }
-
-            // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
-            // not flaky
-            val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
-            if (runUntilFailure.isPresent) {
-                // no up-to-date or caching in 'runUntilFailure' mode
-                doNotTrackState("Run until failure mode")
-                // re-execute task action (executeTests()) until failure or max rerun reached
-                doLast {
-                    for (rerunIndex in 1..runUntilFailure.get()) {
-                        logger.lifecycle("Test Rerun $rerunIndex/${runUntilFailure.get()}")
-                        executeTests()
-                    }
+                for (rerunIndex in 1..runUntilFailure.get()) {
+                    logger.lifecycle("Test Rerun $rerunIndex/${runUntilFailure.get()}")
+                    executeTests()
                 }
             }
         }
