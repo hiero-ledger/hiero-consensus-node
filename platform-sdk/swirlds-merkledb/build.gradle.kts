@@ -27,8 +27,6 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.common")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.logging.test.fixtures")

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.exceptions;
+package org.hiero.base.io;
 
 public class ResourceNotFoundException extends RuntimeException {
     public ResourceNotFoundException(String path) {

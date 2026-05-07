@@ -2,6 +2,7 @@
 open module org.hiero.consensus.utility.test.fixtures {
     exports org.hiero.consensus.test.fixtures;
     exports org.hiero.consensus.test.fixtures.crypto;
+    exports org.hiero.consensus.test.fixtures.io;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.base.crypto;

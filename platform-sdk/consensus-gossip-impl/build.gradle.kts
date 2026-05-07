@@ -9,7 +9,6 @@ description = "Default Consensus Gossip Implementation"
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.config.extensions")

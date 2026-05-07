@@ -20,7 +20,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBinImpl;
-import com.swirlds.common.test.fixtures.TestRecycleBin;
+import org.hiero.consensus.test.fixtures.io.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -71,9 +71,6 @@ public class StartupStateUtilsTests {
     /**
      * Temporary directory for the FileSystemManager
      */
-    //    @TempDir
-    //    Path fileSystemManagerTempDir;
-
     private FileSystemManager fileSystemManager;
 
     private SignedStateFilePath signedStateFilePath;

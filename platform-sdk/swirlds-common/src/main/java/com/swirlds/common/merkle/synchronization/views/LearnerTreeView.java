@@ -12,12 +12,13 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 public interface LearnerTreeView {
 
     /**
-     * For this tree view, start all required reconnect tasks in the given work group. Learning synchronizer
-     * will then wait for all tasks in the work group to complete before proceeding to the next tree view. If
-     * new custom tree views are encountered, they must be added to {@code rootsToReceive}, although it isn't
-     * currently supported by virtual tree views, as nested virtual maps are not supported.
+     * Perform a synchronous root-node (path 0) request/response handshake, then start all
+     * required parallel reconnect tasks in the given work group. The root exchange must complete
+     * before any worker tasks are forked, because the root response provides the teacher's virtual
+     * path range that all subsequent requests depend on. The learning synchronizer will wait for
+     * all tasks in the work group to complete before proceeding.
      *
-     * @param workGroup the work group to run teaching task(s) in
+     * @param workGroup the work group to run learner task(s) in
      * @param in the input stream to read data from teacher
      * @param out the output stream to write data to teacher
      */

@@ -142,6 +142,16 @@ public abstract class HapiSpecOperation implements SpecOperation {
 
     protected abstract long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable;
 
+    /**
+     * Submits the operation to the Hedera network.
+     *
+     * @param spec The HapiSpec instance for the operation.
+     * @return true if the operation's full lifecycle (automated validation and state updates) should be completed;
+     * false if the lifecycle ended early (e.g., due to an expected failure, deferred resolution, or the operation being
+     * a pure utility). False may also be returned if the operation is a pure utility and the lifecycle is not expected
+     * to complete (no standard Hedera consensus lifecycle).
+     * @throws Throwable if an error occurs during submission.
+     */
     protected abstract boolean submitOp(HapiSpec spec) throws Throwable;
 
     protected Key lookupKey(final HapiSpec spec, final String name) {
