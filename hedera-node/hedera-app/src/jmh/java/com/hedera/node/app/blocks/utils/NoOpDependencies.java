@@ -10,6 +10,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreMetrics;
@@ -195,7 +196,12 @@ public final class NoOpDependencies {
     /** Creates a QuiescedHeartbeat using real QuiescenceController but NoOpPlatform */
     public static QuiescedHeartbeat createBenchmarkQuiescedHeartbeat(
             @NonNull QuiescenceController quiescenceController) {
-        return new QuiescedHeartbeat(quiescenceController, new NoOpPlatform());
+        return new QuiescedHeartbeat(quiescenceController, createBenchmarkQuiescenceCommands());
+    }
+
+    /** Creates a QuiescenceCommands backed by NoOpPlatform for benchmarking */
+    public static QuiescenceCommands createBenchmarkQuiescenceCommands() {
+        return new QuiescenceCommands(new NoOpPlatform());
     }
 
     /** Creates a real BoundaryStateChangeListener for benchmarking */

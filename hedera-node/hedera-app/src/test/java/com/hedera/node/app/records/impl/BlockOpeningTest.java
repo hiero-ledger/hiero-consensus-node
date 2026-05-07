@@ -21,6 +21,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -119,7 +120,7 @@ class BlockOpeningTest {
         subject.maybeQuiesce(state);
 
         verify(platform, times(1)).quiescenceCommand(QUIESCE);
-        verify(quiescedHeartbeat, times(1)).start(any(), any(), any());
+        verify(quiescedHeartbeat, times(1)).start(any(), any());
     }
 
     @Test
@@ -130,7 +131,7 @@ class BlockOpeningTest {
         subject.maybeQuiesce(state);
 
         verify(platform, never()).quiescenceCommand(any());
-        verify(quiescedHeartbeat, never()).start(any(), any(), any());
+        verify(quiescedHeartbeat, never()).start(any(), any());
     }
 
     private void setupBlockInfo(@NonNull final Instant firstConsTimeOfCurrentBlock) {
@@ -150,7 +151,7 @@ class BlockOpeningTest {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART);
     }

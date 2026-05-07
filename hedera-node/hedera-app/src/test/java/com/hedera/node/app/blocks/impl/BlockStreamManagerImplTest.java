@@ -53,6 +53,7 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -63,7 +64,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -148,7 +148,7 @@ class BlockStreamManagerImplTest {
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
-    private Platform platform;
+    private QuiescenceCommands quiescenceCommands;
 
     @Mock
     private BlockStreamManager.Lifecycle lifecycle;
@@ -261,12 +261,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
@@ -286,12 +286,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
@@ -1426,12 +1426,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);

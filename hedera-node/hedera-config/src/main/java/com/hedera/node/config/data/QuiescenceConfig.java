@@ -14,5 +14,5 @@ import java.time.Duration;
  */
 @ConfigData("quiescence")
 public record QuiescenceConfig(
-        @ConfigProperty(defaultValue = "false") boolean enabled,
+        @ConfigProperty(defaultValue = "true") boolean enabled,
         @ConfigProperty(defaultValue = "5s") Duration tctDuration) {}

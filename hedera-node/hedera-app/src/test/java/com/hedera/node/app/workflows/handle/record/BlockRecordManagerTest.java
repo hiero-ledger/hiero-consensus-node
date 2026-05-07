@@ -36,6 +36,7 @@ import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -223,7 +224,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
@@ -321,7 +322,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -512,7 +513,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
@@ -538,7 +539,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
@@ -628,7 +629,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                     producer,
                     quiescenceController,
                     quiescedHeartbeat,
-                    platform,
+                    new QuiescenceCommands(platform),
                     diskWriter,
                     trigger);
         }

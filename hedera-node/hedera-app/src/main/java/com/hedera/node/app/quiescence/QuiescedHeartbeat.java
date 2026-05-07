@@ -6,7 +6,6 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESC
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
-import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -15,7 +14,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -36,19 +34,17 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 public class QuiescedHeartbeat {
     private static final Logger log = LogManager.getLogger(QuiescedHeartbeat.class);
 
-    private final Platform platform;
+    private final QuiescenceCommands commands;
     private final QuiescenceController controller;
     private final ScheduledExecutorService scheduler;
 
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
 
-    @Nullable
-    private AtomicReference<QuiescenceCommand> lastIssuedCommand;
-
     @Inject
-    public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
-        this(platform, controller, Executors.newSingleThreadScheduledExecutor(r -> {
+    public QuiescedHeartbeat(
+            @NonNull final QuiescenceController controller, @NonNull final QuiescenceCommands commands) {
+        this(commands, controller, Executors.newSingleThreadScheduledExecutor(r -> {
             final var thread = new Thread(r, "quiesced-heartbeat");
             thread.setDaemon(true);
             return thread;
@@ -58,14 +54,15 @@ public class QuiescedHeartbeat {
     /**
      * Package-private constructor for testing that allows injection of a custom scheduler.
      *
+     * @param commands the quiescence command dispatcher
      * @param controller the quiescence controller
      * @param scheduler the scheduled executor service
      */
     QuiescedHeartbeat(
-            @NonNull final Platform platform,
+            @NonNull final QuiescenceCommands commands,
             @NonNull final QuiescenceController controller,
             @NonNull final ScheduledExecutorService scheduler) {
-        this.platform = requireNonNull(platform);
+        this.commands = requireNonNull(commands);
         this.controller = requireNonNull(controller);
         this.scheduler = requireNonNull(scheduler);
     }
@@ -73,19 +70,10 @@ public class QuiescedHeartbeat {
     /**
      * Schedules a heartbeat at the given interval that will last until the {@link QuiescenceController} reports a
      * status other than {@link QuiescenceCommand#QUIESCE}.
-     *
-     * @param heartbeatInterval the interval between heartbeats
-     * @param probe the TCT probe to use
-     * @param lastIssuedCommand the caller's tracked command state, updated when the heartbeat issues a command
-     *                          so the caller stays in sync with what was sent to the platform
      */
-    public void start(
-            @NonNull final Duration heartbeatInterval,
-            @NonNull final TctProbe probe,
-            @NonNull final AtomicReference<QuiescenceCommand> lastIssuedCommand) {
+    public void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
         requireNonNull(heartbeatInterval);
         requireNonNull(probe);
-        this.lastIssuedCommand = requireNonNull(lastIssuedCommand);
 
         // Cancel any existing heartbeat
         stop();
@@ -139,19 +127,12 @@ public class QuiescedHeartbeat {
             // Check if we should continue running
             if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
-                platform.quiescenceCommand(commandNow);
-                // Sync the caller's tracked command so subsequent checks detect the change
-                if (lastIssuedCommand != null) {
-                    lastIssuedCommand.set(commandNow);
-                }
+                commands.send(commandNow);
                 stop();
             }
         } catch (final Exception e) {
             // End quiescence and stop the heartbeat to avoid log spam from repeated failures
-            platform.quiescenceCommand(DONT_QUIESCE);
-            if (lastIssuedCommand != null) {
-                lastIssuedCommand.set(DONT_QUIESCE);
-            }
+            commands.send(DONT_QUIESCE);
             stop();
             throw e;
         }
