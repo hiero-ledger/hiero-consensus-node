@@ -551,8 +551,8 @@ final class BlockRecordManagerTest extends AppTestBase {
         state.release();
     }
 
-    private static State simpleBlockInfoState(final BlockInfo blockInfo) {
-        final var virtualMap = VirtualMapUtils.createVirtualMap();
+    private State simpleBlockInfoState(final BlockInfo blockInfo) {
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager);
         return new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override

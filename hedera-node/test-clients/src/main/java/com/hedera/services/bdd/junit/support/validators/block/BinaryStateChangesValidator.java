@@ -25,6 +25,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -39,16 +40,18 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that replays {@link StateChanges} through the {@link BinaryState} API,
- * without going through service-specific writable state adapters.
+ * A validator that replays {@link StateChanges} through the {@link BinaryState} API, without going through
+ * service-specific writable state adapters.
  *
  * <p>After applying all state changes from the block stream, the resulting root hash is compared
- * to the expected hash from the latest saved state. This validates that the block stream contains
- * a complete and correct record of all state mutations.
+ * to the expected hash from the latest saved state. This validates that the block stream contains a complete and
+ * correct record of all state mutations.
  */
 public class BinaryStateChangesValidator implements BlockStreamValidator {
 
@@ -56,7 +59,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     private static final int HASH_SIZE = 48;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
-    private final Bytes expectedRootHash;
+    private final Bytes expectedRootHashBytes;
     private final Path pathToNode0SwirldsLog;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
 
@@ -93,8 +96,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     };
 
     /**
-     * Constructs a validator that will replay the state changes in the block stream through
-     * the {@link BinaryState} API and compare the resulting root hash to the latest saved state hash.
+     * Constructs a validator that will replay the state changes in the block stream through the {@link BinaryState} API
+     * and compare the resulting root hash to the latest saved state hash.
      *
      * @param spec the spec
      * @return the validator
@@ -118,18 +121,20 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     }
 
     public BinaryStateChangesValidator(
-            @NonNull final Bytes expectedRootHash, @NonNull final Path pathToNode0SwirldsLog) {
-        this.expectedRootHash = requireNonNull(expectedRootHash);
+            @NonNull final Bytes expectedRootHashBytes, @NonNull final Path pathToNode0SwirldsLog) {
+        this.expectedRootHashBytes = requireNonNull(expectedRootHashBytes);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var metrics = new NoOpMetrics();
-        this.state = new VirtualMapStateImpl(platformConfig, metrics);
+        this.state = new VirtualMapStateImpl(
+                platformConfig, new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
     }
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        logger.info("Beginning binary replay validation of expected root hash {}", expectedRootHash);
+        logger.info("Beginning binary replay validation of expected root hash {}", expectedRootHashBytes);
         for (final var block : blocks) {
             for (final var item : block.items()) {
                 if (!item.hasStateChanges()) {
@@ -137,7 +142,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                 }
                 final var changes = item.stateChangesOrThrow();
                 final var at = asInstant(changes.consensusTimestampOrThrow());
-                if (false && lastStateChangesTime != null && at.isBefore(lastStateChangesTime)) {
+                if (lastStateChangesTime != null && at.isBefore(lastStateChangesTime)) {
                     Assertions.fail("State changes are not in chronological order at " + at);
                 }
                 lastStateChangesTime = at;
@@ -148,20 +153,19 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         logger.info("Summary of binary-applied changes by state:\n{}", stateChangesSummary);
 
         // Make the underlying VirtualMap immutable by creating a mutable copy, then hash the original
-        final var virtualMap = state.getRoot();
-        final var mutableCopy = virtualMap.copy();
-        mutableCopy.registerMetrics(new NoOpMetrics());
-        final var rootHash = requireNonNull(virtualMap.getHash()).getBytes();
-        logger.info("Validating binary replay root hash {}", rootHash);
+        final VirtualMap virtualMap = state.getRoot();
+        virtualMap.copy().release();
+        final Bytes rootHashBytes = requireNonNull(virtualMap.getHash()).getBytes();
+        logger.info("Validating binary replay root hash {}", rootHashBytes);
 
-        if (!expectedRootHash.equals(rootHash)) {
+        if (!expectedRootHashBytes.equals(rootHashBytes)) {
             final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
             final var actualRootMnemonic = Mnemonics.generateMnemonic(virtualMap.getHash());
             final var errorMsg = new StringBuilder("Binary replay hash mismatch");
             errorMsg.append("\n    * root hash - expected ")
-                    .append(expectedRootHash)
+                    .append(expectedRootHashBytes)
                     .append(", was ")
-                    .append(rootHash);
+                    .append(rootHashBytes);
             if (expectedRootMnemonic != null) {
                 errorMsg.append("\n    * root mnemonic - expected ")
                         .append(expectedRootMnemonic)
@@ -176,9 +180,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
      * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
      *
      * <p>The parser manually reads the protobuf wire format to extract state change operations
-     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the
-     * corresponding {@link BinaryState} methods, which handle key composition, value wrapping,
-     * and queue state management internally.
+     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the corresponding
+     * {@link BinaryState} methods, which handle key composition, value wrapping, and queue state management
+     * internally.
      */
     private static final class BinaryStateChangeParser {
         private static void applyStateChanges(
@@ -367,9 +371,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         /**
-         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the
-         * VirtualMap. Token relationship keys are the important exception: block stream uses TokenAssociation
-         * while state stores EntityIDPair, whose field ordering is different.
+         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the VirtualMap.
+         * Token relationship keys are the important exception: block stream uses TokenAssociation while state stores
+         * EntityIDPair, whose field ordering is different.
          */
         private static Bytes readMapKeyPayload(@NonNull final ReadableSequentialData input, final long endPosition) {
             Bytes payload = null;

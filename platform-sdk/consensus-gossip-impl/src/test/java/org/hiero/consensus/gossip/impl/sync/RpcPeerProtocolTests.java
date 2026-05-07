@@ -9,8 +9,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
@@ -60,12 +60,10 @@ public class RpcPeerProtocolTests {
 
         final NoOpMetrics metrics = new NoOpMetrics();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        final BroadcastConfig broadcastConfig =
-                platformContext.getConfiguration().getConfigData(BroadcastConfig.class);
+        final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        final BroadcastConfig broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
 
         final Time time = Time.getCurrent();
         final SyncPermitProvider permitProvider = new SyncPermitProvider(

@@ -169,6 +169,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -479,6 +480,7 @@ public final class Hedera
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param configuration the configuration to use for the node
+     * @param fileSystemManager the file system manager to use for the node
      * @param metrics the metrics object to use for reporting
      * @param time the time source to use for measuring time
      */
@@ -492,6 +494,7 @@ public final class Hedera
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final Time time) {
         requireNonNull(registryFactory);
@@ -600,7 +603,7 @@ public final class Hedera
                         platformStateService)
                 .forEach(servicesRegistry::register);
         onSealConsensusRound = this::sealConsensusRound;
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
     }
 
     /**

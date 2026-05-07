@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +33,7 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;

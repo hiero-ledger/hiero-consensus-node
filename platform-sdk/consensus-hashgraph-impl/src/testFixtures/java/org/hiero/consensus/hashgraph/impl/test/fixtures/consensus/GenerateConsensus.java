@@ -35,7 +35,12 @@ public final class GenerateConsensus {
         Objects.requireNonNull(platformContext);
         final List<EventSource> eventSources = new ArrayList<>();
         IntStream.range(0, numNodes).forEach(i -> eventSources.add(new StandardEventSource(false)));
-        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                seed,
+                eventSources);
         final TestIntake intake = new TestIntake(platformContext, generator.getRoster());
 
         // generate events and feed them to consensus
