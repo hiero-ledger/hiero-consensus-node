@@ -864,6 +864,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         return EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock());
     }
 
+    /**
+     * Returns {@code true} when there is no open block, or when the current block is closed because
+     * {@code roundConsensusTimestamp >= firstConsTimeOfCurrentBlock + logPeriod}; otherwise returns
+     * {@code false} and leaves the current block open.
+     */
     @Override
     public boolean closeCurrentRecordFileIfConsTimeElapsed(
             @NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {

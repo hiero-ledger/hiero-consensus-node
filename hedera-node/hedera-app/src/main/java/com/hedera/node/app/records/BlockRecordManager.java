@@ -159,17 +159,17 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     /**
      * Seal-time variant of {@link #closeCurrentRecordFileIfOpen(State)} used by {@code RECORDS} mode.
      *
-     * <p>Applies additional policy before closing:
+     * <p>Behavior:
      * <ol>
-     *   <li>A record file must currently be open.</li>
-     *   <li>No user transaction has started since the previous seal callback.</li>
-     *   <li>The sealed-round consensus timestamp is at or after
+     *   <li>If no block is open, this is a no-op and returns {@code true}.</li>
+     *   <li>If a block is open and the sealed-round consensus timestamp is at or after
      *   {@code firstConsTimeOfCurrentBlock + logPeriod}.</li>
+     *   <li>Otherwise, it leaves the current record file open and returns {@code false}.</li>
      * </ol>
      *
-     * <p>If all conditions are met, the method closes the current record file and updates
-     * {@link BlockInfo} to the closed-file state ({@code firstConsTimeOfCurrentBlock = EPOCH}).
-     * Otherwise it leaves the file open.
+     * <p>When closure criteria are met, the method closes the current record file and updates
+     * {@link BlockInfo} to the closed-file state ({@code firstConsTimeOfCurrentBlock = EPOCH}), then
+     * returns {@code true}.
      *
      * <p>The purpose is to allow closure of an open record file that would otherwise remain open
      * until another user transaction is handled, so that at seal time
@@ -178,7 +178,7 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      *
      * @param state the mutable state to update
      * @param roundConsensusTimestamp the sealed round consensus timestamp
-     * @return true if a record file was not open or was closed
+     * @return {@code true} if no block is open or if closure occurs; otherwise {@code false}
      */
     boolean closeCurrentRecordFileIfConsTimeElapsed(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
 
