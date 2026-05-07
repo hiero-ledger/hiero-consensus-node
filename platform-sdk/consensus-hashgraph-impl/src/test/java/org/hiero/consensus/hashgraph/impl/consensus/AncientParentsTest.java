@@ -63,7 +63,8 @@ class AncientParentsTest {
                 .map(ses -> (EventSource) ses)
                 .limit(numNodes)
                 .toList();
-        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                configuration, platformContext.getMetrics(), platformContext.getTime(), seed, eventSources);
         final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
         final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 

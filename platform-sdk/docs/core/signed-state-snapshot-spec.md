@@ -38,6 +38,7 @@ affecting `saved/…/<round>/`.
 ├── stateMetadata.txt                ← SavedStateMetadata (human-readable k/v)
 ├── hashInfo.txt                     ← state-hash mnemonic + info string
 ├── currentRoster.json               ← active Roster as PBJ JSON
+├── consensusSnapshot.json           ← ConsensusSnapshot as PBJ JSON
 ├── signatureSet.pbj                 ← SigSet (PBJ binary)
 ├── settingsUsed.txt                 ← effective Configuration dump
 ├── data/                           ←  State snapshot (see reference below)
@@ -141,7 +142,37 @@ message NodeIdSignaturePair {
 }
 ```
 
-### 2.5 `settingsUsed.txt`
+### 2.5 `consensusSnapshot.json`
+
+`ConsensusSnapshot.JSON.toJSON(snapshot)` — PBJ's JSON encoding of the `ConsensusSnapshot`
+retrieved via `PlatformStateUtils.consensusSnapshotOf(state)`. Written by
+`SignedStateFileWriter.writeConsensusSnapshotFile`.
+
+Purpose: human-readable summary of consensus state at snapshot time, useful for
+debugging and for replaying PCES files on top of the hashgraph represented by this state.
+
+Schema (`platform_state.proto`):
+
+```proto
+message ConsensusSnapshot {
+  uint64 round                                    = 1;
+  // field 2 reserved (formerly judge hashes)
+  repeated MinimumJudgeInfo minimum_judge_info_list = 3;
+  uint64 next_consensus_number                    = 4;
+  proto.Timestamp consensus_timestamp             = 5;
+  repeated JudgeId judge_ids                      = 6;
+}
+message MinimumJudgeInfo {
+  uint64 round                      = 1;
+  uint64 minimum_judge_birth_round  = 2;
+}
+message JudgeId {
+  uint64 creator_id  = 1;
+  bytes  judge_hash  = 2;   // SHA-384
+}
+```
+
+### 2.6 `settingsUsed.txt`
 
 Produced by `PlatformConfigUtils.writeSettingsUsed(directory, configuration)`:
 a dump of every effective configuration property resolved for this run. Format
@@ -193,6 +224,27 @@ message NodeIdSignaturePair {
   int64 nodeId         = 1;
   int32 signatureType  = 2;   // 0=RSA, 1=ED25519, 2=ECDSA_SECP256K1
   bytes signatureBytes = 3;
+}
+```
+
+**`hapi/…/platform/state/platform_state.proto`** — `ConsensusSnapshot` and related types:
+
+```proto
+message ConsensusSnapshot {
+  uint64 round                                      = 1;
+  // field 2 reserved (formerly judge hashes)
+  repeated MinimumJudgeInfo minimum_judge_info_list = 3;
+  uint64 next_consensus_number                      = 4;
+  proto.Timestamp consensus_timestamp               = 5;
+  repeated JudgeId judge_ids                        = 6;
+}
+message MinimumJudgeInfo {
+  uint64 round                     = 1;
+  uint64 minimum_judge_birth_round = 2;
+}
+message JudgeId {
+  uint64 creator_id = 1;
+  bytes  judge_hash = 2;   // SHA-384
 }
 ```
 

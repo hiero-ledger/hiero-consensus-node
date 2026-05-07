@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporter;
 
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.StateUtils;
@@ -182,7 +184,12 @@ public class DiffExporter {
     private String buildDiffRecord(long path, final Bytes keyBytes, final Bytes valueBytes)
             throws Exception { // Adjust for ParseException, IOException, etc.
         final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
-        final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+        final StateValue stateValue = StateValue.PROTOBUF.parse(
+                valueBytes.toReadableSequentialData(),
+                false,
+                false,
+                Codec.DEFAULT_MAX_DEPTH,
+                getVirtualMapValueParseMaxSizeBytes());
 
         final String record;
         if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {

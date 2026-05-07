@@ -275,7 +275,7 @@ public class BlockBufferService {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
-        logger.debug("Opening block {}.", blockNumber);
+        logger.debug("Opening block: {}", blockNumber);
 
         if (blockNumber < 0) {
             throw new IllegalArgumentException("Block number must be non-negative");
@@ -688,7 +688,7 @@ public class BlockBufferService {
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksInProgress={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksInProgress,
@@ -811,14 +811,14 @@ public class BlockBufferService {
             // there is not enough of the buffer reclaimed/available yet... do not disable back pressure
             awaitingRecovery = true;
             logger.debug(
-                    "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold (saturation={}%, recoveryThreshold={}%)",
+                    "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold (saturation: {}%, recoveryThreshold: {}%)",
                     latestPruneResult.saturationPercent, recoveryThreshold);
             return;
         }
 
         awaitingRecovery = false;
         logger.debug(
-                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation={}%, recoveryThreshold={}%)",
+                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation: {}%, recoveryThreshold: {}%)",
                 latestPruneResult.saturationPercent, recoveryThreshold);
 
         disableBackPressure();
@@ -859,7 +859,7 @@ public class BlockBufferService {
 
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled "
-                                + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
+                                + "(idealMaxBufferSize: {}, blocksChecked: {}, blocksPruned: {}, blocksPendingAck: {}, saturation: {}%)",
                         latestPruneResult.idealMaxBufferSize,
                         latestPruneResult.numBlocksChecked,
                         latestPruneResult.numBlocksPruned,
