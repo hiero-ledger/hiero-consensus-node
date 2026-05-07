@@ -152,11 +152,10 @@ public class OtterTestExtension
     @Override
     public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(final ExtensionContext context) {
         requireNonNull(context, "context must not be null");
-        final String methodName = context.getRequiredTestMethod().getName();
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
-                return methodName;
+                return context.getRequiredTestMethod().getName();
             }
 
             @Override
