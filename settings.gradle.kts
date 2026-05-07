@@ -55,8 +55,6 @@ javaModules {
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
     tasks.withType<Test>().configureEach {
-        reports.junitXml.mergeReruns = true
-
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
         // not flaky
         val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
