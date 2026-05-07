@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
 import java.time.Instant;
 import org.hiero.consensus.model.event.CesEvent;
@@ -11,6 +11,8 @@ import org.hiero.consensus.model.event.CesEvent;
  * 		the timestamp at the start of the period reported
  * @param end
  * 		the timestamp at the end of the period reported
+ * @param roundCount
+ * 		the number of rounds in this period
  * @param eventCount
  * 		the number of events in this period
  * @param applicationTransactionCount
@@ -18,7 +20,7 @@ import org.hiero.consensus.model.event.CesEvent;
  * @param fileCount
  * 		the number of files in this period
  * @param byteCount
- * 		the byte count of
+ * 		the byte count of the period
  * @param firstEvent
  * 		the first event in the time period
  * @param lastEvent

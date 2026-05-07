@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
@@ -48,6 +48,20 @@ public class EventStreamScanner {
     private final EventStreamMultiFileIterator fileIterator;
     private final IOIterator<CesEvent> eventIterator;
 
+    /**
+     * Constructs an EventStreamScanner.
+     *
+     * @param eventStreamDirectory
+     * 		the directory containing the event stream files
+     * @param lowerBound
+     * 		the lower bound of the event stream
+     * @param reportPeriod
+     * 		the period for which to generate granular reports
+     * @param enableProgressReport
+     * 		whether to write progress to the console
+     * @throws IOException
+     * 		if an I/O error occurs
+     */
     public EventStreamScanner(
             @NonNull final Path eventStreamDirectory,
             @NonNull final EventStreamLowerBound lowerBound,
@@ -132,6 +146,13 @@ public class EventStreamScanner {
         }
     }
 
+    /**
+     * Scans the event stream and creates a report.
+     *
+     * @return the generated event stream report
+     * @throws IOException
+     * 		if an I/O error occurs during scanning
+     */
     public EventStreamReport createReport() throws IOException {
 
         if (!eventIterator.hasNext()) {
