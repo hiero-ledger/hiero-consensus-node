@@ -79,11 +79,7 @@ jobs:
         run: |
           echo "Assignee is not set. Failing the workflow."
           exit 1
-  slack-check:
-    name: check slack name of author
-    runs-on: hl-cn-default-lin-sm
 
-    steps:
       - name: Get Commit Info
         id: commit-info
         run: |
