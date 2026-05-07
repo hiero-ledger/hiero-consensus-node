@@ -153,6 +153,17 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+          
+
   compile-and-spotless:
     name: "${{ inputs.custom-job-label }} Compile and Spotless"
     uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
