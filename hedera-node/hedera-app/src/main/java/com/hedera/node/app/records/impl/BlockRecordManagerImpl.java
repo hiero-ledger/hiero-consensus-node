@@ -382,22 +382,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .firstConsTimeOfCurrentBlock(now)
                     .build();
             putLastBlockInfo(state);
-            final long blockNo;
             if (lastBlockInfo.lastBlockNumber() < 0) {
                 streamFileProducer.switchBlocks(-1, 0, consensusTime);
-                blockNo = 0;
             } else {
                 streamFileProducer.switchBlocks(
                         lastBlockInfo.lastBlockNumber(), lastBlockInfo.lastBlockNumber() + 1, consensusTime);
-                blockNo = lastBlockInfo.lastBlockNumber() + 1;
             }
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
-                // No-op if quiescence is disabled
-                quiescenceController.startingBlock(blockNo);
-                quiescenceController.switchTracker(blockNo);
+                quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
             }
 
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
@@ -801,21 +796,21 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
 
         final var hashOfJustFinishedBlock = streamFileProducer.getRunningHash();
-        final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
+        final var closedBlockNo = lastBlockInfo.lastBlockNumber() + 1;
         final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
 
         Bytes wrappedRecordBlockRootHash = lastBlockInfo.previousWrappedRecordBlockRootHash();
         List<Bytes> wrappedIntermediateHashes = lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
         long wrappedIntermediateLeafCount = lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
         final var votingComplete = migrationRootHashVotingComplete(state);
-        final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, justFinishedBlockNumber);
+        final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, closedBlockNo);
 
         if (currentBlockStartRunningHash != null) {
             if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
-                final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                        justFinishedBlockNumber, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
+                final var wrappedRecordFileBlockHashes =
+                        updateWrappedBlockHashes(closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
                 if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
-                    appendMigrationWrappedHashes(state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
+                    appendMigrationWrappedHashes(state, closedBlockNo, wrappedRecordFileBlockHashes);
                 }
                 if (votingComplete) {
                     wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
@@ -825,7 +820,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
             if (writeWrappedRecordFileBlockHashesToDisk()) {
                 appendWrappedRecordFileBlockHashesToDisk(
-                        justFinishedBlockNumber, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
+                        closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
             }
         } else if (liveWritePrevWrappedRecordHashes() && votingComplete) {
             wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
@@ -833,12 +828,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
         }
 
-        final var closedBlockNo = justFinishedBlockNumber;
         final var recordFileHashFuture = streamFileProducer.finishCurrentBlock();
         observeRecordFileHash(closedBlockNo, recordFileHashFuture);
         if (streamMode == RECORDS) {
             quiescenceController.finishHandlingInProgressBlock();
-            quiescenceController.blockFullySigned(closedBlockNo);
+            // All no-ops below if quiescence is disabled.
+            final var nextBlockNo = closedBlockNo + 1;
+            if (quiescenceController.switchTracker(nextBlockNo)) {
+                // There is no asynchronous signing concept in the record stream, do it now.
+                quiescenceController.blockFullySigned(nextBlockNo - 1);
+            }
         }
         currentBlockStartRunningHash = null;
         currentBlockRecordStreamItems.clear();
@@ -846,7 +845,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         final var updatedInfo = infoOfJustFinishedWithoutOpening(
                 lastBlockInfo,
-                justFinishedBlockNumber,
+                closedBlockNo,
                 hashOfJustFinishedBlock,
                 wrappedRecordBlockRootHash,
                 wrappedIntermediateHashes,
