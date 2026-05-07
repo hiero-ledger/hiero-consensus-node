@@ -90,7 +90,6 @@ javaModules {
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
-
 gradle.lifecycle.beforeProject {
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
         configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
