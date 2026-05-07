@@ -69,7 +69,9 @@ public class PcesWriterTestUtils {
         final TransactionGenerator transactionGenerator = PcesWriterTestUtils.buildTransactionGenerator();
 
         return new StandardGraphGenerator(
-                platformContext,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
                 random.nextLong(),
                 new StandardEventSource().setTransactionGenerator(transactionGenerator),
                 new StandardEventSource().setTransactionGenerator(transactionGenerator),

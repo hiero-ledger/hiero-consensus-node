@@ -101,7 +101,7 @@ public final class ExchangeRateManager {
         // Parse the exchange rate file. If we cannot parse it, we just continue with whatever our previous rate was.
         final ExchangeRateSet proposedRates;
         try {
-            proposedRates = ExchangeRateSet.PROTOBUF.parse(bytes.toReadableSequentialData());
+            proposedRates = ExchangeRateSet.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
         } catch (final ParseException e) {
             throw new HandleException(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE);
         }
@@ -205,7 +205,7 @@ public final class ExchangeRateManager {
         final var bytes = FileUtilities.getFileContent(state, fileID);
         final ExchangeRateSet exchangeRates;
         try {
-            exchangeRates = ExchangeRateSet.PROTOBUF.parse(bytes.toReadableSequentialData());
+            exchangeRates = ExchangeRateSet.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
         } catch (ParseException e) {
             // This should never happen
             throw new IllegalStateException(e);

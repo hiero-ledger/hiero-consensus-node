@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.io;
+package org.hiero.base.utility.test.fixtures.io;
 
 import static java.util.Arrays.asList;
 
@@ -13,14 +13,16 @@ import java.nio.file.Paths;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.consensus.exceptions.ResourceNotFoundException;
+import org.hiero.base.io.ResourceNotFoundException;
 
 /**
  * Contains utilities for loading files and other resources from disk.
  */
-public abstract class ResourceLoader {
+public class ResourceLoader {
 
     private static final ClassLoader classLoader = ResourceLoader.class.getClassLoader();
+
+    private ResourceLoader() {}
 
     /**
      * Returns a File instance pointing to the requested resource
