@@ -12,8 +12,6 @@ testModuleInfo {
     requires("org.hiero.consensus.gui")
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
@@ -32,6 +30,5 @@ jmhModuleInfo {
     requires("jmh.core")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
 }
