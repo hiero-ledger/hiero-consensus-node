@@ -33,6 +33,7 @@
 #
 
 echo "JOSH: Running find commit author slack."
+echo "JOSH: looking up email '${EMAIL}'."
 SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
   -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
   '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
