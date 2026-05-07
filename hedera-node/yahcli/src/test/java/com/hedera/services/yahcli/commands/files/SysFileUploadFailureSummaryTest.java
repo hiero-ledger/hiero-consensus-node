@@ -21,6 +21,23 @@ class SysFileUploadFailureSummaryTest {
     }
 
     @Test
+    void failureWarningOmitsSeparatorWhenCauseIsNull() {
+        assertThat(SysFileUploadCommand.failureWarning(null)).isEqualTo("FAILED Uploading requested system files");
+    }
+
+    @Test
+    void failureWarningAppendsDescribedCause() {
+        final var precheck = new HapiTxnPrecheckStateException(
+                "Wrong precheck status for FileAppend in 'UploadSystemFile-150'! Expected OK, actual TRANSACTION_OVERSIZE");
+        final var failure = new HapiSpec.Failure(precheck, "Unhandled exception executing 'UploadSystemFile-150'");
+
+        assertThat(SysFileUploadCommand.failureWarning(failure))
+                .startsWith("FAILED Uploading requested system files - ")
+                .contains("TRANSACTION_OVERSIZE")
+                .contains("HapiTxnPrecheckStateException");
+    }
+
+    @Test
     void describeFailureSurfacesPrecheckStatusFromWrappedChain() {
         // Mirrors what HapiSpec.exec() captures when fileAppend's precheck rejects with TRANSACTION_OVERSIZE:
         //   updateSpecialFile wraps in IllegalStateException, handleExec wraps in IllegalStateException,

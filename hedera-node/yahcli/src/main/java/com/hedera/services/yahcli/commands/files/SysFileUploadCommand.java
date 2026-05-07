@@ -107,17 +107,19 @@ public class SysFileUploadCommand implements Callable<Integer> {
 
         final var finalSpecs = delegate.getFinalSpecs();
         if (!finalSpecs.isEmpty()) {
-            final var spec = finalSpecs.getFirst();
-            if (spec.getStatus() == HapiSpec.SpecStatus.PASSED) {
+            if (finalSpecs.getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
                 config.output().info("SUCCESS - Uploaded all requested system files");
             } else {
-                final var reason = describeFailure(spec.getCause());
-                config.output().warn("FAILED Uploading requested system files" + reason);
+                config.output().warn(failureWarning(finalSpecs.getFirst().getCause()));
                 return 1;
             }
         }
 
         return 0;
+    }
+
+    static String failureWarning(final HapiSpec.Failure cause) {
+        return "FAILED Uploading requested system files" + describeFailure(cause);
     }
 
     static String describeFailure(final HapiSpec.Failure cause) {
