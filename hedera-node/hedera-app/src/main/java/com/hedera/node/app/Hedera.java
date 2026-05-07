@@ -18,7 +18,6 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
@@ -173,7 +172,6 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
@@ -673,6 +671,7 @@ public final class Hedera
         final var app = requireNonNull(daggerApp);
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
+        app.freezeMarkerPlatformStatus().update(platformStatus);
         // No-op if quiescence is disabled
         app.quiescenceController().platformStatusUpdate(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
@@ -1251,51 +1250,6 @@ public final class Hedera
      * {@inheritDoc}
      */
     @Override
-    public @NonNull CompletableFuture<Void> getFreezeCompleteFuture(@NonNull final StateSavingResult result) {
-        requireNonNull(result);
-        if (!result.freezeState()) {
-            logger.info(
-                    "Freeze complete future requested with freezeState={}; returning completed future",
-                    result.freezeState());
-            return completedFuture(null);
-        }
-        final var app = requireNonNull(daggerApp);
-        final var blockStreamFuture = app.blockStreamManager().pendingBlockProofsFuture();
-        final var blockRecordManager = app.blockRecordManager();
-        final var wrbWritersFuture = blockRecordManager.noOpenWrbWritersFuture();
-        logger.info(
-                "Freeze complete future requested; blockStreamFutureDone={}, wrbWritersFutureDone={}",
-                blockStreamFuture.isDone(),
-                wrbWritersFuture.isDone());
-        blockStreamFuture.whenComplete((ignore, t) -> {
-            if (t == null) {
-                logger.info("Block stream pending proofs future completed for freeze gate");
-            } else {
-                logger.warn("Block stream pending proofs future completed exceptionally for freeze gate", t);
-            }
-        });
-        wrbWritersFuture.whenComplete((ignore, t) -> {
-            if (t == null) {
-                logger.info("WRB writers future completed for freeze gate");
-            } else {
-                logger.warn("WRB writers future completed exceptionally for freeze gate", t);
-            }
-        });
-        final var compositeFuture = allOf(blockStreamFuture, wrbWritersFuture);
-        compositeFuture.whenComplete((ignore, t) -> {
-            if (t == null) {
-                logger.info("Composite freeze complete future completed");
-            } else {
-                logger.warn("Composite freeze complete future completed exceptionally", t);
-            }
-        });
-        return compositeFuture;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
@@ -1421,6 +1375,7 @@ public final class Hedera
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .build();
+        daggerApp.freezeMarkerPlatformStatus().update(platformStatus);
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
         logConfiguration();

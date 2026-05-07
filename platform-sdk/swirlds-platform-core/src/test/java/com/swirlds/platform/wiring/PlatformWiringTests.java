@@ -7,10 +7,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossip
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -19,7 +16,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
@@ -47,8 +43,6 @@ import com.swirlds.platform.system.PlatformMonitor;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
-import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
@@ -61,12 +55,10 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -74,11 +66,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Unit tests for {@link PlatformWiring}
  */
 class PlatformWiringTests {
-    private static final StateSavingResult NON_FREEZE_STATE_SAVING_RESULT =
-            new StateSavingResult(1, false, Instant.EPOCH, 1);
-    private static final StateSavingResult FREEZE_STATE_SAVING_RESULT =
-            new StateSavingResult(2, true, Instant.EPOCH, 1);
-
     static Stream<PlatformContext> testContexts() {
         return Stream.of(
                 TestPlatformContextBuilder.create()
@@ -93,59 +80,6 @@ class PlatformWiringTests {
                                 .withValue("platformWiring.inlinePces", "true")
                                 .build())
                         .build());
-    }
-
-    @Test
-    @DisplayName("Non-freeze state written to disk results are forwarded immediately")
-    void forwardsNonFreezeStateSavingResultImmediately() {
-        final ExecutionLayer execution = mock(ExecutionLayer.class);
-        final InputWire<StateSavingResult> stateWrittenToDiskInputWire = stateWrittenToDiskInputWire();
-
-        PlatformWiring.submitStateWrittenToDiskAfterApplicationIsReady(
-                execution, stateWrittenToDiskInputWire, NON_FREEZE_STATE_SAVING_RESULT);
-
-        verify(stateWrittenToDiskInputWire).put(NON_FREEZE_STATE_SAVING_RESULT);
-        verify(stateWrittenToDiskInputWire, never()).inject(any());
-        verify(execution, never()).getFreezeCompleteFuture(any());
-    }
-
-    @Test
-    @DisplayName("Freeze state written to disk result waits for the application future")
-    void waitsForApplicationFutureBeforeForwardingFreezeStateSavingResult() {
-        final ExecutionLayer execution = mock(ExecutionLayer.class);
-        final InputWire<StateSavingResult> stateWrittenToDiskInputWire = stateWrittenToDiskInputWire();
-        final var freezeCompleteFuture = new CompletableFuture<Void>();
-        when(execution.getFreezeCompleteFuture(FREEZE_STATE_SAVING_RESULT)).thenReturn(freezeCompleteFuture);
-
-        PlatformWiring.submitStateWrittenToDiskAfterApplicationIsReady(
-                execution, stateWrittenToDiskInputWire, FREEZE_STATE_SAVING_RESULT);
-
-        verify(stateWrittenToDiskInputWire, never()).put(any());
-        verify(stateWrittenToDiskInputWire, never()).inject(any());
-
-        freezeCompleteFuture.complete(null);
-
-        verify(stateWrittenToDiskInputWire).inject(FREEZE_STATE_SAVING_RESULT);
-    }
-
-    @Test
-    @DisplayName("Exceptional application future still forwards freeze state written to disk result")
-    void exceptionalApplicationFutureStillForwardsFreezeStateSavingResult() {
-        final ExecutionLayer execution = mock(ExecutionLayer.class);
-        final InputWire<StateSavingResult> stateWrittenToDiskInputWire = stateWrittenToDiskInputWire();
-        final var freezeCompleteFuture = new CompletableFuture<Void>();
-        when(execution.getFreezeCompleteFuture(FREEZE_STATE_SAVING_RESULT)).thenReturn(freezeCompleteFuture);
-
-        PlatformWiring.submitStateWrittenToDiskAfterApplicationIsReady(
-                execution, stateWrittenToDiskInputWire, FREEZE_STATE_SAVING_RESULT);
-        freezeCompleteFuture.completeExceptionally(new IllegalStateException("boom"));
-
-        verify(stateWrittenToDiskInputWire).inject(FREEZE_STATE_SAVING_RESULT);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static InputWire<StateSavingResult> stateWrittenToDiskInputWire() {
-        return mock(InputWire.class);
     }
 
     @ParameterizedTest

@@ -4,9 +4,6 @@ package com.swirlds.platform.builder;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -28,21 +25,6 @@ public interface ExecutionLayer extends EventTransactionSupplier, SignatureTrans
      * @param transaction the state signature transaction to submit
      */
     void submitStateSignature(@NonNull final StateSignatureTransaction transaction);
-
-    /**
-     * Returns a future that completes when the execution layer is ready for the platform to transition from
-     * {@link PlatformStatus#FREEZING} to {@link PlatformStatus#FREEZE_COMPLETE}.
-     * <p>
-     * This method is called after the freeze state has been written to disk. The default implementation preserves the
-     * platform's historical behavior by allowing the transition immediately.
-     *
-     * @param result the result of writing the freeze state to disk
-     * @return a future that completes when the application is ready for freeze completion
-     */
-    @NonNull
-    default CompletionStage<Void> getFreezeCompleteFuture(@NonNull final StateSavingResult result) {
-        return CompletableFuture.completedFuture(null);
-    }
 
     /**
      * Notifies the execution layer that the platform status has changed.
