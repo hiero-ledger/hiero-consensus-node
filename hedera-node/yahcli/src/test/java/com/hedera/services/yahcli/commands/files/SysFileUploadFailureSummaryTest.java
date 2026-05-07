@@ -113,8 +113,7 @@ class SysFileUploadFailureSummaryTest {
     @Test
     void summarizeCauseChainBreaksOnSelfReferentialCause() {
         final var selfCycle = new SelfReferencingException("self");
-        assertThat(SysFileUploadCommand.summarizeCauseChain(selfCycle))
-                .isEqualTo("SelfReferencingException: self");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(selfCycle)).isEqualTo("SelfReferencingException: self");
     }
 
     @Test
