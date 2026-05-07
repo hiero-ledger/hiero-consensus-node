@@ -1471,7 +1471,7 @@ public final class Hedera
         if (streamMode == RECORDS) {
             return daggerApp
                     .blockRecordManager()
-                    .closeCurrentRecordFileIfIdleAtSeal(state, round.getConsensusTimestamp());
+                    .closeCurrentRecordFileIfConsTimeElapsed(state, round.getConsensusTimestamp());
         }
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         if (streamMode == BOTH) {

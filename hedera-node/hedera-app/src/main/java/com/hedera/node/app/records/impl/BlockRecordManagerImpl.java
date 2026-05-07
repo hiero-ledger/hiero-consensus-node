@@ -289,7 +289,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+        if (isNoBlockOpen()) {
             return true;
         }
         final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
@@ -372,7 +372,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         if (isFirstTransactionAfterFreezeRestart) {
             new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
         }
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock()) || isFirstTransactionAfterFreezeRestart) {
+        if (isNoBlockOpen() || isFirstTransactionAfterFreezeRestart) {
             // This is the first transaction of the block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
             final var now = new Timestamp(consensusTime.getEpochSecond(), consensusTime.getNano());
@@ -791,7 +791,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     @Override
     public void closeCurrentRecordFileIfOpen(@NonNull final State state) {
         requireNonNull(state);
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+        if (isNoBlockOpen()) {
             return;
         }
 
@@ -852,13 +852,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 wrappedIntermediateLeafCount);
         updateBlockInfo(updatedInfo, state);
     }
+    /**
+     * Indicates whether there is currently no open block.
+     *
+     * <p>A block is considered not open when {@code firstConsTimeOfCurrentBlock} is still set to the
+     * sentinel {@link #EPOCH} value.
+     *
+     * @return {@code true} if no block is open, otherwise {@code false}
+     */
+    private boolean isNoBlockOpen() {
+        return EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock());
+    }
 
     @Override
-    public boolean closeCurrentRecordFileIfIdleAtSeal(
+    public boolean closeCurrentRecordFileIfConsTimeElapsed(
             @NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {
         requireNonNull(state);
         requireNonNull(roundConsensusTimestamp);
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+        if (isNoBlockOpen()) {
             return true;
         }
         final var firstConsTime = asInstant(lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow());

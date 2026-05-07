@@ -180,7 +180,7 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @param roundConsensusTimestamp the sealed round consensus timestamp
      * @return true if a record file was not open or was closed
      */
-    boolean closeCurrentRecordFileIfIdleAtSeal(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
+    boolean closeCurrentRecordFileIfConsTimeElapsed(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.

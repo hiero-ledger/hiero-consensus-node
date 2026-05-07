@@ -65,16 +65,16 @@ class SealRoundRecordClosureTest extends AppTestBase {
 
         assertThat(ctx.manager.startUserTransaction(firstCons, ctx.state)).isTrue();
 
-        assertThat(ctx.manager.closeCurrentRecordFileIfIdleAtSeal(ctx.state, firstCons.plusSeconds(1)))
+        assertThat(ctx.manager.closeCurrentRecordFileIfConsTimeElapsed(ctx.state, firstCons.plusSeconds(1)))
                 .isFalse();
         verify(ctx.producer, times(0)).finishCurrentBlock();
 
-        assertThat(ctx.manager.closeCurrentRecordFileIfIdleAtSeal(ctx.state, firstCons.plusSeconds(2)))
+        assertThat(ctx.manager.closeCurrentRecordFileIfConsTimeElapsed(ctx.state, firstCons.plusSeconds(2)))
                 .isTrue();
         verify(ctx.producer, times(1)).finishCurrentBlock();
         assertThat(ctx.manager.blockTimestamp()).isEqualTo(EPOCH);
 
-        assertThat(ctx.manager.closeCurrentRecordFileIfIdleAtSeal(ctx.state, firstCons.plusSeconds(3)))
+        assertThat(ctx.manager.closeCurrentRecordFileIfConsTimeElapsed(ctx.state, firstCons.plusSeconds(3)))
                 .isTrue();
         verify(ctx.producer, times(1)).finishCurrentBlock();
     }
