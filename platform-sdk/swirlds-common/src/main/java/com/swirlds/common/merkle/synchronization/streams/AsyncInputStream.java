@@ -150,13 +150,26 @@ public class AsyncInputStream {
 
     /**
      * Read the next raw message bytes from the queue, blocking until one is available or the
-     * configured timeout expires.
+     * configured stream timeout expires.
      *
      * @return the message bytes, or {@code null} if the stream is no longer alive
      * @throws MerkleSynchronizationException if the operation times out
      */
     @Nullable
     public byte[] readAnticipatedMessageSync() {
+        return readAnticipatedMessageSync(pollTimeout);
+    }
+
+    /**
+     * Read the next raw message bytes from the queue, blocking until one is available or the
+     * given timeout expires.
+     *
+     * @param timeout the maximum time to wait for a message
+     * @return the message bytes, or {@code null} if the stream is no longer alive
+     * @throws MerkleSynchronizationException if the operation times out or is interrupted
+     */
+    @Nullable
+    public byte[] readAnticipatedMessageSync(@NonNull final Duration timeout) {
         byte[] message = readAnticipatedMessage();
         if (message != null) {
             return message;
@@ -172,7 +185,7 @@ public class AsyncInputStream {
                 return null;
             }
             final long now = System.currentTimeMillis();
-            if (currentThread.isInterrupted() || (now - start > pollTimeout.toMillis())) {
+            if (currentThread.isInterrupted() || (now - start > timeout.toMillis())) {
                 break;
             }
         }

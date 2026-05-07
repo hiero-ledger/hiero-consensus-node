@@ -2,7 +2,7 @@
 package com.swirlds.platform.config;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
@@ -39,13 +39,12 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 MerkleDbConfig.class,
                 ModulesConfig.class,
                 OSHealthCheckConfig.class,
-                PathsConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
+                RecycleBinConfig.class,
                 StateCommonConfig.class,
                 TemporaryFileConfig.class,
-                FileSystemManagerConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

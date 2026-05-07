@@ -5,6 +5,7 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
+    requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.hashgraph;
@@ -16,9 +17,7 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive org.assertj.core;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
-    requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;

@@ -28,7 +28,7 @@ import java.time.Duration;
  * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
  * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
  * @param blockNodeStatusTimeout the timeout for retrieving block node server status (millisecond precision)
- * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 37748736 bytes (36 MB).
+ * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 131072000 bytes (125 MB).
  * @param connectionMonitorCheckIntervalMillis the amount of time (in milliseconds) between checking the health of block node connectivity
  * @param connectionStallThresholdMillis the amount of time needed to elapse (in milliseconds) between connection worker loop invocations before a connection is considered stalled
  * @param globalCoolDownSeconds the minimum amount of time (in seconds) between switching block node connections
@@ -61,7 +61,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes,
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
-        @ConfigProperty(defaultValue = "37748736") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
+        @ConfigProperty(defaultValue = "131072000") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
         @ConfigProperty(defaultValue = "200") @Min(1) @NetworkProperty int connectionMonitorCheckIntervalMillis,
         @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
