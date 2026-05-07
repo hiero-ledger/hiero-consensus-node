@@ -111,22 +111,7 @@ nightly, and we record the results, so we can do trend analysis over time.
 We use the [Java Micro-benchmarking Harness](https://github.com/openjdk/jmh), or JMH, for writing
 and executing our micro-benchmarks.
 
-### Cleaning
-
-Gradle projects put all build artifacts into `build` directories. To clean your workspace of all
-these build artifacts, use `./gradlew clean`. Note: cleaning is not necessary to get correct built
-results. You only need to do it if you want to free disc space.
-
-## Changing details in the Gradle setup
-
-Generally, Gradle is configured through so-called Gradle _convention plugins_. A convention plugin
-is a plugin that applies a certain set of defaults to all builds that include that convention. We
-define one such plugins in [gradle/plugins/src/main/kotlin](../gradle/plugins/src/main/kotlin) using
-Gradle's Kotlin DSL notation. If you need to adjust something in the build itself, this is the
-places where all configuration is located. For details, see comments in the existing convention
-plugins (`*.gradle.kts` files).
-
-# Identifying flaky tests
+#### Identifying flaky tests
 
 One common action when identifying or fixing flaky tests is re-running the test several times until
 either the failure happens or we are confident enough to claim the test as non-flaky.
@@ -147,3 +132,18 @@ reached, use the `PrunUntilFailure=<max_attempts>` parameter. Examples:
 ```
 
 Note: the `P` prefix is a Gradle convention for custom parameters.
+
+### Cleaning
+
+Gradle projects put all build artifacts into `build` directories. To clean your workspace of all
+these build artifacts, use `./gradlew clean`. Note: cleaning is not necessary to get correct built
+results. You only need to do it if you want to free disc space.
+
+## Changing details in the Gradle setup
+
+Generally, Gradle is configured through so-called Gradle _convention plugins_. A convention plugin
+is a plugin that applies a certain set of defaults to all builds that include that convention. We
+define one such plugins in [gradle/plugins/src/main/kotlin](../gradle/plugins/src/main/kotlin) using
+Gradle's Kotlin DSL notation. If you need to adjust something in the build itself, this is the
+places where all configuration is located. For details, see comments in the existing convention
+plugins (`*.gradle.kts` files).
