@@ -63,9 +63,12 @@ public interface BlockRecordStreamProducer extends AutoCloseable {
 
     /**
      * Closes the current record file without opening a new file.
+     *
+     * @return a future that completes with the record file hash signed while closing the current block
      */
-    default void finishCurrentBlock() {
+    default CompletableFuture<Bytes> finishCurrentBlock() {
         // Optional for producer implementations that do not need explicit close-without-open handling.
+        return CompletableFuture.completedFuture(Bytes.EMPTY);
     }
 
     /**

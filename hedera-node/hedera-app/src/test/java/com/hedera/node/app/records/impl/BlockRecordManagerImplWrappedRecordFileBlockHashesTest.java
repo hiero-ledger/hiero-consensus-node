@@ -1768,6 +1768,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         @Override
+        public CompletableFuture<Bytes> finishCurrentBlock() {
+            return recordFileHashFuture;
+        }
+
+        @Override
         public void writeRecordStreamItems(final Stream<SingleTransactionRecord> recordStreamItems) {
             // consume stream
             recordStreamItems.forEach(ignore -> {});
@@ -1911,8 +1916,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
         mgr.closeCurrentRecordFileIfOpen(state);
-        final var t1 = InstantUtils.instant(13, 1);
-        mgr.switchBlocksAt(t1);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
         verify(blockHashSigner, never()).sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES));
@@ -1994,8 +1997,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
         mgr.closeCurrentRecordFileIfOpen(state);
-        final var t1 = InstantUtils.instant(13, 1);
-        mgr.switchBlocksAt(t1);
 
         final var writer = handedOutWriters.getFirst();
         signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));

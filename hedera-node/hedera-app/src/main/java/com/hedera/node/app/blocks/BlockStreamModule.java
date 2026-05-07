@@ -9,6 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
+import com.hedera.node.app.blocks.impl.streaming.NoOpBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
@@ -30,7 +31,6 @@ import javax.inject.Singleton;
 
 @Module
 public interface BlockStreamModule {
-
     @Provides
     @Singleton
     static BlockBufferService provideBlockBufferService(
@@ -95,7 +95,10 @@ public interface BlockStreamModule {
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
             case GRPC ->
-                () -> new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+                () -> blockStreamConfig.streamWrappedRecordBlocks()
+                        ? NoOpBlockItemWriter.INSTANCE
+                        : new GrpcBlockItemWriter(
+                                configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
             case FILE_AND_GRPC ->
                 () -> new FileAndGrpcBlockItemWriter(
                         configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);

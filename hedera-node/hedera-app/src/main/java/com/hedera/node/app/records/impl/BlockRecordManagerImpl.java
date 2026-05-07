@@ -382,18 +382,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .firstConsTimeOfCurrentBlock(now)
                     .build();
             putLastBlockInfo(state);
+            final long blockNo;
             if (lastBlockInfo.lastBlockNumber() < 0) {
                 streamFileProducer.switchBlocks(-1, 0, consensusTime);
+                blockNo = 0;
             } else {
                 streamFileProducer.switchBlocks(
                         lastBlockInfo.lastBlockNumber(), lastBlockInfo.lastBlockNumber() + 1, consensusTime);
+                blockNo = lastBlockInfo.lastBlockNumber() + 1;
             }
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
                 // No-op if quiescence is disabled
-                quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
+                quiescenceController.startingBlock(blockNo);
+                quiescenceController.switchTracker(blockNo);
             }
 
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
@@ -488,26 +492,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.copyBuilder().migrationRecordsStreamed(true).build();
     }
 
-    /**
-     * We need this to preserve unit test expectations written that assumed a bug in the original implementation,
-     * in which the first consensus time of the current block was not in state.
-     * @param consensusTime the consensus time at which to switch to the current block
-     */
-    public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        final long closedBlockNo = lastBlockInfo.lastBlockNumber();
-        final long blockNo = closedBlockNo + 1;
-        final var recordFileHashFuture = streamFileProducer.switchBlocks(closedBlockNo, blockNo, consensusTime);
-        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
-        if (streamMode == RECORDS) {
-            quiescenceController.finishHandlingInProgressBlock();
-            // All no-ops below if quiescence is disabled
-            if (quiescenceController.switchTracker(blockNo)) {
-                // There is no asynchronous signing concept in the record stream, do it now
-                quiescenceController.blockFullySigned(blockNo - 1);
-            }
-        }
-    }
-
     private void observeRecordFileHash(
             final long blockNumber, @NonNull final CompletableFuture<Bytes> recordFileHashFuture) {
         requireNonNull(recordFileHashFuture);
@@ -517,7 +501,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var pending = recordFileHashFutures.get(blockNumber);
         if (pending == null) {
             // For blocks that started WRB RSA signing, signAndCloseWrbAsync() creates this future before
-            // switchBlocksAt() observes the writer close result. A missing future means no WRB signing pipeline was
+            // closeCurrentRecordFileIfOpen() observes the writer close result. A missing future means no WRB signing
+            // pipeline was
             // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, or writer setup
             // failure), so there is nothing to complete.
             return;
@@ -848,7 +833,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
         }
 
-        streamFileProducer.finishCurrentBlock();
+        final var closedBlockNo = justFinishedBlockNumber;
+        final var recordFileHashFuture = streamFileProducer.finishCurrentBlock();
+        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
+        if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
+            quiescenceController.blockFullySigned(closedBlockNo);
+        }
         currentBlockStartRunningHash = null;
         currentBlockRecordStreamItems.clear();
         currentBlockSidecarRecords.clear();

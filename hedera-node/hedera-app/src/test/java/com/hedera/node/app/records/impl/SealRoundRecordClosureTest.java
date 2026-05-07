@@ -24,6 +24,7 @@ import com.swirlds.platform.system.InitTrigger;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.Test;
@@ -117,6 +118,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
 
         final var producer = Mockito.mock(BlockRecordStreamProducer.class);
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
+        when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
         final var controller = new QuiescenceController(
                 new com.hedera.node.config.data.QuiescenceConfig(false, java.time.Duration.ofSeconds(5)),
                 InstantSource.system(),

@@ -96,8 +96,8 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
 
     /** {@inheritDoc} */
     @Override
-    public void finishCurrentBlock() {
-        closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
+    public CompletableFuture<Bytes> finishCurrentBlock() {
+        return closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
     }
 
     /** {@inheritDoc} */

@@ -231,16 +231,16 @@ final class BlockRecordManagerTest extends AppTestBase {
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
-                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
+                blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
             }
             assertThat(blockRecordManager.blockTimestamp()).isNotNull();
             assertThat(blockRecordManager.blockNo()).isEqualTo(blockRecordManager.lastBlockNo() + 1);
             // write a blocks & record files
             int transactionCount = 0;
             final List<Bytes> endOfBlockHashes = new ArrayList<>();
+            long expectedClosedBlockNo = blockRecordManager.lastBlockNo() + 1;
             for (int i = 0; i < TEST_BLOCKS.size(); i++) {
                 final var blockData = TEST_BLOCKS.get(i);
-                final var block = STARTING_BLOCK + i;
                 for (var record : blockData) {
                     blockRecordManager.startUserTransaction(
                             fromTimestamp(record.transactionRecord().consensusTimestamp()), merkleState);
@@ -258,7 +258,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                     }
                 }
                 blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
-                assertThat(block).isEqualTo(blockRecordManager.lastBlockNo());
+                assertThat(expectedClosedBlockNo).isEqualTo(blockRecordManager.lastBlockNo());
+                expectedClosedBlockNo++;
                 final var closedBlockHash = blockRecordManager.getRunningHash();
                 endOfBlockHashes.add(closedBlockHash);
                 assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
@@ -277,12 +278,13 @@ final class BlockRecordManagerTest extends AppTestBase {
         // check record files
         final var recordStreamConfig =
                 app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+        final var firstBlockToValidate = startMode.equals("GENESIS") ? STARTING_BLOCK : STARTING_BLOCK + 1;
         validateRecordStreamFiles(
                 fs.getPath(recordStreamConfig.logDir()).resolve("record" + asAccountString(NODE_INFO.accountId())),
                 recordStreamConfig,
                 USER_PUBLIC_KEY,
                 TEST_BLOCKS,
-                STARTING_BLOCK);
+                firstBlockToValidate);
     }
 
     @Test
@@ -329,7 +331,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
-            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
+            blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
             // write a blocks & record files
             int transactionCount = 0;
             Bytes runningHash = STARTING_RUNNING_HASH_OBJ.hash();
@@ -337,9 +339,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             Bytes runningHashNMinus2 = null;
             Bytes runningHashNMinus3;
             final List<Bytes> endOfBlockHashes = new ArrayList<>();
+            long expectedClosedBlockNo = blockRecordManager.lastBlockNo() + 1;
             for (int i = 0; i < TEST_BLOCKS.size(); i++) {
                 final var blockData = TEST_BLOCKS.get(i);
-                final var block = BLOCK_NUM + i;
+                final var block = expectedClosedBlockNo;
                 // write this blocks transactions
                 int j = 0;
                 while (j < blockData.size()) {
@@ -397,6 +400,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .blockHashByBlockNumber(blockNumToCheck)
                                     .toHex());
                 }
+                expectedClosedBlockNo++;
             }
             // end the last round
             blockRecordManager.endRound(merkleState);
@@ -416,7 +420,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 recordStreamConfig,
                 USER_PUBLIC_KEY,
                 TEST_BLOCKS,
-                BLOCK_NUM);
+                BLOCK_NUM + 1);
     }
 
     @Test

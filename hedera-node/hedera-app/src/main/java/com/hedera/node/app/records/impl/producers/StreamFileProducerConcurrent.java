@@ -206,18 +206,23 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
 
     /** {@inheritDoc} */
     @Override
-    public void finishCurrentBlock() {
+    public CompletableFuture<Bytes> finishCurrentBlock() {
         lock.lock();
         try {
             if (currentRecordFileWriter == null) {
-                return;
+                return completedFuture(Bytes.EMPTY);
             }
             final var writerFuture = currentRecordFileWriter;
             final var runningHashFuture = lastRecordHashingResult;
             currentRecordFileWriter = null;
-            CompletableFuture.allOf(writerFuture, runningHashFuture)
-                    .thenRunAsync(() -> closeWriter(writerFuture.join(), runningHashFuture.join()), executorService)
-                    .join();
+            final var closeResultFuture = writerFuture
+                    .thenCombine(runningHashFuture, TwoResults::new)
+                    .thenApplyAsync(twoResults -> closeWriter(twoResults.a(), twoResults.b()), executorService)
+                    .exceptionally(t -> {
+                        final var cause = t instanceof CompletionException && t.getCause() != null ? t.getCause() : t;
+                        return new CloseResult(runningHashFuture.join(), null, cause);
+                    });
+            return recordFileHashFuture(closeResultFuture);
         } finally {
             lock.unlock();
         }
