@@ -61,11 +61,11 @@ because empirical evidence shows it makes copy failures rare in practice.
 
 - **PCES files may occasionally be missing from a signed state directory.** This is acceptable
   given the actual recovery paths:
-    - For **bootstrapping test networks**: if a given state directory is missing PCES files, the
-      next available state directory can be used instead.
-    - For **ISS debugging**: if PCES files are missing from the relevant state directory, the node
-      operator can be contacted directly, since PCES files are also written to the PCES module's
-      own location on disk.
+  - For **bootstrapping test networks**: if a given state directory is missing PCES files, the
+    next available state directory can be used instead.
+  - For **ISS debugging**: if PCES files are missing from the relevant state directory, the node
+    operator can be contacted directly, since PCES files are also written to the PCES module's
+    own location on disk.
 - **The condition is more likely under low load** (low event creation / low TPS), which is when
   PCES files stay open the longest. Production mainnet load makes this rare, but lower-traffic
   environments may see it more often.
