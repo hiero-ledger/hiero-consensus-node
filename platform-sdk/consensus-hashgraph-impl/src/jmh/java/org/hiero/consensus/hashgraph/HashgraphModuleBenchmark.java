@@ -99,7 +99,8 @@ public class HashgraphModuleBenchmark {
                 generator.getRoster(),
                 NodeId.of(generator.getRoster().rosterEntries().getFirst().nodeId()),
                 i -> false,
-                null);
+                null,
+                0L);
         hashgraphModule.eventInputWire();
         counter = new EventCounter(NUMBER_OF_EVENTS);
         hashgraphModule.preconsensusEventOutputWire().solderForMonitoring(counter);
