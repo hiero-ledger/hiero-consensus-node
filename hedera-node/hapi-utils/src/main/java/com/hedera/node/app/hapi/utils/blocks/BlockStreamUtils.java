@@ -6,7 +6,7 @@ import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.AccountTokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -199,7 +199,7 @@ public final class BlockStreamUtils {
         };
     }
 
-    public static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
+    public static EntityIDPair pairFrom(@NonNull final AccountTokenAssociation tokenAssociation) {
         return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
     }
 }

@@ -164,11 +164,34 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * Returns a request-level correlation ID for block-specific requests.
      *
      * @param blockNumber block number
-     * @param requestNumber request number scoped to the block
+     * @param blockRequestNumber request number scoped to the block
      * @return correlation ID in format N#-[STR|SVC]#-BLK#-REQ#
      */
-    final @NonNull String blockRequestCorrelationId(final long blockNumber, final int requestNumber) {
-        return connectionId + "-BLK" + blockNumber + "-REQ" + requestNumber;
+    final @NonNull String blockRequestCorrelationId(final long blockNumber, final int blockRequestNumber) {
+        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber;
+    }
+
+    /**
+     * Builds a correlation ID for the specified connection request.
+     *
+     * @param connectionRequestNumber the connection-level request number
+     * @return correlation ID in the format of N#-[STR|SVC]#-CRN#
+     */
+    final @NonNull String buildRequestCorrelationId(final long connectionRequestNumber) {
+        return connectionId + "-CRN" + connectionRequestNumber;
+    }
+
+    /**
+     * Builds a correlation ID for the specified block-level request.
+     *
+     * @param connectionRequestNumber the connection-level request number
+     * @param blockNumber the block number
+     * @param blockRequestNumber the block-level request number
+     * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-REQ#-CRN#
+     */
+    final @NonNull String buildRequestCorrelationId(
+            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber) {
+        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
     }
 
     /**
@@ -233,7 +256,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             return false;
         }
 
-        logger.info("{} Connection state transitioned from {} to {}", this, latestState, newState);
+        logger.debug("{} Connection state transitioned from {} to {}", this, latestState, newState);
 
         final ConnectionState state = stateRef.get();
         if (state == ConnectionState.ACTIVE) {

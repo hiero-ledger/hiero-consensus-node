@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -19,13 +20,21 @@ import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFOR
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.RecordFileSignature;
+import com.hedera.hapi.block.stream.SignedRecordFileProof;
+import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.node.state.roster.RosterSignatures;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -42,8 +51,9 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
@@ -53,13 +63,19 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
@@ -103,7 +119,34 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
     private final StreamMode streamMode;
     private final int maxSideCarSizeInBytes;
+    private final int recordFileVersion;
     private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
+    private final BlockHashSigner blockHashSigner;
+
+    /**
+     * Supplier of a fresh {@link BlockItemWriter} (in practice a {@code GrpcBlockItemWriter}) used to forward
+     * wrapped record block (WRB) items to the block buffer service. Used only when
+     * {@code blockStream.streamWrappedRecordBlocks=true}.
+     */
+    private final Supplier<BlockItemWriter> wrbWriterSupplier;
+    /**
+     * Cached value of {@code blockStream.streamWrappedRecordBlocks} read at construction time. When true,
+     * each completed record block has its WRB items forwarded through {@link #wrbWriterSupplier}.
+     */
+    private final boolean streamWrbEnabled;
+    /**
+     * Holds the open {@link BlockItemWriter} for each WRB whose header + record-file items have been written
+     * but whose {@code BlockFooter} / {@code BlockProof} have not yet been produced. Keyed by block number.
+     * Drained on shutdown via {@link BlockItemWriter#flushPendingBlock}; removed when the RSA proof is written
+     * and the block is closed.
+     */
+    private final Map<Long, BlockItemWriter> openWrbWriters = new ConcurrentHashMap<>();
+    /**
+     * Futures for the legacy record file hashes signed by {@code BlockRecordWriter} close. Keyed by block number.
+     * WRB RSA signing waits on these futures so its signature list covers exactly the legacy record file hash.
+     */
+    private final Map<Long, CompletableFuture<Bytes>> recordFileHashFutures = new ConcurrentHashMap<>();
+
     private Bytes currentBlockStartRunningHash;
     private final List<RecordStreamItem> currentBlockRecordStreamItems = new ArrayList<>();
     private final List<TransactionSidecarRecord> currentBlockSidecarRecords = new ArrayList<>();
@@ -143,6 +186,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger) {
         this.platform = platform;
         requireNonNull(state);
@@ -151,8 +196,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.streamFileProducer = requireNonNull(streamFileProducer);
         this.configProvider = requireNonNull(configProvider);
         this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
+        this.wrbWriterSupplier = requireNonNull(wrbWriterSupplier);
+        this.blockHashSigner = requireNonNull(blockHashSigner);
         final var config = configProvider.getConfiguration();
-        this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        this.streamMode = blockStreamConfig.streamMode();
+        this.streamWrbEnabled = blockStreamConfig.streamWrappedRecordBlocks();
 
         // FUTURE: check if we were started in event recover mode and if event recovery needs to be completed before we
         // write any new records to stream
@@ -163,6 +212,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
         this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
         this.maxSideCarSizeInBytes = recordStreamConfig.sidecarMaxSizeMb() * 1024 * 1024;
+        this.recordFileVersion = recordStreamConfig.recordFileVersion();
 
         final RunningHashes lastRunningHashes;
         if (initTrigger == InitTrigger.GENESIS) {
@@ -177,8 +227,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastRunningHashes = runningHashState.get();
             assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         }
-        final var votingCompleteAtStartup =
-                initTrigger != InitTrigger.GENESIS && migrationRootHashVotingCompleteAtStartup(state);
+
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
             final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
@@ -199,13 +248,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
         this.streamFileProducer.initRunningHash(lastRunningHashes);
-    }
-
-    private boolean migrationRootHashVotingCompleteAtStartup(@NonNull final State state) {
-        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get();
-        return blockInfo != null && blockInfo.votingComplete();
     }
 
     // =================================================================================================================
@@ -229,6 +271,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         } catch (final Exception e) {
             logger.warn("Failed to close wrappedRecordHashesDiskWriter properly", e);
         }
+        // Drain any unfinalized WRB writers so their buffered items are persisted as pending blocks
+        // rather than dropped on shutdown.
+        for (final var entry : openWrbWriters.entrySet()) {
+            try {
+                entry.getValue().flushPendingBlock(PendingProof.DEFAULT);
+            } catch (final Exception e) {
+                logger.warn("Failed to flush pending WRB writer for block {}", entry.getKey(), e);
+            }
+        }
+        openWrbWriters.clear();
+        recordFileHashFutures.clear();
     }
 
     // =================================================================================================================
@@ -262,7 +315,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
         final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        // Only write to the wrapped hashes file if live writing isn't enabled
         appendWrappedRecordFileBlockHashesToDisk(
                 currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
     }
@@ -465,19 +517,21 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // Branch 2
+        // Branch 1: previousWrappedRecordBlockRootHash
+        // Branch 2: allPrevBlocksRootHash
         final Bytes depth5Node1 =
                 BlockImplUtils.hashInternalNode(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
 
-        // Branches 3/4 (empty)
+        // Branches 3/4 (empty — no state hash or consensus header in wrapped record blocks)
         @SuppressWarnings("UnnecessaryLocalVariable")
         final Bytes depth5Node2 = EMPTY_INT_NODE;
 
-        // Branches 5/6
+        // Branch 5: HASH_OF_ZERO (no inputs tree)
+        // Branch 6: outputItemsTreeRootHash
         final Bytes outputTreeHash = entry.outputItemsTreeRootHash();
         final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
 
-        // Branches 7/8 (empty)
+        // Branches 7/8 (empty — no state changes or trace data in wrapped record blocks)
         @SuppressWarnings("UnnecessaryLocalVariable")
         final Bytes depth5Node4 = EMPTY_INT_NODE;
 
@@ -506,8 +560,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param consensusTime the consensus time at which to switch to the current block
      */
     public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
-        streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
+        final long closedBlockNo = lastBlockInfo.lastBlockNumber();
+        final long blockNo = closedBlockNo + 1;
+        final var recordFileHashFuture = streamFileProducer.switchBlocks(closedBlockNo, blockNo, consensusTime);
+        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
         if (streamMode == RECORDS) {
             quiescenceController.finishHandlingInProgressBlock();
             // All no-ops below if quiescence is disabled
@@ -516,6 +572,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 quiescenceController.blockFullySigned(blockNo - 1);
             }
         }
+    }
+
+    private void observeRecordFileHash(
+            final long blockNumber, @NonNull final CompletableFuture<Bytes> recordFileHashFuture) {
+        requireNonNull(recordFileHashFuture);
+        if (!streamWrbEnabled) {
+            return;
+        }
+        final var pending = recordFileHashFutures.get(blockNumber);
+        if (pending == null) {
+            // For blocks that started WRB RSA signing, signAndCloseWrbAsync() creates this future before
+            // switchBlocksAt() observes the writer close result. A missing future means no WRB signing pipeline was
+            // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, or writer setup
+            // failure), so there is nothing to complete.
+            return;
+        }
+        recordFileHashFuture.whenComplete((recordFileHash, t) -> {
+            if (t != null) {
+                pending.completeExceptionally(t);
+            } else {
+                pending.complete(requireNonNull(recordFileHash));
+            }
+        });
     }
 
     /**
@@ -544,6 +623,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private void putLastBlockInfo(@NonNull final State state) {
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+
+        final var blockInfoInState = requireNonNull(blockInfoState.get());
+        if (blockInfoInState.previewStreamOverwritten()) {
+            // If the preview block stream has already been overwritten, preserve the cutover-related fields from state
+            // rather than overwriting with in-memory values. This is necessary to preserve the integrity of the cutover
+            // process when stream mode is still set to both records and block streams.
+            lastBlockInfo = lastBlockInfo
+                    .copyBuilder()
+                    .previousWrappedRecordBlockRootHash(blockInfoInState.previousWrappedRecordBlockRootHash())
+                    .wrappedIntermediatePreviousBlockRootHashes(
+                            blockInfoInState.wrappedIntermediatePreviousBlockRootHashes())
+                    .wrappedIntermediateBlockRootsLeafCount(blockInfoInState.wrappedIntermediateBlockRootsLeafCount())
+                    .previewStreamOverwritten(blockInfoInState.previewStreamOverwritten())
+                    .build();
+        }
+
         blockInfoState.put(lastBlockInfo);
     }
 
@@ -628,19 +723,133 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         final var input =
                 buildWrappedBlockHashesInput(justFinishedBlockNumber, justFinishedBlockCreationTime, endRunningHash);
-        final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+        final var result = WrappedRecordFileBlockHashesCalculator.computeWithItems(input);
+        final var entry = result.hashes();
 
+        final Bytes previousBlockRootHash = requireNonNull(previousWrappedRecordBlockRootHash);
         // Compute the all-previous-blocks root hash from the hasher BEFORE adding this block
         final Bytes allPrevBlocksRootHash = Bytes.wrap(prevWrappedRecordBlockHashes.computeRootHash());
 
         // Compute the wrapped record block root hash for this block
         final Bytes blockRootHash =
-                computeWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
+                computeWrappedRecordBlockRootHash(previousBlockRootHash, allPrevBlocksRootHash, entry);
 
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());
         previousWrappedRecordBlockRootHash = requireNonNull(blockRootHash);
+
+        // If enabled, forward the WRB items to a GrpcBlockItemWriter so they reach the BlockBufferService
+        // and onward to block nodes. The block is left open until the RSA signature-list future can complete
+        // it with a BlockFooter and BlockProof.
+        if (streamWrbEnabled) {
+            try {
+                final var writer = wrbWriterSupplier.get();
+                writer.openBlock(justFinishedBlockNumber);
+                writer.writePbjItem(result.headerItem());
+                writer.writePbjItem(result.recordFileItem());
+                openWrbWriters.put(justFinishedBlockNumber, writer);
+                signAndCloseWrbAsync(
+                        justFinishedBlockNumber, blockRootHash, previousBlockRootHash, allPrevBlocksRootHash);
+            } catch (final RuntimeException e) {
+                // Never let WRB streaming failures take down record-stream production
+                logger.warn(
+                        "Failed to forward WRB items for block {} to block item writer", justFinishedBlockNumber, e);
+            }
+        }
         return entry;
+    }
+
+    /**
+     * Initiates signing process over the legacy record file hash and, once enough signatures are gathered,
+     * closes the WRB block with a footer and {@link SignedRecordFileProof}.
+     */
+    private void signAndCloseWrbAsync(
+            final long blockNumber,
+            @NonNull final Bytes blockRootHash,
+            @NonNull final Bytes previousBlockRootHash,
+            @NonNull final Bytes allPrevBlocksRootHash) {
+        requireNonNull(blockRootHash);
+        requireNonNull(previousBlockRootHash);
+        requireNonNull(allPrevBlocksRootHash);
+        final var recordFileHashFuture =
+                recordFileHashFutures.computeIfAbsent(blockNumber, ignore -> new CompletableFuture<>());
+        recordFileHashFuture
+                .whenComplete((ignore, t) -> recordFileHashFutures.remove(blockNumber, recordFileHashFuture))
+                .thenCompose(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash))
+                .thenAcceptAsync(serializedRosterSignatures -> finishWrappedRecordBlockWithSignatureList(
+                        blockNumber,
+                        blockRootHash,
+                        previousBlockRootHash,
+                        allPrevBlocksRootHash,
+                        serializedRosterSignatures))
+                .exceptionally(t -> {
+                    logger.warn(
+                            "Unhandled exception while signing WRB block #{} after record file close", blockNumber, t);
+                    return null;
+                });
+    }
+
+    private CompletableFuture<Bytes> requestRecordFileSignatureList(
+            final long blockNumber, @NonNull final Bytes recordFileHash) {
+        requireNonNull(recordFileHash);
+        try {
+            final var attempt = blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
+            return attempt.signatureFuture();
+        } catch (final RuntimeException e) {
+            logger.warn(
+                    "Failed to request RSA signature list for WRB block #{} with record file hash {}",
+                    blockNumber,
+                    recordFileHash,
+                    e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    private void finishWrappedRecordBlockWithSignatureList(
+            final long blockNumber,
+            @NonNull final Bytes blockRootHash,
+            @NonNull final Bytes previousBlockRootHash,
+            @NonNull final Bytes allPrevBlocksRootHash,
+            @NonNull final Bytes serializedRosterSignatures) {
+        final var writer = openWrbWriters.get(blockNumber);
+        if (writer == null) {
+            logger.debug(
+                    "Ignoring RSA signature list for already finalized WRB block #{} with hash {}",
+                    blockNumber,
+                    blockRootHash);
+            return;
+        }
+        final var footer = BlockFooter.newBuilder()
+                .previousBlockRootHash(previousBlockRootHash)
+                .rootHashOfAllBlockHashesTree(allPrevBlocksRootHash)
+                .startOfBlockStateRootHash(HASH_OF_ZERO)
+                .build();
+        final var footerItem = BlockItem.newBuilder().blockFooter(footer).build();
+        writer.writePbjItem(footerItem);
+        final var proofItem = signedRecordFileProofItem(blockNumber, serializedRosterSignatures);
+        writer.writePbjItem(proofItem);
+        writer.closeCompleteBlock();
+        openWrbWriters.remove(blockNumber, writer);
+    }
+
+    private BlockItem signedRecordFileProofItem(
+            final long blockNumber, @NonNull final Bytes serializedRosterSignatures) {
+        requireNonNull(serializedRosterSignatures);
+        final RosterSignatures rosterSignatures;
+        try {
+            rosterSignatures = RosterSignatures.PROTOBUF.parse(serializedRosterSignatures);
+        } catch (final ParseException e) {
+            throw new CompletionException("Unable to parse RSA signature list for WRB block #" + blockNumber, e);
+        }
+        final var recordFileSignatures = rosterSignatures.nodeSignatures().stream()
+                .map(nodeSignature -> new RecordFileSignature(nodeSignature.nodeSignature(), nodeSignature.nodeId()))
+                .toList();
+        final var signedRecordFileProof = new SignedRecordFileProof(recordFileVersion, recordFileSignatures);
+        final var proof = BlockProof.newBuilder()
+                .block(blockNumber)
+                .signedRecordFileProof(signedRecordFileProof)
+                .build();
+        return BlockItem.newBuilder().blockProof(proof).build();
     }
 
     /**
@@ -764,7 +973,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingComplete(),
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
-                lastBlockInfo.migrationWrappedHashes());
+                lastBlockInfo.migrationWrappedHashes(),
+                lastBlockInfo.previewStreamOverwritten());
         updateBlockInfo(newBlockInfo, state);
     }
 
@@ -880,7 +1090,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingComplete(),
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
-                lastBlockInfo.migrationWrappedHashes());
+                lastBlockInfo.migrationWrappedHashes(),
+                lastBlockInfo.previewStreamOverwritten());
     }
 
     /**

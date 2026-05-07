@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.within;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
@@ -49,7 +48,7 @@ class OpsDurationMetricsTest {
         subject.recordPrecompileOpsDuration(precompile1, 100L);
         subject.recordPrecompileOpsDuration(precompile1, 200L);
         subject.recordPrecompileOpsDuration(precompile2, 300L);
-        assertThat(subject.getAveragePrecompileOpsDuration(precompile1)).isCloseTo(150.0, within(5.0));
+        assertThat(subject.getAveragePrecompileOpsDuration(precompile1)).isBetween(100.0, 200.0);
         assertThat(subject.getPrecompileOpsDurationCount(precompile1)).isEqualTo(2);
         assertThat(subject.getTotalPrecompileOpsDuration(precompile1)).isEqualTo(300L);
         assertThat(subject.getAveragePrecompileOpsDuration(precompile2)).isEqualTo(300.0);
@@ -59,11 +58,18 @@ class OpsDurationMetricsTest {
 
     @Test
     void transactionOpsDurationMetricsAreRecordedAndRetrieved() {
-        subject.recordTxnTotalOpsDuration(100L);
-        subject.recordTxnTotalOpsDuration(200L);
-        assertThat(subject.getAverageTransactionOpsDuration()).isCloseTo(150.0, within(5.0));
+        subject.recordTxnTotalOpsDuration(150L);
+        subject.recordTxnTotalOpsDuration(150L);
+        assertThat(subject.getAverageTransactionOpsDuration()).isEqualTo(150.0);
         assertThat(subject.getTransactionOpsDurationCount()).isEqualTo(2);
         assertThat(subject.getTotalTransactionOpsDuration()).isEqualTo(300L);
+    }
+
+    @Test
+    void transactionOpsDurationAverageStaysWithinObservedBounds() {
+        subject.recordTxnTotalOpsDuration(100L);
+        subject.recordTxnTotalOpsDuration(200L);
+        assertThat(subject.getAverageTransactionOpsDuration()).isBetween(100.0, 200.0);
     }
 
     @Test
