@@ -55,3 +55,31 @@ jobs:
         run: |
           echo "Assignee is not set. Failing the workflow."
           exit 1
+  slack-check:
+    name: check slack name of author
+    runs-on: hl-cn-default-lin-sm
+
+    steps:
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        run: |
+          COMMIT_SHA="${{ steps.commit-info.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
