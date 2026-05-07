@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
@@ -221,7 +220,7 @@ public class ReconnectStateLearner {
             throw e;
         } catch (final Exception e) {
             vmapLearner.abortOnException();
-            throw new MerkleSynchronizationException(e);
+            throw new ReconnectStateException(e);
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;

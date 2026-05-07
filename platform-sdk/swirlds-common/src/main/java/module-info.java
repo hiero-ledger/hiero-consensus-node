@@ -9,7 +9,6 @@ module com.swirlds.common {
     exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle.synchronization;
     exports com.swirlds.common.merkle.synchronization.streams;
-    exports com.swirlds.common.merkle.synchronization.task;
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.notification;
