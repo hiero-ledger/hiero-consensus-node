@@ -61,14 +61,17 @@ class JumpstartFileSuite implements LifecycleTest {
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
-        final var envOverrides =
-                new HashMap<>(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
+        final var envOverrides = new HashMap<>(Map.of(
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "true",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "true",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "true"));
 
         return hapiTest(
                 // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(envOverrides),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
