@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.file;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static java.nio.file.Files.delete;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
@@ -12,6 +11,7 @@ import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static org.hiero.base.file.FileUtils.writeAndFlush;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
