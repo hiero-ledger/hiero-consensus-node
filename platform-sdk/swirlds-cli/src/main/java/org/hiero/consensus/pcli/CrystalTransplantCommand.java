@@ -436,7 +436,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     public static Roster loadRosterFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                final var network = Network.JSON.parse(new ReadableStreamingData(fin));
+                final var network = Network.JSON.parseStrict(new ReadableStreamingData(fin));
                 return RosterUtils.rosterFrom(network);
             } catch (final Exception e) {
                 System.err.printf("Failed to load %s network info from %s%n", path.toAbsolutePath(), e);
