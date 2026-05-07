@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
@@ -58,6 +59,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -503,7 +505,7 @@ public class CryptoUpdateSuite {
                 cryptoUpdate(account).payingWith(DEFAULT_PAYER).expiring(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> updateAccountWithDelegationAddress() {
         final var accountTotest = "accountToTest";
         final var longZeroAddress = ByteString.fromHex("0000000000000000000000000000000fffffffff");
@@ -511,6 +513,7 @@ public class CryptoUpdateSuite {
         final var emptyAddress = ByteString.empty();
         final var badAddress = ByteString.fromHex("0fffffffff");
         return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
                 cryptoCreate(accountTotest).balance(ONE_HUNDRED_HBARS),
                 // Delegation is initially empty
                 getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),

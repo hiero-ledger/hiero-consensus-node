@@ -18,7 +18,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -51,8 +53,17 @@ class HintsPartialSignatureHandlerTest {
             .partialSignature(PARTIAL_SIGNATURE)
             .build();
 
+    private static final HintsPartialSignatureTransactionBody RSA_OP = HintsPartialSignatureTransactionBody.newBuilder()
+            .constructionId(RsaContext.CONSTRUCTION_ID)
+            .message(MESSAGE)
+            .partialSignature(PARTIAL_SIGNATURE)
+            .build();
+
     @Mock
     private HintsContext hintsContext;
+
+    @Mock
+    private RsaContext rsaContext;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -81,14 +92,21 @@ class HintsPartialSignatureHandlerTest {
     @Mock
     private HintsContext.Signing signing;
 
-    private ConcurrentMap<Bytes, HintsContext.Signing> signings;
+    @Mock
+    private RsaContext.Signing rsaSigning;
+
+    private ConcurrentMap<Bytes, BlockHashSigning> signings;
+
+    private ConcurrentMap<Bytes, BlockHashSigning> rsaSignings;
 
     HintsPartialSignatureHandler subject;
 
     @BeforeEach
     void setUp() {
         signings = new ConcurrentHashMap<>();
-        subject = new HintsPartialSignatureHandler(Duration.ofSeconds(2), signings, hintsContext);
+        rsaSignings = new ConcurrentHashMap<>();
+        subject = new HintsPartialSignatureHandler(
+                Duration.ofSeconds(2), signings, rsaSignings, hintsContext, rsaContext);
 
         final var body = TransactionBody.newBuilder().hintsPartialSignature(OP).build();
         lenient().when(preHandleContext.body()).thenReturn(body);
@@ -119,13 +137,28 @@ class HintsPartialSignatureHandlerTest {
     void constructorRejectsNullDependencies() {
         assertThrows(
                 NullPointerException.class,
-                () -> new HintsPartialSignatureHandler(null, new ConcurrentHashMap<>(), hintsContext));
+                () -> new HintsPartialSignatureHandler(
+                        null, new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), hintsContext, rsaContext));
         assertThrows(
                 NullPointerException.class,
-                () -> new HintsPartialSignatureHandler(Duration.ofSeconds(2), null, hintsContext));
+                () -> new HintsPartialSignatureHandler(
+                        Duration.ofSeconds(2), null, new ConcurrentHashMap<>(), hintsContext, rsaContext));
         assertThrows(
                 NullPointerException.class,
-                () -> new HintsPartialSignatureHandler(Duration.ofSeconds(2), new ConcurrentHashMap<>(), null));
+                () -> new HintsPartialSignatureHandler(
+                        Duration.ofSeconds(2), new ConcurrentHashMap<>(), null, hintsContext, rsaContext));
+        assertThrows(
+                NullPointerException.class,
+                () -> new HintsPartialSignatureHandler(
+                        Duration.ofSeconds(2), new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), null, rsaContext));
+        assertThrows(
+                NullPointerException.class,
+                () -> new HintsPartialSignatureHandler(
+                        Duration.ofSeconds(2),
+                        new ConcurrentHashMap<>(),
+                        new ConcurrentHashMap<>(),
+                        hintsContext,
+                        null));
     }
 
     @Test
@@ -194,6 +227,50 @@ class HintsPartialSignatureHandlerTest {
     }
 
     @Test
+    void preHandleNonDeterministicValidRsaSignatureCreatesAndIncorporatesSigning() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(true);
+        given(rsaContext.newSigning(eq(MESSAGE), any(Runnable.class))).willReturn(rsaSigning);
+
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+
+        verify(rsaContext).validate(NODE_ID, RSA_OP);
+        verify(rsaContext).newSigning(eq(MESSAGE), any(Runnable.class));
+        verify(rsaSigning).incorporateValid(Bytes.EMPTY, NODE_ID, PARTIAL_SIGNATURE);
+        verify(hintsContext, never()).constructionIdOrThrow();
+        assertSame(rsaSigning, rsaSignings.get(MESSAGE));
+        assertTrue(signings.isEmpty());
+    }
+
+    @Test
+    void preHandleNonDeterministicInvalidRsaSignatureDoesNotIncorporate() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(false);
+
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+
+        verify(rsaContext).validate(NODE_ID, RSA_OP);
+        verify(rsaContext, never()).newSigning(any(), any());
+        assertTrue(rsaSignings.isEmpty());
+        assertTrue(signings.isEmpty());
+    }
+
+    @Test
+    void preHandleDeterministicRsaSignatureDoesNothing() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
+
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+
+        verifyNoInteractions(rsaContext);
+        verify(hintsContext, never()).constructionIdOrThrow();
+        assertTrue(rsaSignings.isEmpty());
+        assertTrue(signings.isEmpty());
+    }
+
+    @Test
     void deterministicFlowCachesValidResultFromPreHandleForHandle() {
         given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
         given(hintsContext.validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
@@ -243,6 +320,63 @@ class HintsPartialSignatureHandlerTest {
         verify(hintsContext, never()).validate(anyLong(), any(), any());
         verify(hintsContext, never()).newSigning(any(), any());
         assertTrue(signings.isEmpty());
+    }
+
+    @Test
+    void handleNonDeterministicRsaSignatureDoesNothing() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
+
+        subject.handle(handleContext);
+
+        verifyNoInteractions(rsaContext);
+        verify(handleContext, never()).storeFactory();
+        assertTrue(rsaSignings.isEmpty());
+        assertTrue(signings.isEmpty());
+    }
+
+    @Test
+    void handleDeterministicValidRsaSignatureCreatesAndIncorporatesSigning() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(true);
+        given(rsaContext.newSigning(eq(MESSAGE), any(Runnable.class))).willReturn(rsaSigning);
+
+        subject.handle(handleContext);
+
+        verify(rsaContext).validate(NODE_ID, RSA_OP);
+        verify(rsaContext).newSigning(eq(MESSAGE), any(Runnable.class));
+        verify(rsaSigning).incorporateValid(Bytes.EMPTY, NODE_ID, PARTIAL_SIGNATURE);
+        verify(handleContext, never()).storeFactory();
+        assertSame(rsaSigning, rsaSignings.get(MESSAGE));
+        assertTrue(signings.isEmpty());
+    }
+
+    @Test
+    void handleDeterministicValidRsaSignatureReusesExistingSigning() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(true);
+        rsaSignings.put(MESSAGE, rsaSigning);
+
+        subject.handle(handleContext);
+
+        verify(rsaContext, never()).newSigning(any(), any());
+        verify(rsaSigning).incorporateValid(Bytes.EMPTY, NODE_ID, PARTIAL_SIGNATURE);
+    }
+
+    @Test
+    void handleDeterministicInvalidRsaSignatureDoesNotIncorporate() {
+        givenRsaOp();
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(false);
+
+        subject.handle(handleContext);
+
+        verify(rsaContext).validate(NODE_ID, RSA_OP);
+        verify(rsaContext, never()).newSigning(any(), any());
+        verifyNoInteractions(rsaSigning);
+        assertTrue(rsaSignings.isEmpty());
     }
 
     @Test
@@ -317,6 +451,22 @@ class HintsPartialSignatureHandlerTest {
     }
 
     @Test
+    void rsaCompletionCallbackRemovesSigningEntry() {
+        givenRsaOp();
+        final var completionCaptor = ArgumentCaptor.forClass(Runnable.class);
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
+        given(rsaContext.validate(NODE_ID, RSA_OP)).willReturn(true);
+        given(rsaContext.newSigning(eq(MESSAGE), completionCaptor.capture())).willReturn(rsaSigning);
+
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+        assertSame(rsaSigning, rsaSignings.get(MESSAGE));
+
+        completionCaptor.getValue().run();
+
+        assertTrue(rsaSignings.isEmpty());
+    }
+
+    @Test
     void deterministicPreHandleDoesNotIncorporateSignatures() {
         given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
         given(hintsContext.validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
@@ -328,5 +478,12 @@ class HintsPartialSignatureHandlerTest {
         verify(hintsContext, never()).newSigning(any(), any());
         verifyNoInteractions(signing);
         assertTrue(signings.isEmpty());
+    }
+
+    private void givenRsaOp() {
+        final var body =
+                TransactionBody.newBuilder().hintsPartialSignature(RSA_OP).build();
+        lenient().when(preHandleContext.body()).thenReturn(body);
+        lenient().when(handleContext.body()).thenReturn(body);
     }
 }

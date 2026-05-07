@@ -129,6 +129,29 @@ public record EthTxData(
                 s);
     }
 
+    public EthTxData replaceGasLimit(final long newGasLimit) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                newGasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
+                recId,
+                v,
+                r,
+                s);
+    }
+
     @VisibleForTesting
     EthTxData replaceValue(@NonNull final BigInteger replacementValue) {
         return new EthTxData(

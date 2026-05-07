@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
@@ -171,16 +172,32 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void cryptoUpdateWithDelegationAddressIsRejected() {
+    void cryptoUpdateWithDelegationAddressIsRejectedWithDefaultConfig() {
         final var txn = new CryptoUpdateBuilder()
                 .withKey(key)
-                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .withDelegationAddress(Bytes.fromHex("00000000000000000000000000000000000000AA"))
                 .build();
+        givenTxnWith(txn);
 
-        //        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NOT_SUPPORTED));
+    }
 
-        // TODO(Pectra): verify the feature flag
-        //        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), NOT_SUPPORTED);
+    @Test
+    void cryptoUpdateWithDelegationAddressIsAcceptedWhenEnabled() {
+        final var txn = new CryptoUpdateBuilder()
+                .withKey(key)
+                .withDelegationAddress(Bytes.fromHex("00000000000000000000000000000000000000AA"))
+                .build();
+        givenTxnWith(txn);
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
     }
 
     @Test
@@ -291,11 +308,16 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
     @Test
     void setAndClearDelegationAddressTest() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+
         final var validAddressBytes = Bytes.fromHex("0000000000000000000000000000000000000123");
         final var setTxn = new CryptoUpdateBuilder()
                 .withDelegationAddress(validAddressBytes)
                 .build();
         givenTxnWith(setTxn);
+        given(handleContext.configuration()).willReturn(config);
         subject.handle(handleContext);
         assertEquals(validAddressBytes, writableStore.get(updateAccountId).delegationAddress());
 
@@ -303,6 +325,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var noOpTxn =
                 new CryptoUpdateBuilder().withDelegationAddress(Bytes.EMPTY).build();
         givenTxnWith(noOpTxn);
+        given(handleContext.configuration()).willReturn(config);
         subject.handle(handleContext);
         // The delegation address is unchanged
         assertEquals(validAddressBytes, writableStore.get(updateAccountId).delegationAddress());
@@ -312,6 +335,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .withDelegationAddress(Bytes.fromHex("0000000000000000000000000000000000000000"))
                 .build();
         givenTxnWith(clearTxn);
+        given(handleContext.configuration()).willReturn(config);
         subject.handle(handleContext);
         // The delegation address should be cleared
         assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());

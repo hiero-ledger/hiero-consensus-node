@@ -18,6 +18,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
@@ -77,6 +78,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -130,8 +132,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoCreateAccountOrThrow();
-        // TODO(Pectra): add feature flag
-        // validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
 
         // Note: validation lives here for now but should take place in handle in the future
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
@@ -347,6 +347,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
+        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
         final var alias = op.alias();
 
         final var txn = context.body();
@@ -424,6 +425,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     accountStore,
                     context.networkInfo());
         }
+
+        validateTrue(
+                contractsConfig.codeDelegationsEnabled()
+                        || op.delegationAddress().length() == 0,
+                NOT_SUPPORTED);
     }
 
     /**

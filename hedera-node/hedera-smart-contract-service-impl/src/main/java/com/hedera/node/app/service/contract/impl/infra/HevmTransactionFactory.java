@@ -49,6 +49,7 @@ import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -73,6 +74,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import javax.inject.Inject;
 
 @TransactionScope
@@ -143,13 +145,16 @@ public class HevmTransactionFactory {
      * @throws IllegalArgumentException if the {@link TransactionBody} is not a contract operation
      */
     public HederaEvmTransaction fromHapiTransaction(@NonNull final TransactionBody body, @NonNull AccountID payerId) {
-        return switch (body.data().kind()) {
-            case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
-            case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow());
-            case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
-            case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
-            default -> throw new IllegalArgumentException("Not a contract operation");
-        };
+        final var hederaEvmTxn =
+                switch (body.data().kind()) {
+                    case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
+                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow());
+                    case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
+                    case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
+                    default -> throw new IllegalArgumentException("Not a contract operation");
+                };
+        assertValidGasAndAmount(hederaEvmTxn);
+        return hederaEvmTxn;
     }
 
     private HederaEvmTransaction fromHapiCreate(
@@ -347,12 +352,6 @@ public class HevmTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
-        // accessLists and codeDelegations are null because both are not supported for 'ContractCall'
-        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
-        validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
-        validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
-        validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
-
         final var contract = accountStore.getContractById(body.contractIDOrThrow());
         if (contract != null) {
             final var contractNum = contract.accountIdOrThrow().accountNumOrThrow();
@@ -424,6 +423,17 @@ public class HevmTransactionFactory {
                 new ExpiryMeta(
                         NA, autoRenewPeriod, body.hasAutoRenewAccountId() ? body.autoRenewAccountIdOrThrow() : null),
                 HederaFunctionality.CONTRACT_CREATE);
+    }
+
+    private void assertValidGasAndAmount(@NonNull final HederaEvmTransaction hederaEvmTxn) {
+        final var minGasLimit = Math.max(
+                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
+                gasCalculator
+                        .transactionGasRequirements(EMPTY, false, List.of(), List.of())
+                        .intrinsicGas());
+        validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
+        validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
+        validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
 
     private Bytes initcodeFor(@NonNull final ContractCreateTransactionBody body) {

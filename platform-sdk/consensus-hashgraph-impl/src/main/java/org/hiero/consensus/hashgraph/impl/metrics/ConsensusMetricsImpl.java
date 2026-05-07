@@ -238,7 +238,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
         if (lastEventAdded != null) {
             // this should never be null
             // but if there is a bug, its better to not have metrics than to throw an NPE
-            numEventsAddedUntilConsensus.update(lastEventAdded.getSequence() - event.getSequence());
+            numEventsAddedUntilConsensus.update(lastEventAdded.getConsensusSequence() - event.getConsensusSequence());
             graphDepthUntilConsensus.update(lastEventAdded.getDeGen() - event.getDeGen());
         }
         // Keep a running average of how many seconds from when I first know of an event

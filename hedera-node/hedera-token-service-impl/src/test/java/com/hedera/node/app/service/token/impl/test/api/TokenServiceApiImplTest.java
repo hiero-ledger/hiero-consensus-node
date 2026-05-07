@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
@@ -200,14 +201,14 @@ class TokenServiceApiImplTest {
     }
 
     @Test
-    void allowsToUpdateKvCountsForNonContract() {
+    void refusesToUpdateKvCountsForNonContract() {
         accountStore.put(Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
                 .contractKvPairsNumber(3)
                 .build());
 
-        assertDoesNotThrow(() -> subject.updateStorageMetadata(CONTRACT_ID, SOME_STORE_KEY, -3));
-        assertEquals(0, requireNonNull(accountState.get(CONTRACT_ACCOUNT_ID)).contractKvPairsNumber());
+        assertThrows(
+                IllegalArgumentException.class, () -> subject.updateStorageMetadata(CONTRACT_ID, SOME_STORE_KEY, -3));
     }
 
     @Test
@@ -254,7 +255,7 @@ class TokenServiceApiImplTest {
         accountStore.putAndIncrementCount(
                 Account.newBuilder().accountId(CONTRACT_ACCOUNT_ID).build());
 
-        assertNotNull(accountStore.getContractById(CONTRACT_ID_BY_NUM));
+        assertNull(accountStore.getContractById(CONTRACT_ID_BY_NUM));
         subject.markAsContract(CONTRACT_ACCOUNT_ID, null);
 
         assertEquals(1, accountStore.sizeOfAccountState());

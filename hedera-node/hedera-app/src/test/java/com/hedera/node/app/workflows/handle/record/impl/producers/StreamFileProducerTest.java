@@ -257,7 +257,7 @@ abstract class StreamFileProducerTest extends AppTestBase {
         void errorClosingWriter() throws Exception {
             subject = createStreamProducer(() -> new BlockRecordWriterDummy() {
                 @Override
-                public void close(@NonNull final HashObject endRunningHash) {
+                public Bytes close(@NonNull final HashObject endRunningHash) {
                     throw new RuntimeException("Close throws!");
                 }
             });
@@ -320,12 +320,13 @@ abstract class StreamFileProducerTest extends AppTestBase {
         }
 
         @Override
-        public void close(@NonNull final HashObject endRunningHash) {
+        public Bytes close(@NonNull final HashObject endRunningHash) {
             assertThat(initialized).isTrue();
             assertThat(closed).isFalse();
             assertThat(endRunningHash).isNotNull();
             this.endRunningHash = endRunningHash;
             this.closed = true;
+            return Bytes.wrap("record-file-hash");
         }
     }
 }

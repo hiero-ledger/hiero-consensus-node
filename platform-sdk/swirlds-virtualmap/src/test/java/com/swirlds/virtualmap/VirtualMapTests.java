@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
@@ -9,6 +8,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -224,15 +225,15 @@ class VirtualMapTests extends VirtualTestBase {
 
             leaf = detached.findLeafRecord(A_KEY);
             assertNotNull(leaf);
-            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             leaf = detached.findLeafRecord(B_KEY);
             assertNotNull(leaf);
-            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             leaf = detached.findLeafRecord(C_KEY);
             assertNotNull(leaf);
-            assertEquals(CHERRY, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(CHERRY, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             assertNull(detached.findLeafRecord(D_KEY));
             assertNull(detached.findLeafRecord(E_KEY));
@@ -981,7 +982,7 @@ class VirtualMapTests extends VirtualTestBase {
         assertNotNull(leaf);
         assertEquals(TestObjectKey.longToKey(4), leaf.keyBytes());
         assertEquals(new TestValue(4).toBytes(), leaf.valueBytes());
-        assertEquals(new TestValue(4), leaf.value(TestValueCodec.INSTANCE));
+        assertEquals(new TestValue(4), leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
         VirtualMap copy = map.copy();
         map.release();
@@ -1014,19 +1015,15 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void testEnableVirtualRootFlush() {
         VirtualMap fcm0 = createMap();
-        fcm0.postInit();
         assertFalse(fcm0.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm1 = fcm0.copy();
-        fcm1.postInit();
         assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm2 = fcm1.copy();
-        fcm2.postInit();
         assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm3 = fcm2.copy();
-        fcm3.postInit();
         fcm3.enableFlush();
         assertTrue(fcm3.shouldBeFlushed(), "map should now be flushed");
 
@@ -1070,7 +1067,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1092,7 +1088,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1117,7 +1112,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1276,7 +1270,6 @@ class VirtualMapTests extends VirtualTestBase {
         for (int i = 0; i < 50; i++) {
             assertEquals(threshold, root.getFlushCandidateThreshold());
             VirtualMap copy = root.copy();
-            copy.postInit();
             root.release();
             root = copy;
         }

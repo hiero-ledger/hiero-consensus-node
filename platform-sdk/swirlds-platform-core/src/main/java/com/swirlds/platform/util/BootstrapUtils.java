@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -13,7 +12,6 @@ import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.health.OSHealthCheckConfig;
@@ -33,6 +31,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 
 /**
  * Utility methods that are helpful when starting up a JVM.

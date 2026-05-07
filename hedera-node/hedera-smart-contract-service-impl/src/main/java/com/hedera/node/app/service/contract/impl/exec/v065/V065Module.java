@@ -138,7 +138,7 @@ public interface V065Module {
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        // Create and return a custom HederaEVM instance
+        // Create a return a custom HederaEVM instance
         return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
     }
 

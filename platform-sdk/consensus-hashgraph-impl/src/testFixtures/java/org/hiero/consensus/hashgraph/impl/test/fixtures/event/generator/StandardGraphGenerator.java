@@ -33,9 +33,6 @@ import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValueGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiEventStorage;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.StandardGuiSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -556,12 +553,6 @@ public class StandardGraphGenerator implements GraphGenerator {
         for (final EventImpl event : nonAncientEvents) {
             updateConsensus(event.getBaseEvent());
         }
-    }
-
-    @SuppressWarnings("unused") // useful for debugging
-    private HashgraphGuiSource createGuiSource() {
-        return new StandardGuiSource(
-                getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }
 
     /**

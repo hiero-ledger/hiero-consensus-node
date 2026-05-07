@@ -2,11 +2,11 @@
 package com.swirlds.virtualmap.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.BeforeAll;
 
 @SuppressWarnings("jol")

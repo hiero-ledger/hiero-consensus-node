@@ -28,48 +28,40 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.reconnect")
+    requires("org.hiero.consensus.utility")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
+    requires("awaitility")
 }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
 // ── Benchmark run configurations ─────────────────────────────────────
+// Gradle JMH tasks are intended for regular benchmark runs.
+// Keep normal JMH forking for cleaner measurements; pass heap settings to the forked benchmark JVM.
 
 tasks.register<JMHTask>("jmhCrypto") {
-    includes.set(listOf("CryptoBench"))
+    includes.set(listOf("CryptoBench.transferPrefetch"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
 }
 
-tasks.register<JMHTask>("jmhVirtualMap") {
-    includes.set(listOf("VirtualMapBench"))
+tasks.register<JMHTask>("jmhVirtualMapRead") {
+    includes.set(listOf("VirtualMapReadBench"))
     jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-read.txt"))
+}
+
+tasks.register<JMHTask>("jmhVirtualMapEdit") {
+    includes.set(listOf("VirtualMapEditBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
 tasks.register<JMHTask>("jmhReconnect") {
     includes.set(listOf("ReconnectBench"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
-}
-
-tasks.register<JMHTask>("jmhDataFileCollection") {
-    includes.set(listOf("DataFileCollectionBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-datafilecollection.txt"))
-}
-
-tasks.register<JMHTask>("jmhHalfDiskMap") {
-    includes.set(listOf("HalfDiskMapBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-halfdiskmap.txt"))
-}
-
-tasks.register<JMHTask>("jmhKeyValueStore") {
-    includes.set(listOf("KeyValueStoreBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-keyvaluestore.txt"))
 }

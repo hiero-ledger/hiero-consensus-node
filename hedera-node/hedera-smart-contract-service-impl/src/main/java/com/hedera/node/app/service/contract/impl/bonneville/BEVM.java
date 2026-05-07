@@ -1673,7 +1673,7 @@ class BEVM {
 
         ArrayList<LogTopic> ary = new ArrayList<>();
         for (int i = 0; i < ntopics; i++)
-            ary.add(LogTopic.create(Bytes32.wrap(popBytes())));
+            ary.add(LogTopic.create((Bytes32) popBytes()));
 
         // Since these are consumed by mirror nodes, which always want to know the Hedera id
         // of the emitting contract, we always resolve to a long-zero address for the log

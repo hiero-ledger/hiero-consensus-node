@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
+import com.hedera.hapi.block.stream.RecordFileItem;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -190,6 +192,39 @@ public class BlockNodeVerbs {
         public BlockNodeOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
             return BlockNodeOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
                     .build();
+        }
+
+        /**
+         * Asserts that a {@link RecordFileItem} (WRB content) has been received for a specific block.
+         *
+         * @param blockNumber the block number to check
+         * @return the operation
+         */
+        public BlockNodeOp assertBlockHasRecordFile(long blockNumber) {
+            return BlockNodeOp.assertBlockHasRecordFile(nodeIndex, blockNumber).build();
+        }
+
+        /**
+         * Asserts that no {@link RecordFileItem}s have been received for any block in the given
+         * inclusive range.
+         *
+         * @param fromInclusive first block number (inclusive)
+         * @param toInclusive last block number (inclusive)
+         * @return the operation
+         */
+        public BlockNodeOp assertNoRecordFilesInRange(long fromInclusive, long toInclusive) {
+            return BlockNodeOp.assertNoRecordFilesInRange(nodeIndex, fromInclusive, toInclusive)
+                    .build();
+        }
+
+        /**
+         * Exposes the map of received {@link RecordFileItem}s keyed by block number.
+         *
+         * @param consumer the consumer to receive the map of block number to RecordFileItem
+         * @return the operation
+         */
+        public BlockNodeOp exposingRecordFileItems(Consumer<Map<Long, RecordFileItem>> consumer) {
+            return BlockNodeOp.exposingRecordFileItems(nodeIndex, consumer).build();
         }
     }
 

@@ -135,7 +135,6 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         final var inputOffset = clampedToLong(frame.getStackItem(1));
         final var inputSize = clampedToLong(frame.getStackItem(2));
         final var inputData = frame.readMemory(inputOffset, inputSize);
-        final var code = new Code(inputData);
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);
@@ -151,7 +150,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .sender(senderAddress)
                 .value(value)
                 .apparentValue(value)
-                .code(code)
+                .code(new Code(inputData))
                 .completer(child -> complete(frame, child))
                 .build();
         frame.incrementRemainingGas(cost);

@@ -124,7 +124,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
      * @return the hardcoded gas cost for ED verification
      */
     public long getEdSignatureVerificationSystemContractGasCost() {
-        return 1_500_000L;
+        return getEcrecPrecompiledContractGasCost();
     }
 
     /**
