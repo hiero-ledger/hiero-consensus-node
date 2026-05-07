@@ -1,0 +1,15 @@
+ROUND:                               33
+HASH:                                3e4b0a522c45b039fa4f938b0752634e7c7bba92c979cffb375ad3aa75248e970e1a7bbaf9473963fc94ee5121f7162a
+HASH_MNEMONIC:                       siren-engage-master-wedding
+NUMBER_OF_CONSENSUS_EVENTS:          1785
+CONSENSUS_TIMESTAMP:                 2005-01-19T06:34:04.803009Z
+LEGACY_RUNNING_EVENT_HASH:           a19a9501a6da82857ad1cb35d478260412900d511c96069032013e27d34a186563501f25e7a77e9220e6482f288caa9a
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  smoke-garment-cave-quarter
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     5
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=74, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-04T19:57:40.798482572Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        50000084938
+FREEZE_STATE:                        true
