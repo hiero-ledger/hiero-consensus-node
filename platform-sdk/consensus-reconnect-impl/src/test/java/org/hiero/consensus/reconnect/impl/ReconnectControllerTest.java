@@ -101,7 +101,7 @@ class ReconnectControllerTest {
     private SignedStateValidator signedStateValidator;
 
     @TempDir
-    Path tempDir;
+    static Path tempDir;
 
     @AfterAll
     static void tearDownClass() {
