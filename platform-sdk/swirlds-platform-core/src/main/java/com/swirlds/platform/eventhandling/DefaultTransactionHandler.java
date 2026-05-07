@@ -145,7 +145,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            final long transactionOffsetNanos) {
 
         this.platformContext = requireNonNull(platformContext);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
@@ -153,10 +154,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.selfId = requireNonNull(selfId);
-        this.transactionOffsetNanos = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .transactionOffsetNanos();
+        this.transactionOffsetNanos = transactionOffsetNanos;
 
         this.roundsNonAncient = platformContext
                 .getConfiguration()

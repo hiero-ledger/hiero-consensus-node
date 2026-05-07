@@ -20,5 +20,4 @@ import com.swirlds.config.api.ConfigProperty;
 public record ConsensusConfig(
         @ConfigProperty(defaultValue = "26") int roundsNonAncient,
         @ConfigProperty(defaultValue = "1000") int roundsExpired,
-        @ConfigProperty(defaultValue = "12") int coinFreq,
-        @ConfigProperty(defaultValue = "0") long transactionOffsetNanos) {}
+        @ConfigProperty(defaultValue = "12") int coinFreq) {}

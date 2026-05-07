@@ -99,7 +99,8 @@ public final class EventRecoveryWorkflow {
             @NonNull final Long finalRound,
             @NonNull final Path resultingStateDirectory,
             @NonNull final NodeId selfId,
-            final boolean loadSigningKeys)
+            final boolean loadSigningKeys,
+            final long transactionOffsetNanos)
             throws IOException, ParseException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
@@ -140,10 +141,7 @@ public final class EventRecoveryWorkflow {
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
                     allowPartialRounds,
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(ConsensusConfig.class)
-                            .transactionOffsetNanos());
+                    transactionOffsetNanos);
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 

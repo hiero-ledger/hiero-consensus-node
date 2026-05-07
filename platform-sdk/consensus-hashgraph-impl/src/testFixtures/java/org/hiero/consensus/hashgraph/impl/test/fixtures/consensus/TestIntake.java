@@ -100,7 +100,8 @@ public class TestIntake {
                 platformContext.getTime(),
                 roster,
                 selfId,
-                localFreezeCheck);
+                localFreezeCheck,
+                0L);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
