@@ -15,6 +15,18 @@ class SysFileUploadFailureSummaryTest {
         }
     }
 
+    /** Pathological throwable whose cause is itself; exercises the self-cycle guard in summarizeCauseChain. */
+    private static final class SelfReferencingException extends RuntimeException {
+        SelfReferencingException(final String message) {
+            super(message);
+        }
+
+        @Override
+        public synchronized Throwable getCause() {
+            return this;
+        }
+    }
+
     @Test
     void describeFailureReturnsEmptyForNullCause() {
         assertThat(SysFileUploadCommand.describeFailure(null)).isEmpty();
@@ -81,5 +93,22 @@ class SysFileUploadFailureSummaryTest {
     @Test
     void summarizeCauseChainHandlesNull() {
         assertThat(SysFileUploadCommand.summarizeCauseChain(null)).isEmpty();
+    }
+
+    @Test
+    void summarizeCauseChainBreaksOnSelfReferentialCause() {
+        final var selfCycle = new SelfReferencingException("self");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(selfCycle))
+                .isEqualTo("SelfReferencingException: self");
+    }
+
+    @Test
+    void summarizeCauseChainStopsAtDepthLimit() {
+        // The walker bails out after 8 hops; chains longer than that should not reveal the deepest message.
+        Throwable t = new IllegalStateException("deepest");
+        for (int i = 1; i <= 10; i++) {
+            t = new RuntimeException("level-" + i, t);
+        }
+        assertThat(SysFileUploadCommand.summarizeCauseChain(t)).doesNotContain("deepest");
     }
 }
