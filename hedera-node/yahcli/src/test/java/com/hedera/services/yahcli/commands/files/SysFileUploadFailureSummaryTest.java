@@ -33,6 +33,13 @@ class SysFileUploadFailureSummaryTest {
     }
 
     @Test
+    void describeFailureReturnsEmptyWhenFailureHasNoNestedCause() {
+        // Exercises the ternary's empty-summary branch in describeFailure.
+        final var failure = new HapiSpec.Failure(null, "no nested cause");
+        assertThat(SysFileUploadCommand.describeFailure(failure)).isEmpty();
+    }
+
+    @Test
     void failureWarningOmitsSeparatorWhenCauseIsNull() {
         assertThat(SysFileUploadCommand.failureWarning(null)).isEqualTo("FAILED Uploading requested system files");
     }
@@ -88,6 +95,14 @@ class SysFileUploadFailureSummaryTest {
     void summarizeCauseChainHandlesThrowableWithoutMessage() {
         final var noMessage = new RuntimeException();
         assertThat(SysFileUploadCommand.summarizeCauseChain(noMessage)).isEqualTo("RuntimeException");
+    }
+
+    @Test
+    void summarizeCauseChainHandlesBlankMessage() {
+        // Covers the !msg.isBlank() = false and msg.isBlank() = true branches in the chain walker
+        // and the final formatter, both of which had partial branch coverage prior to this test.
+        final var blank = new RuntimeException("   ");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(blank)).isEqualTo("RuntimeException");
     }
 
     @Test
