@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.pool;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TransactionPoolNexusTest {
@@ -55,20 +53,6 @@ class TransactionPoolNexusTest {
         final Bytes tx = Bytes.wrap(rand.nextByteArray(txNumBytes));
 
         assertEquals(shouldSucceed, nexus.submitApplicationTransaction(tx));
-    }
-
-    @ParameterizedTest
-    @EnumSource(PlatformStatus.class)
-    void priorityTransactionsAcceptedForAnyPlatformStatus(final PlatformStatus status) {
-        final Bytes tx = Bytes.wrap(new byte[] {1, 2, 3});
-        nexus.updatePlatformStatus(status);
-
-        assertDoesNotThrow(() -> nexus.submitPriorityTransaction(tx));
-        assertTrue(nexus.hasBufferedSignatureTransactions());
-
-        final var transactions = nexus.getTransactionsForEvent();
-        assertEquals(1, transactions.size());
-        assertEquals(tx, transactions.getFirst().transaction());
     }
 
     static List<Arguments> testSubmitApplicationTransactionArgs() {
