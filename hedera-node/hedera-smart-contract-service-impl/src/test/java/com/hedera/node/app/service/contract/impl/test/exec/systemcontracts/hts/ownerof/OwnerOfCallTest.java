@@ -41,8 +41,8 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -51,8 +51,8 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.output());
     }
 
     @Test
@@ -62,10 +62,10 @@ class OwnerOfCallTest extends CallTestBase {
         // when
         final var result = subject.execute().fullResult().result();
         // then
-        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
+        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.state());
         assertEquals(
                 HederaExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT,
-                result.getHaltReason().orElse(null));
+                result.haltReason().orElse(null));
     }
 
     @Test
@@ -76,8 +76,8 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -87,8 +87,8 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.output());
     }
 
     @Test
@@ -101,13 +101,13 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
                         .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(ownerNum))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -119,13 +119,13 @@ class OwnerOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
                         .encode(Tuple.singleton(
                                 asHeadlongAddress(ALIASED_SOMEBODY.alias().toByteArray())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

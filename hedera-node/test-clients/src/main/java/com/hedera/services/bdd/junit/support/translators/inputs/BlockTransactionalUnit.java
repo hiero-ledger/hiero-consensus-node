@@ -33,7 +33,8 @@ import java.util.Map;
  * May include multiple logical HAPI transactions, and the state changes they produce.
  */
 public record BlockTransactionalUnit(
-        @NonNull List<BlockTransactionParts> blockTransactionParts, @NonNull List<StateChange> stateChanges) {
+        @NonNull List<BlockTransactionParts> blockTransactionParts,
+        @NonNull List<StateChange> stateChanges) {
     /**
      * Returns all (possibly hook-scoped) trace data in this unit.
      */

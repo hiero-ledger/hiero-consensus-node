@@ -11,7 +11,9 @@ import org.hiero.consensus.model.node.NodeId;
  * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.
  */
 public record EventDescriptorWrapper(
-        @NonNull EventDescriptor eventDescriptor, @NonNull Hash hash, @NonNull NodeId creator) {
+        @NonNull EventDescriptor eventDescriptor,
+        @NonNull Hash hash,
+        @NonNull NodeId creator) {
     public static final long CLASS_ID = 0x825e17f25c6e2566L;
 
     public EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {

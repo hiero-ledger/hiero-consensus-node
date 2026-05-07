@@ -9,11 +9,13 @@ import java.util.List;
 @ConfigData("stats")
 public record StatsConfig(
         @ConfigProperty(defaultValue = "<GAS>,ThroughputLimits,CreationLimits,<OPS_DURATION>") @NodeProperty
-                List<String> consThrottlesToSample,
+        List<String> consThrottlesToSample,
+
         @ConfigProperty(
-                        defaultValue =
-                                "<GAS>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
-                @NodeProperty
-                List<String> hapiThrottlesToSample,
+                defaultValue =
+                        "<GAS>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
+        @NodeProperty
+        List<String> hapiThrottlesToSample,
+
         @ConfigProperty(defaultValue = "10.0") @NodeProperty double runningAvgHalfLifeSecs,
         @ConfigProperty(defaultValue = "10.0") @NodeProperty double speedometerHalfLifeSecs) {}

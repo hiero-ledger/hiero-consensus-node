@@ -10,4 +10,5 @@ import com.swirlds.config.api.ConfigProperty;
  * @param eventPipelineMetricsEnabled if true, the platform will collect and report metrics about the event pipeline
  */
 @ConfigData("platform.metrics")
-public record PlatformMetricsConfig(@ConfigProperty(defaultValue = "true") boolean eventPipelineMetricsEnabled) {}
+public record PlatformMetricsConfig(
+        @ConfigProperty(defaultValue = "true") boolean eventPipelineMetricsEnabled) {}

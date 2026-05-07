@@ -26,6 +26,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent.Factory;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -49,7 +50,7 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 @Singleton
 public class ContractCallLocalHandler extends PaidQueryHandler {
     private final Provider<QueryComponent.Factory> provider;
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final InstantSource instantSource;
     private final EntityIdFactory entityIdFactory;
 
@@ -63,7 +64,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
     @Inject
     public ContractCallLocalHandler(
             @NonNull final Provider<Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final InstantSource instantSource,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.provider = requireNonNull(provider);
@@ -94,10 +95,10 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
         final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
-        validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+        // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
+        final var gasRequirements = gasCalculator.transactionGasRequirements(
+                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
+        validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
 
         final var contractID = op.contractID();
         mustExist(contractID, INVALID_CONTRACT_ID);

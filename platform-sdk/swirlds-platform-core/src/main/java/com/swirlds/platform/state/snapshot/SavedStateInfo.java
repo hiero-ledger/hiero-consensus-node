@@ -10,4 +10,5 @@ import java.nio.file.Path;
  * @param stateDirectory the path of the state directory.
  * @param metadata  the metadata of the signed state
  */
-public record SavedStateInfo(@NonNull Path stateDirectory, @NonNull SavedStateMetadata metadata) {}
+public record SavedStateInfo(
+        @NonNull Path stateDirectory, @NonNull SavedStateMetadata metadata) {}

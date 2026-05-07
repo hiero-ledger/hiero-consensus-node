@@ -93,8 +93,8 @@ public class SetApprovalForAllCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         // Then
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(ResponseCodeEnum.ACCOUNT_DELETED), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(ResponseCodeEnum.ACCOUNT_DELETED), result.output());
     }
 
     @Test
@@ -118,17 +118,17 @@ public class SetApprovalForAllCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         // Then
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         verifyResultStatus(result, ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID);
     }
 
     private static void verifyResultStatus(
             final PrecompileContractResult result, final ResponseCodeEnum expectedStatus) {
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 asBytesResult(SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.valueOf(expectedStatus.protoOrdinal())))),
-                result.getOutput());
+                result.output());
     }
 }

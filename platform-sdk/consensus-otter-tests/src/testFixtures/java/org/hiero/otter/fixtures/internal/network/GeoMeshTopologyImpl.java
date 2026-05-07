@@ -183,5 +183,6 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      * @param continent the continent of the node
      * @param region the region within the continent
      */
-    public record Location(@NonNull String continent, @NonNull String region) {}
+    public record Location(
+            @NonNull String continent, @NonNull String region) {}
 }

@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.BoolValue;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
@@ -62,6 +63,7 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
     private Optional<String> newStakee = Optional.empty();
     private Optional<Long> newStakedNodeId = Optional.empty();
     private Optional<Boolean> isDeclinedReward = Optional.empty();
+    private Optional<ByteString> delegationAddress = Optional.empty();
 
     private List<Long> hookIdsToDelete = List.of();
     private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
@@ -195,6 +197,11 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
         return this;
     }
 
+    public HapiCryptoUpdate delegationAddress(final ByteString delegationAddress) {
+        this.delegationAddress = Optional.of(delegationAddress);
+        return this;
+    }
+
     @Override
     public HederaFunctionality type() {
         return HederaFunctionality.CryptoUpdate;
@@ -266,6 +273,7 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                                 builder.setStakedNodeId(newStakedNodeId.get());
                             }
                             isDeclinedReward.ifPresent(b -> builder.setDeclineReward(BoolValue.of(b)));
+                            delegationAddress.ifPresent(builder::setDelegationAddress);
                             hookIdsToDelete.forEach(builder::addHookIdsToDelete);
                             hookFactories.forEach(factory -> builder.addHookCreationDetails(pbjToProto(
                                     factory.apply(spec),

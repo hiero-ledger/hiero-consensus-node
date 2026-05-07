@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoT
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall.fromSignedBytes;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
@@ -49,6 +50,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_HASH_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -126,12 +129,15 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -311,7 +317,7 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> matrixedPayerRelayerTest1() {
-        return feePaymentMatrix().get(0);
+        return feePaymentMatrix().getFirst();
     }
 
     @HapiTest
@@ -464,35 +470,33 @@ public class EthereumSuite {
                         .entityMemo(MEMO)
                         .payingWith(GENESIS)
                         .signedBy(SECP_256K1_SOURCE_KEY, GENESIS),
-                withOpContext((spec, opLog) -> {
-                    ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .nonce(0)
-                            .balance(INITIAL_BALANCE)
-                            .gasPrice(10L)
-                            .maxGasAllowance(ONE_HUNDRED_HBARS)
-                            .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
-                            .gasLimit(1_000_000L)
-                            .hasKnownStatus(SUCCESS);
-                    getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
-                    ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .nonce(1L)
-                            .gasPrice(10L)
-                            .gasLimit(1_000_000L)
-                            .hasKnownStatus(SUCCESS);
-                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
-                    sourcing(() -> getContractInfo(contractNum.get())
-                            .has(contractWith()
-                                    .defaultAdminKey()
-                                    .autoRenew(AUTO_RENEW_PERIOD)
-                                    .balance(INITIAL_BALANCE)
-                                    .memo(MEMO)));
-                }));
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .balance(INITIAL_BALANCE)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(SUCCESS),
+                getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey()),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(1L)
+                        .gasPrice(10L)
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(SUCCESS),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged(),
+                sourcing(() -> getContractInfo(contractNum.get())
+                        .has(contractWith()
+                                .defaultAdminKey()
+                                .autoRenew(AUTO_RENEW_PERIOD)
+                                .balance(INITIAL_BALANCE)
+                                .memo(MEMO))));
     }
 
     @HapiTest
@@ -554,7 +558,6 @@ public class EthereumSuite {
     @HapiTest
     final Stream<DynamicTest> etx013PrecompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
-        final String fungibleToken = TOKEN;
         final String mintTxn = MINT_TXN;
         final String MULTI_KEY = "MULTI_KEY";
         return hapiTest(
@@ -566,7 +569,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 uploadInitCode(HELLO_WORLD_MINT_CONTRACT),
-                tokenCreate(fungibleToken)
+                tokenCreate(TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(0)
                         .adminKey(MULTI_KEY)
@@ -736,16 +739,25 @@ public class EthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedParentContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(
@@ -1013,7 +1025,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1058,7 +1070,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .hasKnownStatus(SUCCESS);
 
@@ -1110,7 +1122,6 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> etx007FungibleTokenCreateWithFeesHappyPath() {
-        final var createdTokenNum = new AtomicLong();
         final var feeCollectorAndAutoRenew = "feeCollectorAndAutoRenew";
         final var contract = "TokenCreateContract";
         final var EXISTING_TOKEN = "EXISTING_TOKEN";
@@ -1149,9 +1160,8 @@ public class EthereumSuite {
                                 .payingWith(feeCollectorAndAutoRenew)
                                 .sending(DEFAULT_AMOUNT_TO_SEND)
                                 .hasKnownStatus(SUCCESS)
-                                .exposingResultTo(result -> {
-                                    opLog.info("Explicit create result" + " is {}", result[0]);
-                                }))),
+                                .exposingResultTo(
+                                        result -> opLog.info("Explicit create result" + " is {}", result[0])))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
                         firstTxn, SUCCESS, TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
@@ -1308,9 +1318,10 @@ public class EthereumSuite {
     }
 
     // Ensuring that the BLS12 precompile is not working before the Pectra support
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> tryBlsPrecompile(@Contract(contract = "PectraTest") SpecContract contract) {
         return hapiTest(
+                overriding("contracts.evm.version", "v0.66"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 contract.getInfo(),
@@ -1321,11 +1332,63 @@ public class EthereumSuite {
                         .via("bls12"),
                 getTxnRecord("bls12")
                         .exposingTo(record -> assertArrayEquals(
+                                new byte[32],
                                 record.getContractCallResult()
                                         .getContractCallResult()
                                         .substring(32)
-                                        .toByteArray(),
-                                new byte[32])));
+                                        .toByteArray())));
+    }
+
+    // TODO Pectra: failed due to auto creation account having nonce 1.
+    //  Will be fixed in future pull request
+    @Disabled
+    @HapiTest
+    final Stream<DynamicTest> eip7702Test() {
+        final var delegatedAddress =
+                ByteString.copyFrom(Objects.requireNonNull(unhex("0000000000000000000000000000000000068cDa")));
+        // These signed bytes represent an EIP-7702 transaction delegating to the above address signed by the key below
+        final byte[] signedBytes = unhex(
+                "04f8d18080847735940085a54f4c3c00830186a09415b39b77b9eb6a78ce284840ddff3e1954927b358502540be40080c0f85ef85c82012a940000000000000000000000000000000000068cda8080a0952a118381ba34bf2ead1816efe816340649fbda39ecdfd41a5ddf204e2ba87ea0149789d32d85949aebd8737bcfb9cec8cddb7d4d022fd0f9b5f4d4002a13f88d80a089e13599372f007eee0cf9e2def8d0c0907a5c4428723e0e4a017cfa0cab2256a03ac10e0faeb3787f0561f85fe028641ca89417b0f46e93a88cbaa18aa03dc6f7");
+        // This is the ECDSA secp256k1 key that corresponds to the address that signed the above transaction
+        final var ecdsaKey =
+                ecdsaFrom(new BigInteger("c22c3b87e71d5a702e6ad4bfbe7c324749ad39de6e40454ff98b7c5895686c3e", 16));
+
+        return hapiTest(
+                withOpContext((spec, opLog) -> createAndLinkEcdsaKey(
+                        spec, ecdsaKey, SECP_256K1_SOURCE_KEY, Optional.empty(), Optional.empty(), opLog)),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                // create the expected EOA address that signed the bytes above
+                cryptoTransfer(tinyBarsFromAccountToAlias(ACCOUNT, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS, true))
+                        .via(AUTO_ACCOUNT_TRANSACTION_NAME)
+                        .logged(),
+                // This new method allows for the submission of pre-signed raw Ethereum transactions
+                fromSignedBytes(signedBytes).via("eip7702Txn"),
+                getTxnRecord("eip7702Txn").logged().andAllChildRecords(),
+                // check that the delegation took place
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().delegationAddress(delegatedAddress)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumTransactionRespectsMaxGasPerTransaction() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                overriding("contracts.throttle.throttleByGas", "false"),
+                overriding("contracts.maxGasPerTransaction", "15000000"),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(1))
+                        .type(EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasLimit(16_000_000L)
+                        .sending(1)
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
+                restoreDefault("contracts.maxGasPerTransaction"),
+                restoreDefault("contracts.throttle.throttleByGas"));
     }
 
     @HapiTest

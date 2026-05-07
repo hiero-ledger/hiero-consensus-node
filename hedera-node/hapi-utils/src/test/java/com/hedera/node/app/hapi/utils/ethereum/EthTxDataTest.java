@@ -399,7 +399,7 @@ class EthTxDataTest {
 
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidGasDataNegative)));
 
-        // invalid recId
+        // invalid yParity
         normalData = normalRlpData();
         normalData[9] = wrongData;
         final var invalidRecIdData = Arrays.asList(normalData);
@@ -408,52 +408,6 @@ class EthTxDataTest {
 
         // zero length data
         assertNull(EthTxData.populateEthTxData(new byte[0]));
-    }
-
-    @Test
-    void whiteBoxEncodingErrors() {
-        final var oneByte = new byte[] {1};
-
-        final EthTxData ethTxDataWithAccessList = new EthTxData(
-                oneByte,
-                EthTxData.EthTransactionType.EIP1559,
-                oneByte,
-                1,
-                oneByte,
-                oneByte,
-                oneByte,
-                1,
-                oneByte,
-                BigInteger.ONE,
-                oneByte,
-                oneByte,
-                null,
-                1,
-                oneByte,
-                oneByte,
-                oneByte);
-        assertThrows(IllegalStateException.class, ethTxDataWithAccessList::encodeTx);
-
-        // Type 1
-        final EthTxData ethTsDataEIP2930 = new EthTxData(
-                oneByte,
-                EthTxData.EthTransactionType.EIP2930,
-                oneByte,
-                1,
-                oneByte,
-                oneByte,
-                oneByte,
-                1,
-                oneByte,
-                BigInteger.ONE,
-                oneByte,
-                oneByte,
-                null,
-                1,
-                oneByte,
-                oneByte,
-                oneByte);
-        assertThrows(IllegalStateException.class, ethTsDataEIP2930::encodeTx);
     }
 
     @Test
@@ -512,6 +466,8 @@ class EthTxDataTest {
                 oneByte,
                 WEIBARS_IN_A_TINYBAR,
                 oneByte,
+                null,
+                null,
                 null,
                 null,
                 1,
@@ -579,6 +535,8 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 accessListAsRlp,
+                null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -620,6 +578,8 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 accessListAsRlp,
+                null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -639,6 +599,8 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 differentAccessListAsRlp,
+                null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -659,6 +621,8 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 accessListAsRlp,
+                null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -692,6 +656,8 @@ class EthTxDataTest {
                         oneByte,
                         oneByte,
                         null,
+                        null,
+                        null,
                         1,
                         oneByte,
                         oneByte,
@@ -722,16 +688,19 @@ class EthTxDataTest {
                 oneByte,
                 oneByte,
                 null,
+                null,
+                null,
                 1,
                 oneByte,
                 oneByte,
                 oneByte);
-        assertTrue(testTransaction
+        assertEquals(
+                0,
+                testTransaction
                         .getMaxGasAsBigInteger(TINYBAR_GAS_PRICE)
                         .compareTo(BigInteger.valueOf(45)
                                 .multiply(BigInteger.valueOf(DETERMINISTIC_DEPLOYER_GAS_PRICE_MULTIPLIER))
-                                .multiply(WEIBARS_IN_A_TINYBAR))
-                == 0);
+                                .multiply(WEIBARS_IN_A_TINYBAR)));
     }
 
     @ParameterizedTest
@@ -740,13 +709,32 @@ class EthTxDataTest {
         final var bigValue = BigInteger.valueOf(Long.MAX_VALUE);
 
         final var oneByte = new byte[] {1};
+        final var authListObject = new Object[] {new Object[] {oneByte}};
         final EthTxData ethTxData = new EthTxData(
-                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, null, 1,
-                oneByte, oneByte, oneByte);
+                oneByte,
+                type,
+                oneByte,
+                1,
+                oneByte,
+                oneByte,
+                oneByte,
+                1,
+                oneByte,
+                bigValue,
+                oneByte,
+                null,
+                null,
+                oneByte,
+                authListObject,
+                1,
+                oneByte,
+                oneByte,
+                oneByte);
         final var encoded = ethTxData.encodeTx();
 
         final var populateEthTxData = EthTxData.populateEthTxData(encoded);
 
+        assertNotNull(populateEthTxData);
         assertEquals(bigValue, populateEthTxData.value());
     }
 
@@ -754,6 +742,7 @@ class EthTxDataTest {
     void populateEthTxDataComparedToUnsignedByteArrayNoExtraByteAdded() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] passingChainId = BigIntegers.asUnsignedByteArray(BigInteger.valueOf(11155111L));
+        assertNotNull(subject);
         assertEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(passingChainId));
     }
 
@@ -763,6 +752,7 @@ class EthTxDataTest {
     void populateEthTxDataComparedToSignedByteArrayExtraByteAdded() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
+        assertNotNull(subject);
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
     }
 }

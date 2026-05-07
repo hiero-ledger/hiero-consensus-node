@@ -195,7 +195,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
 
     private void reportToMetrics(@NonNull final Call call, @NonNull final FullResult fullResult) {
         contractMetrics.incrementSystemMethodCall(
-                call.getSystemContractMethod(), fullResult.result().getState());
+                call.getSystemContractMethod(), fullResult.result().state());
     }
 
     private static void externalizeFailure(

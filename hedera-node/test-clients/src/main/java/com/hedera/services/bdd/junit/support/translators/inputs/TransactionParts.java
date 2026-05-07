@@ -20,7 +20,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Encapsulates the parts of a transaction we care about for translating a block stream into records.
  */
 public record TransactionParts(
-        @NonNull Transaction wrapper, @NonNull TransactionBody body, @NonNull HederaFunctionality function) {
+        @NonNull Transaction wrapper,
+        @NonNull TransactionBody body,
+        @NonNull HederaFunctionality function) {
     public TransactionParts {
         requireNonNull(wrapper);
         requireNonNull(body);

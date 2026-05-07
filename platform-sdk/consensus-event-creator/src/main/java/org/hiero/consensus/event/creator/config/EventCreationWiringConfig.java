@@ -13,4 +13,4 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("event.creation.wiring")
 public record EventCreationWiringConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventCreationManager) {}
+        TaskSchedulerConfiguration eventCreationManager) {}

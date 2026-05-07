@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
@@ -42,14 +43,13 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
 
     @Inject
     public HookDispatchHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, entityIdFactory, component);
@@ -117,8 +117,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 validateTrue(hook != null, HOOK_NOT_FOUND);
 
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
-                final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
-                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
+                final EvmFrameStates evmFrameStates =
+                        (ops, nativeOps) -> new HookEvmFrameStateFactory(ops, nativeOps, hook);
                 // Create the transaction-scoped component. Use ContractCall functionality since
                 // we are just calling a contract (the hook)
                 final var component = getTransactionComponent(context, CONTRACT_CALL, evmFrameStates);

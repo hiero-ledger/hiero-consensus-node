@@ -69,8 +69,8 @@ public class NoopFeeCharging implements FeeCharging {
         return bypassForExtraHandlerCharges;
     }
 
-    private record PassedValidation(boolean creatorDidDueDiligence, @Nullable ResponseCodeEnum maybeErrorStatus)
-            implements Validation {
+    private record PassedValidation(
+            boolean creatorDidDueDiligence, @Nullable ResponseCodeEnum maybeErrorStatus) implements Validation {
         private static final PassedValidation INSTANCE = new PassedValidation(true, null);
     }
 }

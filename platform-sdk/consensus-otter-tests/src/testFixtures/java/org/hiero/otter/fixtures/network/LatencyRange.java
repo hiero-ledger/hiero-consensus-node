@@ -12,7 +12,10 @@ import org.assertj.core.data.Percentage;
  * characteristics for different geographic connection types.
  */
 @SuppressWarnings("unused")
-public record LatencyRange(@NonNull Duration min, @NonNull Duration max, @NonNull Percentage jitterPercent) {
+public record LatencyRange(
+        @NonNull Duration min,
+        @NonNull Duration max,
+        @NonNull Percentage jitterPercent) {
 
     /** Default latency range for same-region connections. */
     public static final LatencyRange SAME_REGION_DEFAULT =

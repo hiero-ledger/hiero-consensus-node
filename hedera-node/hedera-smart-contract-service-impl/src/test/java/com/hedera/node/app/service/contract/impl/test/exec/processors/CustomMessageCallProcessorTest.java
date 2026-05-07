@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HTS_HOO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -30,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -129,14 +131,16 @@ class CustomMessageCallProcessorTest {
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(stack.getLast()).willReturn(frame);
-        given(result.getOutput()).willReturn(OUTPUT_DATA);
-        given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(result.output()).willReturn(OUTPUT_DATA);
+        given(result.state()).willReturn(MessageFrame.State.CODE_SUCCESS);
         given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
-        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile)
+                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
         verify(result).isRefundGas();
         verify(frame).decrementRemainingGas(ZERO_GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
@@ -152,7 +156,8 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
-        verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
+        verify(prngPrecompile)
+                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
@@ -232,6 +237,7 @@ class CustomMessageCallProcessorTest {
         givenEvmPrecompileCall();
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(1L);
+        given(frame.getValue()).willReturn(Wei.ZERO);
 
         subject.start(frame, operationTracer);
 
@@ -248,6 +254,7 @@ class CustomMessageCallProcessorTest {
         given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(result);
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(3L);
+        given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
@@ -274,6 +281,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
         given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
+        given(frame.getValue()).willReturn(Wei.ZERO);
 
         subject.start(frame, operationTracer);
 
@@ -326,6 +334,49 @@ class CustomMessageCallProcessorTest {
         verify(frame).setExceptionalHaltReason(Optional.empty());
     }
 
+    @Test
+    void codeDelegationToPrecompileIsNoOp() {
+        given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
+        final var eoaAddress = Address.fromHexString("0x1234");
+        final var eoaAccount = mock(AbstractMutableEvmAccount.class);
+        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6.getBytes()));
+        given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
+        given(frame.getContractAddress()).willReturn(eoaAddress);
+        given(frame.getInputData()).willReturn(Bytes.EMPTY);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(stack.getLast()).willReturn(frame);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+
+        subject.start(frame, operationTracer);
+
+        verifyNoInteractions(nativePrecompile);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+    }
+
+    @Test
+    void codeDelegationToPrecompileIsNoOpWithValueTransfer() {
+        givenExecutingFrame();
+        given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
+        final var eoaAddress = Address.fromHexString("0x1234");
+        final var eoaAccount = mock(AbstractMutableEvmAccount.class);
+        given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6.getBytes()));
+        given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
+        given(frame.getContractAddress()).willReturn(eoaAddress);
+        given(frame.getRecipientAddress()).willReturn(eoaAddress);
+        given(frame.getInputData()).willReturn(Bytes.EMPTY);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getValue()).willReturn(Wei.ONE);
+
+        subject.start(frame, operationTracer);
+
+        verifyNoInteractions(nativePrecompile);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(proxyWorldUpdater).tryTransfer(frame.getSenderAddress(), eoaAddress, 1, false);
+    }
+
     private void givenHaltableFrame(@NonNull final AtomicBoolean isHalted) {
         doAnswer(invocation -> {
                     isHalted.set(true);
@@ -333,7 +384,9 @@ class CustomMessageCallProcessorTest {
                 })
                 .when(frame)
                 .setExceptionalHaltReason(any());
-        doAnswer(invocation -> isHalted.get() ? MessageFrame.State.EXCEPTIONAL_HALT : MessageFrame.State.NOT_STARTED)
+        lenient()
+                .doAnswer(invocation ->
+                        isHalted.get() ? MessageFrame.State.EXCEPTIONAL_HALT : MessageFrame.State.NOT_STARTED)
                 .when(frame)
                 .getState();
     }
@@ -349,12 +402,14 @@ class CustomMessageCallProcessorTest {
 
     private void givenCallWithCode(@NonNull final Address contract) {
         given(frame.getContractAddress()).willReturn(contract);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenWellKnownUserSpaceCall() {
         given(frame.getContractAddress()).willReturn(CODE_ADDRESS);
         given(frame.getRecipientAddress()).willReturn(RECEIVER_ADDRESS);
         given(frame.getSenderAddress()).willReturn(SENDER_ADDRESS);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenEvmPrecompileCall() {
@@ -364,6 +419,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getInputData()).willReturn(INPUT_DATA);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenDisabledEvmPrecompileCall() {
@@ -376,12 +432,13 @@ class CustomMessageCallProcessorTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
         when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(addressChecks.isSystemAccount(ADDRESS_6)).willReturn(true);
     }
 
     private void givenPrngCall(long gasRequirement) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
-        given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes());
         given(prngPrecompile.computeFully(any(), any(), any()))
                 .willReturn(new FullResult(result, gasRequirement, null));
     }

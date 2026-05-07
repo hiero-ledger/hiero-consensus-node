@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip1195.lambdaplex;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID;
@@ -22,6 +21,7 @@ import static com.hedera.services.bdd.suites.hip1195.lambdaplex.Side.SELL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static java.math.RoundingMode.HALF_UP;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.leftPad32;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
