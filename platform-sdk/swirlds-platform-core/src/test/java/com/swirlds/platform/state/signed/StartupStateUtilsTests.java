@@ -17,7 +17,6 @@ import static org.mockito.Mockito.spy;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBinImpl;
@@ -44,7 +43,6 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -65,10 +63,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class StartupStateUtilsTests {
 
     /**
-     * Temporary directory provided by JUnit
+     * Location to save states
      */
     @TempDir
-    Path testDirectory;
+    Path savedStateDir;
+
+    private FileSystemManager fileSystemManager;
 
     private SignedStateFilePath signedStateFilePath;
 
@@ -79,11 +79,9 @@ public class StartupStateUtilsTests {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        FileUtils.deleteDirectory(testDirectory);
-        signedStateFilePath = new SignedStateFilePath(new TestConfigBuilder()
-                .withValue("state.savedStateDirectory", testDirectory.toString())
-                .getOrCreateConfig()
-                .getConfigData(StateCommonConfig.class));
+        FileUtils.deleteDirectory(savedStateDir);
+        fileSystemManager = new FileSystemManager(savedStateDir);
+        signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
     }
 
@@ -101,12 +99,13 @@ public class StartupStateUtilsTests {
     @NonNull
     private PlatformContext buildContext(final boolean deleteInvalidStateFiles, @NonNull final RecycleBin recycleBin) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, testDirectory.toString())
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, savedStateDir.toString())
                 .withValue(StateConfig_.DELETE_INVALID_STATE_FILES, deleteInvalidStateFiles)
                 .getOrCreateConfig();
 
         return TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
+                .withFileSystemManager(fileSystemManager)
                 .withRecycleBin(recycleBin)
                 .build();
     }
@@ -133,8 +132,7 @@ public class StartupStateUtilsTests {
         // Async snapshot requires all references to the state being written to disk to be released
         state.release();
 
-        final Path savedStateDirectory =
-                signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
+        final Path savedStateDirectory = signedStateFilePath.getSignedStateDirectory(round);
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
@@ -156,8 +154,8 @@ public class StartupStateUtilsTests {
         return signedState;
     }
 
-    private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
-        return new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+    private StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
+        return new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
     }
 
     @Test
@@ -314,9 +312,8 @@ public class StartupStateUtilsTests {
             RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
         }
 
-        final Path savedStateDirectory = signedStateFilePath
-                .getSignedStateDirectory(mainClassName, selfId, swirldName, latestRound)
-                .getParent();
+        final Path savedStateDirectory =
+                signedStateFilePath.getSignedStateDirectory(latestRound).getParent();
         int filesCount;
         try (Stream<Path> list = Files.list(savedStateDirectory)) {
             filesCount = (int) list.count();
@@ -329,9 +326,6 @@ public class StartupStateUtilsTests {
     private RecycleBin initializeRecycleBin(PlatformContext platformContext, NodeId selfId) {
         final var metrics = new NoOpMetrics();
         final var configuration = platformContext.getConfiguration();
-        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        final FileSystemManager fileSystemManager =
-                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         final var time = Time.getCurrent();
         return RecycleBinImpl.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
     }

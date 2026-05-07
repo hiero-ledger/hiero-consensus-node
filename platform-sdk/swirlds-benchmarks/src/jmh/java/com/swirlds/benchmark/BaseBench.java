@@ -2,7 +2,6 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
@@ -19,6 +18,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
@@ -96,6 +97,8 @@ public abstract class BaseBench {
 
     protected static Configuration configuration;
 
+    protected static FileSystemManager fileSystemManager;
+
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
@@ -138,7 +141,7 @@ public abstract class BaseBench {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
 
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
+        fileSystemManager = new TestFileSystemManager(benchDir);
 
         try {
             ConstructableRegistration.registerAllConstructables();

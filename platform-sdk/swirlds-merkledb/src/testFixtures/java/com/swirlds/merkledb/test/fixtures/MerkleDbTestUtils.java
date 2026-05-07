@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -73,7 +72,6 @@ public class MerkleDbTestUtils {
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(PathsConfig.class)
             .build();
 
