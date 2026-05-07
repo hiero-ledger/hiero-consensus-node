@@ -93,6 +93,111 @@ jobs:
             "dry-run-enabled": false
             }'
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - mats-tests
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: main-scheduled
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
+  report-flaky-success:
+    name: Report Flaky Tests (Success)
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - mats-tests
+      - report-flaky-tests
+    if: ${{ needs.mats-tests.result == 'success' && needs.report-flaky-tests.outputs.flaky-count > 0 && !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "1"
+          ref: ${{ github.sha }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Report Summary
+        id: report-summary
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+        run: |
+          title="MATS Flaky Test Report"
+
+          FLAKY_LIST=$(echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"')
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "MATS tests passed but flaky tests were detected."
+            echo "Flaky Test(s):"
+            echo "${FLAKY_LIST}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Report Summary
+        run: |
+          echo "## Flaky Test Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.report-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
+      - name: Build Flaky Test Report Slack Payload
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
+          COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-mats-flaky-test-report.json.tpl -o slack_payload.json
+
+      - name: Report flaky tests (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
   # Always run on the outcome (MATS failure, Deploy CI Trigger failure, or canceled)
   # so it can classify the result into a category and send the appropriate Slack notification.
   report-status:
@@ -101,6 +206,7 @@ jobs:
     needs:
       - mats-tests
       - deploy-ci-trigger
+      - report-flaky-tests
     if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() }}
 
     steps:
@@ -194,6 +300,8 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           title="MATS Error Report"
 
@@ -209,6 +317,11 @@ jobs:
               echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
               echo "- Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+              echo "Flaky Test(s) (failed initially but passed on retry):"
+              echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"'
               echo "------------------------------------"
             fi
             echo "Commit information:"
@@ -260,6 +373,7 @@ jobs:
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
           FAILED_TESTS: ${{ needs.mats-tests.outputs.failed-tests }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
@@ -272,6 +386,7 @@ jobs:
         env:
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-mats-env-failure-detailed.json.tpl -o slack_payload.json
 
