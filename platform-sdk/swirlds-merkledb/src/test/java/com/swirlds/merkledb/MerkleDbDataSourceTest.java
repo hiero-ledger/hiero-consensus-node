@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
@@ -10,6 +9,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,12 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -686,7 +687,10 @@ class MerkleDbDataSourceTest {
                 // // key 10 is moved to path 15, key 11 is moved to path 16, etc.
                 assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
+                assertEquals(
+                        values.get(i),
+                        leaf.value(testType.dataType().getCodec(), Codec.DEFAULT_MAX_SIZE),
+                        "Wrong value at path " + i);
             }
             for (int i = 16; i < 21; i++) {
                 final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(keys.get(i));
@@ -715,7 +719,10 @@ class MerkleDbDataSourceTest {
                 // // key 10 was moved to path 15, key 11 is moved to path 16, etc.
                 assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
+                assertEquals(
+                        values.get(i),
+                        leaf.value(testType.dataType().getCodec(), Codec.DEFAULT_MAX_SIZE),
+                        "Wrong value at path " + i);
             }
         });
     }

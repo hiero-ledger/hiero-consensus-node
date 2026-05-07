@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.framework.config;
 
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.framework.QueueThread;
-import org.hiero.consensus.concurrent.framework.internal.AbstractQueueThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**

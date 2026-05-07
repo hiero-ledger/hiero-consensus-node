@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.signed;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -26,9 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;

@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.output.QueuePopChange;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.AccountTokenAssociation;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HookId;
@@ -20,7 +21,6 @@ import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -195,7 +195,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case EntityIDPair entityIDPair ->
                 new MapChangeKey(new OneOf<>(
                         MapChangeKey.KeyChoiceOneOfType.TOKEN_RELATIONSHIP_KEY,
-                        new TokenAssociation(entityIDPair.tokenId(), entityIDPair.accountId())));
+                        new AccountTokenAssociation(entityIDPair.accountId(), entityIDPair.tokenId())));
             case EntityNumber entityNumber ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.ENTITY_NUMBER_KEY, entityNumber.number()));
             case FileID fileID -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.FILE_ID_KEY, fileID));

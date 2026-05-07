@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -8,6 +10,7 @@ import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
@@ -95,7 +98,12 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
                 && (readValueStateId == V0490TokenSchema.ACCOUNTS_STATE_ID)) {
             try {
                 final com.hedera.hapi.platform.state.StateValue stateValue =
-                        com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
+                        com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(
+                                valueBytes.toReadableSequentialData(),
+                                false,
+                                false,
+                                Codec.DEFAULT_MAX_DEPTH,
+                                getVirtualMapValueParseMaxSizeBytes());
                 final Account account = stateValue.value().as();
                 final long tinybarBalance = account.tinybarBalance();
                 if (tinybarBalance < 0) {

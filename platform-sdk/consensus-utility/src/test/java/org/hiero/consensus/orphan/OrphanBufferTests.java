@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;

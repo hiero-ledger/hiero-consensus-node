@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -55,6 +54,7 @@ import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashBuilder;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -74,7 +74,7 @@ public class MerkleDbTestUtils {
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
-            .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .build();
 
     /**

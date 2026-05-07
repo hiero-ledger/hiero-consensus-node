@@ -92,7 +92,9 @@ public class EventEmitterFactory {
 
     private StandardGraphGenerator newStandardGraphGenerator(final List<EventSource> eventSources) {
         return new StandardGraphGenerator(
-                platformContext,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
                 commonSeed, // standard seed must be the same across all generators
                 eventSources,
                 roster);
@@ -101,7 +103,9 @@ public class EventEmitterFactory {
     private ShuffledEventEmitter newShuffledEmitter(final List<EventSource> eventSources) {
         return new ShuffledEventEmitter(
                 new StandardGraphGenerator(
-                        platformContext,
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
                         commonSeed, // standard seed must be the same across all generators
                         eventSources),
                 random.nextLong() // shuffle seed changes every time

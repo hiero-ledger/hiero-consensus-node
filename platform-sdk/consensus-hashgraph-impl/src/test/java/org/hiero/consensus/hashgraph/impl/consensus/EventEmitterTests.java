@@ -220,10 +220,8 @@ public class EventEmitterTests {
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Standard Emitter")
     public void testStandardEmitter() {
-        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter emitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).build();
         emitterSanityChecks(emitter);
     }
 
@@ -232,10 +230,8 @@ public class EventEmitterTests {
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Shuffled Emitter")
     public void testShuffledEmitter() {
-        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter standardEmitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).build();
 
         final int numberOfEvents = 1000;
 
@@ -255,10 +251,8 @@ public class EventEmitterTests {
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Test Priority Emitter")
     public void testPriorityEmitter() {
-        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter standardEmitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).build();
 
         final int numberOfEvents = 1000;
 
@@ -283,10 +277,8 @@ public class EventEmitterTests {
     public void shuffledEmitterEquivalence() {
         final int numberOfEvents = 100;
         //		int maxSequenceNumber = (int) (numberOfEvents / 8 * 0.9);
-        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter standardEmitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).build();
 
         final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(standardEmitter.getGraphGenerator(), 0L);
         shuffledEmitter.setCheckpoint(numberOfEvents);
@@ -317,10 +309,8 @@ public class EventEmitterTests {
     @DisplayName("Collecting Emitter Equivalence")
     public void collectingEmitterTest() {
         System.out.println("Validate Collected Events");
-        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(0)
-                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
-                .build();
+        final StandardEventEmitter emitter =
+                EventEmitterBuilder.newBuilder().setRandomSeed(0).build();
 
         CollectingEventEmitter collectingEmitter = new CollectingEventEmitter(emitter);
 
