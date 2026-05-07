@@ -905,6 +905,81 @@ class MerkleDbCompactionCoordinatorTest {
         assertTrue(task2Files.isEmpty(), "Second task should not have claimed the file");
     }
 
+    @Test
+    void testSubmitCompactionTasksSkipsFlaggedFilesInStaleScanResults() throws InterruptedException, IOException {
+        // Simulates stale cached scan results referencing a file whose compactionInProgress
+        // flag was set by a previous task. The coordinator should skip flagged files during
+        // phase 1 filtering, even though the scanner already ran and included them.
+        final DataFileReader flaggedFile = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader normalFile = mockFileReader(2, 0, 100, 1000);
+
+        // Override CAS to simulate a file already claimed by a previous task
+        when(flaggedFile.isCompactionInProgress()).thenReturn(true);
+        when(flaggedFile.setCompactionInProgress()).thenReturn(false);
+
+        // Both files are dirty (d/a = 4.0), but flaggedFile should be excluded
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(flaggedFile, 20), new StatsEntry(normalFile, 20)));
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(normalFile));
+
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            compactedFiles.addAll(invocation.getArgument(0));
+            taskDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(taskDone.await(2, TimeUnit.SECONDS), "Compaction task should complete");
+
+        assertTrue(compactedFiles.contains(normalFile), "Normal file should be compacted");
+        assertFalse(compactedFiles.contains(flaggedFile), "Flagged file should be excluded from stale scan results");
+    }
+
+    @Test
+    void testSubmitCompactionTasksSkipsFlaggedFilesFromRemainingPool() throws InterruptedException, IOException {
+        // A flagged clean file should not appear in the remaining pool for phase 2 absorption
+        final DataFileReader dirtyFile = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader flaggedClean = mockFileReader(2, 0, 100, 500);
+        final DataFileReader normalClean = mockFileReader(3, 0, 100, 500);
+
+        when(flaggedClean.isCompactionInProgress()).thenReturn(true);
+        when(flaggedClean.setCompactionInProgress()).thenReturn(false);
+
+        publishScanStats(
+                ID_TO_HASH_CHUNK,
+                buildStats(
+                        new StatsEntry(dirtyFile, 10), // d/a = 9.0 → eligible
+                        new StatsEntry(flaggedClean, 90), // d/a = 0.11 → remaining, but flagged
+                        new StatsEntry(normalClean, 90))); // d/a = 0.11 → remaining, available
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(dirtyFile, normalClean));
+
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            compactedFiles.addAll(invocation.getArgument(0));
+            taskDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(taskDone.await(2, TimeUnit.SECONDS), "Compaction task should complete");
+
+        assertTrue(compactedFiles.contains(dirtyFile), "Dirty file should be compacted");
+        assertTrue(compactedFiles.contains(normalClean), "Normal clean file should be absorbed");
+        assertFalse(compactedFiles.contains(flaggedClean), "Flagged clean file must not be absorbed");
+    }
+
     // ========================================================================
     // Helper methods
     // ========================================================================
