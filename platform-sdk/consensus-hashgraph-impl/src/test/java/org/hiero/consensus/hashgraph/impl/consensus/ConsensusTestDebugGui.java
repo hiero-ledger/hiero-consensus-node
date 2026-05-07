@@ -32,8 +32,8 @@ public final class ConsensusTestDebugGui {
         final ConsensusTestNode node =
                 orchestrator.getNodes().stream().findAny().orElseThrow();
         new TestGuiSource(
-                        orchestrator.getPlatformContext().getMetrics(),
-                        orchestrator.getPlatformContext().getConfiguration(),
+                        orchestrator.getMetrics(),
+                        orchestrator.getConfiguration(),
                         orchestrator.getRoster(),
                         new ListEventProvider(node.getOutput().getAddedEvents()))
                 .runGui();

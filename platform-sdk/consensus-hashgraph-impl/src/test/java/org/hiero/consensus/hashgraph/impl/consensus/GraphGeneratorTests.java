@@ -14,8 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;
@@ -34,6 +36,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGen
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -48,8 +51,9 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Event Generator Tests")
 public class GraphGeneratorTests {
 
-    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
-            TestPlatformContextBuilder.create().build();
+    private static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
+    private static final Metrics METRICS = new NoOpMetrics();
+    private static final Time TIME = Time.getCurrent();
 
     /**
      * Assert that two lists of events are distinct but equal objects.
@@ -487,9 +491,9 @@ public class GraphGeneratorTests {
         final int numberOfEvents = 1000;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -604,9 +608,9 @@ public class GraphGeneratorTests {
 
         // A default generator uses a power distribution with alpha = 0.95
         StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -620,9 +624,9 @@ public class GraphGeneratorTests {
 
         // Completely disable old other parents
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -637,9 +641,9 @@ public class GraphGeneratorTests {
 
         // One node is much more likely to create events with old other parents
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -668,9 +672,9 @@ public class GraphGeneratorTests {
 
         // One node likes to consistently provide old other parents, all others always provide most recent parent
         generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
                 new StandardEventSource().setRequestedOtherParentAgeDistribution(staticDynamicValue(0)),
@@ -712,9 +716,9 @@ public class GraphGeneratorTests {
 
         // A default generator uses a power distribution with alpha = 0.95
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -754,9 +758,9 @@ public class GraphGeneratorTests {
     void nodeRemoveTest() {
         final int numberOfEvents = 10_000;
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 0,
                 new StandardEventSource(),
                 new StandardEventSource(),

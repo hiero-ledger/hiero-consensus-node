@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.IntStream;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
@@ -22,26 +23,26 @@ public final class GenerateConsensus {
     /**
      * Generate consensus rounds
      *
-     * @param numNodes
-     * 		the number of nodes in the hypothetical network
-     * @param numEvents
-     * 		the number of pre-consensus events to generate
-     * @param seed
-     * 		the seed to use
+     * @param configuration the configuration to use
+     * @param metrics the metrics to use
+     * @param time the time to use
+     * @param numNodes the number of nodes in the hypothetical network
+     * @param numEvents the number of pre-consensus events to generate
+     * @param seed the seed to use
      * @return consensus rounds
      */
     public static Deque<ConsensusRound> generateConsensusRounds(
-            @NonNull PlatformContext platformContext, final int numNodes, final int numEvents, final long seed) {
-        Objects.requireNonNull(platformContext);
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            final int numNodes,
+            final int numEvents,
+            final long seed) {
         final List<EventSource> eventSources = new ArrayList<>();
         IntStream.range(0, numNodes).forEach(i -> eventSources.add(new StandardEventSource(false)));
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                seed,
-                eventSources);
-        final TestIntake intake = new TestIntake(platformContext, generator.getRoster());
+        final StandardGraphGenerator generator =
+                new StandardGraphGenerator(configuration, metrics, time, seed, eventSources);
+        final TestIntake intake = new TestIntake(configuration, metrics, time, generator.getRoster());
 
         // generate events and feed them to consensus
         for (int i = 0; i < numEvents; i++) {
