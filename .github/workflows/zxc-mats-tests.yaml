@@ -153,7 +153,7 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
-      - name: Find Commit Author in Slack
+      - name: Find Commit Author in Slack Josh
         id: find-commit-author-slack
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}

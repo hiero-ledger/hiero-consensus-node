@@ -40,9 +40,12 @@ SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
 if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
   echo "No Slack user found for email: ${EMAIL}"
   SLACK_USER_ID="No matching slack user found"
+  echo "JOSH: set slack user id branch 1"
 else
   echo "Found slack user for email: ${EMAIL}"
   SLACK_USER_ID="<@${SLACK_USER_ID}>"
+  echo "JOSH: set slack user id branch 2"
 fi
 echo "JOSH: got the slack user ${SLACK_USER_ID}"
+echo "JOSH: done."
 #echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
