@@ -125,3 +125,25 @@ define one such plugins in [gradle/plugins/src/main/kotlin](../gradle/plugins/sr
 Gradle's Kotlin DSL notation. If you need to adjust something in the build itself, this is the
 places where all configuration is located. For details, see comments in the existing convention
 plugins (`*.gradle.kts` files).
+
+# Identifying flaky tests
+
+One common action when identifying or fixing flaky tests is re-running the test several times until
+either the failure happens or we are confident enough to claim the test as non-flaky.
+
+To support this flow, we added a custom Gradle argument to the test task (including the custom test
+tasks like `testRepeatable` . To run test(s) until it fails or a maximum amount of attempts is
+reached, use the `PrunUntilFailure=<max_attempts>` parameter. Examples:
+
+```bash
+# with a sub module, retrying 50 times
+./gradlew :app-service-roster:test  -PrunUntilFailure=50
+
+# with a custom test task and specifying tests
+./gradlew :test-clients:testRepeatable \
+   --tests "com.hedera.services.bdd.suites.integration.RepeatableHip1064Tests" \
+   --tests "com.hedera.services.bdd.suites.integration.BlockNodeRewardsTests" \
+   -PrunUntilFailure=3
+```
+
+Note: the `P` prefix is a Gradle convention for custom parameters.
