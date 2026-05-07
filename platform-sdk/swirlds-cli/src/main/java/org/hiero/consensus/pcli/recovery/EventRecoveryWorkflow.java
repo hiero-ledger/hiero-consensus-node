@@ -49,6 +49,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -122,7 +123,10 @@ public final class EventRecoveryWorkflow {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        platformContext.getConfiguration(),
+                        platformContext.getFileSystemManager());
 
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
@@ -235,10 +239,11 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         final Configuration configuration = platformContext.getConfiguration();
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), configuration);
+                        platformContext.getMetrics(), platformContext.getTime(), configuration, fileSystemManager);
         stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
         final ReservedSignedState workingSignedState =

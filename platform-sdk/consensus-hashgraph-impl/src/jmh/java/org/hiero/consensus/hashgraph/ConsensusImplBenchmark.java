@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -49,8 +50,6 @@ public class ConsensusImplBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .seed(SEED)
                 .maxOtherParents(numOP)
@@ -70,12 +69,10 @@ public class ConsensusImplBenchmark {
             linkedEvents.add(linkedEvent);
         }
 
-        consensus = new ConsensusImpl(
-                platformContext.getConfiguration(),
-                platformContext.getTime(),
-                new NoOpConsensusMetrics(),
-                generator.getRoster(),
-                0L);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Time time = Time.getCurrent();
+
+        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
     }
 
     @Benchmark

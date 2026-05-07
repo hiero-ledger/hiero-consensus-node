@@ -4,7 +4,6 @@ package org.hiero.consensus.gossip.impl.network;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.crypto.KeyLoadingException;
 import com.swirlds.platform.crypto.PublicStores;
 import java.net.URISyntaxException;
@@ -31,6 +30,7 @@ import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;

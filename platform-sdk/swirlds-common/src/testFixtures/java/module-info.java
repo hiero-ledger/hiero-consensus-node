@@ -25,8 +25,6 @@ open module com.swirlds.common.test.fixtures {
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
-    requires org.apache.logging.log4j.core;
-    requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;
     requires org.mockito;
     requires static transitive com.github.spotbugs.annotations;

@@ -6,13 +6,16 @@ import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
@@ -59,15 +62,39 @@ public class TestIntake {
     private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
 
     /**
-     * @param platformContext the platform context used to configure this intake.
+     * Constructor. Uses default configuration, metrics, and time.
+     *
      * @param roster the roster used by this intake
      */
-    public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
+    public TestIntake(@NonNull final Roster roster) {
+        this(new TestConfigBuilder().getOrCreateConfig(), roster);
+    }
+
+    /**
+     * Constructor. Uses default metrics and time.
+     *
+     * @param configuration the configuration to use for this intake.
+     * @param roster the roster used by this intake
+     */
+    public TestIntake(@NonNull final Configuration configuration, @NonNull final Roster roster) {
+        this(configuration, new NoOpMetrics(), Time.getCurrent(), roster);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param configuration the configuration to use for this intake.
+     * @param metrics the metrics to use for this intake.
+     * @param time the time to use for this intake.
+     * @param roster the roster used by this intake
+     */
+    public TestIntake(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
-        roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
         output = new ConsensusOutput();
 
@@ -83,7 +110,7 @@ public class TestIntake {
                 new PassThroughWiring(model, "PlatformEvent", "postHashCollector", TaskSchedulerType.DIRECT);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), intakeEventCounter);
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
@@ -94,14 +121,8 @@ public class TestIntake {
             }
         };
 
-        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                roster,
-                selfId,
-                localFreezeCheck,
-                0L);
+        final ConsensusEngine consensusEngine =
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, localFreezeCheck, 0L);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

@@ -10,8 +10,8 @@ description = "Base Concurrent"
 
 testModuleInfo {
     requires("org.hiero.consensus.concurrent")
-    requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
 }
@@ -19,7 +19,6 @@ testModuleInfo {
 timingSensitiveModuleInfo {
     requires("com.swirlds.base")
     requires("org.hiero.consensus.concurrent")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.logging")
     requires("com.swirlds.logging.test.fixtures")
     requires("org.hiero.base.concurrent")

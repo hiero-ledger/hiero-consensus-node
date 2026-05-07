@@ -75,7 +75,8 @@ public class BlockStreamRecoveryWorkflow {
                 new VirtualMapStateLifecycleManager(
                         getPlatformContext().getMetrics(),
                         getPlatformContext().getTime(),
-                        getPlatformContext().getConfiguration());
+                        getPlatformContext().getConfiguration(),
+                        getPlatformContext().getFileSystemManager());
 
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
@@ -160,7 +161,10 @@ public class BlockStreamRecoveryWorkflow {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        platformContext.getConfiguration(),
+                        platformContext.getFileSystemManager());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext,

@@ -516,8 +516,12 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad =
-                Scratchpad.create(platformContext.getConfiguration(), selfId, IssScratchpad.class, "platform.iss");
+        final Scratchpad<IssScratchpad> issScratchpad = Scratchpad.create(
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager(),
+                selfId,
+                IssScratchpad.class,
+                "platform.iss");
         issScratchpad.logContents();
 
         final ApplicationCallbacks callbacks =

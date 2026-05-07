@@ -49,7 +49,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         super.onTrialSetup();
 
         // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
-        dataSourceBuilder = new MerkleDbDataSourceBuilder(configuration, maxKey / 2);
+        dataSourceBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, maxKey / 2);
     }
 
     /**
