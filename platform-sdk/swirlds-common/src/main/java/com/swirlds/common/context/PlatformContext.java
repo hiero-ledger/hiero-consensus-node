@@ -2,14 +2,16 @@
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
@@ -35,7 +37,10 @@ public interface PlatformContext {
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
+        final StateCommonConfig scConfig = configuration.getConfigData(StateCommonConfig.class);
+        final TemporaryFileConfig tfConfig = configuration.getConfigData(TemporaryFileConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(scConfig.savedStateDirectory(), tfConfig.temporaryFilePath());
         final Time time = Time.getCurrent();
         return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin());
     }

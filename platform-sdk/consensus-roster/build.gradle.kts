@@ -17,10 +17,12 @@ testModuleInfo {
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.consensus.utility")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.hiero.consensus.platformstate")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("org.assertj.core")
 }
