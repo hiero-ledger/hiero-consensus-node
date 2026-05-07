@@ -45,7 +45,7 @@ public class CodeV2 extends Code {
         CodeV2 code;
         synchronized (FREE) {
             // Under lock, pull from free-list, do the cheap-init
-            code = (FREE.isEmpty() ? EMPTY : FREE.removeLast()).init(codes, off, len);
+            code = (FREE.isEmpty() ? new CodeV2(null, null) : FREE.removeLast()).init(codes, off, len);
             // probe the hash table
             PROBES++;
             CodeV2 old = CODES.get(code);
@@ -175,7 +175,6 @@ public class CodeV2 extends Code {
         // return !jumpValid(dst); // Obvious execution strat, but still hoping never called
         throw new TODO();
     }
-
     @Override public String prettyPrint() { throw new TODO(); }
 }
 // spotless:on

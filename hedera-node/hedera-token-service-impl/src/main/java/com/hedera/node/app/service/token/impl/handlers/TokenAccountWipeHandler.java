@@ -261,7 +261,5 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
     }
 
     private record ValidationResult(
-            @NonNull Account account,
-            @NonNull Token token,
-            @NonNull TokenRelation accountTokenRel) {}
+            @NonNull Account account, @NonNull Token token, @NonNull TokenRelation accountTokenRel) {}
 }
