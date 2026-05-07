@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.report;
 
+/**
+ * Represents a report for a specific storage type, containing details about key range, size, waste, and duplicates.
+ */
 public class StorageReport {
 
     private long minKey;

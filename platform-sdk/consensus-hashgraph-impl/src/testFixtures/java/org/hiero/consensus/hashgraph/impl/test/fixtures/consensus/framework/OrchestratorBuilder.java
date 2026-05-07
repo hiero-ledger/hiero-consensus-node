@@ -110,8 +110,14 @@ public class OrchestratorBuilder {
         }
         // randomise the number of other parents to increase test coverage
         final int numOtherParents = random.nextInt(1, numberOfNodes);
-        final StandardGraphGenerator graphGenerator =
-                new StandardGraphGenerator(platformContext, graphSeed, numOtherParents, eventSources, roster);
+        final StandardGraphGenerator graphGenerator = new StandardGraphGenerator(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                graphSeed,
+                numOtherParents,
+                eventSources,
+                roster);
 
         // Make the graph generators create a fresh set of events.
         // Use the same seed so that they create identical graphs.

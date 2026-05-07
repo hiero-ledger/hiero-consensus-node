@@ -1,0 +1,44 @@
+{
+  "id": 23,
+  "status": "approved",
+  "status_url": "/api/v1/compute/allocation/6",
+  "namespace": "chewie-solo-mqpt-n6",
+  "cluster_fqdn": "k8s.pft.chi.lat.ope.eng.hashgraph.io",
+  "expires_at": "2027-04-17T12:00:00Z",
+  "instances": [
+    {
+      "group": "cn-nodes",
+      "spec": {
+        "quantity": 8,
+        "resources": { "cpu": 48, "memory": 393216 }
+      },
+      "labels": {
+        "solo.hashgraph.io/role": "consensus-node",
+        "solo.hashgraph.io/owner": "adhoc-performance-test",
+        "solo.hashgraph.io/network-id": "6"
+      },
+      "tolerations": [
+        { "key": "solo.hashgraph.io/role",       "operator": "Equal", "value": "consensus-node",  "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/owner",      "operator": "Equal", "value": "adhoc-performance-test", "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/network-id", "operator": "Equal", "value": "6",               "effect": "NoSchedule" }
+      ]
+    },
+    {
+      "group": "aux-nodes",
+      "spec": {
+        "quantity": 1,
+        "resources": { "cpu": 48, "memory": 393216 }
+      },
+      "labels": {
+        "solo.hashgraph.io/role": "auxiliary-services",
+        "solo.hashgraph.io/owner": "adhoc-performance-test",
+        "solo.hashgraph.io/network-id": "6"
+      },
+      "tolerations": [
+        { "key": "solo.hashgraph.io/role",       "operator": "Equal", "value": "auxiliary-services", "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/owner",      "operator": "Equal", "value": "adhoc-performance-test",    "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/network-id", "operator": "Equal", "value": "6",                  "effect": "NoSchedule" }
+      ]
+    }
+  ]
+}
