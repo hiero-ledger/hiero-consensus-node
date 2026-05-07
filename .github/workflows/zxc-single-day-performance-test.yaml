@@ -447,7 +447,7 @@ jobs:
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
-      - name: Build NLG test
+      - name: Build NLG test (JDK21)
         if: false
         env:
           GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
@@ -460,6 +460,12 @@ jobs:
           ./gradlew --no-daemon clean assemble
           cd build/libs
           tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+
+      - name: Build NLG test
+        run: |
+          set +x
+          set +e
+          gcloud --no-user-output-enabled storage cp "${{ env.GS_ROOT_DIR }}"/NLG.tar /tmp/NLG.tar
 
       - name: Prepare NLG parameters
         env:
@@ -526,7 +532,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: Update NLG test
-        if: false
         run: |
           set +x
           set +e
