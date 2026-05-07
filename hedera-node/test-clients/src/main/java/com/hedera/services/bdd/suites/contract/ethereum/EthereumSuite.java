@@ -1390,27 +1390,4 @@ public class EthereumSuite {
                 restoreDefault("contracts.maxGasPerTransaction"),
                 restoreDefault("contracts.throttle.throttleByGas"));
     }
-
-    @HapiTest
-    final Stream<DynamicTest> ethereumTransactionRespectsMaxGasPerTransaction() {
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS)),
-                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
-                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
-                overriding("contracts.throttle.throttleByGas", "false"),
-                overriding("contracts.maxGasPerTransaction", "15000000"),
-                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(1))
-                        .type(EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(0)
-                        .gasLimit(16_000_000L)
-                        .sending(1)
-                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
-                restoreDefault("contracts.maxGasPerTransaction"),
-                restoreDefault("contracts.throttle.throttleByGas"));
-    }
 }

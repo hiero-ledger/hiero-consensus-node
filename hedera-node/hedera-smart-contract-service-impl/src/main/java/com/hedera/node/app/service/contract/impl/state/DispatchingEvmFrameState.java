@@ -77,7 +77,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
     private final HederaNativeOperations nativeOperations;
-    private final ContractStateStore contractStateStore;
+    final ContractStateStore contractStateStore;
 
     /**
      * @param nativeOperations   the Hedera native operation
