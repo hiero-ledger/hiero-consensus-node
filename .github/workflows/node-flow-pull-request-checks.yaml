@@ -51,6 +51,16 @@ jobs:
             const script = require('.github/workflows/support/scripts/classify-changed-files.js');
             await script({github, context, core})
 
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
   mats-pr-checks:
     name: MATS
     needs:
