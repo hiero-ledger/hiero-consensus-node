@@ -68,12 +68,6 @@ public class StartupStateUtilsTests {
     @TempDir
     Path savedStateDir;
 
-    /**
-     * Temporary directory for the FileSystemManager
-     */
-    //    @TempDir
-    //    Path fileSystemManagerTempDir;
-
     private FileSystemManager fileSystemManager;
 
     private SignedStateFilePath signedStateFilePath;

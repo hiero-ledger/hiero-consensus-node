@@ -72,27 +72,6 @@ public class SignedStateFilePath {
 
     /**
      * <p>
-     * Get the directory that contains contains saved states for a particular node.
-     * </p>
-     *
-     * <pre>
-     * e.g. data/saved/com.swirlds.foobar/1234
-     *      |--------| |----------------| |--|
-     *          |             |            |
-     *          |         mainClassName    |
-     *          |                          |
-     *       location where              selfId
-     *       states are saved
-     * </pre>
-     *
-     * @return the path of a directory, may not exist
-     */
-    private @NonNull Path getSignedStatesDirectoryForNode() {
-        return getSignedStatesDirectoryForApp().resolve(selfId.toString());
-    }
-
-    /**
-     * <p>
      * Get the directory that contains saved states for a particular swirld (i.e. an instance of an app).
      * </p>
      *
@@ -109,8 +88,7 @@ public class SignedStateFilePath {
      * @return the path of a directory, may not exist
      */
     public @NonNull Path getSignedStatesDirectoryForSwirld() {
-
-        return getSignedStatesDirectoryForNode().resolve(swirldName);
+        return getSignedStatesDirectoryForApp().resolve(selfId.toString()).resolve(swirldName);
     }
 
     /**

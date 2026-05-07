@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -42,7 +43,7 @@ class HalfDiskHashMapTest {
 
     private FileSystemManager fileSystemManager;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setupFileSystemManager() {
         fileSystemManager = new TestFileSystemManager(tempDirPath);
     }
