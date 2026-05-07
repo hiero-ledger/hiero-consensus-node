@@ -57,13 +57,6 @@ gradle.lifecycle.afterProject {
     tasks.withType<Test>().configureEach {
         reports.junitXml.mergeReruns = true
 
-        // Write a marker when tests actually execute (not on cache restore).
-        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
-        doLast {
-            markerFile.parentFile.mkdirs()
-            markerFile.writeText(java.time.Instant.now().toString())
-        }
-
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
         // not flaky
         val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
