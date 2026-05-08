@@ -49,6 +49,7 @@ public final class BestEffortPcesFileCopy {
      * @param configuration the platform configuration
      * @param selfId the id of this node
      * @param destinationDirectory the directory where the state is being written
+     * @param fileSystemManager the file system manager for resolving on-disk locations
      * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
      * written
      * @param round the round of the state that is being written
