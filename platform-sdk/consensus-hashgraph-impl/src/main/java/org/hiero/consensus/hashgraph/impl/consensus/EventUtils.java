@@ -10,7 +10,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
  */
 public final class EventUtils {
     /**
-     * Hidden constructor
+     * Hidden constructor.
      */
     private EventUtils() {}
 

@@ -52,7 +52,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker,
-            @Nullable EventPipelineTracker pipelineTracker,
+            @Nullable final EventPipelineTracker pipelineTracker,
             final long transactionOffsetNanos) {
 
         //noinspection VariableNotUsedInsideIf

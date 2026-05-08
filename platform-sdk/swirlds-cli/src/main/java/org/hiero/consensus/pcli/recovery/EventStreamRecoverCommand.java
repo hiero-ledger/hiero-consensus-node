@@ -29,7 +29,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     private Path eventStreamDirectory;
     private Path configurationPath;
     private boolean loadSigningKeys;
-    private long transactionOffsetNanos = 0L;
+    private long transactionOffsetNanos;
 
     private EventStreamRecoverCommand() {}
 

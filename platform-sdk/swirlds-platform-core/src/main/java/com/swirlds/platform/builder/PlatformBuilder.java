@@ -97,7 +97,7 @@ public final class PlatformBuilder {
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
     private GossipModule gossipModule;
-    private long transactionOffsetNanos = 0L;
+    private long transactionOffsetNanos;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
