@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.FILE_SYSTEM_MANAGER;
 import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -286,6 +287,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
                         new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),
                 PLATFORM_CONFIG,
+                FILE_SYSTEM_MANAGER,
                 metrics,
                 new FakeTime());
         version = hedera.getSemanticVersion();

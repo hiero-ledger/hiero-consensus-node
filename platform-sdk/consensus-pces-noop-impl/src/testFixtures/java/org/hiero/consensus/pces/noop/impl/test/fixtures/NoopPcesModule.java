@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -181,6 +182,7 @@ public class NoopPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {
