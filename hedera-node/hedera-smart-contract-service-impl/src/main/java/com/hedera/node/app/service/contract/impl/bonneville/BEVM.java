@@ -41,9 +41,6 @@ class BEVM {
 
     final GasCalculator _gasCalc;
 
-    //final FeatureFlags _flags;
-    //final AddressChecks _adrChk;
-
     // per-contract temp storage
     final Memory _mem;
 
@@ -52,8 +49,6 @@ class BEVM {
     final TopXTN.Wrap _wrap0 = new TopXTN.Wrap(), _wrap1 = new TopXTN.Wrap();
 
     // Per-invocation fields
-
-    //ActionSidecarContentTracer _tracer;
 
     MessageFrame _frame;
 
@@ -76,7 +71,7 @@ class BEVM {
     boolean _isStatic;
 
     // Warmed-up (Address,UInt256) key pairs, Stack depth on entry, used to unwind on Revert
-    int _warmAdrStkPtr;
+    int _adrkeys;
 
     // Last Storage key, value.  Used to inform the Frame that storage was updated.
     UInt256 _lastSKey, _lastSVal;
@@ -90,8 +85,6 @@ class BEVM {
     // thread-local pool managed by Bonneville.
     BEVM(TopXTN top/*BonnevilleEVM bevm, Operation[] operations*/) {
         _top = top;
-
-        //_flags = bevm._flags; // Feature Flags
 
         // Faster access for a common field
         _gasCalc = top._bonneville.getGasCalculator();
@@ -140,19 +133,19 @@ class BEVM {
         _contractId = _updater.getHederaContractIdNotThrowing(_recvAddr);
 
         // Size of the warmed-up address list
-        _warmAdrStkPtr = _top._warmAdrStk.size();
+        _adrkeys = _top._adrkeys;
         // Warm-up some common things
         if( parentContract != null )
-            isWarm(parentContract);
-        isWarm(frame.getSenderAddress());
-        isWarm(frame.getContractAddress());
+            _top.isWarm(parentContract);
+        _top.isWarm(frame.getSenderAddress());
+        _top.isWarm(frame.getContractAddress());
 
         assert _lastSKey == null && _lastSVal == null;
         return this;
     }
 
     void reset() {
-        _warmAdrStkPtr = 0;
+        _adrkeys = 0;
         _mem.reset();
         _frame = null;
         _code = null;
@@ -206,12 +199,14 @@ class BEVM {
 
     // Push a UInt256
     private ExceptionalHaltReason push(UInt256 val) {
-        return push(TopXTN.getLong(val, 3), TopXTN.getLong(val, 2), TopXTN.getLong(val, 1), TopXTN.getLong(val, 0));
+        int x = _top.ui256x(val);
+        //if( x < 0 ) return push(-x-1);
+        return push( _top.x0(x), _top.x1(x), _top.x2(x), _top.x3(x));
     }
 
     // Address.delegate
     // -- delegate is ArrayWrappingBytes
-    // -- -- wrapped bytes has offset 0, len== 20 == bytes[].length
+    // -- -- wrapped bytes have offset 0, len== 20 == bytes[].length
     // 4 calls to getLong() accumulating bytes
     //
     ExceptionalHaltReason push(Address adr) {
@@ -1013,7 +1008,7 @@ class BEVM {
         AddressChecks adrChk = _top._bonneville._adrChk;
         boolean isSystem = adrChk!=null && adrChk.isSystemAccount(address);
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            ((!isSystem && isWarm(address))
+            ((!isSystem && _top.isWarm(address))
              ? _gasCalc.getWarmStorageReadCost()
              : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
@@ -1108,7 +1103,7 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        if( isWarm(address) )
+        if( _top.isWarm(address) )
             gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getWarmStorageReadCost();
         var halt = useGas(gas);
         if( halt != null) return halt;
@@ -1141,7 +1136,7 @@ class BEVM {
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
         long gas = copyCost(doff, len, 0)
-            + (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            + (_top.isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 
@@ -1166,7 +1161,7 @@ class BEVM {
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
         gas = _gasCalc.getExtCodeSizeOperationGasCost()
-            + (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            + (_top.isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 
@@ -1239,8 +1234,7 @@ class BEVM {
         _frame.setRevertReason(reason);
         _frame.setState(MessageFrame.State.REVERT);
         // Undo all the warmed-up addresses in this contract
-        while( _top._warmAdrStk.size() > _warmAdrStkPtr )
-            _top._warmAdrStk.removeLast()._warm = false;
+        _top._adrkeys = _adrkeys;
         return ExceptionalHaltReason.NONE;
     }
 
@@ -1484,26 +1478,6 @@ class BEVM {
     // ---------------------
     // Permanent Storage ops.
 
-    // Storage "slots" are keyed by (Address,UInt256) and are cold until first
-    // touched.  "cold" is reset at top-level contracts, and "warm" is passed
-    // down to all child contract calls.  Reverted contracts undo their
-    // "warming" touches as if they never happened.
-    private AdrKey getSlot(Address adr, UInt256 key) {
-        return AdrKey.intern(_top,adr,key);
-    }
-
-    // Is AdrKey warm?  If not, warm it and stack it in case of revert
-    private boolean isWarm(AdrKey ak) {
-        if( ak._warm ) return true;
-        _top._warmAdrStk.add(ak); // Record for revert
-        ak._warm = true;
-        return false; // Was cold, but warmed-up afterward
-    }
-    // Is Address warm?  Make an AdrKey with null UInt256 and check normally
-    boolean isWarm(Address adr) {
-        return _gasCalc.isPrecompile(adr) || isWarm(getSlot(adr, null));
-    }
-
     // Load from the global/permanent store
     private ExceptionalHaltReason customSLoad() {
         UInt256 key = popUInt256();
@@ -1511,9 +1485,8 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        AdrKey ak = getSlot(_recvAddr, key);
         long gas = _gasCalc.getSloadOperationGasCost()
-            + (isWarm(ak) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
+            + (_top.isWarm(_recvAddr,key) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt != null ) return halt;
 
@@ -1543,8 +1516,7 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        AdrKey ak = getSlot(_recvAddr, key);
-        long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) + (isWarm(ak) ? 0 : _gasCalc.getColdSloadCost());
+        long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) + (_top.isWarm(_recvAddr, key) ? 0 : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 

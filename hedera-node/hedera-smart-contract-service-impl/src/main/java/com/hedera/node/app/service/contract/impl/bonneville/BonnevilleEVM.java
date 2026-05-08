@@ -223,8 +223,6 @@ public class BonnevilleEVM extends HEVM {
         // Top-level run-to-halt
         final ArrayDeque<TopXTN> frees = FREE.get();
         final TopXTN free = frees.pollLast();
-        if( free==null )
-            System.out.println("MAKING A TOPXTN");
         final TopXTN top = (free == null) ? new TopXTN(this) : free;
 
         top.run(frame, scTracer, code);

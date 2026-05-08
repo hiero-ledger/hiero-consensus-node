@@ -55,7 +55,7 @@ public abstract class CallManager {
         if( bevm._updater.isHollowAccount(recv_contract) && !bevm._top._bonneville._flags.isImplicitCreationEnabled() )
             return bevm.push0();
 
-        bevm.isWarm(recv_contract); // Force contract address to be warmed up
+        bevm._top.isWarm(recv_contract); // Force contract address to be warmed up
 
         bevm._updater.setupInternalAliasedCreate(sender, recv_contract);
 
@@ -225,7 +225,7 @@ public abstract class CallManager {
 
         // There is a 2nd gas check made here, with Account possibly being warm
         // which is lower cost, so never fails...
-        gas += bevm.isWarm(contract)
+        gas += bevm._top.isWarm(contract)
             ? bevm._gasCalc.getWarmStorageReadCost()
             : bevm._gasCalc.getColdAccountAccessCost();
 

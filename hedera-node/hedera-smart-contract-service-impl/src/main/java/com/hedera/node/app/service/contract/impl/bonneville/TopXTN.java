@@ -49,7 +49,7 @@ public class TopXTN {
     public void run(MessageFrame frame, ActionSidecarContentTracer tracer, CodeV2 code ) {
         // Properly reset between XTNs
         assert _n256s==0;
-        assert _warmAdrStk.isEmpty();
+        assert _adrkeys==0;
 
         // Side-car tracking (despite the tracer name, it tracks sidecars)
         _tracer = tracer;
@@ -72,7 +72,7 @@ public class TopXTN {
             tracer.traceNotExecuting(frame);
 
         // Reset at top level
-        _warmAdrStk.clear();
+        _adrkeys = 0;
         _n256s = 0;
     }
 
@@ -94,35 +94,38 @@ public class TopXTN {
     // execution but commonly vary in different XTNs - as they commonly hold
     // hashes.  Interning them helps the later caches use a faster plain ==
     // check instead of equals().
-    private int _n256s;
+    private short _n256s;
     private long[] _x0s=new long[1], _x1s=new long[1], _x2s=new long[1], _x3s=new long[1];
     private UInt256[] _u256s = new UInt256[1];
 
-    UInt256 uint256(long x0, long x1, long x2, long x3) {
-        // Small values are already interned
-        if( x1 == 0 && x2 == 0 && x3 == 0 && 0 <= x0 && x0 < 64 )
-            return UInt256.valueOf(x0);
+    long x0(int x) { return _x0s[x]; }
+    long x1(int x) { return _x1s[x]; }
+    long x2(int x) { return _x2s[x]; }
+    long x3(int x) { return _x3s[x]; }
 
+    UInt256 uint256(long x0, long x1, long x2, long x3) {
         // Check for a hit
         for( int i=0; i<_n256s; i++ )
             if( _x0s[i]==x0 && _x1s[i]==x1 && _x2s[i]==x2 && _x3s[i]==x3 )
                 return _u256s[i];
-        if( _n256s == _x0s.length ) {
-            _x0s   = Arrays.copyOf(  _x0s,_n256s<<1);
-            _x1s   = Arrays.copyOf(  _x1s,_n256s<<1);
-            _x2s   = Arrays.copyOf(  _x2s,_n256s<<1);
-            _x3s   = Arrays.copyOf(  _x3s,_n256s<<1);
-            _u256s = Arrays.copyOf(_u256s,_n256s<<1);
-        }
 
-        // Build a UInt256
-        byte[] bs = new byte[32];
-        Memory.write8(bs, 24, x0);
-        Memory.write8(bs, 16, x1);
-        Memory.write8(bs,  8, x2);
-        Memory.write8(bs,  0, x3);
-        // Wildly inefficent UIn256 constructor path
-        UInt256 u256 = UInt256.fromBytes(Bytes.wrap(bs));
+        // Need to allocate a cache slot.  Grow if needed
+        grow();
+
+        // Make a UI256
+        UInt256 u256;
+        if( x1 == 0 && x2 == 0 && x3 == 0 && 0 <= x0 && x0 < 64 )
+            u256 = UInt256.valueOf(x0);
+        else {
+            // Build a UInt256 the hard way
+            byte[] bs = new byte[32];
+            Memory.write8(bs, 24, x0);
+            Memory.write8(bs, 16, x1);
+            Memory.write8(bs,  8, x2);
+            Memory.write8(bs,  0, x3);
+            // Wildly inefficient UIn256 constructor path
+            u256 = UInt256.fromBytes(Bytes.wrap(bs));
+        }
         // Install in cache
         _x0s[_n256s] = x0;
         _x1s[_n256s] = x1;
@@ -132,15 +135,50 @@ public class TopXTN {
         return u256;
     }
 
+    // Need to allocate a cache slot.  Grow if needed
+    private void grow() {
+        if( _n256s < _x0s.length ) return;
+        assert _n256s < 32767;  // More than 32K of these in a top-level contract?  Revisit assumptions.
+        _x0s   = Arrays.copyOf(  _x0s,_n256s<<1);
+        _x1s   = Arrays.copyOf(  _x1s,_n256s<<1);
+        _x2s   = Arrays.copyOf(  _x2s,_n256s<<1);
+        _x3s   = Arrays.copyOf(  _x3s,_n256s<<1);
+        _u256s = Arrays.copyOf(_u256s,_n256s<<1);
+    }
+
+    // Intern an existing UInt256, and return an index into cache
+    short ui256x(UInt256 u) {
+        // Check for the existing cache hitting the fast way
+        for( int i=0; i<_n256s; i++ )
+            if( _u256s[i]==u )
+                return (short)i;
+        // Check for the existing cache hitting the expensive way
+        for( int i=0; i<_n256s; i++ )
+            if( u.equals(_u256s[i]) )
+                return (short)i;
+        // Need to allocate a cache slot.  Grow if needed
+        grow();
+
+        // Install
+        short x = _n256s;
+        _x0s[_n256s] = getLong(u,3);
+        _x1s[_n256s] = getLong(u,2);
+        _x2s[_n256s] = getLong(u,1);
+        _x3s[_n256s] = getLong(u,0);
+        _u256s[_n256s++] = u;
+        return x;
+    }
 
     // Get 1 of 4 longs out of a UInt26.  Utility to support a long-striped
     // stack in Bonneville.
-    static long getLong(UInt256 u, int idx) {
+    private static long getLong(UInt256 u, int idx) {
         long x = 0;
         for( int i = 0; i < 8; i++ )
             x |= ((long) (u.get((idx << 3) + i) & 0xFF)) << ((7 - i) << 3);
         return x;
     }
+
+
 
     // A Supplier for BESU libs.  Used to make 1-shot wrapped UInt256's that do
     // not allocate.
@@ -150,9 +188,33 @@ public class TopXTN {
     }
 
     // ---------------
-    // Top-level shared warm-address stack.  This is a stack of warmed-up
-    // addresses used in gas cost accounting.  It gets popped if a contract
-    // reverts, un-warming addresses the reverted contract warmed.
-    final ArrayList<AdrKey> _warmAdrStk = new ArrayList<>();
+    // Storage "slots" are keyed by (Address,UInt256) and are cold until first
+    // touched.  "cold" is reset at top-level contracts, and "warm" is passed
+    // down to all child contract calls.  Reverted contracts undo their
+    // "warming" touches as if they never happened.
 
+    // Top-level single-threaded shared-by-BEVMs warm-address stack.
+    int _adrkeys;               // Number of stack entries
+    private Address[] _adrs = new Address[1];
+
+    // Index into the above UInt256 key array OR -1 for the null or missing
+    // UInt256.
+    private short[] _keyxs = new short[1];
+
+    boolean isWarm( Address adr ) { return isWarm(adr, null); }
+    boolean isWarm( Address adr, UInt256 key ) {
+        short keyx = key == null ? -1 : ui256x(key);
+        for( int i=0; i<_adrkeys; i++ )
+            if( _adrs[i].equals(adr) && _keyxs[i]==keyx )
+                return true;    // Hit, must be warm
+        // Need to allocate a warm slot.  Grow if needed
+        if( _adrkeys == _adrs.length ) {
+            _adrs = Arrays.copyOf(_adrs ,_adrkeys<<1);
+            _keyxs= Arrays.copyOf(_keyxs,_adrkeys<<1);
+        }
+        // Add adr/key slot
+        _adrs [_adrkeys  ] = adr;
+        _keyxs[_adrkeys++] = keyx;
+        return false;           // Was missing, cold.  Is warm now
+    }
 }
