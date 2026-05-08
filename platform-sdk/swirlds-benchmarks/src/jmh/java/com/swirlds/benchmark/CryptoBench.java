@@ -8,12 +8,9 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.virtualmap.VirtualMap;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
@@ -39,7 +36,7 @@ public class CryptoBench extends VirtualMapEditBench {
     private static final Logger logger = LogManager.getLogger(CryptoBench.class);
 
     private static final int MAX_AMOUNT = 1000;
-    private static final int MILLISECONDS = 1000;
+    private static final int NANOSECONDS = 1_000_000_000;
     private static final int EMA_FACTOR = 100;
 
     /* Number of random keys updated in one simulated transaction */
@@ -94,7 +91,7 @@ public class CryptoBench extends VirtualMapEditBench {
     }
 
     private long average(long time) {
-        return (long) numRecords * MILLISECONDS / Math.max(time, 1);
+        return (long) numRecords * NANOSECONDS / Math.max(time, 1);
     }
 
     private void updateTPS(int iteration, long delta) {
@@ -114,8 +111,8 @@ public class CryptoBench extends VirtualMapEditBench {
         logger.info(
                 "Total transactions: {}, time: {} sec, TPS: {}",
                 totalTxns,
-                totalTime / MILLISECONDS,
-                totalTxns * MILLISECONDS / Math.max(totalTime, 1));
+                totalTime / NANOSECONDS,
+                totalTxns * NANOSECONDS / Math.max(totalTime, 1));
     }
 
     /**
@@ -127,7 +124,7 @@ public class CryptoBench extends VirtualMapEditBench {
     public void transferSerial() {
         logger.info(RUN_DELIMITER);
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -179,11 +176,11 @@ public class CryptoBench extends VirtualMapEditBench {
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
     }
 
     @Benchmark
@@ -206,7 +203,7 @@ public class CryptoBench extends VirtualMapEditBench {
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -274,69 +271,83 @@ public class CryptoBench extends VirtualMapEditBench {
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
         prefetchPool.close();
     }
 
-    static class WarmupTask extends AbstractTask {
+    static class AsyncTask extends AbstractTask {
 
-        VirtualMap currentMap;
-        long key1, key2;
-        TransferTask out;
+        Transaction txn;
+        Cache cache;
+        long skey, rkey;
+        long amount;
+        long timestamp;
+        SyncTask out;
 
-        WarmupTask(ForkJoinPool pool, VirtualMap currentMap, long key1, long key2, TransferTask out) {
+        AsyncTask(ForkJoinPool pool, Cache cache, long skey, long rkey, long amount, long timestamp, SyncTask out) {
             super(pool, 1);
-            this.currentMap = currentMap;
-            this.key1 = key1;
-            this.key2 = key2;
+            this.cache = cache;
+            this.skey = skey;
+            this.rkey = rkey;
+            this.amount = amount;
+            this.timestamp = timestamp;
             this.out = out;
         }
 
         @Override
         protected boolean onExecute() {
-            Bytes keyBytes1 = longToKey(key1);
-            currentMap.warm(keyBytes1);
-            Bytes keyBytes2 = longToKey(key2);
-            currentMap.warm(keyBytes2);
-            out.send(keyBytes1, keyBytes2);
+            Transaction txn = new Transaction(skey, rkey, amount, timestamp);
+            txn.execAsync(cache);
+            out.send(txn);
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error("Error occurred while executing task", t);
+            logger.error("Error occurred while executing AsyncTask", t);
         }
     }
 
-    class TransferTask extends AbstractTask {
+    class SyncTask extends AbstractTask {
 
-        VirtualMap currentMap;
-        Bytes sender;
-        Bytes receiver;
-        long amount;
-        TransferTask next;
+        Transaction txn;
+        MainCache mainCache;
+        SyncTask next;
+        FlushTask out;
 
-        TransferTask(ForkJoinPool pool, VirtualMap currentMap) {
+        SyncTask(ForkJoinPool pool, MainCache mainCache, FlushTask out) {
             super(pool, 3);
-            this.currentMap = currentMap;
-            this.amount = Utils.randomLong(MAX_AMOUNT);
+            this.mainCache = mainCache;
+            this.out = out;
         }
 
         void update(Bytes key, long amount) {
-            BenchmarkValue value = currentMap.get(key, BenchmarkValueCodec.INSTANCE);
+            BenchmarkValue value = mainCache.get(key).value;
             if (value == null) value = new BenchmarkValue(0);
             value = value.copyBuilder().update(l -> l + amount).build();
-            currentMap.put(key, value, BenchmarkValueCodec.INSTANCE);
+            mainCache.put(key, new VersionedValue(value, txn.timestamp));
         }
 
         @Override
         protected boolean onExecute() {
-            update(sender, -amount);
-            update(receiver, amount);
+
+            boolean accept = true;
+            for (Map.Entry<Bytes, VersionedValue> entry : txn.readCache.cache.entrySet()) { // TODO: cache
+                VersionedValue vv0 = mainCache.cache.get(entry.getKey()); // TODO: cache
+                if (vv0 != null && vv0.timestamp > entry.getValue().timestamp) {
+                    accept = false;
+                    break;
+                }
+            }
+            if (!accept) {
+                txn.execSync();
+            }
+            out.send(txn.writeCache.cache); // TODO: cache
+            mainCache.addAll(txn.writeCache.cache); // TODO: cache
 
             // Model fees
             update(fixedKey1, 1);
@@ -348,18 +359,179 @@ public class CryptoBench extends VirtualMapEditBench {
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error("Error occurred while executing task", t);
+            logger.error("Error occurred while executing SyncTask", t);
         }
 
-        void send(TransferTask next) {
+        void send(SyncTask next) {
             this.next = next;
             send();
         }
 
-        void send(Bytes key1, Bytes key2) {
-            sender = key1;
-            receiver = key2;
+        void send(Transaction txn) {
+            this.txn = txn;
             send();
+        }
+    }
+
+    static class FlushTask extends AbstractTask {
+        VirtualMap virtualMap;
+        Map<Bytes, VersionedValue> cache;
+        FlushTask next;
+
+        FlushTask(ForkJoinPool pool, VirtualMap virtualMap) {
+            super(pool, 3);
+            this.virtualMap = virtualMap;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            for (Map.Entry<Bytes, VersionedValue> entry : cache.entrySet()) {
+                virtualMap.put(entry.getKey(), entry.getValue().value, BenchmarkValueCodec.INSTANCE);
+            }
+            next.send();
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error("Error occurred while executing FlushTask", t);
+        }
+
+        void send(FlushTask next) {
+            this.next = next;
+            send();
+        }
+
+        void send(Map<Bytes, VersionedValue> cache) {
+            this.cache = cache;
+            send();
+        }
+    }
+
+    record VersionedValue(BenchmarkValue value, long timestamp) {}
+
+    abstract static class Cache {
+        Map<Bytes, VersionedValue> cache;
+
+        abstract VersionedValue get(Bytes key);
+
+        abstract void put(Bytes key, VersionedValue vval);
+    }
+
+    static class ReadCache extends Cache {
+        Cache delegate;
+
+        ReadCache(Cache delegate) {
+            this.cache = new HashMap<>(2);
+            this.delegate = delegate;
+        }
+
+        VersionedValue get(Bytes key) {
+            VersionedValue vv = cache.get(key);
+            if (vv != null) return vv;
+            vv = delegate.get(key);
+            cache.put(key, vv);
+            return vv;
+        }
+
+        void put(Bytes key, VersionedValue vval) {
+            throw new IllegalStateException("ReadCache.put() called");
+        }
+    }
+
+    static class WriteCache extends Cache {
+        Cache delegate;
+
+        WriteCache(Cache delegate) {
+            this.cache = new HashMap<>(2);
+            this.delegate = delegate;
+        }
+
+        VersionedValue get(Bytes key) {
+            VersionedValue vv = cache.get(key);
+            if (vv != null) return vv;
+            return delegate.get(key);
+        }
+
+        void put(Bytes key, VersionedValue vval) {
+            cache.put(key, vval);
+        }
+    }
+
+    class MainCache extends Cache {
+        VirtualMap virtualMap;
+
+        MainCache(VirtualMap virtualMap) {
+            this.cache = new ConcurrentHashMap<>(1 << 20);
+            this.virtualMap = virtualMap;
+        }
+
+        VersionedValue get(Bytes key) {
+            VersionedValue vv = cache.get(key);
+            if (vv != null) return vv;
+            BenchmarkValue value = virtualMap.get(key, BenchmarkValueCodec.INSTANCE);
+            return new VersionedValue(value, -1);
+        }
+
+        void put(Bytes key, VersionedValue vval) {
+            cache.put(key, vval);
+        }
+
+        void addAll(Map<Bytes, VersionedValue> source) {
+            cache.putAll(source);
+        }
+
+        void commit() {
+            virtualMap.put(fixedKey1, cache.get(fixedKey1).value, BenchmarkValueCodec.INSTANCE);
+            virtualMap.put(fixedKey2, cache.get(fixedKey2).value, BenchmarkValueCodec.INSTANCE);
+        }
+    }
+
+    static class Transaction {
+        final long timestamp;
+        final long amount;
+        final long skey;
+        final long rkey;
+        ReadCache readCache;
+        WriteCache writeCache;
+        Bytes sender;
+        Bytes receiver;
+
+        Transaction(long skey, long rkey, long amount, long timestamp) {
+            this.timestamp = timestamp;
+            this.amount = amount;
+            this.skey = skey;
+            this.rkey = rkey;
+        }
+
+        void update(Cache cache, Bytes key, long amount) {
+            BenchmarkValue value = cache.get(key).value;
+            if (value == null) {
+                value = new BenchmarkValue(amount);
+            } else {
+                value = value.copyBuilder().update(l -> l + amount).build();
+            }
+            cache.put(key, new VersionedValue(value, timestamp));
+        }
+
+        void execAsync(Cache delegate) {
+            readCache = new ReadCache(delegate);
+            writeCache = new WriteCache(readCache);
+
+            sender = longToKey(skey);
+            receiver = longToKey(rkey);
+            exec(writeCache);
+        }
+
+        void execSync() {
+            readCache.cache.clear();
+            writeCache.cache.clear();
+            exec(writeCache);
+        }
+
+        void exec(Cache cache) {
+            update(cache, sender, -amount);
+            update(cache, receiver, amount);
         }
     }
 
@@ -374,47 +546,55 @@ public class CryptoBench extends VirtualMapEditBench {
 
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
             // Generate a new set of random keys
             generateKeySet(keys);
 
-            TransferTask prevTask = null;
-            TransferTask currentTask = new TransferTask(pool, virtualMap);
-            // This is the very first task in a daisy chain of sequential TransferTasks,
+            MainCache mainCache = new MainCache(virtualMap);
+            FlushTask finalTask = null;
+            FlushTask currentFlushTask = new FlushTask(pool, virtualMap);
+            SyncTask currentSyncTask = new SyncTask(pool, mainCache, currentFlushTask);
+            // This is the very first task in a daisy chain of sequential SyncTasks,
             // emulate its resolved dependency from the non-existent previous task
-            currentTask.send();
+            currentSyncTask.send();
+            currentFlushTask.send();
 
             for (int j = 0; j < numRecords; ++j) {
-                long keyId1 = keys[j * KEYS_PER_RECORD];
-                long keyId2 = keys[j * KEYS_PER_RECORD + 1];
+                final long keyId1 = keys[j * KEYS_PER_RECORD];
+                final long keyId2 = keys[j * KEYS_PER_RECORD + 1];
+                final long amount = Utils.randomLong(MAX_AMOUNT);
 
                 if (verify) {
-                    verificationMap[Math.toIntExact(keyId1)] -= currentTask.amount;
-                    verificationMap[Math.toIntExact(keyId2)] += currentTask.amount;
+                    verificationMap[Math.toIntExact(keyId1)] -= amount;
+                    verificationMap[Math.toIntExact(keyId2)] += amount;
                     verificationMap[FIXED_KEY_ID1] += 1;
                     verificationMap[FIXED_KEY_ID2] += 1;
                 }
 
-                new WarmupTask(pool, virtualMap, keyId1, keyId2, currentTask).send();
-                TransferTask nextTask = new TransferTask(pool, virtualMap);
-                currentTask.send(nextTask);
-                prevTask = currentTask;
-                currentTask = nextTask;
+                new AsyncTask(pool, mainCache, keyId1, keyId2, amount, j, currentSyncTask).send();
+                FlushTask nextFlushTask = new FlushTask(pool, virtualMap);
+                currentFlushTask.send(nextFlushTask);
+                finalTask = currentFlushTask;
+                currentFlushTask = nextFlushTask;
+
+                SyncTask nextSyncTask = new SyncTask(pool, mainCache, nextFlushTask);
+                currentSyncTask.send(nextSyncTask);
+                currentSyncTask = nextSyncTask;
             }
-            // currentTask has no associated TransferTask, can be silently dropped
-            prevTask.join();
+            finalTask.join();
+            mainCache.commit();
 
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
         pool.close();
     }
 
@@ -423,7 +603,7 @@ public class CryptoBench extends VirtualMapEditBench {
         // Run in-process so the IntelliJ profiler attaches to the benchmark workload instead of a JMH fork.
         // If a larger heap is needed, set it in the IDE run configuration VM options.
         new Runner(new OptionsBuilder()
-                        .include(CryptoBench.class.getSimpleName() + ".transferPrefetch")
+                        .include(CryptoBench.class.getSimpleName() + ".transferParallel")
                         .forks(0)
                         .build())
                 .run();
