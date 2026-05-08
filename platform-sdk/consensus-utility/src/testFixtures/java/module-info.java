@@ -6,8 +6,8 @@ open module org.hiero.consensus.utility.test.fixtures {
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.consensus.utility;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.model;
-    requires org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
 }
