@@ -2,7 +2,6 @@
 package com.swirlds.platform.config;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
@@ -19,6 +18,7 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.config.RecycleBinConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
