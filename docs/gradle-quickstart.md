@@ -117,7 +117,7 @@ One common action when identifying or fixing flaky tests is re-running the test 
 either the failure happens or we are confident enough to claim the test as non-flaky.
 
 To support this flow, we added a custom Gradle argument to the test task (including the custom test
-tasks like `testRepeatable` . To run test(s) until it fails or a maximum amount of attempts is
+tasks like `testRepeatable`). To run test(s) until it fails or a maximum amount of attempts is
 reached, use the `PrunUntilFailure=<max_attempts>` parameter. Examples:
 
 ```bash
