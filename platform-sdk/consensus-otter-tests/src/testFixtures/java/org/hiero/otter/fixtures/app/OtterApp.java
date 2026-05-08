@@ -47,6 +47,8 @@ public class OtterApp implements ConsensusStateEventHandler {
 
     public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
 
+    public static final long DEFAULT_TRANSACTION_OFFSET_NANOS = 104L;
+
     private static final Logger log = LogManager.getLogger("OtterApp");
 
     private static final long BOTTLENECK_STEP_MILLIS = 500L;
