@@ -165,8 +165,7 @@ that this event strongly sees (weighted by roster) and increments to
 decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
 skipped. The current code drives ancient-ness from birth round, not
 generation; for the conceptual background see
-[`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-[TBD: concept file not yet drafted].
+[`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
 its round is greater than `ROUND_NEGATIVE_INFINITY` and its round
@@ -179,9 +178,8 @@ of weight among intermediates that all see the same canonical witness.
 `timedStronglySeeP` (line 871) wraps that with timing constraints used
 during the round-creation walk. Both rest on
 `lastSee(x, m)` (line 956), the most recent ancestor of `x` by
-member `m`, memoized per event.
-[TBD: concept file not yet drafted —
-[`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md).]
+member `m`, memoized per event. Conceptual background:
+[`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md).
 
 **Fame voting.** When a witness is added to round `r + d`, it votes
 on every undecided witness in earlier rounds via
@@ -193,8 +191,7 @@ strongly sees. When `isCoinRound(d)` returns true (line 604), the
 counting vote falls back to the middle-bit-of-signature pseudo-random
 choice for that voter. Fame is decided when a super-majority is reached
 on either side. See
-[`../concepts/coin-rounds.md`](../concepts/coin-rounds.md)
-[TBD: concept file not yet drafted].
+[`../concepts/coin-rounds.md`](../concepts/coin-rounds.md).
 
 **Judges and round-decided.** When `RoundElections.isDecided()` is
 true and the engine is no longer waiting for init judges,
@@ -257,8 +254,7 @@ single `addEvent` flip the flag in either direction in practice?]
 > they diverge in mechanics (NGen vs. birth round; the
 > `DeGen`/`cGen` family of generations used inside the implementation
 > only), the conceptual background lives in
-> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-> [TBD: concept file not yet drafted].
+> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
 
 ## Birth-round filtering
 
@@ -283,12 +279,11 @@ clears `parentHashMap` for evicted descriptors, calls `EventImpl.clear`
 on each, and returns the list of events that just became ancient.
 `DefaultConsensusEngine.addEvent` reports any of those that did not
 reach consensus on the stale-events output. Conceptual background:
-[`../concepts/birth-round.md`](../concepts/birth-round.md)
-[TBD: concept file not yet drafted].
+[`../concepts/birth-round.md`](../concepts/birth-round.md).
 
 ## Cross-references
 
-**Concepts.** [TBD: concept files not yet drafted]
+**Concepts.**
 
 - [`../concepts/hashgraph-dag.md`](../concepts/hashgraph-dag.md)
 - [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
