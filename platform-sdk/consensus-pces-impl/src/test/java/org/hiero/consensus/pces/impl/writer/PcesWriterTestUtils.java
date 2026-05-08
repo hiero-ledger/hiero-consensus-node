@@ -9,7 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -21,6 +24,7 @@ import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -64,14 +68,16 @@ public class PcesWriterTestUtils {
      * Build an event generator.
      */
     public static StandardGraphGenerator buildGraphGenerator(
-            @NonNull final PlatformContext platformContext, @NonNull final Random random) {
-        Objects.requireNonNull(platformContext);
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Random random) {
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
+        Objects.requireNonNull(time);
         final TransactionGenerator transactionGenerator = PcesWriterTestUtils.buildTransactionGenerator();
 
         return new StandardGraphGenerator(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
+                configuration,
+                metrics,
+                time,
                 random.nextLong(),
                 new StandardEventSource().setTransactionGenerator(transactionGenerator),
                 new StandardEventSource().setTransactionGenerator(transactionGenerator),
@@ -83,13 +89,15 @@ public class PcesWriterTestUtils {
      * Perform verification on a stream written by a {@link DefaultInlinePcesWriter}.
      *
      * @param events the events that were written to the stream
-     * @param platformContext the platform context
+     * @param configuration the configuration used to write the stream
+     * @param recycleBin the recycle bin
      * @param truncatedFileCount the expected number of truncated files
      */
     public static void verifyStream(
             @NonNull final Path pcesDirectory,
             @NonNull final List<PlatformEvent> events,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final RecycleBin recycleBin,
             final int truncatedFileCount)
             throws IOException {
 
@@ -99,7 +107,7 @@ public class PcesWriterTestUtils {
         }
 
         final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), pcesDirectory, 0, false);
+                configuration, recycleBin, pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);

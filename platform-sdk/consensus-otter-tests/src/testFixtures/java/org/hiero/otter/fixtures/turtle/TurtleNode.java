@@ -289,7 +289,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withExecutionLayer(executionLayer)
                     .withModel(model)
                     .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule);
+                    .withGossipModule(gossipModule)
+                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();

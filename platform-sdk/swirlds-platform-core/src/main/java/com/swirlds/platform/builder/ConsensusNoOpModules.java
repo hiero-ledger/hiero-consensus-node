@@ -173,7 +173,7 @@ public class ConsensusNoOpModules {
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
+                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker, 0L);
         return hashgraphModule;
     }
 
