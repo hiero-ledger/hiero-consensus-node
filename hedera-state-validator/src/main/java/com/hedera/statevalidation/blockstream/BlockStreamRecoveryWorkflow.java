@@ -26,11 +26,14 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SignedState;
@@ -47,20 +50,47 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public class BlockStreamRecoveryWorkflow {
 
+    private static final Logger log = LogManager.getLogger(BlockStreamRecoveryWorkflow.class);
+
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
+    private final double ratePercentPerSecond;
 
     public BlockStreamRecoveryWorkflow(
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedRootHash) {
+        this(stateLifecycleManager, targetRound, outputPath, expectedRootHash, 0);
+    }
+
+    /**
+     * Creates a new workflow with optional rate limiting.
+     *
+     * @param stateLifecycleManager the state lifecycle manager
+     * @param targetRound           the last round to apply (or {@code DEFAULT_TARGET_ROUND} for all)
+     * @param outputPath            the directory where the resulting snapshot is written
+     * @param expectedRootHash      expected hash of the resulting state (empty to skip verification)
+     * @param ratePercentPerSecond  the rate at which to process rounds, expressed as a percentage
+     *                              of total rounds per second. For example, {@code 1.0} means
+     *                              1%/s (≈100s total), {@code 0.1} means 0.1%/s (≈1000s total).
+     *                              A value of {@code 0} or less disables rate limiting.
+     *                              Requires {@code targetRound} to be set explicitly (not
+     *                              {@code DEFAULT_TARGET_ROUND}) so that total round count is known.
+     */
+    public BlockStreamRecoveryWorkflow(
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedRootHash,
+            double ratePercentPerSecond) {
         this.stateLifecycleManager = stateLifecycleManager;
         this.targetRound = targetRound;
         this.outputPath = outputPath;
         this.expectedRootHash = expectedRootHash;
+        this.ratePercentPerSecond = ratePercentPerSecond;
     }
 
     public static void applyBlocks(
@@ -69,6 +99,29 @@ public class BlockStreamRecoveryWorkflow {
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
+            throws IOException {
+        applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash, 0);
+    }
+
+    /**
+     * Reads blocks from the given directory and applies them to the default state with optional
+     * rate limiting.
+     *
+     * @param blockStreamDirectory the directory containing block stream files
+     * @param selfId               the node ID
+     * @param targetRound          the last round to apply
+     * @param outputPath           the output directory for the resulting snapshot
+     * @param expectedHash         expected hash of the resulting state
+     * @param ratePercentPerSecond the rate at which to process rounds (0 = unlimited).
+     *                             See {@link WorkRateLimiter} for semantics.
+     */
+    public static void applyBlocks(
+            @NonNull final Path blockStreamDirectory,
+            @NonNull final NodeId selfId,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedHash,
+            double ratePercentPerSecond)
             throws IOException {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
@@ -80,8 +133,8 @@ public class BlockStreamRecoveryWorkflow {
 
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
-        final BlockStreamRecoveryWorkflow workflow =
-                new BlockStreamRecoveryWorkflow(stateLifecycleManager, targetRound, outputPath, expectedHash);
+        final BlockStreamRecoveryWorkflow workflow = new BlockStreamRecoveryWorkflow(
+                stateLifecycleManager, targetRound, outputPath, expectedHash, ratePercentPerSecond);
         workflow.applyBlocks(blocks, selfId, getPlatformContext());
     }
 
@@ -95,6 +148,10 @@ public class BlockStreamRecoveryWorkflow {
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
 
+        // Create rate limiter using round count as total work estimate.
+        // This avoids materializing the block stream just to count items.
+        final WorkRateLimiter rateLimiter = createRateLimiter(initRound);
+
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
@@ -102,12 +159,10 @@ public class BlockStreamRecoveryWorkflow {
                 if (!foundStartingRound.get()
                         && item.hasRoundHeader()
                         && item.roundHeader().roundNumber() > firstRoundToApply) {
-                    throw new RuntimeException(
-                            ("Given blockstream doesn't have a proper starting round. Must have a block item with a round = %d. "
-                                            + "The oldest round found is %d")
-                                    .formatted(
-                                            firstRoundToApply,
-                                            item.roundHeader().roundNumber()));
+                    throw new RuntimeException(("Given blockstream doesn't have a proper starting round."
+                                    + " Must have a block item with a round = %d. "
+                                    + "The oldest round found is %d")
+                            .formatted(firstRoundToApply, item.roundHeader().roundNumber()));
                 }
 
                 foundStartingRound.set(foundStartingRound.get()
@@ -129,6 +184,10 @@ public class BlockStreamRecoveryWorkflow {
                                     .formatted(currentRound.get() + 1, itemRound));
                         }
                         currentRound.incrementAndGet();
+                        // Throttle at the round boundary: pause if we are ahead of schedule
+                        if (rateLimiter != null) {
+                            rateLimiter.acquire();
+                        }
                     }
                 }
 
@@ -140,8 +199,8 @@ public class BlockStreamRecoveryWorkflow {
         });
 
         if (targetRound != DEFAULT_TARGET_ROUND && currentRound.get() != targetRound) {
-            throw new RuntimeException(
-                    "Block stream is incomplete. Expected target round is %d, last applied round is %d"
+            throw new RuntimeException("Block stream is incomplete."
+                    + " Expected target round is %d, last applied round is %d"
                             .formatted(targetRound, currentRound.get()));
         }
 
@@ -180,6 +239,36 @@ public class BlockStreamRecoveryWorkflow {
             throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
                     .formatted(expectedRootHash, rootHash));
         }
+    }
+
+    /**
+     * Creates a {@link WorkRateLimiter} if rate limiting is enabled, or returns {@code null} otherwise.
+     * Total work is computed as {@code targetRound - initRound}, which is known upfront and
+     * does not require materializing the block stream.
+     *
+     * @param initRound the initial round of the state before any blocks are applied
+     * @throws IllegalStateException if rate limiting is requested but {@code targetRound} is
+     *                               {@code DEFAULT_TARGET_ROUND}, since total round count would be unknown
+     */
+    @Nullable
+    private WorkRateLimiter createRateLimiter(final long initRound) {
+        if (ratePercentPerSecond <= 0) {
+            return null;
+        }
+        if (targetRound == DEFAULT_TARGET_ROUND) {
+            throw new IllegalStateException(
+                    "Rate limiting requires an explicit --target-round so that the total round count is known");
+        }
+        final long totalRounds = targetRound - initRound;
+        if (totalRounds <= 0) {
+            log.warn(
+                    "Rate limiting requested but no rounds to apply (targetRound={}, initRound={})",
+                    targetRound,
+                    initRound);
+            return null;
+        }
+        log.info("Rate limiting enabled: {} rounds to apply at {}%/s", totalRounds, ratePercentPerSecond);
+        return new WorkRateLimiter(totalRounds, ratePercentPerSecond);
     }
 
     /**
