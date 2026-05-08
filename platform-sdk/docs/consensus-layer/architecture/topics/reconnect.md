@@ -1,8 +1,9 @@
 ---
+
 title: Reconnect
 kind: architecture-topic
 last_reviewed: TBD
----
+------------------
 
 # Reconnect
 
@@ -299,7 +300,8 @@ for the boundary's full method-by-method walk.
 > Separately, the [consensus-layer
 > proposal](../../../proposals/consensus-layer/Consensus-Layer.md)
 > places reconnect entirely on the Execution side ("Reconnect
-> therefore is the responsibility of Execution"). Current code splits
-> responsibilities across `consensus-reconnect-impl` (the Consensus-
-> side implementation) and `swirlds-platform-core` (the orchestration
-> entry point and the Execution handoff).
+>
+>> therefore is the responsibility of Execution"). Current code splits
+>> responsibilities across `consensus-reconnect-impl` (the Consensus-
+>> side implementation) and `swirlds-platform-core` (the orchestration
+>> entry point and the Execution handoff).
