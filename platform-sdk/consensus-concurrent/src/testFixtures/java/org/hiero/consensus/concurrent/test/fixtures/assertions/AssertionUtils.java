@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures;
+package org.hiero.consensus.concurrent.test.fixtures.assertions;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -15,10 +14,7 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
-/**
- * Contains various useful assertions.
- */
-public final class AssertionUtils {
+public class AssertionUtils {
 
     private AssertionUtils() {}
 
@@ -94,47 +90,5 @@ public final class AssertionUtils {
         assertTrue(completed, message);
 
         return value.get();
-    }
-
-    /**
-     * Run an operation and fail if the operation takes too long to throw an exception
-     * or if the exception type is wrong.
-     *
-     * @param expectedException
-     * 		the exception that is expected
-     * @param operation
-     * 		the operation to run
-     * @param maxDuration
-     * 		the maximum amount of time to wait for the operation to complete
-     * @param message
-     * 		an error message if the operation takes too long or if the wrong type is thrown
-     */
-    public static void throwBeforeTimeout(
-            final Class<? extends Throwable> expectedException,
-            final Runnable operation,
-            final Duration maxDuration,
-            final String message)
-            throws InterruptedException {
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicBoolean error = new AtomicBoolean();
-
-        new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("assertion-utils")
-                .setThreadName("assert-prompt-throw")
-                .setRunnable(() -> {
-                    assertThrows(expectedException, operation::run, message);
-                    latch.countDown();
-                })
-                .setExceptionHandler((final Thread thread, final Throwable exception) -> {
-                    error.set(true);
-                    exception.printStackTrace();
-                })
-                .build(true);
-
-        assertFalse(error.get(), message);
-
-        final boolean completed = latch.await(maxDuration.toMillis(), MILLISECONDS);
-        assertTrue(completed, message);
     }
 }
