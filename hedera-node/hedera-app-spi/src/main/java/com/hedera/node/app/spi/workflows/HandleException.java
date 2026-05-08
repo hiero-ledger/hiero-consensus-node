@@ -37,7 +37,7 @@ public class HandleException extends RuntimeException {
      */
     @FunctionalInterface
     public interface OnRollback {
-        void replay(@NonNull FeeCharging.Context feeChargingContext, @NonNull ChildDispatch dispatch);
+        void replay(@NonNull FeeCharging.Context feeChargingContext, @NonNull HandleContext context);
     }
 
     public HandleException(final ResponseCodeEnum status) {
@@ -53,12 +53,12 @@ public class HandleException extends RuntimeException {
     /**
      * If the exception was constructed with a rollback callback, replays side effects in the given context.
      * @param feeChargingContext the context in which to replay rollback side effects
-     * @param dispatch the dispatch function used to replay child dispatches if needed
+     * @param handleContext the handle context in which to replay rollback side effects
      */
     public void maybeReplay(
-            @NonNull final FeeCharging.Context feeChargingContext, @NonNull final ChildDispatch dispatch) {
+            @NonNull final FeeCharging.Context feeChargingContext, @NonNull HandleContext handleContext) {
         if (onRollback != null) {
-            onRollback.replay(feeChargingContext, dispatch);
+            onRollback.replay(feeChargingContext, handleContext);
         }
     }
 

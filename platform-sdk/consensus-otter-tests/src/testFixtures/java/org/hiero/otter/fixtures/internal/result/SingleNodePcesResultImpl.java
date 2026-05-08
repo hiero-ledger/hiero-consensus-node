@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
 import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.util.Iterator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.PcesFile;

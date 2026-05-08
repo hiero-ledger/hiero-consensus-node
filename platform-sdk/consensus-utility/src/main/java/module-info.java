@@ -24,10 +24,10 @@ module org.hiero.consensus.utility {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

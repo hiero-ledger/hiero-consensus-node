@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.config;
+package org.hiero.consensus.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.nio.file.Path;
 import java.time.Duration;
-import org.hiero.consensus.config.PathsConfig;
 
 /**
  * Settings for the recycle bin

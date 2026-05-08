@@ -13,6 +13,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
@@ -601,8 +602,7 @@ public final class Hedera
                         rosterServiceImpl,
                         platformStateService)
                 .forEach(servicesRegistry::register);
-        final var blockStreamsEnabled = isBlockStreamEnabled();
-        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        onSealConsensusRound = this::sealConsensusRound;
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
     }
 
@@ -1470,8 +1470,20 @@ public final class Hedera
         return state;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+    private boolean sealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+        if (streamMode == RECORDS) {
+            return daggerApp
+                    .blockRecordManager()
+                    .closeCurrentRecordFileIfConsTimeElapsed(state, round.getConsensusTimestamp());
+        }
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
+        if (streamMode == BOTH) {
+            final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
+            if (closesBlock) {
+                daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+            }
+            return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+        }
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
 
