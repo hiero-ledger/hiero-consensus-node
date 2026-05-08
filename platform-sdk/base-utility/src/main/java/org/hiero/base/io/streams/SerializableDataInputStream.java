@@ -597,7 +597,9 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         final int size = readInt();
         readableSequentialData.limit(readableSequentialData.position() + size);
         try {
-            final T parsed = codec.parse(readableSequentialData, false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            // parse strictly with a default depth and max record size to prevent very large messages.
+            // We can't use `parseStrict` as it doesn't support record size validation.
+            final T parsed = codec.parse(readableSequentialData, true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
             if (readableSequentialData.position() != readableSequentialData.limit()) {
                 throw new EOFException("PBJ record was not fully read");
             }

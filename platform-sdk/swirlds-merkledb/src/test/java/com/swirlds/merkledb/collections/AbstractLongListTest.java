@@ -41,7 +41,10 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -72,6 +75,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     // Variables used in ordered tests
 
     private static AbstractLongList<?> longList;
+
+    @TempDir
+    static Path fsmTempDir;
+
+    protected static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(fsmTempDir);
+    }
 
     /**
      * Keep track of initial direct memory used already, so we can check if we leek over and above what we started with
@@ -712,7 +725,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION));
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, fileSystemManager));
     static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
@@ -740,7 +753,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     static LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListDisk(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListDisk(
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, fileSystemManager);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

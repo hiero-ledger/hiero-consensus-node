@@ -648,7 +648,8 @@ public class PlatformComponentBuilder {
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
-                    blocks.selfId());
+                    blocks.selfId(),
+                    blocks.transactionOffsetNanos());
         }
         return transactionHandler;
     }

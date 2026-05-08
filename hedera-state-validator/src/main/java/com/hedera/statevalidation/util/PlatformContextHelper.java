@@ -2,14 +2,13 @@
 package com.hedera.statevalidation.util;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
@@ -53,12 +52,9 @@ public final class PlatformContextHelper {
             @Override
             public FileSystemManager getFileSystemManager() {
                 if (fileSystemManager == null) {
-                    final StateCommonConfig stateCommonConfig =
-                            ConfigUtils.getConfiguration().getConfigData(StateCommonConfig.class);
-                    final TemporaryFileConfig temporaryFileConfig =
-                            ConfigUtils.getConfiguration().getConfigData(TemporaryFileConfig.class);
-                    fileSystemManager = new FileSystemManager(
-                            stateCommonConfig.savedStateDirectory(), temporaryFileConfig.temporaryFilePath());
+                    final PathsConfig pathsConfig =
+                            ConfigUtils.getConfiguration().getConfigData(PathsConfig.class);
+                    fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
                 }
                 return fileSystemManager;
             }

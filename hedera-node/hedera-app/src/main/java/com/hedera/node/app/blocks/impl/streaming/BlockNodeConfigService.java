@@ -183,7 +183,7 @@ public class BlockNodeConfigService {
             }
 
             final byte[] bytes = Files.readAllBytes(path);
-            connectionInfo = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(bytes));
+            connectionInfo = BlockNodeConnectionInfo.JSON.parseStrict(Bytes.wrap(bytes));
         } catch (final IOException | ParseException e) {
             logger.warn("Failed to read/parse block node configuration from {}", path, e);
             return;

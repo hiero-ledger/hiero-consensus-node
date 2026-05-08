@@ -5,7 +5,6 @@ import static java.lang.Math.toIntExact;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
@@ -58,6 +58,8 @@ public class LongListDisk extends AbstractLongList<Long> {
      * there may be too many temp directories piled up.
      */
     private Path tempDir;
+
+    private final FileSystemManager fileSystemManager;
 
     /** A temp byte buffer for transferring data between file channels */
     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
@@ -113,8 +115,13 @@ public class LongListDisk extends AbstractLongList<Long> {
      *
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager File system manager to use for resolving temp files
      */
-    public LongListDisk(final long capacity, final Configuration configuration) {
+    public LongListDisk(
+            final long capacity,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        this.fileSystemManager = fileSystemManager;
         super(capacity, configuration);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
@@ -129,12 +136,15 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before
      *                           minimal index in the list
+     * @param fileSystemManager the file system manager to use for resolving temp files
      */
     public LongListDisk(
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration) {
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager) {
+        this.fileSystemManager = fileSystemManager;
         super(longsPerChunk, capacity, reservedBufferSize);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
@@ -151,11 +161,17 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListDisk(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListDisk(
+            @NonNull final Path file,
+            final long capacity,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
+        this.fileSystemManager = fileSystemManager;
         // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
         // which is called from super()
         numAllocatedChunks = new AtomicInteger(0);
@@ -177,6 +193,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
@@ -185,8 +202,10 @@ public class LongListDisk extends AbstractLongList<Long> {
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration)
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
+        this.fileSystemManager = fileSystemManager;
         // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
         // which is called from super()
         numAllocatedChunks = new AtomicInteger(0);
@@ -276,8 +295,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
-        // final Path directory = FileSystemManager.create(configuration).resolveNewTemp(STORE_POSTFIX);
-        tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(STORE_POSTFIX, configuration);
+        final Path tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }
@@ -510,7 +528,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             freeChunks.clear();
             Files.delete(tempFile);
             // The directory must be empty at this point
-            Files.delete(tempDir);
+            if (tempDir != null && Files.exists(tempDir)) {
+                Files.delete(tempDir);
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         } finally {

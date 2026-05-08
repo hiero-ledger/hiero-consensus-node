@@ -110,7 +110,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
         final VirtualMapStateLifecycleManager stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         slothApp = new SlothApp(platformConfig, version);
 

@@ -80,6 +80,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
 import org.json.JSONObject;
 
 /**
@@ -123,12 +124,15 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapStateImpl(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public VirtualMapStateImpl(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(configuration, merkleDbConfig.initialCapacity());
+        dsBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
 
         this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
