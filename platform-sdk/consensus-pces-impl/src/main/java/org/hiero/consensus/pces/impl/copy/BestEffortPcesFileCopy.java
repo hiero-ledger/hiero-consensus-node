@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.copy;
 
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static org.hiero.base.file.FileUtils.executeAndRename;
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.PcesFile;
@@ -56,6 +57,7 @@ public final class BestEffortPcesFileCopy {
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Path destinationDirectory,
+            @NonNull final FileSystemManager fileSystemManager,
             final long lowerBound,
             final long round) {
 
@@ -75,8 +77,8 @@ public final class BestEffortPcesFileCopy {
             try {
                 executeAndRename(
                         pcesDestination,
-                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound),
-                        configuration);
+                        fileSystemManager.resolveNewTemp(),
+                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound));
 
                 return;
             } catch (final IOException | UncheckedIOException e) {

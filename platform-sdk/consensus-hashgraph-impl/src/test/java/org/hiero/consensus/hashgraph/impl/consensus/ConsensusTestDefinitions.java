@@ -550,7 +550,7 @@ public final class ConsensusTestDefinitions {
 
         orchestrator.generateEvents(0.5);
         orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
-        orchestrator.addReconnectNode(input.platformContext());
+        orchestrator.addReconnectNode(input.configuration(), input.metrics(), input.time());
 
         orchestrator.clearOutput();
         orchestrator.generateEvents(0.5);

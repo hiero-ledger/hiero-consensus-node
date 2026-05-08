@@ -4,7 +4,6 @@ package org.hiero.sloth.fixtures.app.services.benchmark;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
@@ -17,6 +16,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.InstantUtils;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.node.NodeId;

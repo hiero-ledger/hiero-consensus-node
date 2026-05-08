@@ -6,7 +6,6 @@ import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.event.branching.BranchDetector;
@@ -38,6 +37,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
@@ -648,7 +648,8 @@ public class PlatformComponentBuilder {
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
-                    blocks.selfId());
+                    blocks.selfId(),
+                    blocks.transactionOffsetNanos());
         }
         return transactionHandler;
     }

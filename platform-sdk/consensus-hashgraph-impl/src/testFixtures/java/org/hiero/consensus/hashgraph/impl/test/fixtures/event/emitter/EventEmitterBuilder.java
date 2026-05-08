@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSourceFactory;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
@@ -19,7 +24,9 @@ public class EventEmitterBuilder {
     private int numNodes = 4;
     private int maxOtherParents = 1;
     private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
-    private PlatformContext platformContext = null;
+    private Configuration configuration;
+    private Metrics metrics;
+    private Time time;
 
     private EventEmitterBuilder() {}
 
@@ -72,13 +79,35 @@ public class EventEmitterBuilder {
     }
 
     /**
-     * Sets the platform context for the event emitter.
+     * Sets the configuration for the event emitter.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
      * @return the builder instance
      */
-    public EventEmitterBuilder setPlatformContext(final PlatformContext platformContext) {
-        this.platformContext = platformContext;
+    public EventEmitterBuilder setConfiguration(final Configuration configuration) {
+        this.configuration = requireNonNull(configuration);
+        return this;
+    }
+
+    /**
+     * Sets the metrics for the event emitter.
+     *
+     * @param metrics the metrics
+     * @return the builder instance
+     */
+    public EventEmitterBuilder setMetrics(final Metrics metrics) {
+        this.metrics = requireNonNull(metrics);
+        return this;
+    }
+
+    /**
+     * Sets the time for the event emitter.
+     *
+     * @param time the time
+     * @return the builder instance
+     */
+    public EventEmitterBuilder setTime(final Time time) {
+        this.time = requireNonNull(time);
         return this;
     }
 
@@ -89,8 +118,14 @@ public class EventEmitterBuilder {
      */
     public StandardEventEmitter build() {
         final Randotron random = Randotron.create(randomSeed);
-        if (platformContext == null) {
-            platformContext = TestPlatformContextBuilder.create().build();
+        if (configuration == null) {
+            configuration = new TestConfigBuilder().getOrCreateConfig();
+        }
+        if (metrics == null) {
+            metrics = new NoOpMetrics();
+        }
+        if (time == null) {
+            time = Time.getCurrent();
         }
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -101,7 +136,13 @@ public class EventEmitterBuilder {
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext, randomSeed, maxOtherParents, eventSourceFactory.generateSources(), roster);
+                configuration,
+                metrics,
+                time,
+                randomSeed,
+                maxOtherParents,
+                eventSourceFactory.generateSources(),
+                roster);
         return new StandardEventEmitter(generator);
     }
 }

@@ -39,7 +39,6 @@ class BlockStreamConfigTest {
                 StreamMode.BOTH,
                 writerMode,
                 "/opt/hgcapp/blockStreams",
-                32,
                 1,
                 Duration.ofSeconds(2),
                 8192,

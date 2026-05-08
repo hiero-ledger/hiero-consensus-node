@@ -12,6 +12,20 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface BlockHashSigner {
     /**
+     * The type of block hash signature being requested.
+     */
+    enum Request {
+        /**
+         * A succinct signature over the block hash.
+         */
+        SUCCINCT_SIGNATURE,
+        /**
+         * A list of partial signatures over the block hash.
+         */
+        LIST_OF_PARTIAL_SIGNATURES
+    }
+
+    /**
      * The result of attempting to sign a block hash.
      * @param verificationKey if not null, the verification key being used for the attempt
      * @param chainOfTrustProof if not null, the chain of trust proof for the verification key being used
@@ -30,7 +44,8 @@ public interface BlockHashSigner {
     /**
      * Returns an attempt to sign the given block hash.
      * @param blockHash the block hash
+     * @param request the type of signature being requested
      * @return the signing attempt
      */
-    Attempt sign(@NonNull Bytes blockHash);
+    Attempt sign(@NonNull Bytes blockHash, @NonNull Request request);
 }
