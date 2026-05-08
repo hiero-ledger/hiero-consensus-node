@@ -179,9 +179,10 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
 
     /**
      * Marks this file as being actively compacted.
+     * @return {@code true} if the compaction flag successfully updated from {@code false} to {@code true}
      */
-    public void setCompactionInProgress() {
-        compactionInProgress.set(true);
+    public boolean setCompactionInProgress() {
+        return compactionInProgress.compareAndSet(false, true);
     }
 
     /**
@@ -501,7 +502,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= totalSize) {
+                if (readBB.capacity() < totalSize) {
                     readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);

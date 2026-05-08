@@ -21,6 +21,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.AnyCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.GroupSelectionOutcome;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.MinimumPriorityCriteria;
@@ -803,6 +804,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(nodeFuture).resultNow();
         verify(node, times(3)).configuration();
         verify(node).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node).applyCoolDown(any(BlockNodeOutOfRange.class));
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(nodeFuture);
         verifyNoMoreInteractions(node);

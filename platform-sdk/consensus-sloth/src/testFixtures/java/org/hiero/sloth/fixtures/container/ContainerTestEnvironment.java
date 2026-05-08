@@ -5,7 +5,6 @@ import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 import static org.hiero.sloth.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
 
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,6 +13,7 @@ import java.time.Duration;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import org.hiero.base.file.FileUtils;
 import org.hiero.sloth.fixtures.Capability;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.TestEnvironment;

@@ -4,13 +4,13 @@ package com.swirlds.platform.wiring.components;
 import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
 /**
  * A wiring object for distributing {@link RunningEventHashOverride}s

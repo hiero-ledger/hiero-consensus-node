@@ -15,8 +15,8 @@ jmhModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common")
     requires("com.swirlds.config.api")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.config.extensions")
+    requires("com.swirlds.metrics.api")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.crypto")
@@ -28,26 +28,37 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.reconnect")
+    requires("org.hiero.consensus.utility")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
+    requires("awaitility")
 }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
 // ── Benchmark run configurations ─────────────────────────────────────
+// Gradle JMH tasks are intended for regular benchmark runs.
+// Keep normal JMH forking for cleaner measurements; pass heap settings to the forked benchmark JVM.
 
 tasks.register<JMHTask>("jmhCrypto") {
-    includes.set(listOf("CryptoBench"))
+    includes.set(listOf("CryptoBench.transferPrefetch"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
 }
 
-tasks.register<JMHTask>("jmhVirtualMap") {
-    includes.set(listOf("VirtualMapBench"))
+tasks.register<JMHTask>("jmhVirtualMapRead") {
+    includes.set(listOf("VirtualMapReadBench"))
     jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-read.txt"))
+}
+
+tasks.register<JMHTask>("jmhVirtualMapEdit") {
+    includes.set(listOf("VirtualMapEditBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
 tasks.register<JMHTask>("jmhReconnect") {

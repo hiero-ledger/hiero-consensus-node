@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -20,26 +20,34 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class MerkleDbDataSourceMetricsTest {
 
     public static final String TABLE_NAME = "test";
     // default number of longs per chunk
     private static final int COUNT = 1_048_576;
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
     private static Path testDirectory;
     private MerkleDbDataSource dataSource;
     private Metrics metrics;
 
     @BeforeAll
     static void setup() throws Exception {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "MerkleDbDataSourceMetricsTest", MerkleDbTestUtils.CONFIGURATION);
+        fileSystemManager = new TestFileSystemManager(tempDir);
+        testDirectory = fileSystemManager.resolveNewTemp("MerkleDbDataSourceMetricsTest");
     }
 
     @BeforeEach
@@ -47,7 +55,7 @@ class MerkleDbDataSourceMetricsTest {
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
+        dataSource = createDataSource(fileSystemManager, testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);
@@ -182,7 +190,13 @@ class MerkleDbDataSourceMetricsTest {
     }
 
     public static MerkleDbDataSource createDataSource(
-            final Path testDirectory, final String name, final TestType testType, final int size) throws IOException {
-        return testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
+            final FileSystemManager fileSystemManager,
+            final Path testDirectory,
+            final String name,
+            final TestType testType,
+            final int size)
+            throws IOException {
+        return testType.dataType()
+                .createDataSource(CONFIGURATION, fileSystemManager, testDirectory, name, size, false, false);
     }
 }

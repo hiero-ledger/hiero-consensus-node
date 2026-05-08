@@ -2,8 +2,6 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
@@ -20,6 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -42,7 +43,7 @@ public abstract class BaseBench {
      * {@code numFiles × numRecords} is the total number of operations.
      * Full-population benchmarks also use this product as the map size.
      */
-    @Param({"100"})
+    @Param({"500"})
     public int numFiles;
 
     /**
@@ -50,7 +51,7 @@ public abstract class BaseBench {
      *
      * @see #numFiles
      */
-    @Param({"100000"})
+    @Param({"10000"})
     public int numRecords;
 
     /**
@@ -72,13 +73,13 @@ public abstract class BaseBench {
      * Not used by {@code ReconnectBench}, which derives map size
      * from {@code numFiles × numRecords}.
      */
-    @Param({"1000000"})
+    @Param({"10000000"})
     public int maxKey;
 
-    @Param({"8"})
+    @Param({"32"})
     public int keySize;
 
-    @Param({"128"})
+    @Param({"1024"})
     public int recordSize;
 
     @Param({"32"})
@@ -95,6 +96,8 @@ public abstract class BaseBench {
     protected boolean verify;
 
     protected static Configuration configuration;
+
+    protected static FileSystemManager fileSystemManager;
 
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
@@ -138,7 +141,7 @@ public abstract class BaseBench {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
 
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
+        fileSystemManager = new TestFileSystemManager(benchDir);
 
         try {
             ConstructableRegistration.registerAllConstructables();

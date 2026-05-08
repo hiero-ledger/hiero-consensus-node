@@ -884,7 +884,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false)));
         assertThat(e).isInstanceOf(RuntimeException.class);
         // Exception gets wrapped when executed in virtual thread executor
-        assertThat(e.getMessage()).contains("Error executing pipeline.onNext()");
+        assertThat(e.getMessage()).contains("Error encountered while sending request to block node");
         assertThat(e.getCause()).isInstanceOf(RuntimeException.class);
         assertThat(e.getCause().getMessage()).isEqualTo("kaboom!");
 
@@ -907,8 +907,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(requestPipeline).onNext(any());
         verify(spiedConnection, atLeast(2)).currentState();
+        verify(metrics).recordRequestSendFailure();
 
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -1866,7 +1867,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(exception).isNotNull();
         // Exception gets wrapped when executed in virtual thread executor
-        assertThat(exception.getMessage()).contains("Error executing pipeline.onNext()");
+        assertThat(exception.getMessage()).contains("Error encountered while sending request to block node");
         assertThat(exception.getCause()).isInstanceOf(RuntimeException.class);
         assertThat(exception.getCause().getMessage()).isEqualTo("Pipeline error");
 
@@ -2041,7 +2042,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         ;
 
         assertThat(exception).isNotNull();
-        assertThat(exception.getMessage()).contains("Error executing pipeline.onNext()");
+        assertThat(exception.getMessage()).contains("Error encountered while sending request to block node");
         assertThat(exception.getCause()).isInstanceOf(RuntimeException.class);
         assertThat(exception.getCause().getMessage()).isEqualTo("Execution failed");
 

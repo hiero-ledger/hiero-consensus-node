@@ -215,7 +215,7 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
             final var chainId =
                     attempt.configuration().getConfigData(ContractsConfig.class).chainId();
             final var sigMap = preprocessEcdsaSignatures(
-                    requireNonNull(SignatureMap.PROTOBUF.parse(wrap(signatureBlob))), chainId);
+                    requireNonNull(SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob))), chainId);
             for (var sigPair : sigMap.sigPair()) {
                 // For ED25519 and ECDSA keys, verify the key and add it to the key set if verified
                 if (sigPair.hasEd25519()) {
