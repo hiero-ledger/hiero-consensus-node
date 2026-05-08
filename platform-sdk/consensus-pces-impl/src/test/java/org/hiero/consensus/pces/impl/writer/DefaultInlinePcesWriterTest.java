@@ -36,6 +36,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DefaultInlinePcesWriterTest {
 
+    private static final Time time = new FakeTime(Duration.ofMillis(1));
+
     @TempDir
     private Path tempDir;
 
@@ -43,24 +45,15 @@ class DefaultInlinePcesWriterTest {
     private final NodeId selfId = NodeId.of(0);
 
     @NonNull
-    private static PlatformContext buildContext(@NonNull final Configuration configuration) {
-        return TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(new FakeTime(Duration.ofMillis(1)))
-                .build();
-    }
-
-    @NonNull
-    private PlatformContext getPlatformContext() {
-        final Configuration configuration = new TestConfigBuilder()
+    private Configuration getConfiguration() {
+        return new TestConfigBuilder()
                 .withValue(PcesConfig_.DATABASE_DIRECTORY, tempDir.toString())
                 .getOrCreateConfig();
-        return buildContext(configuration);
     }
 
     @Test
     void standardOperationTest() throws Exception {
-        final PlatformContext platformContext = getPlatformContext();
+        final Configuration configuration = getConfiguration();
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
@@ -97,7 +90,7 @@ class DefaultInlinePcesWriterTest {
      */
     @Test
     void syncWithoutCloseTest() throws Exception {
-        final PlatformContext platformContext = getPlatformContext();
+        final PlatformContext platformContext = getConfiguration();
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
@@ -146,7 +139,7 @@ class DefaultInlinePcesWriterTest {
     void ancientEventTest() throws Exception {
 
         final Random random = RandomUtils.getRandomPrintSeed();
-        final PlatformContext platformContext = getPlatformContext();
+        final PlatformContext platformContext = getConfiguration();
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
         final int stepsUntilAncient = random.nextInt(50, 100);
