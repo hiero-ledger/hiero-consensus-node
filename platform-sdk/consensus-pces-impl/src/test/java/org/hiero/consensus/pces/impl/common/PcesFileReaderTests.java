@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.common;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertIteratorEquality;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertIteratorEquality;
 import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;

@@ -7,12 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Iterator;
@@ -22,7 +19,6 @@ import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -63,8 +59,8 @@ class DefaultInlinePcesWriterTest {
     void standardOperationTest() throws Exception {
         final Random random = RandomUtils.getRandomPrintSeed();
 
-        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME,
-                random);
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
@@ -97,7 +93,8 @@ class DefaultInlinePcesWriterTest {
     void syncWithoutCloseTest() throws Exception {
         final Random random = RandomUtils.getRandomPrintSeed();
 
-        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
@@ -140,7 +137,8 @@ class DefaultInlinePcesWriterTest {
     void ancientEventTest() throws Exception {
 
         final Random random = RandomUtils.getRandomPrintSeed();
-        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
+        final StandardGraphGenerator generator =
+                PcesWriterTestUtils.buildGraphGenerator(configuration, METRICS, TIME, random);
 
         final int stepsUntilAncient = random.nextInt(50, 100);
         final PcesFileTracker pcesFiles = new PcesFileTracker();

@@ -3,13 +3,11 @@ package com.swirlds.common.test.fixtures;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -138,25 +136,5 @@ public final class AssertionUtils {
 
         final boolean completed = latch.await(maxDuration.toMillis(), MILLISECONDS);
         assertTrue(completed, message);
-    }
-
-    /**
-     * Walk over two iterators and assert that each element returned is equal
-     *
-     * @param iteratorA
-     * 		the first iterator
-     * @param iteratorB
-     * 		the second iterator
-     * @param <T>
-     * 		the type of the data returned by the iterator
-     */
-    public static <T> void assertIteratorEquality(final Iterator<T> iteratorA, final Iterator<T> iteratorB) {
-        int count = 0;
-        while (iteratorA.hasNext() && iteratorB.hasNext()) {
-            assertEquals(iteratorA.next(), iteratorB.next(), "The element at position " + count + " does not match.");
-            count++;
-        }
-        assertFalse(iteratorA.hasNext(), "iterator A is not depleted");
-        assertFalse(iteratorB.hasNext(), "iterator B is not depleted");
     }
 }

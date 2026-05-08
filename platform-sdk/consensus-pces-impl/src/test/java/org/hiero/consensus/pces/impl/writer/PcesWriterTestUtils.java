@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,7 +67,10 @@ public class PcesWriterTestUtils {
      * Build an event generator.
      */
     public static StandardGraphGenerator buildGraphGenerator(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Random random) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final Random random) {
         Objects.requireNonNull(configuration);
         Objects.requireNonNull(metrics);
         Objects.requireNonNull(time);
@@ -106,8 +108,8 @@ public class PcesWriterTestUtils {
             lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
-        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
-                configuration, recycleBin, pcesDirectory, 0, false);
+        final PcesFileTracker pcesFiles =
+                PcesFileReader.readFilesFromDisk(configuration, recycleBin, pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);
