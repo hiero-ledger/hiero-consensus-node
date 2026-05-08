@@ -85,7 +85,8 @@ class DataFileWriterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {2, 57, BUFFER_SIZE / 2 - 1, BUFFER_SIZE / 2})
+    @ValueSource(
+            ints = {2, 57, BUFFER_SIZE / 2 - 1, BUFFER_SIZE / 2, BUFFER_SIZE / 2 + 1, BUFFER_SIZE - 1, BUFFER_SIZE})
     public void correctFileSizeAfterFinishWriting(int dataLengthBytes) throws IOException {
         byte[] bytesData = randomUtf8Bytes(dataLengthBytes);
         BufferedData data = BufferedData.wrap(bytesData);

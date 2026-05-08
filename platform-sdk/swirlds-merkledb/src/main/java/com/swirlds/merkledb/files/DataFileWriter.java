@@ -286,40 +286,10 @@ public final class DataFileWriter {
      */
     public long storeDataItem(final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
             throws IOException {
-        if (closed.get()) {
-            throw new IOException("Data file is already closed");
-        }
-
         final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, dataItemSize);
-        if (sizeToWrite > dataBufferSize) {
-            throw new IOException(
-                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
-        }
-
-        final long fileOffset = currentWriteOffset.getAndAdd(sizeToWrite);
-        final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
-        final WritingWindow writingWindow = getWritingWindow(writingWindowIndex);
-
-        try {
-            final MemoryData out = getTempLocalWriteBuffer(sizeToWrite);
-            ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
-            // double check that we wrote the expected number of bytes
-            if (out.remaining() != 0) {
-                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
-                        + (sizeToWrite - out.remaining()));
-            }
-
-            // The segment contains the same data as out above
-            final MemorySegment segment = SEGMENT_CACHE.get();
-            final long writingOffset = fileOffset % dataBufferSize;
-            MemorySegment.copy(segment, 0, writingWindow.writeBuffer, writingOffset, sizeToWrite);
-        } finally {
-            bytesWritten(fileOffset, sizeToWrite);
-        }
-
-        itemsCount.incrementAndGet();
-        // return the offset where we wrote the data
-        return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
+        return store(
+                out -> ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter),
+                sizeToWrite);
     }
 
     /**
@@ -335,11 +305,15 @@ public final class DataFileWriter {
      * @throws IOException if there was a problem appending data to the file
      */
     public long storeDataItemWithTag(final BufferedData dataItemWithTag) throws IOException {
+        final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
+        return store(out -> out.writeBytes(dataItemWithTag), sizeToWrite);
+    }
+
+    private long store(final Consumer<MemoryData> writer, final int sizeToWrite) throws IOException {
         if (closed.get()) {
             throw new IOException("Data file is already closed");
         }
 
-        final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
         if (sizeToWrite > dataBufferSize) {
             throw new IOException(
                     ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
@@ -351,13 +325,14 @@ public final class DataFileWriter {
 
         try {
             final MemoryData out = getTempLocalWriteBuffer(sizeToWrite);
-            out.writeBytes(dataItemWithTag);
+            writer.accept(out);
             // double check that we wrote the expected number of bytes
             if (out.remaining() != 0) {
                 throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
                         + (sizeToWrite - out.remaining()));
             }
 
+            // The segment contains the same data as out above
             final MemorySegment segment = SEGMENT_CACHE.get();
             final long writingOffset = fileOffset % dataBufferSize;
             MemorySegment.copy(segment, 0, writingWindow.writeBuffer, writingOffset, sizeToWrite);
