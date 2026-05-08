@@ -8,17 +8,19 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -27,9 +29,15 @@ class MerkleDbBuilderTest {
 
     private static final long INITIAL_SIZE = 1_000_000;
 
+    private static FileSystemManager fileSystemManager;
+
+    @TempDir
+    static Path tempDir;
+
     @BeforeAll
     static void setup() throws ConstructableRegistryException {
         ConstructableRegistration.registerAllConstructables();
+        fileSystemManager = new TestFileSystemManager(tempDir);
     }
 
     @AfterEach
@@ -39,18 +47,19 @@ class MerkleDbBuilderTest {
     }
 
     final MerkleDbDataSourceBuilder createDefaultBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, INITIAL_SIZE);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, INITIAL_SIZE);
     }
 
     @ParameterizedTest
     @CsvSource({"100", "1000000"})
     @DisplayName("Test table config is passed to data source")
     public void testTableConfig(final long initialCapacity) throws IOException {
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, initialCapacity);
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, initialCapacity);
         VirtualDataSource dataSource = null;
         try {
             dataSource = builder.build("test1", null, false, false);
-            assertTrue(dataSource instanceof MerkleDbDataSource);
+            assertInstanceOf(MerkleDbDataSource.class, dataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
         } finally {
@@ -64,7 +73,7 @@ class MerkleDbBuilderTest {
     @ValueSource(booleans = {true, false})
     @DisplayName("Test compaction flag is passed to data source")
     public void testCompactionConfig(final boolean compactionEnabled) throws IOException {
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024);
+        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 1024);
         VirtualDataSource dataSource = null;
         try {
             dataSource = builder.build("test2", null, compactionEnabled, false);
@@ -78,27 +87,32 @@ class MerkleDbBuilderTest {
 
     @Test
     void testSnapshot() throws IOException {
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024);
+        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 1024);
         VirtualDataSource dataSource = null;
         try {
             final String label = "testSnapshot";
             dataSource = builder.build(label, null, false, false);
-            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            final Path tmpDir = fileSystemManager.resolveNewTemp("snapshot");
+            Files.createDirectories(tmpDir);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
         } finally {
-            dataSource.close();
+            if (dataSource != null) {
+                dataSource.close();
+            }
         }
     }
 
     @Test
     void testSnapshotRestore() throws IOException {
-        final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 10_000);
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 10_000);
         VirtualDataSource dataSource = null;
         try {
             final String label = "testSnapshotRestore";
             dataSource = builder.build(label, null, false, false);
-            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            final Path tmpDir = fileSystemManager.resolveNewTemp("snapshot");
+            Files.createDirectories(tmpDir);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
             VirtualDataSource restored = null;
@@ -108,10 +122,14 @@ class MerkleDbBuilderTest {
                 assertInstanceOf(MerkleDbDataSource.class, restored);
                 final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
             } finally {
-                restored.close();
+                if (restored != null) {
+                    restored.close();
+                }
             }
         } finally {
-            dataSource.close();
+            if (dataSource != null) {
+                dataSource.close();
+            }
         }
     }
 
@@ -131,11 +149,12 @@ class MerkleDbBuilderTest {
         final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true, false);
 
         try {
-            final Path snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+            final Path snapshotDir = fileSystemManager.resolveNewTemp("snapshot");
+            Files.createDirectories(snapshotDir);
             dsBuilder.snapshot(snapshotDir, copy);
 
-            final Path oldSnapshotDir =
-                    LegacyTemporaryFileBuilder.buildTemporaryDirectory("oldSnapshot", CONFIGURATION);
+            final Path oldSnapshotDir = fileSystemManager.resolveNewTemp("oldSnapshot");
+            Files.createDirectories(oldSnapshotDir);
             assertDoesNotThrow(() -> dsBuilder.snapshot(oldSnapshotDir, original));
         } finally {
             original.close();

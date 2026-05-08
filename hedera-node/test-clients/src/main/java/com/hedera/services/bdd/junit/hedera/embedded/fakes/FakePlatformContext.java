@@ -18,6 +18,7 @@ import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.model.node.NodeId;
@@ -32,7 +33,10 @@ public class FakePlatformContext implements PlatformContext {
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .build();
+
+    public static final FileSystemManager FILE_SYSTEM_MANAGER = new FileSystemManager();
 
     private final Metrics metrics;
 

@@ -21,6 +21,9 @@ jmhModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions")
     runtimeOnly("com.swirlds.config.impl")
+    requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.utility")
+    requires("org.junit.jupiter.api")
 }
 
 testModuleInfo {
@@ -41,7 +44,6 @@ testModuleInfo {
 }
 
 hammerModuleInfo {
-    requires("com.swirlds.common")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.config.api")

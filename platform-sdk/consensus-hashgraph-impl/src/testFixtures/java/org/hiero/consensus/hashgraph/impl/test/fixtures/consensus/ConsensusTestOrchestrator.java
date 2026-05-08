@@ -2,7 +2,9 @@
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
@@ -15,18 +17,21 @@ import org.hiero.consensus.model.node.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
+    private final Metrics metrics;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
     private final List<Long> weights;
     private final int totalEventNum;
 
     public ConsensusTestOrchestrator(
-            final PlatformContext platformContext,
+            final Configuration configuration,
+            final Metrics metrics,
             final List<ConsensusTestNode> nodes,
             final List<Long> weights,
             final int totalEventNum) {
-        this.platformContext = platformContext;
+        this.configuration = configuration;
+        this.metrics = metrics;
         this.nodes = nodes;
         this.weights = weights;
         this.totalEventNum = totalEventNum;
@@ -35,10 +40,13 @@ public class ConsensusTestOrchestrator {
     /**
      * Adds a new node to the test context by simulating a reconnect
      *
-     * @param platformContext the platform context to use for the new node
+     * @param configuration the configuration to use for the new node
+     * @param metrics the metrics to use for the new node
+     * @param time the time to use for the new node
      */
-    public void addReconnectNode(@NonNull PlatformContext platformContext) {
-        final ConsensusTestNode node = nodes.get(0).reconnect(platformContext);
+    public void addReconnectNode(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+        final ConsensusTestNode node = nodes.get(0).reconnect(configuration, metrics, time);
         node.getEventEmitter().setCheckpoint(currentSequence);
         node.addEvents(currentSequence);
         nodes.add(node);
@@ -191,7 +199,12 @@ public class ConsensusTestOrchestrator {
     }
 
     @NonNull
-    public PlatformContext getPlatformContext() {
-        return platformContext;
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    @NonNull
+    public Metrics getMetrics() {
+        return metrics;
     }
 }

@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -245,6 +246,7 @@ public class OtterApp implements ConsensusStateEventHandler {
         }
 
         final Configuration configuration = platform.getContext().getConfiguration();
+        final FileSystemManager fileSystemManager = platform.getContext().getFileSystemManager();
         if (!appServices.isEmpty()) {
             final boolean stateNotInitialized = appServices.stream()
                     .map(OtterService::name)
@@ -256,7 +258,8 @@ public class OtterApp implements ConsensusStateEventHandler {
         }
 
         for (final OtterService service : allServices) {
-            service.initialize(trigger, platform.getSelfId(), configuration, (VirtualMapStateImpl) state);
+            service.initialize(
+                    trigger, platform.getSelfId(), configuration, fileSystemManager, (VirtualMapStateImpl) state);
         }
     }
 

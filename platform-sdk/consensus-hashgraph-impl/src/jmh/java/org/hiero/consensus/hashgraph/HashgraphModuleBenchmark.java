@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +16,7 @@ import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
@@ -74,8 +75,8 @@ public class HashgraphModuleBenchmark {
                 // does not seem to have any effect on performance
                 .withValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 26)
                 .getOrCreateConfig();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withConfiguration(config).build();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .seed(SEED)
                 .maxOtherParents(numOP)
@@ -85,16 +86,16 @@ public class HashgraphModuleBenchmark {
                 .configuration(config)
                 .build();
         events = generator.nextEvents(NUMBER_OF_EVENTS);
-        model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
+        model = WiringModelBuilder.create(metrics, time)
                 .withDefaultPool(threadPool)
-                .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
+                .withWiringConfig(config.getConfigData(WiringConfig.class))
                 .build();
         hashgraphModule = new DefaultHashgraphModule();
         hashgraphModule.initialize(
                 model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
+                config,
+                metrics,
+                time,
                 generator.getRoster(),
                 NodeId.of(generator.getRoster().rosterEntries().getFirst().nodeId()),
                 i -> false,

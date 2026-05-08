@@ -183,7 +183,8 @@ public final class StateUtils {
                     new VirtualMapStateLifecycleManager(
                             platformContext.getMetrics(),
                             platformContext.getTime(),
-                            platformContext.getConfiguration());
+                            platformContext.getConfiguration(),
+                            platformContext.getFileSystemManager());
 
             // Load the snapshot: the manager wraps the VirtualMap in a VirtualMapStateImpl, initializes itself,
             // and returns the hash of the original immutable snapshot as stored on disk.
