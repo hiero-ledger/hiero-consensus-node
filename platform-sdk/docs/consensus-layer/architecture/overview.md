@@ -25,17 +25,13 @@ plus metadata (round number, judges, roster).
 
 Crossing the layer in the other direction, Consensus pulls from Execution.
 The Event Creator asks Execution for the transactions to fill an outgoing
-event; lifecycle (start, reconnect, shutdown) is driven from Execution.
-Per the proposal, Consensus does not persist state in the merkle tree —
-the merkle tree is Execution's. The Consensus layer is delivered as a set
-of JPMS modules paired API + impl, designed to be reusable as a library
-that an Execution implementation links against.
-
-> [TBD: question for engineer — The proposal places state firmly under
-> Execution, but `consensus-state` is currently a Consensus-side module
-> and `consensus-platformstate` and similar exist alongside it. Is the
-> rename / move planned, or is the boundary already drawn differently in
-> current code?]
+event, and Consensus exposes lifecycle hooks (`initialize`, `destroy`) at
+the boundary. The merkle tree itself belongs to Execution; some
+state-adjacent modules (`consensus-state`, `consensus-platformstate`)
+currently live on the Consensus side, as does reconnect orchestration in
+`consensus-reconnect`. The Consensus layer is delivered as a set of JPMS
+modules paired API + impl, designed to be reusable as a library that an
+Execution implementation links against.
 
 ## Module map
 
@@ -68,14 +64,14 @@ about what lives inside each module belongs in the per-topic files.
   (where rosters cross the boundary).
 - [`consensus-reconnect`](../../../consensus-reconnect) — recover a node
   that has fallen behind to the point where gossip alone cannot catch it
-  up. See [`topics/reconnect.md`](topics/reconnect.md). [TBD: question
-  for engineer — Proposal §Lifecycle says reconnect is wholly
-  Execution's responsibility, but `consensus-reconnect` and
-  `consensus-reconnect-impl` exist on the Consensus side and the entry
-  point lives in `swirlds-platform-core`. Is reconnect migrating to
-  Execution, or has the boundary already been re-drawn?]
-- [`consensus-state`](../../../consensus-state) — state structures used
-  at the Consensus boundary. See note above and the boundary file.
+  up; the orchestration entry point lives in
+  [`swirlds-platform-core`](../../../swirlds-platform-core). See
+  [`topics/reconnect.md`](topics/reconnect.md).
+- [`consensus-state`](../../../consensus-state) — Consensus-side state
+  structures shared at the boundary with Execution. See
+  [`topics/signed-state-management.md`](topics/signed-state-management.md)
+  and
+  [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 - [`swirlds-platform-core`](../../../swirlds-platform-core) — the wiring
   root: where Consensus modules are composed into a running platform and
   where the Consensus / Execution boundary is drawn today
@@ -171,24 +167,16 @@ the rest of the platform is wired against those.
 For the full method-by-method walk and direction-of-call discussion, see
 [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 
-> [TBD: question for engineer — The proposal envisions a single
-> Consensus public API surface; current code has the boundary split
-> across `ExecutionLayer` and `ConsensusStateEventHandler`. Is
-> unification planned, and which one is the intended canonical surface?]
-
 ### Public API surface
 
-The proposal names a public API on the Consensus module —
-`initialize`, `destroy`, `nextRound`, `onBehind`, `onPreHandleEvent`,
-`getTransactionsForEvent`, `onRound`, `onStaleEvent`, `onBadNode`,
-`badNode`. Some of these have direct counterparts in current code:
-`onPreHandleEvent` is `ConsensusStateEventHandler.onPreHandle`, `onRound`
-is `ConsensusStateEventHandler.onHandleConsensusRound`,
-`getTransactionsForEvent` already lives on `ExecutionLayer`, and
-per-module `initialize` / `destroy` lifecycle hooks exist throughout.
-Others (`nextRound` as an Execution-driven pull, `onBehind`,
-`onStaleEvent`, `onBadNode`, `badNode`) are proposal-only and have no
-counterpart yet. The full mapping is in
+The methods that cross the boundary today live on the two interfaces
+above. `ConsensusStateEventHandler` carries the per-event and per-round
+callbacks (`onPreHandle`, `onHandleConsensusRound`, `onSealConsensusRound`,
+`onStateInitialized`). `ExecutionLayer` carries the data pulls and
+state-related calls (`getTransactionsForEvent` plus state-signature,
+status, and health calls). Per-Consensus-module `initialize` and
+`destroy` hooks complete the lifecycle surface. Method-by-method
+discussion in
 [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 
 ## Wiring overview
@@ -248,6 +236,13 @@ the framework itself is documented in
 >   decides when to "shun" or "welcome" a neighbor. No `Sheriff` module
 >   or class exists in current code; neighbor-discipline routing is
 >   distributed across Gossip and Event Intake today.
+> - **State under Execution.** The proposal places all state firmly
+>   under Execution. `consensus-state` and `consensus-platformstate`
+>   currently sit on the Consensus side and are scheduled to move.
+> - **Reconnect under Execution.** The proposal makes reconnect wholly
+>   Execution's responsibility. Today `consensus-reconnect` and
+>   `consensus-reconnect-impl` live on the Consensus side, with the
+>   orchestration entry point in `swirlds-platform-core`.
 > - **Unified Consensus public API.** The proposal envisions a single
 >   API interface on the Consensus module. Current code splits the
 >   boundary across `ExecutionLayer` and `ConsensusStateEventHandler`.
