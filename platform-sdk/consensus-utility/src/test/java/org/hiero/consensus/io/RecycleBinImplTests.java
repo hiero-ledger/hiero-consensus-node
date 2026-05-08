@@ -59,7 +59,7 @@ class RecycleBinImplTests {
     @Test
     @DisplayName("Recycle File Test")
     void recycleFileTest() throws IOException {
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
+        final RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
 
         final Path path1 = workDirectory.resolve("file1.txt");
         writeFile(path1, "file1");
@@ -90,7 +90,7 @@ class RecycleBinImplTests {
     @Test
     @DisplayName("Recycle Directory Test")
     void recycleDirectoryTest() throws IOException {
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
+        final RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
 
         final Path directory = workDirectory.resolve("foo/bar/baz");
         Files.createDirectories(directory);
@@ -122,7 +122,7 @@ class RecycleBinImplTests {
     @Test
     @DisplayName("Recycle Non-Existent File Test")
     void recycleNonExistentFileTest() throws IOException {
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
+        final RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
 
         final Path path = recycleBinDirectory.resolve("file.txt");
         recycleBin.recycle(path);
@@ -135,7 +135,7 @@ class RecycleBinImplTests {
     @Test
     @DisplayName("Recycle Duplicate File Test")
     void recycleDuplicateFileTest() throws IOException {
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
+        final RecycleBinImpl recycleBin = createRecycleBin(Time.getCurrent(), MINIMUM_PERIOD);
 
         final Path path = workDirectory.resolve("file.txt");
         final Path recycledPath = recycleBinDirectory.resolve("file.txt");
@@ -160,7 +160,7 @@ class RecycleBinImplTests {
     @DisplayName("Files Deleted After Time Passes")
     void filesDeletedAfterTimePasses() throws IOException, InterruptedException {
         final FakeTime time = new FakeTime(Instant.now(), Duration.ZERO);
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin =
+        final RecycleBinImpl recycleBin =
                 createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
         recycleBin.start();
 
@@ -217,7 +217,7 @@ class RecycleBinImplTests {
     void clearTest() throws IOException, InterruptedException {
         final FakeTime time = new FakeTime(Instant.now(), Duration.ZERO);
 
-        final org.hiero.consensus.io.RecycleBinImpl recycleBin =
+        final RecycleBinImpl recycleBin =
                 createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
         recycleBin.start();
 
@@ -269,8 +269,8 @@ class RecycleBinImplTests {
         recycleBin.stop();
     }
 
-    private org.hiero.consensus.io.RecycleBinImpl createRecycleBin(final Time time, final Duration minimumPeriod) {
-        return new org.hiero.consensus.io.RecycleBinImpl(
+    private RecycleBinImpl createRecycleBin(final Time time, final Duration minimumPeriod) {
+        return new RecycleBinImpl(
                 new NoOpMetrics(),
                 getStaticThreadManager(),
                 time,
