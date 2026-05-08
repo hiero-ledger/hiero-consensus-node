@@ -296,6 +296,9 @@ class MerkleDbCompactionCoordinator {
         final Map<Integer, List<DataFileReader>> eligibleByLevel = new HashMap<>();
         final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
         for (final GarbageFileStats fs : fileStats) {
+            if (fs.fileReader.isCompactionInProgress()) {
+                continue;
+            }
             final int level = fs.compactionLevel();
             if (fs.deadToAliveRatio() > gcRateThreshold) {
                 eligibleByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
