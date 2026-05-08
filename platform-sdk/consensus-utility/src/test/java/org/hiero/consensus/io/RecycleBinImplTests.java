@@ -160,8 +160,7 @@ class RecycleBinImplTests {
     @DisplayName("Files Deleted After Time Passes")
     void filesDeletedAfterTimePasses() throws IOException, InterruptedException {
         final FakeTime time = new FakeTime(Instant.now(), Duration.ZERO);
-        final RecycleBinImpl recycleBin =
-                createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
+        final RecycleBinImpl recycleBin = createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
         recycleBin.start();
 
         // Recycle some files.
@@ -217,8 +216,7 @@ class RecycleBinImplTests {
     void clearTest() throws IOException, InterruptedException {
         final FakeTime time = new FakeTime(Instant.now(), Duration.ZERO);
 
-        final RecycleBinImpl recycleBin =
-                createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
+        final RecycleBinImpl recycleBin = createRecycleBin(time, Duration.of(1, ChronoUnit.NANOS));
         recycleBin.start();
 
         // Recycle some files.
