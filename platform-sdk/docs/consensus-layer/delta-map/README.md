@@ -11,16 +11,16 @@ Per-topic status of "current code vs. proposed design". One row per topic; eleve
 
 ## Index
 
-| Topic | Status | Summary |
-|---|---|---|
-| `wiring-framework.md` | not started | |
-| `gossip.md` | not started | |
-| `event-intake.md` | not started | |
-| `event-creator.md` | not started | |
-| `hashgraph.md` | not started | |
-| `health-monitor-and-backpressure.md` | not started | |
-| `reasons-not-to-gossip.md` | not started | |
-| `signed-state-management.md` | not started | |
-| `restart-and-pces.md` | not started | |
-| `freeze-and-upgrade.md` | not started | |
-| `reconnect.md` | not started | |
+|                Topic                 |   Status    | Summary |
+|--------------------------------------|-------------|---------|
+| `wiring-framework.md`                | not started |         |
+| `gossip.md`                          | not started |         |
+| `event-intake.md`                    | not started |         |
+| `event-creator.md`                   | not started |         |
+| `hashgraph.md`                       | not started |         |
+| `health-monitor-and-backpressure.md` | not started |         |
+| `reasons-not-to-gossip.md`           | not started |         |
+| `signed-state-management.md`         | not started |         |
+| `restart-and-pces.md`                | not started |         |
+| `freeze-and-upgrade.md`              | not started |         |
+| `reconnect.md`                       | not started |         |

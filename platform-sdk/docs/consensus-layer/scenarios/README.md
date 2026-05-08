@@ -8,6 +8,6 @@ Per-file scenario entries. Each captures an edge case, near-miss, or historical 
 
 ## Index
 
-| ID | Title | Topics | Summary |
-|---|---|---|---|
-| _(no entries yet)_ | | | |
+|         ID         | Title | Topics | Summary |
+|--------------------|-------|--------|---------|
+| _(no entries yet)_ |       |        |         |

@@ -4,6 +4,6 @@ Foundational definitions and canonical mental models. One file per concept (hash
 
 ## Index
 
-| File | Concept | Summary |
-|---|---|---|
-| _(no entries yet)_ | | |
+|        File        | Concept | Summary |
+|--------------------|---------|---------|
+| _(no entries yet)_ |         |         |

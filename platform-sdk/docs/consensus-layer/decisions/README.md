@@ -8,6 +8,6 @@ Per-file ADRs. Each ADR records context, decision, alternatives considered, and 
 
 ## Index
 
-| ID | Title | Date | Status | Summary |
-|---|---|---|---|---|
-| _(no entries yet)_ | | | | |
+|         ID         | Title | Date | Status | Summary |
+|--------------------|-------|------|--------|---------|
+| _(no entries yet)_ |       |      |        |         |
