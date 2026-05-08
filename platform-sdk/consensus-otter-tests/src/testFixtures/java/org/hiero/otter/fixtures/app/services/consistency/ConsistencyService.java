@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -21,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -68,16 +68,15 @@ public class ConsistencyService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         if (trigger != InitTrigger.GENESIS && trigger != InitTrigger.RESTART) {
             return;
         }
-        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final ConsistencyServiceConfig consistencyServiceConfig =
                 configuration.getConfigData(ConsistencyServiceConfig.class);
 
-        final Path historyFileDirectory = stateConfig
-                .savedStateDirectory()
+        final Path historyFileDirectory = fileSystemManager
                 .resolve(consistencyServiceConfig.historyFileDirectory())
                 .resolve(Long.toString(selfId.id()));
         try {

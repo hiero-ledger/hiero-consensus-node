@@ -18,6 +18,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -143,21 +144,26 @@ public enum TestType {
 
         public MerkleDbDataSource createDataSource(
                 final Configuration configuration,
+                final FileSystemManager fileSystemManager,
                 final Path dbPath,
                 final String name,
                 final int size,
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            MerkleDbDataSource dataSource =
-                    new MerkleDbDataSource(dbPath, configuration, name, size, enableMerging, preferDiskBasedIndexes);
+            MerkleDbDataSource dataSource = new MerkleDbDataSource(
+                    dbPath, configuration, fileSystemManager, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }
 
-        public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
+        public MerkleDbDataSource getDataSource(
+                final FileSystemManager fileSystemManager,
+                final Path dbPath,
+                final String name,
+                final boolean enableMerging)
                 throws IOException {
-            return new MerkleDbDataSource(dbPath, CONFIGURATION, name, enableMerging, false);
+            return new MerkleDbDataSource(dbPath, CONFIGURATION, fileSystemManager, name, enableMerging, false);
         }
 
         @SuppressWarnings("rawtypes")

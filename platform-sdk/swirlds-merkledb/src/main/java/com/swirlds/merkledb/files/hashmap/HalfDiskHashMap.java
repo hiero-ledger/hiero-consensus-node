@@ -40,6 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  * This is a hash map implementation where the bucket index is in RAM and the buckets are on disk.
@@ -150,6 +151,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Construct a new HalfDiskHashMap
      *
      * @param configuration                  Platform configuration.
+     * @param fileSystemManager              File system manager to use for resolving file locations
      * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
      *                                       many key collisions. This capacity is used to calculate the initial number
      *                                       of key buckets to store key to path entries. This number of buckets will
@@ -168,6 +170,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public HalfDiskHashMap(
             final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager,
             final long initialCapacity,
             final Path storeDir,
             final String storeName,
@@ -229,13 +232,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, bucketIndexCapacity, configuration)
+                        ? new LongListDisk(indexFile, bucketIndexCapacity, configuration, fileSystemManager)
                         : new LongListSegment(indexFile, bucketIndexCapacity, configuration);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(bucketIndexCapacity, configuration)
+                        ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
                         : new LongListSegment(bucketIndexCapacity, configuration);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
@@ -252,7 +255,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
             bucketIndexToBucketLocation = preferDiskBasedIndex
-                    ? new LongListDisk(bucketIndexCapacity, configuration)
+                    ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
                     : new LongListSegment(bucketIndexCapacity, configuration);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;

@@ -17,8 +17,6 @@ open module org.hiero.consensus.gossip.impl.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.model;
-    requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires org.hiero.consensus.model.test.fixtures;
     requires com.github.spotbugs.annotations;

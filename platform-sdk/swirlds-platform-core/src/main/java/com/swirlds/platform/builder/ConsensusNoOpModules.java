@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -28,6 +27,7 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
@@ -37,6 +37,7 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -170,7 +171,7 @@ public class ConsensusNoOpModules {
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
+                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker, 0L);
         return hashgraphModule;
     }
 
@@ -179,11 +180,14 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code GossipModule}
      */
     @NonNull
     public static GossipModule createNoOpGossipModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -205,7 +209,7 @@ public class ConsensusNoOpModules {
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration);
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
         gossipModule.initialize(
                 model,
