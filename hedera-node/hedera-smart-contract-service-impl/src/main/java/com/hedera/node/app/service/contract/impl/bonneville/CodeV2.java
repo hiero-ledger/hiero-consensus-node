@@ -21,6 +21,9 @@ import org.hyperledger.besu.evm.code.CodeSection;
 // Caches the validation as well.  Implements OutputStream soley so it can get
 // the raw backing byte array from a PBJ Bytes object.
 
+// TODO: age-out old contracts from the intern table.  Can be as simple as
+// removing a CodeV2 at random - hot ones will just re-install.
+
 // spotless:off
 public class CodeV2 extends OutputStream implements Code {
 
