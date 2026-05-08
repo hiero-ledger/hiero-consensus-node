@@ -294,6 +294,7 @@ public abstract class AbstractLongList<C> implements LongList {
      *
      * @param sourceFileName the name of the file from which the list is initialized
      * @param fileChannel the file channel to read the list body from
+     * @param configuration the configuration of the system
      * @throws IOException if there was a problem reading the file
      */
     protected void readBodyFromFileChannelOnInit(

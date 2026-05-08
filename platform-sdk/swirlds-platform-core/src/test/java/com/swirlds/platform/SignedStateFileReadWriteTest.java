@@ -26,7 +26,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -41,12 +40,16 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -58,9 +61,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("SignedState Read/Write Test")
 class SignedStateFileReadWriteTest {
+
+    @TempDir
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
@@ -75,9 +81,14 @@ class SignedStateFileReadWriteTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
+        testDirectory = testDirectory.resolve("SignedStateFileReadWriteTest");
+        if (Files.exists(testDirectory)) {
+            FileUtils.delete(testDirectory);
+        }
+        Files.createDirectories(testDirectory);
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(testDirectory);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
     }
 
     @AfterEach

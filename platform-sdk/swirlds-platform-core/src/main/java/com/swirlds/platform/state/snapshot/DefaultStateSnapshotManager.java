@@ -7,7 +7,6 @@ import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -22,6 +21,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -45,14 +45,9 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private final NodeId selfId;
 
     /**
-     * The name of the application that is currently running.
+     * The file system manager for writing signed state data
      */
-    private final String mainClassName;
-
-    /**
-     * The swirld name.
-     */
-    private final String swirldName;
+    private final FileSystemManager fileSystemManager;
 
     /**
      * Metrics provider
@@ -101,13 +96,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
+        this.fileSystemManager = platformContext.getFileSystemManager();
         this.time = platformContext.getTime();
         this.selfId = Objects.requireNonNull(selfId);
-        this.mainClassName = Objects.requireNonNull(mainClassName);
-        this.swirldName = Objects.requireNonNull(swirldName);
-        configuration = platformContext.getConfiguration();
+        this.configuration = platformContext.getConfiguration();
         this.stateLifecycleManager = stateLifecycleManager;
-        signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
+        signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
 
@@ -171,8 +165,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         try {
             saveStateTask(
                     reservedSignedState,
-                    signedStateFilePath
-                            .getSignedStatesBaseDirectory()
+                    fileSystemManager
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
         } finally {
@@ -292,7 +285,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @NonNull
     private Path getSignedStateDir(final long round) {
-        return signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
+        return signedStateFilePath.getSignedStateDirectory(round);
     }
 
     /**
@@ -301,8 +294,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
-        final List<SavedStateInfo> savedStates =
-                signedStateFilePath.getSavedStateFiles(mainClassName, selfId, swirldName);
+        final List<SavedStateInfo> savedStates = signedStateFilePath.getSavedStateFiles();
 
         // States are returned newest to oldest. So delete from the end of the list to delete the oldest states.
         int index = savedStates.size() - 1;

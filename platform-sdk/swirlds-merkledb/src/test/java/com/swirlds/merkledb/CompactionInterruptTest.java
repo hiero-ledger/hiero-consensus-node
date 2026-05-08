@@ -26,6 +26,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -71,10 +73,11 @@ class CompactionInterruptTest {
      */
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(tmpFileDir);
         final String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
@@ -120,7 +123,7 @@ class CompactionInterruptTest {
         final String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, null, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();

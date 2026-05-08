@@ -12,7 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,6 +24,10 @@ class DataSourceValidatorTest {
     @TempDir
     private Path tempDir;
 
+    @TempDir
+    private Path fileSystemManagerTempDir;
+
+    private FileSystemManager fileSystemManager;
     private int count;
 
     @BeforeEach
@@ -31,12 +37,18 @@ class DataSourceValidatorTest {
         if (Files.exists(tempDir)) {
             FileUtils.deleteDirectory(tempDir);
         }
+        fileSystemManager = new TestFileSystemManager(fileSystemManagerTempDir);
     }
 
     @Test
     void testValidateValidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
+                fileSystemManager,
+                tempDir,
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -59,7 +71,12 @@ class DataSourceValidatorTest {
     @Test
     void testValidateInvalidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
+                fileSystemManager,
+                tempDir,
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
                     final var validator = new DataSourceValidator(dataSource);

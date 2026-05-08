@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
@@ -23,32 +26,41 @@ public class EventEmitterFactory {
     /** the roster to use */
     private final Roster roster;
     /**
-     * Seed used for the standard generator. Must be same for all instances to ensure the same events are
-     * generated for different instances. Differences in the graphs are managed in other ways and are defined in each
-     * test.
+     * Seed used for the standard generator. Must be same for all instances to ensure the same events are generated
+     * for different instances. Differences in the graphs are managed in other ways and are defined in each test.
      */
     private final long commonSeed;
-    /** the platform context containing configuration */
-    private final PlatformContext platformContext;
+
+    private final Configuration configuration;
+
+    private final Metrics metrics;
+
+    private final Time time;
 
     private final EventSourceFactory sourceFactory;
 
     /**
      * Create a new factory.
      *
-     * @param platformContext the platform context
+     * @param configuration   the configuration to use
+     * @param metrics         the metrics to use
+     * @param time            the time to use
      * @param random          the random number generator to use
      * @param roster          the roster to use
      */
     public EventEmitterFactory(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Random random,
             @NonNull final Roster roster) {
-        this.random = Objects.requireNonNull(random);
-        this.roster = Objects.requireNonNull(roster);
+        this.configuration = requireNonNull(configuration);
+        this.metrics = requireNonNull(metrics);
+        this.time = requireNonNull(time);
+        this.random = requireNonNull(random);
+        this.roster = requireNonNull(roster);
         this.commonSeed = random.nextLong();
         this.sourceFactory = new EventSourceFactory(roster.rosterEntries().size());
-        this.platformContext = Objects.requireNonNull(platformContext);
     }
 
     /**
@@ -92,9 +104,9 @@ public class EventEmitterFactory {
 
     private StandardGraphGenerator newStandardGraphGenerator(final List<EventSource> eventSources) {
         return new StandardGraphGenerator(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
+                configuration,
+                metrics,
+                time,
                 commonSeed, // standard seed must be the same across all generators
                 eventSources,
                 roster);
@@ -103,9 +115,9 @@ public class EventEmitterFactory {
     private ShuffledEventEmitter newShuffledEmitter(final List<EventSource> eventSources) {
         return new ShuffledEventEmitter(
                 new StandardGraphGenerator(
-                        platformContext.getConfiguration(),
-                        platformContext.getMetrics(),
-                        platformContext.getTime(),
+                        configuration,
+                        metrics,
+                        time,
                         commonSeed, // standard seed must be the same across all generators
                         eventSources),
                 random.nextLong() // shuffle seed changes every time
