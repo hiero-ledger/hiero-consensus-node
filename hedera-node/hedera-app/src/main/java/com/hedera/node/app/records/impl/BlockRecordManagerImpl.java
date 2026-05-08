@@ -289,7 +289,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+        if (isNoBlockOpen()) {
             return true;
         }
         final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
@@ -363,8 +363,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
-        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
-            // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
+        final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                .get();
+        requireNonNull(platformState);
+        final var isFirstTransactionAfterFreezeRestart = platformState.freezeTime() != null
+                && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
+        if (isFirstTransactionAfterFreezeRestart) {
+            new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
+        }
+        if (isNoBlockOpen() || isFirstTransactionAfterFreezeRestart) {
+            // This is the first transaction of the block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
             final var now = new Timestamp(consensusTime.getEpochSecond(), consensusTime.getNano());
             lastBlockInfo = lastBlockInfo
@@ -373,92 +382,21 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .firstConsTimeOfCurrentBlock(now)
                     .build();
             putLastBlockInfo(state);
-            streamFileProducer.switchBlocks(-1, 0, consensusTime);
+            if (lastBlockInfo.lastBlockNumber() < 0) {
+                streamFileProducer.switchBlocks(-1, 0, consensusTime);
+            } else {
+                streamFileProducer.switchBlocks(
+                        lastBlockInfo.lastBlockNumber(), lastBlockInfo.lastBlockNumber() + 1, consensusTime);
+            }
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
-                // No-op if quiescence is disabled
-                quiescenceController.startingBlock(0);
+                quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
             }
-            return true;
-        }
 
-        // Check to see if we are at the boundary between blocks and should create a new one. Each block is covered
-        // by some period. We'll compute the period of the current provisional block and the period covered by the
-        // given consensus time, and if they are different, we'll close out the current block and start a new one.
-        final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
-        final var newBlockPeriod = getBlockPeriod(consensusTime);
-
-        final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                .get();
-        requireNonNull(platformState);
-        // Also check to see if this is the first transaction we're handling after a freeze restart. If so, we also
-        // start a new block.
-        final var isFirstTransactionAfterFreezeRestart = platformState.freezeTime() != null
-                && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
-        if (isFirstTransactionAfterFreezeRestart) {
-            new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
-        }
-        // Now we test if we need to start a new block. If so, create the new block
-        if (newBlockPeriod > currentBlockPeriod || isFirstTransactionAfterFreezeRestart) {
-            // Compute the state for the newly completed block. The `lastBlockHashBytes` is the running hash after
-            // the last transaction
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-
-            // Compute wrapped record block hashes and pass to BlockInfo
-            Bytes wrappedRecordBlockRootHash = lastBlockInfo.previousWrappedRecordBlockRootHash();
-            List<Bytes> wrappedIntermediateHashes = lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
-            long wrappedIntermediateLeafCount = lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
-            final var votingComplete = migrationRootHashVotingComplete(state);
-            final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, justFinishedBlockNumber);
-
-            if (currentBlockStartRunningHash != null) {
-                final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
-                if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
-                    final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                            justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
-                    if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
-                        logger.info(
-                                "Enqueueing wrapped record block hashes for block {} because migration voting is still pending",
-                                justFinishedBlockNumber);
-                        // Voting not complete, deadline not reached, enqueue hashes for just complete block
-                        appendMigrationWrappedHashes(state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
-                    }
-                    if (votingComplete) {
-                        // Live record wrapping
-                        wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
-                        wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
-                        wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
-                    }
-                }
-                if (writeWrappedRecordFileBlockHashesToDisk()) {
-                    // Write hashes to wrapped record file on disk
-                    appendWrappedRecordFileBlockHashesToDisk(
-                            justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
-                }
-            } else if (liveWritePrevWrappedRecordHashes() && votingComplete) {
-                // On restart, currentBlockStartRunningHash is null for the first boundary.
-                // Preserve the restored hasher state rather than overwriting with defaults.
-                wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
-                wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
-                wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
-            }
-
-            lastBlockInfo = infoOfJustFinished(
-                    lastBlockInfo,
-                    justFinishedBlockNumber,
-                    lastBlockHashBytes,
-                    consensusTime,
-                    wrappedRecordBlockRootHash,
-                    wrappedIntermediateHashes,
-                    wrappedIntermediateLeafCount);
-
-            // Update BlockInfo state
-            putLastBlockInfo(state);
-
             // log end of block if needed
             if (logger.isDebugEnabled()) {
                 logger.debug(
@@ -471,11 +409,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         new Hash(lastBlockHashBytes, DigestType.SHA_384),
                         justFinishedBlockNumber + 1,
                         consensusTime);
-            }
-
-            switchBlocksAt(consensusTime);
-            if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
-                beginTrackingNewBlock(lastBlockHashBytes);
             }
             return true;
         }
@@ -554,26 +487,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.copyBuilder().migrationRecordsStreamed(true).build();
     }
 
-    /**
-     * We need this to preserve unit test expectations written that assumed a bug in the original implementation,
-     * in which the first consensus time of the current block was not in state.
-     * @param consensusTime the consensus time at which to switch to the current block
-     */
-    public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        final long closedBlockNo = lastBlockInfo.lastBlockNumber();
-        final long blockNo = closedBlockNo + 1;
-        final var recordFileHashFuture = streamFileProducer.switchBlocks(closedBlockNo, blockNo, consensusTime);
-        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
-        if (streamMode == RECORDS) {
-            quiescenceController.finishHandlingInProgressBlock();
-            // All no-ops below if quiescence is disabled
-            if (quiescenceController.switchTracker(blockNo)) {
-                // There is no asynchronous signing concept in the record stream, do it now
-                quiescenceController.blockFullySigned(blockNo - 1);
-            }
-        }
-    }
-
     private void observeRecordFileHash(
             final long blockNumber, @NonNull final CompletableFuture<Bytes> recordFileHashFuture) {
         requireNonNull(recordFileHashFuture);
@@ -583,7 +496,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var pending = recordFileHashFutures.get(blockNumber);
         if (pending == null) {
             // For blocks that started WRB RSA signing, signAndCloseWrbAsync() creates this future before
-            // switchBlocksAt() observes the writer close result. A missing future means no WRB signing pipeline was
+            // closeCurrentRecordFileIfOpen() observes the writer close result. A missing future means no WRB signing
+            // pipeline was
             // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, or writer setup
             // failure), so there is nothing to complete.
             return;
@@ -874,6 +788,106 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         ((WritableSingletonStateBase<RunningHashes>) runningHashesState).commit();
     }
 
+    @Override
+    public void closeCurrentRecordFileIfOpen(@NonNull final State state) {
+        requireNonNull(state);
+        if (isNoBlockOpen()) {
+            return;
+        }
+
+        final var hashOfJustFinishedBlock = streamFileProducer.getRunningHash();
+        final var closedBlockNo = lastBlockInfo.lastBlockNumber() + 1;
+        final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
+
+        Bytes wrappedRecordBlockRootHash = lastBlockInfo.previousWrappedRecordBlockRootHash();
+        List<Bytes> wrappedIntermediateHashes = lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
+        long wrappedIntermediateLeafCount = lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
+        final var votingComplete = migrationRootHashVotingComplete(state);
+        final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, closedBlockNo);
+
+        if (currentBlockStartRunningHash != null) {
+            if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
+                final var wrappedRecordFileBlockHashes =
+                        updateWrappedBlockHashes(closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
+                if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
+                    appendMigrationWrappedHashes(state, closedBlockNo, wrappedRecordFileBlockHashes);
+                }
+                if (votingComplete) {
+                    wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
+                    wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
+                    wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
+                }
+            }
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
+                appendWrappedRecordFileBlockHashesToDisk(
+                        closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
+            }
+        } else if (liveWritePrevWrappedRecordHashes() && votingComplete) {
+            wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
+            wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
+            wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
+        }
+
+        final var recordFileHashFuture = streamFileProducer.finishCurrentBlock();
+        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
+        if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
+            // All no-ops below if quiescence is disabled.
+            final var nextBlockNo = closedBlockNo + 1;
+            if (quiescenceController.switchTracker(nextBlockNo)) {
+                // There is no asynchronous signing concept in the record stream, do it now.
+                quiescenceController.blockFullySigned(nextBlockNo - 1);
+            }
+        }
+        currentBlockStartRunningHash = null;
+        currentBlockRecordStreamItems.clear();
+        currentBlockSidecarRecords.clear();
+
+        final var updatedInfo = infoOfJustFinishedWithoutOpening(
+                lastBlockInfo,
+                closedBlockNo,
+                hashOfJustFinishedBlock,
+                wrappedRecordBlockRootHash,
+                wrappedIntermediateHashes,
+                wrappedIntermediateLeafCount);
+        updateBlockInfo(updatedInfo, state);
+    }
+    /**
+     * Indicates whether there is currently no open block.
+     *
+     * <p>A block is considered not open when {@code firstConsTimeOfCurrentBlock} is still set to the
+     * sentinel {@link #EPOCH} value.
+     *
+     * @return {@code true} if no block is open, otherwise {@code false}
+     */
+    private boolean isNoBlockOpen() {
+        return EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock());
+    }
+
+    /**
+     * Returns {@code true} when there is no open block, or when the current block is closed because
+     * {@code roundConsensusTimestamp >= firstConsTimeOfCurrentBlock + logPeriod}; otherwise returns
+     * {@code false} and leaves the current block open.
+     */
+    @Override
+    public boolean closeCurrentRecordFileIfConsTimeElapsed(
+            @NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {
+        requireNonNull(state);
+        requireNonNull(roundConsensusTimestamp);
+        if (isNoBlockOpen()) {
+            return true;
+        }
+        final var firstConsTime = asInstant(lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow());
+        if (!roundConsensusTimestamp.isBefore(firstConsTime.plusSeconds(configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .logPeriod()))) {
+            closeCurrentRecordFileIfOpen(state);
+            return true;
+        }
+        return false;
+    }
+
     public long lastBlockNo() {
         return lastBlockInfo.lastBlockNumber();
     }
@@ -1082,6 +1096,45 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.migrationRecordsStreamed(),
                 new Timestamp(
                         currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()),
+                lastBlockInfo.lastUsedConsTime(),
+                lastBlockInfo.lastIntervalProcessTime(),
+                wrappedRecordBlockRootHash,
+                wrappedIntermediateHashes,
+                wrappedIntermediateLeafCount,
+                lastBlockInfo.votingComplete(),
+                lastBlockInfo.votingCompletionDeadlineBlockNumber(),
+                lastBlockInfo.migrationRootHashVotes(),
+                lastBlockInfo.migrationWrappedHashes(),
+                lastBlockInfo.previewStreamOverwritten());
+    }
+
+    /** Produces a {@code BlockInfo} object containing the information of the last closed block, but without updating other properties that imply a new block has opened */
+    private BlockInfo infoOfJustFinishedWithoutOpening(
+            @NonNull final BlockInfo lastBlockInfo,
+            final long justFinishedBlockNumber,
+            @NonNull final Bytes hashOfJustFinishedBlock,
+            @NonNull final Bytes wrappedRecordBlockRootHash,
+            @NonNull final List<Bytes> wrappedIntermediateHashes,
+            final long wrappedIntermediateLeafCount) {
+        final byte[] blockHashesBytes = lastBlockInfo.blockHashes().toByteArray();
+        byte[] newBlockHashesBytes;
+        if (blockHashesBytes.length < numBlockHashesToKeepBytes) {
+            newBlockHashesBytes = new byte[blockHashesBytes.length + HASH_SIZE];
+            System.arraycopy(blockHashesBytes, 0, newBlockHashesBytes, 0, blockHashesBytes.length);
+            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+        } else {
+            newBlockHashesBytes = blockHashesBytes;
+            System.arraycopy(
+                    newBlockHashesBytes, HASH_SIZE, newBlockHashesBytes, 0, newBlockHashesBytes.length - HASH_SIZE);
+            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+        }
+        return new BlockInfo(
+                justFinishedBlockNumber,
+                lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                Bytes.wrap(newBlockHashesBytes),
+                lastBlockInfo.consTimeOfLastHandledTxn(),
+                lastBlockInfo.migrationRecordsStreamed(),
+                EPOCH,
                 lastBlockInfo.lastUsedConsTime(),
                 lastBlockInfo.lastIntervalProcessTime(),
                 wrappedRecordBlockRootHash,
