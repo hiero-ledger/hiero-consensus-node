@@ -71,7 +71,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
         outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCall(outcome, context, component.rootProxyWorldUpdater(), component.hederaOperations());
+        throwIfUnsuccessfulCall(outcome, component.hederaOperations(), component.rootProxyWorldUpdater());
 
         createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
