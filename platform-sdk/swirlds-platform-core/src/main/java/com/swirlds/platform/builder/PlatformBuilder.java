@@ -97,6 +97,7 @@ public final class PlatformBuilder {
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
     private GossipModule gossipModule;
+    private long transactionOffsetNanos;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -374,7 +375,8 @@ public final class PlatformBuilder {
                 rosterHistory.getCurrentRoster(),
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                pipelineTracker);
+                pipelineTracker,
+                transactionOffsetNanos);
     }
 
     /**
@@ -435,6 +437,20 @@ public final class PlatformBuilder {
     public PlatformBuilder withGossipModule(@NonNull final GossipModule gossipModule) {
         throwIfAlreadyUsed();
         this.gossipModule = requireNonNull(gossipModule);
+        return this;
+    }
+
+    /**
+     * Set the nanosecond offset added to the first transaction's timestamp in each event. This value is
+     * computed by the execution layer and must be provided before building the platform.
+     *
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withTransactionOffsetNanos(final long transactionOffsetNanos) {
+        throwIfAlreadyUsed();
+        this.transactionOffsetNanos = transactionOffsetNanos;
         return this;
     }
 
@@ -629,7 +645,8 @@ public final class PlatformBuilder {
                 fallenBehindMonitor,
                 reservedSignedStateResultPromise,
                 platformCoordinator,
-                latestImmutableStateNexus);
+                latestImmutableStateNexus,
+                transactionOffsetNanos);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }
