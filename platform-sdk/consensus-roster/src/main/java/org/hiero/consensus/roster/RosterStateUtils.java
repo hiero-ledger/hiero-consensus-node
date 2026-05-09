@@ -2,16 +2,10 @@
 package org.hiero.consensus.roster;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A utility class for roster operations that depend on the State API.
@@ -28,14 +22,8 @@ public final class RosterStateUtils {
      */
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final State state) {
-        final ReadableRosterStore rosterStore =
-                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>();
-        for (final RoundRosterPair pair : roundRosterPairs) {
-            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
-        }
-        return new RosterHistory(roundRosterPairs, rosterMap);
+        return new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME))
+                .createRosterHistory();
     }
 
     /**

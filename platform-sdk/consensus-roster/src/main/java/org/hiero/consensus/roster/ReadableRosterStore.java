@@ -9,7 +9,10 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Read-only implementation for accessing rosters states.
@@ -97,4 +100,19 @@ public interface ReadableRosterStore {
      * @return true if the transplant updates are in progress
      */
     boolean isTransplantInProgress();
+
+    /**
+     * Creates a {@link RosterHistory} from the rosters accessible through this store.
+     *
+     * @return the roster history
+     */
+    @NonNull
+    default RosterHistory createRosterHistory() {
+        final List<RoundRosterPair> pairs = getRosterHistory();
+        final Map<Bytes, Roster> map = new HashMap<>();
+        for (final RoundRosterPair pair : pairs) {
+            map.put(pair.activeRosterHash(), Objects.requireNonNull(get(pair.activeRosterHash())));
+        }
+        return new RosterHistory(pairs, map);
+    }
 }
