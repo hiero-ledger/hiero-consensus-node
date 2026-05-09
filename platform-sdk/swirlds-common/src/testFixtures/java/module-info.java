@@ -2,7 +2,6 @@
 open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures;
     exports com.swirlds.common.test.fixtures.io;
-    exports com.swirlds.common.test.fixtures.io.extendable;
     exports com.swirlds.common.test.fixtures.map;
     exports com.swirlds.common.test.fixtures.merkle.dummy;
     exports com.swirlds.common.test.fixtures.merkle.util;
@@ -15,12 +14,12 @@ open module com.swirlds.common.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
-    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions.test.fixtures;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;

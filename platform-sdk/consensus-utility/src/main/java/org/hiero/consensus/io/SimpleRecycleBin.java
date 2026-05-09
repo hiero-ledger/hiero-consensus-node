@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.utility;
+package org.hiero.consensus.io;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.io.RecycleBin;
 
 /**
  * A simple implementation of a recycle bin that deletes files permanently immediately.

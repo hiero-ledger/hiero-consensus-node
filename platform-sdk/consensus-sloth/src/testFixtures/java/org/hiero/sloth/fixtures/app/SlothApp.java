@@ -46,6 +46,8 @@ public class SlothApp implements ConsensusStateEventHandler {
 
     public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "SlothAppUpgradeDetectedPayload";
 
+    public static final long DEFAULT_TRANSACTION_OFFSET_NANOS = 104L;
+
     private static final Logger log = LogManager.getLogger("SlothApp");
 
     private static final long BOTTLENECK_STEP_MILLIS = 500L;
