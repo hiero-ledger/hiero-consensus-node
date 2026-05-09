@@ -24,6 +24,7 @@ module org.hiero.sloth.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
+    requires org.bouncycastle.provider;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires org.hiero.consensus.concurrent;

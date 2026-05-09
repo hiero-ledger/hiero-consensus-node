@@ -17,12 +17,20 @@ public final class CryptoConstants {
     public static final int SIG_SIZE_BYTES = 384;
     // size of each symmetric key, in bytes
     public static final int SYM_KEY_SIZE_BYTES = 32; // 256 bits
-    // the algorithms and providers to use (AGR is key agreement, SIG is signatures)
-    public static final String AGR_TYPE = "EC";
-    public static final String AGR_PROVIDER = "SunEC";
-    public static final String SIG_TYPE1 = "RSA"; // or SHA384withRSA
+    // SIG_PROVIDER must come before AGR_PROVIDER. SIG_PROVIDER's initializer is a method call,
+    // so it is NOT a compile-time constant; reading it forces this class's static init, which
+    // registers BC and BCJSSE. AGR_PROVIDER is then initialized from SIG_PROVIDER (also not a
+    // compile-time constant via this indirection), so reading AGR_PROVIDER also forces init.
+    // If AGR_PROVIDER were a String literal like "BC", the compiler would inline it at every
+    // callsite and CryptoConstants would never be loaded — leaving BC unregistered.
     public static final String SIG_PROVIDER = getBCProviderName();
+    public static final String SIG_TYPE1 = "RSA";
     public static final String SIG_TYPE2 = "SHA384withRSAandMGF1"; // RSA-PSS, required for TLS 1.3 cert chains
+    // Agreement cert carries an ML-DSA-65 public key. The CertificateVerify message in the TLS 1.3
+    // handshake is signed with this key, making the per-handshake authentication post-quantum.
+    // The CA chain (sigKey) remains classical (RSA-3072 with RSA-PSS), so the trust root is unchanged.
+    public static final String AGR_TYPE = "ML-DSA-65";
+    public static final String AGR_PROVIDER = SIG_PROVIDER; // BCJSSE is pinned to BC, so AGR primitives come from BC
     /** this is the only TLS protocol we will allow */
     public static final String TLS_SUITE = "TLS_AES_256_GCM_SHA384";
     // certificate settings
@@ -38,6 +46,13 @@ public final class CryptoConstants {
     // TLS 1.3 named groups: X25519MLKEM768 hybrid PQ key exchange, secp384r1 for ECDSA signature scheme activation
     public static final String[] TLS_NAMED_GROUPS = {"X25519MLKEM768", "secp384r1"};
     public static final String[] TLS_SIGNATURE_SCHEMES = {
+            // ML-DSA listed first so BCJSSE prefers PQ entity-auth on the CertificateVerify when
+            // the agrCert public key is ML-DSA. Variants are listed for forward compatibility.
+            "mldsa65",
+            "mldsa44",
+            "mldsa87",
+            // Classical schemes retained for cert-chain validation (sigCert is RSA-PSS) and
+            // for backward compatibility during transition.
             "ecdsa_secp384r1_sha384",
             "ecdsa_secp256r1_sha256",
             "ed25519",

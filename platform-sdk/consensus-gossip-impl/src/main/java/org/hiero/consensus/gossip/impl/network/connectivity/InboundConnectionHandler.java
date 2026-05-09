@@ -86,6 +86,12 @@ public class InboundConnectionHandler {
             clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
 
             final SSLSocket sslSocket = (SSLSocket) clientSocket;
+            // Explicitly start the handshake. With SunJSSE, getSession() forces handshake
+            // completion; BCJSSE's getSession() may return an initial empty session, so we'd
+            // see SSLPeerUnverifiedException at getPeerCertificates() with no underlying cause.
+            // Forcing startHandshake() makes any real handshake failure surface as a thrown
+            // SSLHandshakeException with the actual root cause attached.
+            sslSocket.startHandshake();
             TlsFactory.logHandshake("server", sslSocket);
             final PeerInfo connectedPeer =
                     networkPeerIdentifier.identifyTlsPeer(sslSocket.getSession().getPeerCertificates());
@@ -121,6 +127,15 @@ public class InboundConnectionHandler {
                     remoteIp,
                     selfId,
                     formattedException);
+            // Diagnostic: log full stack via log4j (lands in swirlds.log) before the JVM exits.
+            // The default formatException only prints "ClassName: Message" — too thin for
+            // diagnosing TLS chain validation failures in BCJSSE.
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Inbound IOException full stack from {} to {}",
+                    remoteIp,
+                    selfId,
+                    e);
             NetworkUtils.close(clientSocket);
             System.exit(-1);
         } catch (final RuntimeException e) {

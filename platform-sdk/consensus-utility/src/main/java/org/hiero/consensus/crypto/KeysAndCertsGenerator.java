@@ -101,9 +101,13 @@ public class KeysAndCertsGenerator {
             @NonNull final SecureRandom sigDetRandom,
             @NonNull final SecureRandom agrDetRandom)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+        // ML-DSA-65 agrKey. The level-specific KPG name "ML-DSA-65" is fully self-describing —
+        // no key size or parameter spec is required, and BC's ML-DSA KPG does not consume the
+        // deterministic SecureRandom we previously used to make agreement keys reproducible
+        // across nodes for the same nodeId. That's acceptable here because the agreement key is
+        // ephemeral (regenerated at every startup) and need not be deterministic.
         final KeyPairGenerator agrKeyGen =
                 KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
-        agrKeyGen.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, agrDetRandom);
 
         final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
@@ -127,12 +131,10 @@ public class KeysAndCertsGenerator {
      */
     @NonNull
     public static KeyPair generateAgreementKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
-        // getInstanceStrong() is no longer blocking - https://blogs.oracle.com/linux/post/rngd1
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-        // generate the agreement key pair
+        // ML-DSA-65 agrKey: KPG name fully self-describes the parameter set. No initialize() call
+        // is needed — BC's ML-DSA KPG uses its own internal CSPRNG.
         final KeyPairGenerator keyPairGenerator =
                 KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
-        keyPairGenerator.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, secureRandom);
         return keyPairGenerator.generateKeyPair();
     }
 
