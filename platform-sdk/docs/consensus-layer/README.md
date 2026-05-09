@@ -21,13 +21,13 @@ Canonical structure for the consensus-layer knowledge base. Tools (Tutor, Workbe
 
 Each tool draws from a specific subset of the KB:
 
-|      Tool       |                                     Reads from                                     |
-|-----------------|-------------------------------------------------------------------------------------|
-| Tutor           | `concepts/`, `../hashgraphGlossary.md`, `architecture/`, `tutor/`                   |
-| Workbench       | `architecture/`, `decisions/`, `delta-map/`, `scenarios/`                           |
-| Test Scaffold   | `architecture/`, `invariants.md`, `scenarios/`                                      |
-| Diagnostician   | `architecture/`, `invariants.md`, `tunables.md`, `scenarios/`, `delta-map/`         |
-| Change Reviewer | `architecture/`, `invariants.md`, `decisions/`, `delta-map/`                        |
+|      Tool       |                                 Reads from                                  |
+|-----------------|-----------------------------------------------------------------------------|
+| Tutor           | `concepts/`, `../hashgraphGlossary.md`, `architecture/`, `tutor/`           |
+| Workbench       | `architecture/`, `decisions/`, `delta-map/`, `scenarios/`                   |
+| Test Scaffold   | `architecture/`, `invariants.md`, `scenarios/`                              |
+| Diagnostician   | `architecture/`, `invariants.md`, `tunables.md`, `scenarios/`, `delta-map/` |
+| Change Reviewer | `architecture/`, `invariants.md`, `decisions/`, `delta-map/`                |
 
 ## Conventions
 

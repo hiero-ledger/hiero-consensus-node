@@ -33,9 +33,11 @@ The bootstrap was generated against `origin/main` at the SHA recorded in
 verification SHAs in `last_verified_against` frontmatter.
 
 ---
+
 curriculum_version: 1
 generated_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----
+-----------------------------------------------------------
+
 - lesson_id: pass1-1-transaction-to-consensus
   cluster: pass1
   title: Transaction to consensus
@@ -47,19 +49,19 @@ generated_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
   title: Node falls behind
   scenario_kind: canonical
   prerequisites: []
-  status: planned
+  status: drafted
 - lesson_id: pass1-3-coordinated-network-upgrade
   cluster: pass1
   title: Coordinated network upgrade
   scenario_kind: canonical
   prerequisites: []
-  status: planned
+  status: drafted
 - lesson_id: pass1-4-event-creation-under-stress
   cluster: pass1
   title: Event creation under stress
   scenario_kind: canonical
   prerequisites: []
-  status: planned
+  status: drafted
 - lesson_id: 0-1-task-schedulers
   cluster: '0'
   title: Task schedulers
