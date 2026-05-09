@@ -52,4 +52,4 @@ role.
   [`../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
 - Sibling concept:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

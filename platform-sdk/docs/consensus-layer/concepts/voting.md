@@ -63,4 +63,4 @@ numbers and birth round (see
   [`strongly-seeing.md`](strongly-seeing.md),
   [`coin-rounds.md`](coin-rounds.md),
   [`judges.md`](judges.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

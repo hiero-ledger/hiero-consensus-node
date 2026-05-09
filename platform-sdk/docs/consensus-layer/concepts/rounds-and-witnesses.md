@@ -58,4 +58,4 @@ ancient filtering.
   [`strongly-seeing.md`](strongly-seeing.md),
   [`judges.md`](judges.md),
   [`birth-round.md`](birth-round.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

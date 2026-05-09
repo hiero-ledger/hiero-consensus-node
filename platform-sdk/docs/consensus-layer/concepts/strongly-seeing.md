@@ -49,4 +49,4 @@ The super-majority test uses `Threshold.SUPER_MAJORITY`
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

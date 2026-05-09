@@ -218,7 +218,7 @@ the framework itself is documented in
 
 - Concepts — [`../concepts/`](../concepts/) for foundational vocabulary
   (event, round, birth-round, judge, roster, hashgraph, etc.).
-- Glossary — [`../glossary.md`](../glossary.md) (pending).
+- Glossary — [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).
 - Invariants — [`../invariants.md`](../invariants.md) (pending).
 - Decisions — [`../decisions/`](../decisions/) (ADR catalog).
 - Scenarios — [`../scenarios/`](../scenarios/) (SCN catalog).

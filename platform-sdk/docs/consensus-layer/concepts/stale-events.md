@@ -80,4 +80,4 @@ component planned?]
   [`../architecture/topics/event-intake.md`](../architecture/topics/event-intake.md),
   [`../architecture/topics/gossip.md`](../architecture/topics/gossip.md).
 - Sibling concept: [`event-lifecycle.md`](event-lifecycle.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

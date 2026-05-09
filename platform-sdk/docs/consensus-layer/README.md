@@ -4,30 +4,30 @@ Canonical structure for the consensus-layer knowledge base. Tools (Tutor, Workbe
 
 ## Layout
 
-|      Path       |                                    Contents                                    |
-|-----------------|--------------------------------------------------------------------------------|
-| `concepts/`     | Foundational definitions and canonical mental models.                          |
-| `glossary.md`   | Single-file catalog of ~50 terms (pending).                                    |
-| `architecture/` | Topic-organized lens on the consensus layer (overview, 11 topics, interfaces). |
-| `invariants.md` | Single-file catalog of INV-NNN entries (pending).                              |
-| `decisions/`    | Per-file ADRs.                                                                 |
-| `tunables.md`   | Single-file catalog of configurable parameters (pending).                      |
-| `delta-map/`    | Per-topic status of "current code vs. proposed design".                        |
-| `scenarios/`    | Per-file scenario entries (SCN-NNN).                                           |
-| `questions/`    | Sprint Q&A artifacts.                                                          |
-| `tutor/`        | Curriculum content for the Tutor tool (internal structure deferred).           |
+|           Path            |                                    Contents                                    |
+|---------------------------|--------------------------------------------------------------------------------|
+| `concepts/`               | Foundational definitions and canonical mental models.                          |
+| `../hashgraphGlossary.md` | Single-file catalog of ~50 terms.                                              |
+| `architecture/`           | Topic-organized lens on the consensus layer (overview, 11 topics, interfaces). |
+| `invariants.md`           | Single-file catalog of INV-NNN entries (pending).                              |
+| `decisions/`              | Per-file ADRs.                                                                 |
+| `tunables.md`             | Single-file catalog of configurable parameters (pending).                      |
+| `delta-map/`              | Per-topic status of "current code vs. proposed design".                        |
+| `scenarios/`              | Per-file scenario entries (SCN-NNN).                                           |
+| `questions/`              | Sprint Q&A artifacts.                                                          |
+| `tutor/`                  | Curriculum content for the Tutor tool (internal structure deferred).           |
 
 ## Tool consumers
 
 Each tool draws from a specific subset of the KB:
 
-|      Tool       |                                 Reads from                                  |
-|-----------------|-----------------------------------------------------------------------------|
-| Tutor           | `concepts/`, `glossary.md`, `architecture/`, `tutor/`                       |
-| Workbench       | `architecture/`, `decisions/`, `delta-map/`, `scenarios/`                   |
-| Test Scaffold   | `architecture/`, `invariants.md`, `scenarios/`                              |
-| Diagnostician   | `architecture/`, `invariants.md`, `tunables.md`, `scenarios/`, `delta-map/` |
-| Change Reviewer | `architecture/`, `invariants.md`, `decisions/`, `delta-map/`                |
+|      Tool       |                                     Reads from                                     |
+|-----------------|-------------------------------------------------------------------------------------|
+| Tutor           | `concepts/`, `../hashgraphGlossary.md`, `architecture/`, `tutor/`                   |
+| Workbench       | `architecture/`, `decisions/`, `delta-map/`, `scenarios/`                           |
+| Test Scaffold   | `architecture/`, `invariants.md`, `scenarios/`                                      |
+| Diagnostician   | `architecture/`, `invariants.md`, `tunables.md`, `scenarios/`, `delta-map/`         |
+| Change Reviewer | `architecture/`, `invariants.md`, `decisions/`, `delta-map/`                        |
 
 ## Conventions
 

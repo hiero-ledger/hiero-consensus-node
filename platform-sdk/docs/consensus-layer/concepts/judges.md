@@ -55,4 +55,4 @@ duplicating the question here.
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`strongly-seeing.md`](strongly-seeing.md),
   [`coin-rounds.md`](coin-rounds.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

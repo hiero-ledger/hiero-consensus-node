@@ -86,4 +86,4 @@ current code uses birth round.
 - Sibling concepts: [`birth-round.md`](birth-round.md),
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`stale-events.md`](stale-events.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).

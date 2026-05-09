@@ -118,7 +118,7 @@ Backpressure feeds queue-health detection. `WiringModel.getHealthMonitorWire()` 
 - Module-API boundary: `../interfaces/consensus-execution-boundary.md` *(planned)* — where the proposal-level module-API backpressure differs from wire-level backpressure (see [Future state](#future-state-sidebar) below).
 - Invariants: [TBD: INV-NNN once invariants.md catalog populates].
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
-- Glossary: `../../glossary.md` *(planned)* — entries for "wire", "scheduler", "soldering", "transformer".
+- Glossary: [`../../../hashgraphGlossary.md`](../../../hashgraphGlossary.md) — note: the wiring-specific terms ("wire", "scheduler", "soldering", "transformer") are not yet in the glossary.
 
 ## Future state (sidebar)
 

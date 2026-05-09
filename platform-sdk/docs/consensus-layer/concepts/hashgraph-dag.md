@@ -51,4 +51,4 @@ The DAG itself — the in-memory map of non-ancient events — is held by
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`birth-round.md`](birth-round.md).
-- Glossary entry: [`../glossary.md`](../glossary.md).
+- Glossary entry: [`../../hashgraphGlossary.md`](../../hashgraphGlossary.md).
