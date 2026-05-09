@@ -17,7 +17,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSo
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -141,7 +140,7 @@ public class SwirldsPlatform implements Platform {
      * Constructor.
      *
      * @param builder this object is responsible for building platform components and other things needed by the
-     * platform
+     *                platform
      */
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
@@ -234,10 +233,10 @@ public class SwirldsPlatform implements Platform {
         // Load the minimum generation into the pre-consensus event writer
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
-        final SignedStateFilePath statePath =
-                new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
-        final List<SavedStateInfo> savedStates =
-                statePath.getSavedStateFiles(actualMainClassName, selfId, blocks.swirldName());
+
+        final SignedStateFilePath statePath = new SignedStateFilePath(
+                platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
+        final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
@@ -292,7 +291,7 @@ public class SwirldsPlatform implements Platform {
     /**
      * Initialize the state.
      *
-     * @param signedState     the state to initialize
+     * @param signedState the state to initialize
      */
     private void initializeState(
             @NonNull final SignedState signedState,
@@ -331,8 +330,8 @@ public class SwirldsPlatform implements Platform {
         }
 
         logger.info(STARTUP.getMarker(), """
-                        The platform is using the following initial state:
-                        {}""", getInfoString(signedState.getState()));
+                The platform is using the following initial state:
+                {}""", getInfoString(signedState.getState()));
     }
 
     /**

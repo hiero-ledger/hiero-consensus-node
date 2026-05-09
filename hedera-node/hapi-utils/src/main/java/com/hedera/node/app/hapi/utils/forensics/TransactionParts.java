@@ -33,7 +33,7 @@ public record TransactionParts(
     public static TransactionParts from(@NonNull final BlockItem item) {
         try {
             final var serializedSignedTx = item.signedTransactionOrThrow();
-            final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+            final var signedTx = SignedTransaction.PROTOBUF.parseStrict(serializedSignedTx);
             final var body = TransactionBody.parseFrom(signedTx.bodyBytes().toByteArray());
             return new TransactionParts(
                     Transaction.newBuilder()

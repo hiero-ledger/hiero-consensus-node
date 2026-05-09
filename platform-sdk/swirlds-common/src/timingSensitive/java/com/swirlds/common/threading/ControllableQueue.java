@@ -5,7 +5,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import org.hiero.consensus.concurrent.framework.internal.AbstractBlockingQueue;
+import org.hiero.consensus.concurrent.framework.queue.AbstractBlockingQueue;
 
 /**
  * This queue implementation allows us to artificially cause poll() to block.

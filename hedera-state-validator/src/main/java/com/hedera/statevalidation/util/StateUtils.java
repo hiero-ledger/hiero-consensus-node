@@ -6,7 +6,6 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.hedera.statevalidation.util.PlatformContextHelper.resetPlatformContext;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -55,10 +54,10 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -85,6 +84,7 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
 
@@ -183,18 +183,22 @@ public final class StateUtils {
                     new VirtualMapStateLifecycleManager(
                             platformContext.getMetrics(),
                             platformContext.getTime(),
-                            platformContext.getConfiguration());
+                            platformContext.getConfiguration(),
+                            platformContext.getFileSystemManager());
 
-            final DeserializedSignedState dss =
-                    readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
-            originalStateHashes.put(key, dss.originalHash());
+            // Load the snapshot: the manager wraps the VirtualMap in a VirtualMapStateImpl, initializes itself,
+            // and returns the hash of the original immutable snapshot as stored on disk.
+            final Hash originalHash = stateLifecycleManager.loadSnapshot(
+                    Path.of(ConfigUtils.STATE_DIR).toAbsolutePath());
+            originalStateHashes.put(key, originalHash);
 
             // The mutable state is already available via the stateLifecycleManager after readState()
             final VirtualMapState state = stateLifecycleManager.getMutableState();
             states.put(key, state);
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
+            serviceRegistry.register(new RosterServiceImpl(_ -> true, (_, _) -> {}, () -> {
                 throw new UnsupportedOperationException("No startup networks available");
             }));
+            SignedStateFileReader.registerServiceStates(state);
             initServiceMigrator(state, platformContext, serviceRegistry);
             state.getRoot().getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
@@ -264,7 +268,9 @@ public final class StateUtils {
                                 new HintsLibraryImpl(),
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()),
+                                        .blockPeriod(),
+                                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                                new java.util.concurrent.ConcurrentHashMap<>()),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
@@ -290,7 +296,7 @@ public final class StateUtils {
         final SemanticVersion version = creationSoftwareVersionOf(state);
         // previousVersion and currentVersion are the same!
         serviceMigrator.doMigrations(
-                (VirtualMapState) state,
+                state,
                 servicesRegistry,
                 version,
                 version,

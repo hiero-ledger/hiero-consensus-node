@@ -38,13 +38,11 @@ public class WrappedRecordBlockHashMigration {
     /**
      * Holds the computed migration results needed for the state-write phase.
      *
-     * @param blockHashes concatenated trailing block hashes
      * @param previousWrappedRecordBlockRootHash the final wrapped record block root hash
      * @param wrappedIntermediatePreviousBlockRootHashes intermediate hashing state
      * @param wrappedIntermediateBlockRootsLeafCount leaf count of the streaming hasher
      */
     public record Result(
-            @NonNull Bytes blockHashes,
             @NonNull Bytes previousWrappedRecordBlockRootHash,
             @NonNull List<Bytes> wrappedIntermediatePreviousBlockRootHashes,
             long wrappedIntermediateBlockRootsLeafCount) {}
@@ -134,7 +132,7 @@ public class WrappedRecordBlockHashMigration {
         }
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
-        computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+        computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes);
     }
 
     private Path resolveRecentHashesPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -192,7 +190,7 @@ public class WrappedRecordBlockHashMigration {
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
         final var allRecentWrappedRecordHashes =
-                WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(loadedBytes));
+                WrappedRecordFileBlockHashesLog.PROTOBUF.parseStrict(Bytes.wrap(loadedBytes));
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;
@@ -229,7 +227,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.consensusTimestampHash().equals(jumpstartTimestampHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartTimestampHash,
@@ -238,7 +236,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartOutputHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartOutputHash,
@@ -356,8 +354,7 @@ public class WrappedRecordBlockHashMigration {
     private void computeHashes(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final IncrementalStreamingHasher allPrevBlocksHasher,
-            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
-            final int numTrailingBlocks) {
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
         final var jumpstartBlockNum = jumpstartConfig.blockNum();
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
@@ -368,8 +365,6 @@ public class WrappedRecordBlockHashMigration {
                 neededRecentWrappedRecords.getLast().blockNumber());
         final var numNeededRecentWrappedRecords = neededRecentWrappedRecords.size();
 
-        final List<Bytes> currentTrailingBlockHashes = new ArrayList<>(numTrailingBlocks);
-        final int blockTailStartIndex = Math.max(0, numNeededRecentWrappedRecords - numTrailingBlocks);
         Bytes prevWrappedBlockHash = jumpstartConfig.previousWrappedRecordBlockHash();
         int wrappedRecordsProcessed = 0;
         log.info("Adding recent wrapped record file block hashes to genesis historical hash");
@@ -379,11 +374,6 @@ public class WrappedRecordBlockHashMigration {
                     prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
-            }
-
-            // Update trailing block hashes
-            if (wrappedRecordsProcessed >= blockTailStartIndex) {
-                currentTrailingBlockHashes.add(finalBlockHash);
             }
 
             // Prepare for next hashing iteration
@@ -398,24 +388,8 @@ public class WrappedRecordBlockHashMigration {
                 prevWrappedBlockHash);
 
         result = new Result(
-                concatHashes(currentTrailingBlockHashes),
-                prevWrappedBlockHash,
-                allPrevBlocksHasher.intermediateHashingState(),
-                allPrevBlocksHasher.leafCount());
+                prevWrappedBlockHash, allPrevBlocksHasher.intermediateHashingState(), allPrevBlocksHasher.leafCount());
         log.info("Computed wrapped record block hash migration result (state write deferred)");
-    }
-
-    static Bytes concatHashes(@NonNull final List<Bytes> hashes) {
-        if (hashes.isEmpty()) {
-            return Bytes.EMPTY;
-        }
-        final byte[] out = new byte[hashes.size() * HASH_SIZE];
-        int offset = 0;
-        for (final var hash : hashes) {
-            hash.getBytes(0, out, offset, HASH_SIZE);
-            offset += HASH_SIZE;
-        }
-        return Bytes.wrap(out);
     }
 
     private static boolean isBlank(final String s) {

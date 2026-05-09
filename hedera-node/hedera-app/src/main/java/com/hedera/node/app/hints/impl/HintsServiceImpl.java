@@ -23,6 +23,7 @@ import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -33,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,11 +57,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HintsLibrary library,
-            @NonNull final Duration blockPeriod) {
+            @NonNull final Duration blockPeriod,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this, rsaContext, rsaSignings);
     }
 
     @VisibleForTesting
@@ -96,7 +100,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+    public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
+        requireNonNull(blockHash);
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
@@ -108,6 +113,11 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             return null;
         });
         return signing;
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return component.submissions();
     }
 
     @Override

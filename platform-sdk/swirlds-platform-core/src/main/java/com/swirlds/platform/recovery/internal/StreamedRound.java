@@ -10,7 +10,6 @@ import java.util.Objects;
 import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**
@@ -24,10 +23,15 @@ public class StreamedRound implements Round {
     private final Roster consensusRoster;
 
     public StreamedRound(
-            @NonNull final Roster consensusRoster, @NonNull final List<CesEvent> events, final long roundNumber) {
+            @NonNull final Roster consensusRoster,
+            @NonNull final List<CesEvent> events,
+            final long roundNumber,
+            final long transactionOffsetNanos) {
         this.events = events;
         this.roundNumber = roundNumber;
-        events.stream().map(CesEvent::getPlatformEvent).forEach(PlatformEvent::setConsensusTimestampsOnTransactions);
+        events.stream()
+                .map(CesEvent::getPlatformEvent)
+                .forEach(e -> e.setConsensusTimestampsOnTransactions(transactionOffsetNanos));
         consensusTimestamp = events.get(events.size() - 1).getPlatformEvent().getConsensusTimestamp();
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
     }

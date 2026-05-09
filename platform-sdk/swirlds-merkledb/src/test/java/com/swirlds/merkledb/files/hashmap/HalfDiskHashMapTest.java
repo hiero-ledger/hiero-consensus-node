@@ -24,6 +24,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,12 +41,19 @@ class HalfDiskHashMapTest {
     @TempDir
     Path tempDirPath;
 
+    private FileSystemManager fileSystemManager;
+
+    @BeforeEach
+    void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDirPath);
+    }
+
     // =================================================================================================================
     // Helper Methods
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
+                CONFIGURATION, fileSystemManager, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
         map.printStats();
         return map;
     }
@@ -114,8 +124,8 @@ class HalfDiskHashMapTest {
             // create snapshot
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
-            HalfDiskHashMap mapFromSnapshot =
-                    new HalfDiskHashMap(CONFIGURATION, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
+            HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
+                    CONFIGURATION, fileSystemManager, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -596,7 +606,13 @@ class HalfDiskHashMapTest {
                 .withValue("merkleDb.maxNumOfKeys", "500")
                 .build();
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
-                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
+                config,
+                fileSystemManager,
+                100,
+                tempDirPath.resolve("test"),
+                "testResizeRespectsBucketIndexCapacity",
+                null,
+                false);
         try {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32

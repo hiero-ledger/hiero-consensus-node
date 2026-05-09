@@ -9,8 +9,6 @@ plugins {
 description = "Consensus event-stream file writing"
 
 testModuleInfo {
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
@@ -23,7 +21,6 @@ testModuleInfo {
 timingSensitiveModuleInfo {
     requires("org.hiero.consensus.event.stream")
     requires("org.hiero.consensus.event.stream.test.fixtures")
-    requires("com.swirlds.common")
     requires("org.hiero.base.crypto")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

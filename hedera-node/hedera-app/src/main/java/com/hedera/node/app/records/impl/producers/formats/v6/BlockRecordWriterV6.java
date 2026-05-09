@@ -242,7 +242,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
     /** {@inheritDoc} */
     @Override
-    public void close(@NonNull final HashObject endRunningHash) {
+    public Bytes close(@NonNull final HashObject endRunningHash) {
         if (state != State.OPEN) {
             throw new IllegalStateException("Cannot close a BlockRecordWriterV6 that is not open");
         }
@@ -262,10 +262,11 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             if (gzipOutputStream != null) gzipOutputStream.close();
             fileOutputStream.close();
 
+            final var recordFileHash = Bytes.wrap(hashingOutputStream.getDigest());
             // write signature file, this tells the uploader that this record file set is complete
             writeSignatureFile(
                     recordFilePath,
-                    Bytes.wrap(hashingOutputStream.getDigest()),
+                    recordFileHash,
                     signer,
                     true,
                     6,
@@ -275,6 +276,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     endRunningHash.hash());
 
             this.state = State.CLOSED;
+            return recordFileHash;
         } catch (final IOException e) {
             logger.warn("Error closing record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);

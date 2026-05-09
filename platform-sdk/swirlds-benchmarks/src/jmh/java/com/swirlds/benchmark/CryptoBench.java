@@ -34,7 +34,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @State(Scope.Thread)
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
-public class CryptoBench extends VirtualMapBench {
+public class CryptoBench extends VirtualMapEditBench {
 
     private static final Logger logger = LogManager.getLogger(CryptoBench.class);
 
@@ -51,9 +51,25 @@ public class CryptoBench extends VirtualMapBench {
     private Bytes fixedKey1;
     private Bytes fixedKey2;
 
+    /* Exponential moving average */
+    private long ema;
+    /* Platform metric for TPS */
+    private LongGauge tps;
+
     @Override
     String benchmarkName() {
         return "CryptoBench";
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationSetup() {
+        super.onInvocationSetup();
+
+        tps = BenchmarkMetrics.registerTPS();
+        initializeFixedAccounts(virtualMap);
     }
 
     private void initializeFixedAccounts(VirtualMap virtualMap) {
@@ -76,11 +92,6 @@ public class CryptoBench extends VirtualMapBench {
             keySet[i] = keyId;
         }
     }
-
-    /* Exponential moving average */
-    private long ema;
-    /* Platform metric for TPS */
-    private LongGauge tps;
 
     private long average(long time) {
         return (long) numRecords * MILLISECONDS / Math.max(time, 1);
@@ -113,18 +124,8 @@ public class CryptoBench extends VirtualMapBench {
      * Single-threaded.
      */
     @Benchmark
-    public void transferSerial() throws Exception {
+    public void transferSerial() {
         logger.info(RUN_DELIMITER);
-
-        if (getBenchmarkConfig().enableSnapshots()) {
-            enableSnapshots();
-        }
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
-
-        tps = BenchmarkMetrics.registerTPS();
-        initializeFixedAccounts(virtualMap);
 
         long startTime = System.currentTimeMillis();
         long prevTime = startTime;
@@ -168,10 +169,10 @@ public class CryptoBench extends VirtualMapBench {
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
-                    map[Math.toIntExact(keyId1)] += amount;
-                    map[Math.toIntExact(keyId2)] -= amount;
-                    map[FIXED_KEY_ID1] += 1;
-                    map[FIXED_KEY_ID2] += 1;
+                    verificationMap[Math.toIntExact(keyId1)] += amount;
+                    verificationMap[Math.toIntExact(keyId2)] -= amount;
+                    verificationMap[FIXED_KEY_ID1] += 1;
+                    verificationMap[FIXED_KEY_ID2] += 1;
                 }
             }
 
@@ -183,26 +184,11 @@ public class CryptoBench extends VirtualMapBench {
             prevTime = curTime;
         }
         totalTPS(System.currentTimeMillis() - startTime);
-
-        // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
     }
 
     @Benchmark
-    public void transferPrefetch() throws Exception {
+    public void transferPrefetch() {
         logger.info(RUN_DELIMITER);
-
-        if (getBenchmarkConfig().enableSnapshots()) {
-            enableSnapshots();
-        }
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
 
         // Use a custom queue and executor for warmups. It may happen that some warmup jobs
         // aren't complete by the end of the round, so they will start piling up. To fix it,
@@ -219,10 +205,6 @@ public class CryptoBench extends VirtualMapBench {
                         .setThreadName("prefetch")
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
-
-        tps = BenchmarkMetrics.registerTPS();
-
-        initializeFixedAccounts(virtualMap);
 
         long startTime = System.currentTimeMillis();
         long prevTime = startTime;
@@ -280,10 +262,10 @@ public class CryptoBench extends VirtualMapBench {
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
-                    map[Math.toIntExact(keyId1)] += amount;
-                    map[Math.toIntExact(keyId2)] -= amount;
-                    map[FIXED_KEY_ID1] += 1;
-                    map[FIXED_KEY_ID2] += 1;
+                    verificationMap[Math.toIntExact(keyId1)] += amount;
+                    verificationMap[Math.toIntExact(keyId2)] -= amount;
+                    verificationMap[FIXED_KEY_ID1] += 1;
+                    verificationMap[FIXED_KEY_ID2] += 1;
                 }
             }
 
@@ -298,14 +280,6 @@ public class CryptoBench extends VirtualMapBench {
         }
         totalTPS(System.currentTimeMillis() - startTime);
         prefetchPool.close();
-
-        // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
     }
 
     static class WarmupTask extends AbstractTask {
@@ -395,21 +369,10 @@ public class CryptoBench extends VirtualMapBench {
      * a random amount from one to another.
      */
     @Benchmark
-    public void transferParallel() throws Exception {
+    public void transferParallel() {
         logger.info(RUN_DELIMITER);
 
-        if (getBenchmarkConfig().enableSnapshots()) {
-            enableSnapshots();
-        }
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
-
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
-
-        tps = BenchmarkMetrics.registerTPS();
-
-        initializeFixedAccounts(virtualMap);
 
         long startTime = System.currentTimeMillis();
         long prevTime = startTime;
@@ -429,10 +392,10 @@ public class CryptoBench extends VirtualMapBench {
                 long keyId2 = keys[j * KEYS_PER_RECORD + 1];
 
                 if (verify) {
-                    map[Math.toIntExact(keyId1)] -= currentTask.amount;
-                    map[Math.toIntExact(keyId2)] += currentTask.amount;
-                    map[FIXED_KEY_ID1] += 1;
-                    map[FIXED_KEY_ID2] += 1;
+                    verificationMap[Math.toIntExact(keyId1)] -= currentTask.amount;
+                    verificationMap[Math.toIntExact(keyId2)] += currentTask.amount;
+                    verificationMap[FIXED_KEY_ID1] += 1;
+                    verificationMap[FIXED_KEY_ID2] += 1;
                 }
 
                 new WarmupTask(pool, virtualMap, keyId1, keyId2, currentTask).send();
@@ -453,20 +416,15 @@ public class CryptoBench extends VirtualMapBench {
         }
         totalTPS(System.currentTimeMillis() - startTime);
         pool.close();
-
-        // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
     }
 
     static void main() throws Exception {
+        // This entry point is intended for local IDE profiling.
+        // Run in-process so the IntelliJ profiler attaches to the benchmark workload instead of a JMH fork.
+        // If a larger heap is needed, set it in the IDE run configuration VM options.
         new Runner(new OptionsBuilder()
-                        .include(CryptoBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
+                        .include(CryptoBench.class.getSimpleName() + ".transferPrefetch")
+                        .forks(0)
                         .build())
                 .run();
     }

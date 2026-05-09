@@ -5,8 +5,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.RecycleBinImpl;
-import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -16,8 +14,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.pces.config.PcesConfig_;
+import org.hiero.consensus.test.fixtures.io.TestRecycleBin;
 
 /**
  * A utility class for generating PlatformContexts.
