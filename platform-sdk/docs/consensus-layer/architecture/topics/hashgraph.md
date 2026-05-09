@@ -1,8 +1,9 @@
 ---
+
 title: Hashgraph
 kind: architecture-topic
 last_reviewed: TBD
----
+------------------
 
 # Hashgraph
 
@@ -111,7 +112,8 @@ is wired against those.
 - `preconsensusEventOutputWire(): OutputWire<PlatformEvent>` — events
   linked into the DAG that have not yet reached consensus.
 - `staleEventOutputWire(): OutputWire<PlatformEvent>` — events that
-  aged past the ancient threshold without reaching consensus.
+  aged past the ancient threshold without reaching consensus
+  (see [`../concepts/stale-events.md`](../concepts/stale-events.md)).
 
 `ConsensusRound`
 ([`consensus-model/.../ConsensusRound.java`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/ConsensusRound.java))
@@ -149,7 +151,8 @@ buffered future events and emit several decided rounds.
    pipeline and returns zero or more `ConsensusRound`s.
 5. If consensus advanced, `linker.setEventWindow(round.getEventWindow())`
    shifts the non-ancient window and returns the events that became
-   ancient; non-consensus ancients are reported as stale.
+   ancient; non-consensus ancients are reported as stale (see
+   [`../concepts/stale-events.md`](../concepts/stale-events.md)).
 6. `futureEventBuffer.updateEventWindow(eventWindow)` releases any
    future events whose birth round is now eligible; they are appended
    to the work queue and the loop iterates.
@@ -191,6 +194,7 @@ strongly sees. When `isCoinRound(d)` returns true (line 604), the
 counting vote falls back to the middle-bit-of-signature pseudo-random
 choice for that voter. Fame is decided when a super-majority is reached
 on either side. See
+[`../concepts/voting.md`](../concepts/voting.md) and
 [`../concepts/coin-rounds.md`](../concepts/coin-rounds.md).
 
 **Judges and round-decided.** When `RoundElections.isDecided()` is
@@ -258,7 +262,10 @@ single `addEvent` flip the flag in either direction in practice?]
 
 ## Birth-round filtering
 
-Birth round controls what enters the DAG and what stays in it.
+Birth round controls what enters the DAG and what stays in it (see
+[`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
+for the admitted → ancient → expired staircase that this section
+gates).
 
 **Future events.**
 [`FutureEventBuffer`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java),
@@ -278,7 +285,9 @@ shifts `parentDescriptorMap`'s window to the new ancient threshold,
 clears `parentHashMap` for evicted descriptors, calls `EventImpl.clear`
 on each, and returns the list of events that just became ancient.
 `DefaultConsensusEngine.addEvent` reports any of those that did not
-reach consensus on the stale-events output. Conceptual background:
+reach consensus on the stale-events output (see
+[`../concepts/stale-events.md`](../concepts/stale-events.md)).
+Conceptual background:
 [`../concepts/birth-round.md`](../concepts/birth-round.md).
 
 ## Cross-references
@@ -288,9 +297,12 @@ reach consensus on the stale-events output. Conceptual background:
 - [`../concepts/hashgraph-dag.md`](../concepts/hashgraph-dag.md)
 - [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
 - [`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md)
-- [`../concepts/birth-round.md`](../concepts/birth-round.md)
+- [`../concepts/voting.md`](../concepts/voting.md)
 - [`../concepts/coin-rounds.md`](../concepts/coin-rounds.md)
 - [`../concepts/judges.md`](../concepts/judges.md)
+- [`../concepts/birth-round.md`](../concepts/birth-round.md)
+- [`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
+- [`../concepts/stale-events.md`](../concepts/stale-events.md)
 
 **Invariants.** [TBD: INV-NNN once
 [`../invariants.md`](../invariants.md) catalog populates.]

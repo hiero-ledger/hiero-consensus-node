@@ -8,6 +8,6 @@ Question lists posed during the sprint, with answers preserved. Each Q-list is a
 
 ## Index
 
-| ID | Title | Summary |
-|---|---|---|
-| _(no entries yet)_ | | |
+|         ID         | Title | Summary |
+|--------------------|-------|---------|
+| _(no entries yet)_ |       |         |
