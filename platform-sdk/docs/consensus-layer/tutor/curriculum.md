@@ -67,25 +67,25 @@ generated_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
   title: Task schedulers
   source_topic_id: wiring-framework
   prerequisites: [pass1-4-event-creation-under-stress]
-  status: planned
+  status: drafted
 - lesson_id: 0-2-wires-and-soldering
   cluster: '0'
   title: Wires and soldering
   source_topic_id: wiring-framework
   prerequisites: [0-1-task-schedulers]
-  status: planned
+  status: drafted
 - lesson_id: 0-3-backpressure-at-the-wire
   cluster: '0'
   title: Backpressure at the wire
   source_topic_id: wiring-framework
   prerequisites: [0-2-wires-and-soldering]
-  status: planned
+  status: drafted
 - lesson_id: 0-4-wiring-runtime-synthesis
   cluster: '0'
   title: Wiring runtime synthesis
   source_topic_id: wiring-framework
   prerequisites: [0-3-backpressure-at-the-wire]
-  status: planned
+  status: drafted
 - lesson_id: A.1-1-hashgraph-dag
   cluster: A.1
   title: The hashgraph DAG
