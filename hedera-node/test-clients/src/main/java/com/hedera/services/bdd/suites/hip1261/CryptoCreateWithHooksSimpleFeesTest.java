@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
 import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
