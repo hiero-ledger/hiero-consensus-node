@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 

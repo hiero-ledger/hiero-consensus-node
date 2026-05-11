@@ -331,17 +331,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
         run: |
-          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
-            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
-
-          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
-            echo "No Slack user found for email: ${EMAIL}"
-            SLACK_USER_ID="No matching slack user found"
-          else
-            echo "Found slack user for email: ${EMAIL}"
-            SLACK_USER_ID="<@${SLACK_USER_ID}>"
-          fi
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary

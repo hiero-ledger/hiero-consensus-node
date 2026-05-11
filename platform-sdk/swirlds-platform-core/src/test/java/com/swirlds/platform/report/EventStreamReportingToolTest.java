@@ -47,7 +47,12 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT, numNodes, numEvents, random.nextLong());
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                numNodes,
+                numEvents,
+                random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }
@@ -89,7 +94,12 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT, numNodes, numEvents, random.nextLong());
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                numNodes,
+                numEvents,
+                random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }

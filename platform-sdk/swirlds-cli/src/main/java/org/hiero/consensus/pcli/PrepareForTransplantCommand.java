@@ -3,7 +3,6 @@ package org.hiero.consensus.pcli;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.SavedStateUtils;
@@ -12,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Scanner;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 

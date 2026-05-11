@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.file.FileUtils.deleteDirectory;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -47,6 +46,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.LinkedList;
@@ -57,6 +57,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -1200,8 +1201,8 @@ class VirtualMapTests extends VirtualTestBase {
         }
         // Take a snapshot of copy 5
         final VirtualMap copy5 = copies.get(5);
-        final Path snapshotPath =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
+        final Path snapshotPath = new TestFileSystemManager(testDirectory).resolveNewTemp("snapshotAndRestore");
+        Files.createDirectories(snapshotPath);
         copy5.createSnapshot(snapshotPath);
         try {
             final VirtualMap restored = VirtualMap.loadFromDirectory(snapshotPath, CONFIGURATION, InMemoryBuilder::new);

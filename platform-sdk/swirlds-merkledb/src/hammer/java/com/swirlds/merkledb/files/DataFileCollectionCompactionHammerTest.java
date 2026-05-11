@@ -6,10 +6,10 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -37,6 +38,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 @Disabled("This test needs to be investigated")
 class DataFileCollectionCompactionHammerTest {
+
+    @TempDir
+    private Path tempDir;
 
     @BeforeAll
     public static void setup() {
@@ -52,8 +56,8 @@ class DataFileCollectionCompactionHammerTest {
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
     void benchmark(int numFiles, int maxEntriesPerFile) throws IOException {
-        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
-                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
+        final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
+        Files.createDirectories(tempFileDir);
         assertDoesNotThrow(() -> {
             final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
@@ -117,8 +121,8 @@ class DataFileCollectionCompactionHammerTest {
 
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
-        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
-                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
+        final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
+        Files.createDirectories(tempFileDir);
         final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);

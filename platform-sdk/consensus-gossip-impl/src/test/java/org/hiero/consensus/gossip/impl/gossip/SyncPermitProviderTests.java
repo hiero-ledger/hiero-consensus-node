@@ -3,8 +3,8 @@ package org.hiero.consensus.gossip.impl.gossip;
 
 import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;

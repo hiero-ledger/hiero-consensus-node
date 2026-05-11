@@ -96,6 +96,12 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
 
     /** {@inheritDoc} */
     @Override
+    public CompletableFuture<Bytes> finishCurrentBlock() {
+        return closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public void close() {
         closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
 
@@ -191,6 +197,8 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
             } catch (final Exception e) {
                 logger.error("Error closing block record writer for block {}", lastBlockNumber, e);
                 return failedFuture(e);
+            } finally {
+                writer = null;
             }
         }
         return completedFuture(Bytes.EMPTY);

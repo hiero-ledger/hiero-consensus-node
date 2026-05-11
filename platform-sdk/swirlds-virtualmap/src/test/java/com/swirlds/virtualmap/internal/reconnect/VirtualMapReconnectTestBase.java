@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
