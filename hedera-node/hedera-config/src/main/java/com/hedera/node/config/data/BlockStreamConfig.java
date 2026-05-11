@@ -37,6 +37,8 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
 
+        // How is this ensured that all of the nodes operate with the same clokcs -> the problem from the ddiap book for
+        // the usage of clocks in distributed systems
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty
         Duration blockPeriod,
 
