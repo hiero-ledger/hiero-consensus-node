@@ -30,6 +30,7 @@ buildNumber.properties
 *.pidb
 *.resources
 test-results/
+hedera-node/docker/small-memory-output/
 
 ### NotepadPP template
 # Notepad++ backups #

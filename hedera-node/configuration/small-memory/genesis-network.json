@@ -1,0 +1,34 @@
+{
+  "nodeMetadata": [{
+    "rosterEntry": {
+      "nodeId": "0",
+      "weight": "1",
+      "gossipCaCertificate": "MIIDpjCCAg6gAwIBAgIIdUmpLKzyXgUwDQYJKoZIhvcNAQEMBQAwEjEQMA4GA1UEAxMHcy1ub2RlMTAgFw0wMDAxMDEwMDAwMDBaGA8yMTAwMDEwMTAwMDAwMFowEjEQMA4GA1UEAxMHcy1ub2RlMTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBALXCoDQ+HOVsEDTZpFuJITSaGwaKX2is5K1P/lV+G+ll6u36IdqKNnZIirJrpX2N0Ad6NeF/oFcMhietrKt818PDA9Tbb2tqcHNKTxxZAEj7amQTsrU4EsNmUhaPgMs89yj9WLxCXVzW05cQjqYEA/hymzohWs1BdU3Y2KdmELe0v5fzRgDpNgYHhUN7IrlrlgXEWpuKRskBYc4PIvyACijY0/zkeEAyHOshYYGKhQbNm/NGWhFq83ro77CZZhX3Vl7hRnHLaEoCEE8atY8R1Txhy8aObhiS6R8ZVRTkZLar/FG/xe78RQfwHHD1al2w5oHR7xgTZylhbD+nVQ09Zmi25USpvqwumbMBE0OWhV+VH1WLCHfLQs6/5yuDjeZ/0D9tpQ8pfkiEkGLedzUzQkq+4/HmN4IFTOhgJHlu1tVUqohZIPZ5zSzqkqFzFQGRo2uAX8C2EJ3qgQMAEOpH8iOjiSKsezlIPuwvmrVDPxVfpY2Cq60oxRu6B8bZdbQkfwIDAQABMA0GCSqGSIb3DQEBDAUAA4IBgQAloxwiVu7pBhkO4fLqYRw4FC0VEx+c47W4xnrq3G/uXMGwE2Mfwple9FZnfT9JgSoT1UVw+cigo4720WdrPqkK8qnA3/PzGXlfJ3k6eFcBuli/KY1TakIJUAxFt5biNKatheMwAKsbF/JyVyaqG2dbSaXQ6hZBLQTYmLrmFWMvi9QdM1S8vNVMjn0hE2qQJtnVRuVwqRaAQ225jDv2CUCT28t0EWE6ccbiRi74l8KoW1Lo3v2EQ6ZZ89Xt3CwFSQHa6YVT685ECy82qMysU+YHBe9WmwJW05UAAY7JRsOo+RuuU/r4acNLmzprG+l7qsqqPkwXTcziw9Y2OYsFgY4bTlIOV0JC0AYApctDB3gbn83LM73CWccGrXq0liSV0wL11wscH3gFohXrwb646+6hgncZiDshlZlWaFSkHQJAxTR9bsbsCwKdZpzIIVOVTOT/3oLQKCCQvPriTpJiNa0P6gB0pq64lNcyG9fL8vS3YFFnWJTZwb8ZzGK+LZ91/2Y=",
+      "gossipEndpoint": [{
+        "port": 31013,
+        "ipAddressV4": "fwAAAQ=="
+      }]
+    },
+    "node": {
+      "accountId": {
+        "shardNum": "0",
+        "realmNum": "0",
+        "accountNum": "3"
+      },
+      "description": "node1",
+      "gossipEndpoint": [{
+        "ipAddressV4": "fwAAAQ==",
+        "port": 31013
+      }],
+      "serviceEndpoint": [{
+        "ipAddressV4": "fwAAAQ==",
+        "port": 31013
+      }],
+      "gossipCaCertificate": "MIIDpjCCAg6gAwIBAgIIdUmpLKzyXgUwDQYJKoZIhvcNAQEMBQAwEjEQMA4GA1UEAxMHcy1ub2RlMTAgFw0wMDAxMDEwMDAwMDBaGA8yMTAwMDEwMTAwMDAwMFowEjEQMA4GA1UEAxMHcy1ub2RlMTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBALXCoDQ+HOVsEDTZpFuJITSaGwaKX2is5K1P/lV+G+ll6u36IdqKNnZIirJrpX2N0Ad6NeF/oFcMhietrKt818PDA9Tbb2tqcHNKTxxZAEj7amQTsrU4EsNmUhaPgMs89yj9WLxCXVzW05cQjqYEA/hymzohWs1BdU3Y2KdmELe0v5fzRgDpNgYHhUN7IrlrlgXEWpuKRskBYc4PIvyACijY0/zkeEAyHOshYYGKhQbNm/NGWhFq83ro77CZZhX3Vl7hRnHLaEoCEE8atY8R1Txhy8aObhiS6R8ZVRTkZLar/FG/xe78RQfwHHD1al2w5oHR7xgTZylhbD+nVQ09Zmi25USpvqwumbMBE0OWhV+VH1WLCHfLQs6/5yuDjeZ/0D9tpQ8pfkiEkGLedzUzQkq+4/HmN4IFTOhgJHlu1tVUqohZIPZ5zSzqkqFzFQGRo2uAX8C2EJ3qgQMAEOpH8iOjiSKsezlIPuwvmrVDPxVfpY2Cq60oxRu6B8bZdbQkfwIDAQABMA0GCSqGSIb3DQEBDAUAA4IBgQAloxwiVu7pBhkO4fLqYRw4FC0VEx+c47W4xnrq3G/uXMGwE2Mfwple9FZnfT9JgSoT1UVw+cigo4720WdrPqkK8qnA3/PzGXlfJ3k6eFcBuli/KY1TakIJUAxFt5biNKatheMwAKsbF/JyVyaqG2dbSaXQ6hZBLQTYmLrmFWMvi9QdM1S8vNVMjn0hE2qQJtnVRuVwqRaAQ225jDv2CUCT28t0EWE6ccbiRi74l8KoW1Lo3v2EQ6ZZ89Xt3CwFSQHa6YVT685ECy82qMysU+YHBe9WmwJW05UAAY7JRsOo+RuuU/r4acNLmzprG+l7qsqqPkwXTcziw9Y2OYsFgY4bTlIOV0JC0AYApctDB3gbn83LM73CWccGrXq0liSV0wL11wscH3gFohXrwb646+6hgncZiDshlZlWaFSkHQJAxTR9bsbsCwKdZpzIIVOVTOT/3oLQKCCQvPriTpJiNa0P6gB0pq64lNcyG9fL8vS3YFFnWJTZwb8ZzGK+LZ91/2Y=",
+      "weight": "1",
+      "adminKey": {
+        "ed25519": "CqjiEGTGHquG4qnBZFZbTnqaQUYQbgps0DqMOVoRDpI="
+      }
+    }
+  }]
+}
