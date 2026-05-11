@@ -42,6 +42,8 @@ import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
@@ -235,6 +237,13 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
                         migrationAlreadyApplied);
 
+        final int reservedSystemTxnNanos =
+                hederaConfig.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
+        final int maxPrecedingRecords =
+                hederaConfig.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
+        final int transactionOffsetNanos = reservedSystemTxnNanos + maxPrecedingRecords + 1;
+        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -250,7 +259,8 @@ public class ServicesMain {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera);
+                .withStaleEventCallback(hedera)
+                .withTransactionOffsetNanos(transactionOffsetNanos);
         final var platform = platformBuilder.build();
 
         platform.start();

@@ -1397,7 +1397,8 @@ class BlockStreamManagerImplTest {
                 aWriter);
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -1436,7 +1437,8 @@ class BlockStreamManagerImplTest {
                 aWriter);
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
