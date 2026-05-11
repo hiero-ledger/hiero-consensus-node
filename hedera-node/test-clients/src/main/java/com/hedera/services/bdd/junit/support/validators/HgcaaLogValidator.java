@@ -113,10 +113,10 @@ public class HgcaaLogValidator {
                 List.of("WRAPS proving key download failed"),
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
-                List.of("Failed to initiate async download of WRAPS proving key (from URL "),
-                List.of(
-                        "Jumpstart currentBlockConsensusTimestampHash for block",
-                        "does not match wrapped record hashes file entry (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
+//                List.of(
+//                        "Jumpstart currentBlockConsensusTimestampHash for block",
+//                        "does not match wrapped record hashes file entry (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
