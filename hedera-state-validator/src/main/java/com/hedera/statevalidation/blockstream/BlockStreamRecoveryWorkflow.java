@@ -26,7 +26,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -147,9 +146,8 @@ public class BlockStreamRecoveryWorkflow {
 
         // At Integer.MAX_VALUE the interval is 0 ns, so skip the limiter entirely
         // to avoid unnecessary nanoTime() overhead on every round.
-        final WorkRateLimiter rateLimiter = roundsPerSecond < Integer.MAX_VALUE
-                ? new WorkRateLimiter(roundsPerSecond)
-                : null;
+        final WorkRateLimiter rateLimiter =
+                roundsPerSecond < Integer.MAX_VALUE ? new WorkRateLimiter(roundsPerSecond) : null;
 
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {

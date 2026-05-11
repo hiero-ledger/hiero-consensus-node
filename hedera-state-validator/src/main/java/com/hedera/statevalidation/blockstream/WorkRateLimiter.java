@@ -35,11 +35,11 @@ public class WorkRateLimiter {
      */
     public WorkRateLimiter(final double roundsPerSecond) {
         if (roundsPerSecond <= 0) {
-            throw new IllegalArgumentException(
-                    "roundsPerSecond must be positive, got " + roundsPerSecond);
+            throw new IllegalArgumentException("roundsPerSecond must be positive, got " + roundsPerSecond);
         }
         this.intervalNanos = 1_000_000_000.0 / roundsPerSecond;
-        log.info("Rate limiter created: {}rounds/s (interval={}ms)",
+        log.info(
+                "Rate limiter created: {}rounds/s (interval={}ms)",
                 roundsPerSecond,
                 String.format("%.1f", intervalNanos / 1_000_000.0));
     }
@@ -63,5 +63,4 @@ public class WorkRateLimiter {
             LockSupport.parkNanos(sleepNanos);
         }
     }
-
 }
