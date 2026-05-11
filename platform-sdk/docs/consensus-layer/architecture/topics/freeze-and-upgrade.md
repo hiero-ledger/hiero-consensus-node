@@ -1,9 +1,8 @@
 ---
-
 title: Freeze and upgrade
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Freeze and upgrade
 
