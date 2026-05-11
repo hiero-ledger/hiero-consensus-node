@@ -23,7 +23,7 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
     public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
     private long targetRound = DEFAULT_TARGET_ROUND;
     private String expectedHash = "";
-    private double ratePercentPerSecond = 0;
+    private int roundsPerSecond = Integer.MAX_VALUE;
 
     private ApplyBlocksCommand() {}
 
@@ -71,19 +71,18 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
     @Option(
             names = {"-r", "--rate"},
-            defaultValue = "0",
-            description = "Rate limit for applying rounds, expressed as a percentage of total rounds per second. "
-                    + "For example, 1.0 means 1%%/s (total duration ≈ 100s), 0.1 means 0.1%%/s (≈ 1000s). "
-                    + "Requires --target-round to be set. Default = 0 (unlimited, apply as fast as possible)")
-    private void setRatePercentPerSecond(final double ratePercentPerSecond) {
-        this.ratePercentPerSecond = ratePercentPerSecond;
+            defaultValue = "2147483647",
+            description = "Maximum rounds to apply per second. Controls CPU/IO load independently of state size. "
+                    + "For example, 10 means at most 10 rounds/s. Default = unlimited (apply as fast as possible)")
+    private void setRoundsPerSecond(final int roundsPerSecond) {
+        this.roundsPerSecond = roundsPerSecond;
     }
 
     @Override
     public void run() {
         parent.initializeStateDir();
         try {
-            applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash, ratePercentPerSecond);
+            applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash, roundsPerSecond);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
