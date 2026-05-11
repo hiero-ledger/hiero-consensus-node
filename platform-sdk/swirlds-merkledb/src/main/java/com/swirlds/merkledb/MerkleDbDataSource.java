@@ -1425,7 +1425,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 () -> {
                     statisticsUpdater.updateStoreFileStats(this);
                     statisticsUpdater.updateOffHeapStats(this);
-                });
+                },
+                true, // deduplicateMirroredEntries — HDHM store
+                keyToPath.getNumOfBuckets()); // index size = total bucket count
     }
 
     /**
