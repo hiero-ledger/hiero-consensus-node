@@ -25,7 +25,7 @@ Event and state signing are explicitly out of scope.
 
 Current gossip TLS relies on RSA-3072, EC-384, x25519, which are not quantum resistant.
 
-This proposal upgrades gossip transport to TLS 1.3 and its authentication and key exchange phases to post-quantum primitives, 
+This proposal upgrades gossip transport to TLS 1.3 and its authentication and key exchange phases to post-quantum primitives,
 while minimizes impact on existing trust semantics.
 
 This proposal focuses first on transport authentication and key establishment because those changes can be deployed independently from consensus-signature migration.
@@ -70,12 +70,12 @@ Today each node has:
 The roster acts as the transport trust root.
 
 TLS trust today:
-```text
- sigCert (CA)
-   →
-    agrCert 
-```
 
+```text
+sigCert (CA)
+  →
+   agrCert
+```
 
 ---
 
@@ -113,7 +113,7 @@ Regarding authentication, ML-DSA signatures have different flavors to select fro
 
 For key exchange, we've measured the key exchange process mostly using the hybrid `X25519MLKEM768` which insurances against an ML-KEM-only break, but we can use pure ML-KEM.
 
-ML-DSA-in-TLS is at draft-ietf-tls-mldsa-03 (Informational track, submitted to IESG as of May 2026). Hybrid X25519MLKEM768 is at draft-ietf-tls-ecdhe-mlkem-04 (Standards Track, in the RFC Editor Queue). Both are far enough through the IETF process that wire-format changes are unlikely in the near term, though neither is published as an RFC yet. 
+ML-DSA-in-TLS is at draft-ietf-tls-mldsa-03 (Informational track, submitted to IESG as of May 2026). Hybrid X25519MLKEM768 is at draft-ietf-tls-ecdhe-mlkem-04 (Standards Track, in the RFC Editor Queue). Both are far enough through the IETF process that wire-format changes are unlikely in the near term, though neither is published as an RFC yet.
 
 ---
 
@@ -299,7 +299,7 @@ Each migration phase is independently rollback-able:
 
 # 8. Pending decisions
 
-| # | Decision                                                              |
+| # |                               Decision                                |
 |---|-----------------------------------------------------------------------|
 | 1 | Endorse overall direction                                             |
 | 2 | Should we ship ACCP independently?                                    |
@@ -324,6 +324,7 @@ Each migration phase is independently rollback-able:
 - Named groups: `["X25519MLKEM768", "secp384r1"]`. BCJSSE couples some signature-scheme activations to named-group membership, so `secp384r1` is structurally required even though it is not used as the active key-exchange group.
 - Signature schemes during transition: `["mldsa65", "ecdsa_secp384r1_sha384", "ecdsa_secp256r1_sha256", "ed25519", "rsa_pss_rsae_sha384", "rsa_pss_rsae_sha256", "rsa_pkcs1_sha384"]`. (rsa_pkcs1_sha384 is added for cert-chain compatibility.)
 - client and server socket factories to adapt to tls 1.3 parameters.
+
 ---
 
 ## 9.2 Certificate generation
@@ -350,7 +351,6 @@ Trust-store generation extends to consume two roster fields:
 - `pq_gossip_ca_certificate` (new): DER bytes of the ML-DSA-65 self-signed cert. Same shape as `gossip_ca_certificate`, just a different signature algorithm.
 
 Both contribute trust anchors to the JSSE trust store. The TLS handshake configuration accepts both classical and ML-DSA signature schemes during the transition window. After classical retirement (Phase 4), only ML-DSA remains.
-
 
 ---
 
@@ -381,6 +381,7 @@ A full self-signed cert is approximately 5 KB at the ML-DSA-65 parameter set: ~2
 ---
 
 # 10. Risks and pending work
+
 Configuration of the providers and how they are selected is tricky.
 Key interoperability might depend on the providers and how they are configured.
 We should invest time confirming the interoperability of the existing keys with the target stack.
