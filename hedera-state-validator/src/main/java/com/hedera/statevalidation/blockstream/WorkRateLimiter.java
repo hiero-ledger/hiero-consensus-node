@@ -55,8 +55,6 @@ public class WorkRateLimiter {
         this.totalWork = totalWork;
         // target duration = 100 / rate seconds, converted to nanos
         this.targetDurationNanos = (100.0 / ratePercentPerSecond) * 1_000_000_000L;
-        this.workCompleted = 0;
-        this.startTimeNanos = 0;
 
         final double targetDurationSeconds = 100.0 / ratePercentPerSecond;
         log.info(
