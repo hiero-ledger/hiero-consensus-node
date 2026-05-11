@@ -1,9 +1,8 @@
 ---
-
 title: Consensus / Execution boundary
 kind: architecture-interface
 last_reviewed: TBD
-------------------
+---
 
 # Consensus / Execution boundary
 
