@@ -1,19 +1,18 @@
 ---
-
 lesson_id: pass1-1-transaction-to-consensus
 cluster: pass1
 scenario_kind: canonical
 depth: lightweight
 components_touched: [event-creator, event-intake, restart-and-pces, gossip, hashgraph]
 kb_refs:
-topics: [event-creator, event-intake, restart-and-pces, gossip, hashgraph]
-concepts: [event-lifecycle, hashgraph-dag, rounds-and-witnesses, judges, birth-round]
-invariants: []
-scenarios: []
+  topics: [event-creator, event-intake, restart-and-pces, gossip, hashgraph]
+  concepts: [event-lifecycle, hashgraph-dag, rounds-and-witnesses, judges, birth-round]
+  invariants: []
+  scenarios: []
 prerequisites: []
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Transaction to consensus
 

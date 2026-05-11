@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-4-voting-and-coin-rounds
 cluster: A.1
 title: Voting and coin rounds
 prerequisites: [A.1-3-strongly-seeing]
 kb_refs:
-topics: [hashgraph]
-concepts: [voting, coin-rounds, strongly-seeing, rounds-and-witnesses]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [voting, coin-rounds, strongly-seeing, rounds-and-witnesses]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Distinguish first votes (round difference 1, direct first-self-witness lookup) from counting votes (round difference greater than 1, weight tally over strongly-seen prior-round witnesses) and explain why neither vote on its own can guarantee liveness against an adversarial scheduler.
-- Walk `voteInAllElections` end to end — the per-voter dispatch on round difference, the strongly-seen-prior-round prefetch, the counting-vote tally, the coin-round branch, and the super-majority decision gate that flips a `CandidateWitness` to decided fame.
-- Explain why coin rounds exist (a liveness escape hatch, not a fairness device), how `isCoinRound` selects them, and why the coin vote is a deterministic function of the voter's own event signature rather than a true random source.
+  - Distinguish first votes (round difference 1, direct first-self-witness lookup) from counting votes (round difference greater than 1, weight tally over strongly-seen prior-round witnesses) and explain why neither vote on its own can guarantee liveness against an adversarial scheduler.
+  - Walk `voteInAllElections` end to end — the per-voter dispatch on round difference, the strongly-seen-prior-round prefetch, the counting-vote tally, the coin-round branch, and the super-majority decision gate that flips a `CandidateWitness` to decided fame.
+  - Explain why coin rounds exist (a liveness escape hatch, not a fairness device), how `isCoinRound` selects them, and why the coin vote is a deterministic function of the voter's own event signature rather than a true random source.
 estimated_read_minutes: 10
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Voting and coin rounds
 

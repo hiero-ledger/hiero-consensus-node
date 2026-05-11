@@ -1,9 +1,8 @@
 ---
-
 title: Reconnect
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Reconnect
 

@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-5-judges
 cluster: A.1
 title: Judges
 prerequisites: [A.1-4-voting-and-coin-rounds]
 kb_refs:
-topics: [hashgraph]
-concepts: [judges, rounds-and-witnesses, voting, strongly-seeing]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [judges, rounds-and-witnesses, voting, strongly-seeing]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Define a judge as the unique famous witness per creator in a decided round, and explain why the deterministic merge on branched creators (lex-min base hash) is the load-bearing rule that turns the fame verdicts of A.1-4 into a Byzantine-safe, replay-stable judge set.
-- Walk `roundDecided` end to end — the trigger condition, `findAllJudges` (the famous-to-judge collapse), `checkJudges` (the super-majority sanity check), `generateWhitening` (the per-round XOR string), `findConsensusEvents` (the common-ancestors walk that fixes round-received), and `ConsensusSorter.sort` (the four-key sort whose final tie-break consumes the whitening).
-- Explain why the judges are the persisted handle that crosses restart and reconnect — the `JudgeId` list inside `ConsensusSnapshot.judgeIds` plus the `InitJudges` re-walk that rehydrates the per-event judge flag on replay.
+  - Define a judge as the unique famous witness per creator in a decided round, and explain why the deterministic merge on branched creators (lex-min base hash) is the load-bearing rule that turns the fame verdicts of A.1-4 into a Byzantine-safe, replay-stable judge set.
+  - Walk `roundDecided` end to end — the trigger condition, `findAllJudges` (the famous-to-judge collapse), `checkJudges` (the super-majority sanity check), `generateWhitening` (the per-round XOR string), `findConsensusEvents` (the common-ancestors walk that fixes round-received), and `ConsensusSorter.sort` (the four-key sort whose final tie-break consumes the whitening).
+  - Explain why the judges are the persisted handle that crosses restart and reconnect — the `JudgeId` list inside `ConsensusSnapshot.judgeIds` plus the `InitJudges` re-walk that rehydrates the per-event judge flag on replay.
 estimated_read_minutes: 10
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Judges
 

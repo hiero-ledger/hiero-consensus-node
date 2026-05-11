@@ -1,19 +1,18 @@
 ---
-
 lesson_id: pass1-2-node-falls-behind
 cluster: pass1
 scenario_kind: canonical
 depth: lightweight
 components_touched: [gossip, reconnect, reasons-not-to-gossip, signed-state-management, event-intake, restart-and-pces, hashgraph]
 kb_refs:
-topics: [gossip, reconnect, reasons-not-to-gossip, signed-state-management, event-intake, restart-and-pces, hashgraph]
-concepts: [stale-events, birth-round, event-lifecycle]
-invariants: []
-scenarios: []
+  topics: [gossip, reconnect, reasons-not-to-gossip, signed-state-management, event-intake, restart-and-pces, hashgraph]
+  concepts: [stale-events, birth-round, event-lifecycle]
+  invariants: []
+  scenarios: []
 prerequisites: []
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Node falls behind
 

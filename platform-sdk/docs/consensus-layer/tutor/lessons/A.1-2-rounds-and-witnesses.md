@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-2-rounds-and-witnesses
 cluster: A.1
 title: Rounds and witnesses
 prerequisites: [A.1-1-hashgraph-dag]
 kb_refs:
-topics: [hashgraph]
-concepts: [rounds-and-witnesses, hashgraph-dag, strongly-seeing, birth-round, judges]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [rounds-and-witnesses, hashgraph-dag, strongly-seeing, birth-round, judges]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- State the definitions of round-created, witness, and round-received and explain why round-created and round-received are separate fields on the same event.
-- Trace the four cases of `ConsensusImpl.round` and identify which case fires for an event with no parents, an event whose parents agree on a round, and an event whose parents disagree.
-- Justify why `ConsensusImpl.witness` uses `round(x) != round(selfParent(x))` rather than `>` and name the invariant on `round()` that makes the two equivalent.
+  - State the definitions of round-created, witness, and round-received and explain why round-created and round-received are separate fields on the same event.
+  - Trace the four cases of `ConsensusImpl.round` and identify which case fires for an event with no parents, an event whose parents agree on a round, and an event whose parents disagree.
+  - Justify why `ConsensusImpl.witness` uses `round(x) != round(selfParent(x))` rather than `>` and name the invariant on `round()` that makes the two equivalent.
 estimated_read_minutes: 8
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Rounds and witnesses
 

@@ -1,23 +1,22 @@
 ---
-
 lesson_id: A.1-8-hashgraph-algorithm-synthesis
 cluster: A.1
 title: Hashgraph algorithm synthesis
 prerequisites: [A.1-7-stale-events]
 kb_refs:
-topics: [hashgraph]
-concepts: [hashgraph-dag, rounds-and-witnesses, strongly-seeing, voting, coin-rounds, judges, event-lifecycle, birth-round, stale-events]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [hashgraph-dag, rounds-and-witnesses, strongly-seeing, voting, coin-rounds, judges, event-lifecycle, birth-round, stale-events]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Walk `DefaultConsensusEngine.addEvent` end to end as a single coordinated pipeline and name the cluster-A.1 component each stage consumes.
-- Distinguish the algorithm's three time scales — per-event, per-decided-round, per-cluster-of-rounds — and identify which engine field carries the state for each.
-- State the cluster's external contract: three output streams (consensus rounds, pre-consensus events, stale events) and one `EventWindow` projection that gates the next arriving event.
-- Identify the two cross-cluster handoffs that close the topic — `ConsensusSnapshot` to signed-state management on the way out, `outOfBandSnapshotUpdate` from restart and reconnect on the way in — and the per-event flag (`isJudge`) that bridges them via `InitJudges`.
+  - Walk `DefaultConsensusEngine.addEvent` end to end as a single coordinated pipeline and name the cluster-A.1 component each stage consumes.
+  - Distinguish the algorithm's three time scales — per-event, per-decided-round, per-cluster-of-rounds — and identify which engine field carries the state for each.
+  - State the cluster's external contract: three output streams (consensus rounds, pre-consensus events, stale events) and one `EventWindow` projection that gates the next arriving event.
+  - Identify the two cross-cluster handoffs that close the topic — `ConsensusSnapshot` to signed-state management on the way out, `outOfBandSnapshotUpdate` from restart and reconnect on the way in — and the per-event flag (`isJudge`) that bridges them via `InitJudges`.
 estimated_read_minutes: 12
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Hashgraph algorithm synthesis
 

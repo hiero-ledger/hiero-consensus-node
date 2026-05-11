@@ -1,19 +1,18 @@
 ---
-
 lesson_id: pass1-4-event-creation-under-stress
 cluster: pass1
 scenario_kind: canonical
 depth: lightweight
 components_touched: [event-creator, health-monitor-and-backpressure, gossip, reasons-not-to-gossip, restart-and-pces]
 kb_refs:
-topics: [event-creator, health-monitor-and-backpressure, gossip, reasons-not-to-gossip, restart-and-pces]
-concepts: [birth-round, event-lifecycle]
-invariants: []
-scenarios: []
+  topics: [event-creator, health-monitor-and-backpressure, gossip, reasons-not-to-gossip, restart-and-pces]
+  concepts: [birth-round, event-lifecycle]
+  invariants: []
+  scenarios: []
 prerequisites: []
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Event creation under stress
 

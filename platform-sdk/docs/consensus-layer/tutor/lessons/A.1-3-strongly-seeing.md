@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-3-strongly-seeing
 cluster: A.1
 title: Strongly-seeing
 prerequisites: [A.1-2-rounds-and-witnesses]
 kb_refs:
-topics: [hashgraph]
-concepts: [strongly-seeing, rounds-and-witnesses, voting]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [strongly-seeing, rounds-and-witnesses, voting]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- State the definition of strongly-seeing in both its plain-language form (super-majority of distinct-creator paths) and its current-code form (super-majority of intermediates whose lastSee chains agree on the same canonical witness), and explain why the code's form is the one that survives Byzantine branching.
-- Identify the two consumers of `stronglySeeP` in the consensus pipeline and the threshold each one tests against the result.
-- Walk `stronglySeeP`'s computation end to end - the canonical-witness lookup via `seeThru`, the per-member weight tally over intermediates whose lastSee through the target member agrees on the canonical, and the `Threshold.SUPER_MAJORITY` test that decides whether the strongly-see slot holds the canonical or null.
+  - State the definition of strongly-seeing in both its plain-language form (super-majority of distinct-creator paths) and its current-code form (super-majority of intermediates whose lastSee chains agree on the same canonical witness), and explain why the code's form is the one that survives Byzantine branching.
+  - Identify the two consumers of `stronglySeeP` in the consensus pipeline and the threshold each one tests against the result.
+  - Walk `stronglySeeP`'s computation end to end - the canonical-witness lookup via `seeThru`, the per-member weight tally over intermediates whose lastSee through the target member agrees on the canonical, and the `Threshold.SUPER_MAJORITY` test that decides whether the strongly-see slot holds the canonical or null.
 estimated_read_minutes: 9
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Strongly-seeing
 

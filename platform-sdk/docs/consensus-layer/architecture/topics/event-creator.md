@@ -1,9 +1,8 @@
 ---
-
 title: Event creator
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Event creator
 

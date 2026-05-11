@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-1-hashgraph-dag
 cluster: A.1
 title: The hashgraph DAG
 prerequisites: [0-4-wiring-runtime-synthesis]
 kb_refs:
-topics: [hashgraph]
-concepts: [hashgraph-dag]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [hashgraph-dag]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Name the vertices and edges of the hashgraph and the immutability rule on edges.
-- Distinguish the in-memory non-ancient DAG from the unbounded historical event log.
-- Identify in current code the class that represents a linked DAG node and the class that owns the in-memory map of non-ancient nodes.
+  - Name the vertices and edges of the hashgraph and the immutability rule on edges.
+  - Distinguish the in-memory non-ancient DAG from the unbounded historical event log.
+  - Identify in current code the class that represents a linked DAG node and the class that owns the in-memory map of non-ancient nodes.
 estimated_read_minutes: 7
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # The hashgraph DAG
 

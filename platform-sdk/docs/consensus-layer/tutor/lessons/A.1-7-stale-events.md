@@ -1,23 +1,22 @@
 ---
-
 lesson_id: A.1-7-stale-events
 cluster: A.1
 title: Stale events
 prerequisites: [A.1-6-event-lifecycle-and-birth-round]
 kb_refs:
-topics: [hashgraph]
-concepts: [stale-events, event-lifecycle, birth-round]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [stale-events, event-lifecycle, birth-round]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Distinguish *stale* (a post-admission fate) from *ancient* (a lifecycle state) and explain why pre-admission rejection of a too-old event is not a stale event in current code.
-- Locate the single partition site in `DefaultConsensusEngine.addEvent` where the linker's newly-ancient list splits into "reached consensus" and "stale", and identify the `EventImpl.isConsensus()` predicate as the discriminator.
-- Trace the `staleEvents` output from `ConsensusEngineOutput` through the `DefaultHashgraphModule` transformer/splitter and the `PlatformWiring` soldering all the way to the application-registered `Consumer<PlatformEvent>` callback, and explain why `ConsensusEngineMetrics.reportStaleEvent` filters to self-events while the output wire does not.
-- Name the gap acknowledged in `PlatformBuilder.withStaleEventCallback`: events that went stale during a restart or reconnect window are not necessarily reported, because the in-memory linker that does the partitioning was not present to observe the transition.
+  - Distinguish *stale* (a post-admission fate) from *ancient* (a lifecycle state) and explain why pre-admission rejection of a too-old event is not a stale event in current code.
+  - Locate the single partition site in `DefaultConsensusEngine.addEvent` where the linker's newly-ancient list splits into "reached consensus" and "stale", and identify the `EventImpl.isConsensus()` predicate as the discriminator.
+  - Trace the `staleEvents` output from `ConsensusEngineOutput` through the `DefaultHashgraphModule` transformer/splitter and the `PlatformWiring` soldering all the way to the application-registered `Consumer<PlatformEvent>` callback, and explain why `ConsensusEngineMetrics.reportStaleEvent` filters to self-events while the output wire does not.
+  - Name the gap acknowledged in `PlatformBuilder.withStaleEventCallback`: events that went stale during a restart or reconnect window are not necessarily reported, because the in-memory linker that does the partitioning was not present to observe the transition.
 estimated_read_minutes: 7
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Stale events
 

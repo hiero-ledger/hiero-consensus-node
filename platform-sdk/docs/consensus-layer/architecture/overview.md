@@ -1,9 +1,8 @@
 ---
-
 title: Architecture overview
 kind: architecture-overview
 last_reviewed: TBD
-------------------
+---
 
 # Architecture overview
 

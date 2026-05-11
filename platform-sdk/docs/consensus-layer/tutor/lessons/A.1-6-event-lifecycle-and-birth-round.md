@@ -1,22 +1,21 @@
 ---
-
 lesson_id: A.1-6-event-lifecycle-and-birth-round
 cluster: A.1
 title: Event lifecycle and birth round
 prerequisites: [A.1-5-judges]
 kb_refs:
-topics: [hashgraph]
-concepts: [event-lifecycle, birth-round, hashgraph-dag, rounds-and-witnesses, stale-events]
-invariants: []
-glossary_terms: []
+  topics: [hashgraph]
+  concepts: [event-lifecycle, birth-round, hashgraph-dag, rounds-and-witnesses, stale-events]
+  invariants: []
+  glossary_terms: []
 learning_objectives:
-- Name the four regions an event passes through relative to a node's `EventWindow` — future, admitted, ancient, expired — and identify which threshold and which retention site governs each transition.
-- Explain why birth round (creator-stamped, signed, immutable) is the right handle for these transitions, and why the implementation uses it rather than the locally-computed NGen the paper describes.
-- Walk the per-event pipeline in `DefaultConsensusEngine.addEvent` end to end — `FutureEventBuffer.addEvent` for future events, `ConsensusLinker.linkEvent` for ancient drop, `consensus.addEvent` for algorithm processing, `ConsensusLinker.setEventWindow` for batched eviction on round advance, `FutureEventBuffer.updateEventWindow` for buffered release — and identify the data dependency between `ConsensusRound.eventWindow` and the next iteration's classification of an arriving event.
+  - Name the four regions an event passes through relative to a node's `EventWindow` — future, admitted, ancient, expired — and identify which threshold and which retention site governs each transition.
+  - Explain why birth round (creator-stamped, signed, immutable) is the right handle for these transitions, and why the implementation uses it rather than the locally-computed NGen the paper describes.
+  - Walk the per-event pipeline in `DefaultConsensusEngine.addEvent` end to end — `FutureEventBuffer.addEvent` for future events, `ConsensusLinker.linkEvent` for ancient drop, `consensus.addEvent` for algorithm processing, `ConsensusLinker.setEventWindow` for batched eviction on round advance, `FutureEventBuffer.updateEventWindow` for buffered release — and identify the data dependency between `ConsensusRound.eventWindow` and the next iteration's classification of an arriving event.
 estimated_read_minutes: 9
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Event lifecycle and birth round
 

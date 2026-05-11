@@ -1,9 +1,8 @@
 ---
-
 title: Restart and PCES
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Restart and PCES
 

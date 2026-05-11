@@ -33,10 +33,9 @@ The bootstrap was generated against `origin/main` at the SHA recorded in
 verification SHAs in `last_verified_against` frontmatter.
 
 ---
-
 curriculum_version: 1
 generated_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
------------------------------------------------------------
+---
 
 - lesson_id: pass1-1-transaction-to-consensus
   cluster: pass1

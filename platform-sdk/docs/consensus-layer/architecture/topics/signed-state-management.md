@@ -1,9 +1,8 @@
 ---
-
 title: Signed state management
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Signed state management
 

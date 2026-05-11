@@ -1,9 +1,8 @@
 ---
-
 title: Event intake
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Event intake
 

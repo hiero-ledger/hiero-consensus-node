@@ -1,19 +1,18 @@
 ---
-
 lesson_id: pass1-3-coordinated-network-upgrade
 cluster: pass1
 scenario_kind: canonical
 depth: lightweight
 components_touched: [freeze-and-upgrade, hashgraph, event-creator, signed-state-management, gossip, restart-and-pces, event-intake]
 kb_refs:
-topics: [freeze-and-upgrade, hashgraph, event-creator, signed-state-management, gossip, restart-and-pces, event-intake]
-concepts: [rounds-and-witnesses, birth-round, event-lifecycle]
-invariants: []
-scenarios: []
+  topics: [freeze-and-upgrade, hashgraph, event-creator, signed-state-management, gossip, restart-and-pces, event-intake]
+  concepts: [rounds-and-witnesses, birth-round, event-lifecycle]
+  invariants: []
+  scenarios: []
 prerequisites: []
 status: drafted
 last_verified_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
----------------------------------------------------------------
+---
 
 # Coordinated network upgrade
 
