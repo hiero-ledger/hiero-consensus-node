@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -38,6 +37,7 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -171,7 +171,7 @@ public class ConsensusNoOpModules {
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
+                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker, 0L);
         return hashgraphModule;
     }
 

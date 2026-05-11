@@ -17,7 +17,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -51,6 +50,7 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -289,7 +289,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withExecutionLayer(executionLayer)
                     .withModel(model)
                     .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule);
+                    .withGossipModule(gossipModule)
+                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
