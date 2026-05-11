@@ -1,9 +1,8 @@
 ---
-
 title: Wiring framework
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Wiring framework
 
