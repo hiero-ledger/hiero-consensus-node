@@ -107,12 +107,10 @@ public class CryptoBench extends VirtualMapEditBench {
     }
 
     private void totalTPS(long totalTime) {
-        long totalTxns = (long) numRecords * numFiles;
-        logger.info(
-                "Total transactions: {}, time: {} sec, TPS: {}",
-                totalTxns,
-                totalTime / NANOSECONDS,
-                totalTxns * NANOSECONDS / Math.max(totalTime, 1));
+        final long totalTxns = (long) numRecords * numFiles;
+        final long seconds = totalTime / NANOSECONDS;
+        final long tps = (long) ((double) totalTxns * NANOSECONDS / Math.max(totalTime, 1));
+        logger.info("Total transactions: {}, time: {} sec, TPS: {}", totalTxns, seconds, tps);
     }
 
     /**
@@ -124,7 +122,7 @@ public class CryptoBench extends VirtualMapEditBench {
     public void transferSerial() {
         logger.info(RUN_DELIMITER);
 
-        long startTime = System.nanoTime();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -203,7 +201,7 @@ public class CryptoBench extends VirtualMapEditBench {
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 
-        long startTime = System.nanoTime();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -546,7 +544,7 @@ public class CryptoBench extends VirtualMapEditBench {
 
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
 
-        long startTime = System.nanoTime();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
