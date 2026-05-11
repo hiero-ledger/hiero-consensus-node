@@ -16,6 +16,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 // The top level execution of a series of (possibly) nested transactions,
 // running Bonneville/BEVM instances as they nest down the stack.  The whole
 // stack atomically executes or not.  This class executes single-threaded.
+// spotless:off
 public class TopXTN {
 
     // The One True Bonneville, shared across all threads
@@ -46,10 +47,10 @@ public class TopXTN {
     public final ArrayList<BEVM> _bevms = new ArrayList<>();
     private int _nbevms;        // Number of BEVMs in-use
 
-    public void run(MessageFrame frame, ActionSidecarContentTracer tracer, CodeV2 code ) {
+    public void run( MessageFrame frame, ActionSidecarContentTracer tracer, CodeV2 code ) {
         // Properly reset between XTNs
-        assert _n256s==0;
-        assert _adrkeys==0;
+        assert _n256s == 0;
+        assert _adrkeys == 0;
 
         // Side-car tracking (despite the tracer name, it tracks sidecars)
         _tracer = tracer;
@@ -65,7 +66,7 @@ public class TopXTN {
 
 
         // Load up the top-level BEVM and run some opcodes
-        runNestedBEVM(frame,code,null);
+        runNestedBEVM( frame, code, null );
 
         // Pop the action stack for not-pre-compiled.
         if( _hasSideCar )
@@ -218,3 +219,4 @@ public class TopXTN {
         return false;           // Was missing, cold.  Is warm now
     }
 }
+// spotless:on

@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import com.hedera.node.config.data.ContractsConfig;
-
 import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
