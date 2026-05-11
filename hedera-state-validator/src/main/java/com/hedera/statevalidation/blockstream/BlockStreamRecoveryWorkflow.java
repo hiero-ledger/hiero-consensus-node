@@ -26,14 +26,17 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -50,6 +53,9 @@ import org.hiero.consensus.state.signed.SignedState;
 public class BlockStreamRecoveryWorkflow {
 
     private static final Logger log = LogManager.getLogger(BlockStreamRecoveryWorkflow.class);
+
+    /** Sleep interval used in the rate-limiter spin loop. */
+    private static final long RATE_LIMITER_SLEEP_NANOS = 1_000_000L; // 1 ms
 
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final long targetRound;
@@ -109,7 +115,7 @@ public class BlockStreamRecoveryWorkflow {
      * @param outputPath           the output directory for the resulting snapshot
      * @param expectedHash         expected hash of the resulting state
      * @param roundsPerSecond      maximum rounds per second ({@code Integer.MAX_VALUE} = unlimited).
-     *                             See {@link WorkRateLimiter} for semantics.
+     *                             See {@link RateLimiter} for semantics.
      */
     public static void applyBlocks(
             @NonNull final Path blockStreamDirectory,
@@ -144,10 +150,11 @@ public class BlockStreamRecoveryWorkflow {
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
 
-        // At Integer.MAX_VALUE the interval is 0 ns, so skip the limiter entirely
-        // to avoid unnecessary nanoTime() overhead on every round.
-        final WorkRateLimiter rateLimiter =
-                roundsPerSecond < Integer.MAX_VALUE ? new WorkRateLimiter(roundsPerSecond) : null;
+        // At Integer.MAX_VALUE the interval is effectively 0, so skip the limiter entirely
+        // to avoid unnecessary overhead on every round.
+        final RateLimiter rateLimiter = roundsPerSecond < Integer.MAX_VALUE
+                ? new RateLimiter(platformContext.getTime(), roundsPerSecond)
+                : null;
 
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
@@ -181,12 +188,10 @@ public class BlockStreamRecoveryWorkflow {
                                     .formatted(currentRound.get() + 1, itemRound));
                         }
                         // Arriving at a new round header means the previous round's state changes
-                        // are fully applied. Throttle here to pace the rate of applied rounds.
-                        // On the very first applicable round the limiter starts its clock and
-                        // returns immediately (there is no previous round to wait for).
-                        if (rateLimiter != null) {
-                            rateLimiter.acquire();
-                        }
+                        // are fully applied. Throttle here to cap the rate of applied rounds.
+                        // RateLimiter initializes lastOperation to Instant.EPOCH, so the very first
+                        // requestAndTrigger() always succeeds .
+                        rateLimit(rateLimiter);
                         currentRound.incrementAndGet();
                     }
                 }
@@ -241,6 +246,17 @@ public class BlockStreamRecoveryWorkflow {
         }
     }
 
+    /**
+     * Blocks until the rate limiter allows the next round to proceed.
+     * Follows the same spin-sleep pattern used in {@code TeacherPullVirtualTreeReceiveTask}.
+     */
+    private static void rateLimit(@Nullable final RateLimiter rateLimiter) {
+        if (rateLimiter != null) {
+            while (!rateLimiter.requestAndTrigger()) {
+                LockSupport.parkNanos(RATE_LIMITER_SLEEP_NANOS);
+            }
+        }
+    }
     /**
      * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
      *
