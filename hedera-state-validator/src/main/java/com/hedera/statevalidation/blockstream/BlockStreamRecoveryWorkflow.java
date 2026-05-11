@@ -73,7 +73,7 @@ public class BlockStreamRecoveryWorkflow {
      * @param targetRound           the last round to apply (or {@code DEFAULT_TARGET_ROUND} for all)
      * @param outputPath            the directory where the resulting snapshot is written
      * @param expectedRootHash      expected hash of the resulting state (empty to skip verification)
-     * @param ratePercentPerSecond  the rate at which to process rounds, expressed as a percentage
+     * @param ratePercentPerSecond  the rate at which to apply rounds, expressed as a percentage
      *                              of total rounds per second. For example, {@code 1.0} means
      *                              1%/s (≈100s total), {@code 0.1} means 0.1%/s (≈1000s total).
      *                              A value of {@code 0} or less disables rate limiting.
@@ -112,7 +112,7 @@ public class BlockStreamRecoveryWorkflow {
      * @param targetRound          the last round to apply
      * @param outputPath           the output directory for the resulting snapshot
      * @param expectedHash         expected hash of the resulting state
-     * @param ratePercentPerSecond the rate at which to process rounds (0 = unlimited).
+     * @param ratePercentPerSecond the rate at which to apply rounds (0 = unlimited).
      *                             See {@link WorkRateLimiter} for semantics.
      */
     public static void applyBlocks(
@@ -149,7 +149,8 @@ public class BlockStreamRecoveryWorkflow {
         AtomicLong currentRound = new AtomicLong(initRound);
 
         // Create rate limiter using round count as total work estimate.
-        // This avoids materializing the block stream just to count items.
+        // The limiter's clock starts lazily on the first acquire() call, so time spent
+        // scanning past older rounds does not count against the throttle budget.
         final WorkRateLimiter rateLimiter = createRateLimiter(initRound);
 
         blocks.forEach(block -> {
@@ -183,11 +184,14 @@ public class BlockStreamRecoveryWorkflow {
                             throw new RuntimeException("Unexpected round number. Expected = %d, actual = %d"
                                     .formatted(currentRound.get() + 1, itemRound));
                         }
-                        currentRound.incrementAndGet();
-                        // Throttle at the round boundary: pause if we are ahead of schedule
+                        // Arriving at a new round header means the previous round's state changes
+                        // are fully applied. Throttle here to pace the rate of applied rounds.
+                        // On the very first applicable round the limiter starts its clock and
+                        // returns immediately (there is no previous round to wait for).
                         if (rateLimiter != null) {
                             rateLimiter.acquire();
                         }
+                        currentRound.incrementAndGet();
                     }
                 }
 

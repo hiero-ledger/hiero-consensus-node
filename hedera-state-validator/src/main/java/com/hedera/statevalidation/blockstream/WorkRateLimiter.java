@@ -18,9 +18,11 @@ import org.apache.logging.log4j.Logger;
  * and total work is derived from {@code targetRound - initRound}. This allows rate limiting
  * without materializing the block stream or pre-scanning for item counts.
  *
- * <p>After each unit of work, the limiter checks whether execution is ahead of the expected
- * schedule and parks the calling thread if so. This produces smooth, evenly-paced processing
- * rather than bursts followed by pauses.
+ * <p>The internal clock starts lazily on the first {@link #acquire()} call.
+ * This avoids penalizing the throttle budget for time spent scanning past older rounds or
+ * performing slow I/O before the first applicable round is reached. The first {@code acquire()}
+ * call starts the clock and returns immediately; subsequent calls check the schedule and park
+ * the thread if execution is ahead of pace.
  */
 public class WorkRateLimiter {
 
@@ -32,7 +34,7 @@ public class WorkRateLimiter {
     private final long totalWork;
     private final double targetDurationNanos;
     private long workCompleted;
-    private final long startTimeNanos;
+    private long startTimeNanos; // 0 = clock not started yet
 
     /**
      * Creates a rate limiter for the given total work and rate.
@@ -54,20 +56,25 @@ public class WorkRateLimiter {
         // target duration = 100 / rate seconds, converted to nanos
         this.targetDurationNanos = (100.0 / ratePercentPerSecond) * 1_000_000_000L;
         this.workCompleted = 0;
-        this.startTimeNanos = System.nanoTime();
+        this.startTimeNanos = 0;
 
         final double targetDurationSeconds = 100.0 / ratePercentPerSecond;
         log.info(
-                "Rate limiter initialized: totalWork={}, rate={}%/s, targetDuration={}s",
+                "Rate limiter created: totalWork={}, rate={}%/s, targetDuration={}s (clock starts on first acquire)",
                 totalWork, ratePercentPerSecond, String.format("%.1f", targetDurationSeconds));
     }
 
     /**
-     * Called after completing one unit of work. If execution is ahead of the expected schedule,
-     * this method parks the calling thread until the schedule catches up.
+     * Called once per work unit at the throttle boundary. On the first call the internal clock
+     * is started and the method returns immediately. On subsequent calls, if execution is ahead
+     * of the expected schedule, the calling thread is parked until the schedule catches up.
      */
     public void acquire() {
         workCompleted++;
+        if (startTimeNanos == 0) {
+            startTimeNanos = System.nanoTime();
+            return;
+        }
         final double fractionDone = (double) workCompleted / totalWork;
         final long expectedElapsedNanos = (long) (fractionDone * targetDurationNanos);
         final long actualElapsedNanos = System.nanoTime() - startTimeNanos;
