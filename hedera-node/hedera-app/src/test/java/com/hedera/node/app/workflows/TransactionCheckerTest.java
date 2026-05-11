@@ -305,7 +305,6 @@ final class TransactionCheckerTest extends AppTestBase {
                     .has(responseCode(INVALID_TRANSACTION));
             assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isEqualTo(1);
             assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
-            assertThat(counterMetric("ParseErrEofRcv").get()).isZero();
             assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
             assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
         }
@@ -334,7 +333,6 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThat(counterMetric("ParseErrStructuralRcv").get()).isEqualTo(1);
             assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
             assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
-            assertThat(counterMetric("ParseErrEofRcv").get()).isZero();
             assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
         }
 
@@ -348,9 +346,23 @@ final class TransactionCheckerTest extends AppTestBase {
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
             assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isEqualTo(1);
             assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
-            assertThat(counterMetric("ParseErrEofRcv").get()).isZero();
             assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
             assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with invalid field number and wire type increments the other parse error counter")
+        void parseErrorOtherCounterIncrements() {
+            // field=0 and wire type=7 are both invalid; the codec throws a plain IOException (not
+            // UnknownFieldException or BufferUnderflowException), which is wrapped as the ParseException
+            // cause and hits the default branch.
+            assertThatThrownBy(() -> checker.parseAndCheck(Bytes.wrap(invalidProtobuf())))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
         }
 
         /**

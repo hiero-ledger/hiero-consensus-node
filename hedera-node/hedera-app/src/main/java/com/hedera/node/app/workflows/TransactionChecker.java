@@ -52,7 +52,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.EOFException;
 import java.nio.BufferUnderflowException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -99,9 +98,6 @@ public class TransactionChecker {
     private static final String COUNTER_PARSE_ERR_BUF_UNDERFLOW_NAME = "ParseErrBufUnderflowRcv";
     private static final String COUNTER_PARSE_ERR_BUF_UNDERFLOW_DESC =
             "number of txns rejected due to protobuf BufferUnderflowException (truncated bytes)";
-    private static final String COUNTER_PARSE_ERR_EOF_NAME = "ParseErrEofRcv";
-    private static final String COUNTER_PARSE_ERR_EOF_DESC =
-            "number of txns rejected due to protobuf EOFException (unexpected end of stream)";
     private static final String COUNTER_PARSE_ERR_STRUCTURAL_NAME = "ParseErrStructuralRcv";
     private static final String COUNTER_PARSE_ERR_STRUCTURAL_DESC =
             "number of txns rejected due to structural protobuf violations (max depth or field size exceeded)";
@@ -119,8 +115,6 @@ public class TransactionChecker {
     private final Counter parseErrUnknownFieldCounter;
     /** The {@link Counter} used to track parse failures caused by {@link BufferUnderflowException}. */
     private final Counter parseErrBufferUnderflowCounter;
-    /** The {@link Counter} used to track parse failures caused by {@link EOFException}. */
-    private final Counter parseErrEofCounter;
     /** The {@link Counter} used to track parse failures from direct structural violations (max depth, field size). */
     private final Counter parseErrStructuralCounter;
     /** The {@link Counter} used to track parse failures from other unexpected causes. */
@@ -157,8 +151,6 @@ public class TransactionChecker {
         this.parseErrBufferUnderflowCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_BUF_UNDERFLOW_NAME)
                         .withDescription(COUNTER_PARSE_ERR_BUF_UNDERFLOW_DESC));
-        this.parseErrEofCounter = metrics.getOrCreate(
-                new Counter.Config("app", COUNTER_PARSE_ERR_EOF_NAME).withDescription(COUNTER_PARSE_ERR_EOF_DESC));
         this.parseErrStructuralCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_STRUCTURAL_NAME)
                         .withDescription(COUNTER_PARSE_ERR_STRUCTURAL_DESC));
@@ -672,7 +664,7 @@ public class TransactionChecker {
                 // We do not allow newer clients to send transactions to older networks.
                 throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
             }
-            logger.debug("ParseException while parsing protobuf: {}", e.getMessage());
+            logger.debug("ParseException while parsing protobuf: ", e);
             throw new PreCheckException(parseErrorCode);
         }
     }
@@ -682,7 +674,6 @@ public class TransactionChecker {
         switch (cause) {
             case UnknownFieldException _ -> parseErrUnknownFieldCounter.increment();
             case BufferUnderflowException _ -> parseErrBufferUnderflowCounter.increment();
-            case EOFException _ -> parseErrEofCounter.increment();
             case null -> parseErrStructuralCounter.increment();
             default -> parseErrOtherCounter.increment();
         }
