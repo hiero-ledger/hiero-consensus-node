@@ -543,6 +543,7 @@ public class CryptoBench extends VirtualMapEditBench {
         logger.info(RUN_DELIMITER);
 
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
+        final ForkJoinPool priority = new ForkJoinPool(2);
 
         final long startTime = System.nanoTime();
         long prevTime = startTime;
@@ -553,8 +554,8 @@ public class CryptoBench extends VirtualMapEditBench {
 
             MainCache mainCache = new MainCache(virtualMap);
             FlushTask finalTask = null;
-            FlushTask currentFlushTask = new FlushTask(pool, virtualMap);
-            SyncTask currentSyncTask = new SyncTask(pool, mainCache, currentFlushTask);
+            FlushTask currentFlushTask = new FlushTask(priority, virtualMap);
+            SyncTask currentSyncTask = new SyncTask(priority, mainCache, currentFlushTask);
             // This is the very first task in a daisy chain of sequential SyncTasks,
             // emulate its resolved dependency from the non-existent previous task
             currentSyncTask.send();
@@ -573,12 +574,12 @@ public class CryptoBench extends VirtualMapEditBench {
                 }
 
                 new AsyncTask(pool, mainCache, keyId1, keyId2, amount, j, currentSyncTask).send();
-                FlushTask nextFlushTask = new FlushTask(pool, virtualMap);
+                FlushTask nextFlushTask = new FlushTask(priority, virtualMap);
                 currentFlushTask.send(nextFlushTask);
                 finalTask = currentFlushTask;
                 currentFlushTask = nextFlushTask;
 
-                SyncTask nextSyncTask = new SyncTask(pool, mainCache, nextFlushTask);
+                SyncTask nextSyncTask = new SyncTask(priority, mainCache, nextFlushTask);
                 currentSyncTask.send(nextSyncTask);
                 currentSyncTask = nextSyncTask;
             }
