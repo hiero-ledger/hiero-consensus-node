@@ -13,42 +13,21 @@ import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.StringJoiner;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
     private static final int SCHNORR_PUBLIC_KEY_LENGTH = (int) HistoryLibrary.MISSING_SCHNORR_KEY.length();
 
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
+    public static final int WRAPS_VERIFICATION_KEY_LENGTH = 1768;
 
-    public HistoryLibraryImpl() {
-        if (wrapsProverReady()) {
-            final var path = Paths.get(System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH"), "decider_vp.bin");
-            try {
-                final var defaultKey = WRAPSVerificationKey.getCurrentKey();
-                final var activeKey = Files.readAllBytes(path);
-                if (!Arrays.equals(defaultKey, activeKey)) {
-                    log.info("Updating WRAPS verification key from default");
-                    WRAPSVerificationKey.setCurrentKey(activeKey);
-                } else {
-                    log.info("WRAPS verification key is default");
-                }
-            } catch (Exception e) {
-                log.error("Failed to set current WRAPS verification key from {}", path, e);
-            }
-        }
-    }
+    public HistoryLibraryImpl() {}
 
     @Override
     public byte[] wrapsVerificationKey() {
