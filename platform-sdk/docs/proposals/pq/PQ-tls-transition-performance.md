@@ -30,7 +30,8 @@ SignatureSchemeExperiment — 5-config comparison: Baseline / SUN+ACCP / BJSSE-P
 - 4 runs per cell (8 directories per tarball — one dir per `(run, scheme)`)
 
 Latency `Avg`, `p50`, `p99`, `Max` are in µs and come from the `TOTAL` row of `benchmark.log` (network-wide). `Throughput` is the `Test throughput:` line. **"Hit 40?"** asks whether the benchmark generated all 9604 expected txs and the network sustained the target rate; when RSA is the bottleneck, generation back-pressures and only ~5000 txs are produced over a longer window (~245 s).
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+----
 
 ## 2. Loopback TLS handshake benchmarks (macOS arm64)
 
