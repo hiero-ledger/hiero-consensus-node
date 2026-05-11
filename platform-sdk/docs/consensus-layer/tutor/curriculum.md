@@ -91,49 +91,49 @@ generated_against: 1978c2c357d1da3a30e2f870429b96d764ff18fc
   title: The hashgraph DAG
   source_topic_id: hashgraph
   prerequisites: [0-4-wiring-runtime-synthesis]
-  status: planned
+  status: drafted
 - lesson_id: A.1-2-rounds-and-witnesses
   cluster: A.1
   title: Rounds and witnesses
   source_topic_id: hashgraph
   prerequisites: [A.1-1-hashgraph-dag]
-  status: planned
+  status: drafted
 - lesson_id: A.1-3-strongly-seeing
   cluster: A.1
   title: Strongly-seeing
   source_topic_id: hashgraph
   prerequisites: [A.1-2-rounds-and-witnesses]
-  status: planned
+  status: drafted
 - lesson_id: A.1-4-voting-and-coin-rounds
   cluster: A.1
   title: Voting and coin rounds
   source_topic_id: hashgraph
   prerequisites: [A.1-3-strongly-seeing]
-  status: planned
+  status: drafted
 - lesson_id: A.1-5-judges
   cluster: A.1
   title: Judges
   source_topic_id: hashgraph
   prerequisites: [A.1-4-voting-and-coin-rounds]
-  status: planned
+  status: drafted
 - lesson_id: A.1-6-event-lifecycle-and-birth-round
   cluster: A.1
   title: Event lifecycle and birth round
   source_topic_id: hashgraph
   prerequisites: [A.1-5-judges]
-  status: planned
+  status: drafted
 - lesson_id: A.1-7-stale-events
   cluster: A.1
   title: Stale events
   source_topic_id: hashgraph
   prerequisites: [A.1-6-event-lifecycle-and-birth-round]
-  status: planned
+  status: drafted
 - lesson_id: A.1-8-hashgraph-algorithm-synthesis
   cluster: A.1
   title: Hashgraph algorithm synthesis
   source_topic_id: hashgraph
   prerequisites: [A.1-7-stale-events]
-  status: planned
+  status: drafted
 - lesson_id: A.2-1-validation-pipeline
   cluster: A.2
   title: The validation pipeline
