@@ -26,8 +26,8 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 option java_multiple_files = true;
 
 import "services/timestamp.proto";
-import "block/stream/record_file_item.proto";
 import "block/stream/tss_signed_block_proof.proto";
+import "block/stream/signed_record_file_proof.proto";
 
 message StateProof {
     /**
@@ -43,12 +43,36 @@ message StateProof {
 
     oneof proof {
         /**
-         * A proof containing a TSS signature for a single block. This field
-         * SHALL contain the proof of a block with a block number greater
-         * than or equal to the current block; otherwise this field MUST be
-         * omitted.
+         * A proof containing a TSS signature for a single block.
+         * <p>
+         * This field SHALL contain the proof of a block with a block number
+         * greater than or equal to the current block; otherwise this field
+         * MUST be omitted.
          */
         TssSignedBlockProof signed_block_proof = 2;
+
+        /**
+         * A proof containing concatenated RSA signatures for a single
+         * "Wrapped Recordfile Block" (WRB).<br/>
+         * This field contains the same signatures published in `.sig` files
+         * with the record file that was published for this block. The number
+         * of signatures gathered here is at least enough to represent greater
+         * than 1/2 of the total _consensus weight_ (not stake weight) of the
+         * network when the signed block was created (not necessarily the
+         * block that this state proof applies to)
+         * <p>
+         * This field SHALL contain the proof of a block with a block number
+         * greater than or equal to the current block; otherwise this field
+         * MUST be omitted.<br/>
+         * The sibling hashes for this type of StateProof begin at the root of
+         * the Record File content, not the Block Root, because record file
+         * signatures apply to the record file content hash, not the block
+         * root hash.
+         * <p>
+         * Note that this type of StateProof may lack the short-path Timestamp
+         * element present in other block proofs.
+         */
+        SignedRecordFileProof signed_record_proof = 3;
     }
 }
 
