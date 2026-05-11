@@ -10,9 +10,12 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,36 +40,40 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
+        if (!ctx.isGenesis()
+                && ctx.isUpgrade(ctx.appConfig()
+                        .getConfigData(VersionConfig.class)
+                        .servicesVersion()
+                        .copyBuilder()
+                        .build(""
+                                + ctx.appConfig()
+                                        .getConfigData(HederaConfig.class)
+                                        .configVersion())
+                        .build())
+                && ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
+            final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            final var existingBlockInfo = blockInfoSingleton.get();
+            if (existingBlockInfo == null) {
+                log.info("Skipping wrapped record voting initialization because BlockInfo singleton does not exist");
+                return;
+            }
+            if (hasJumpstartData(ctx)) {
+                // We only want to initialize jumpstart voting if valid jumpstart data is present
+                final long votingCompletionDeadlineBlockNumber =
+                        existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                        .migrationRootHashVotes(List.of())
+                        .build());
+                log.info(
+                        "Initialized wrapped record voting singleton with deadline={}",
+                        votingCompletionDeadlineBlockNumber);
+            }
+        }
         if (!ctx.isGenesis()) {
             final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-            if (ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
-                final var existingBlockInfo = blockInfoSingleton.get();
-                if (existingBlockInfo == null) {
-                    log.info(
-                            "Skipping wrapped record voting initialization because BlockInfo singleton does not exist");
-                    return;
-                }
-                if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
-                    // A previous upgrade already initialized (or completed) migration voting; don't overwrite the
-                    // deadline.
-                    log.info(
-                            "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
-                            existingBlockInfo.votingCompletionDeadlineBlockNumber(),
-                            existingBlockInfo.votingComplete());
-                } else if (hasJumpstartData(ctx)) {
-                    // We only want to initialize jumpstart voting if valid jumpstart data is present
-                    final long votingCompletionDeadlineBlockNumber =
-                            existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
-                    blockInfoSingleton.put(existingBlockInfo
-                            .copyBuilder()
-                            .votingComplete(false)
-                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                            .build());
-                    log.info(
-                            "Initialized wrapped record voting singleton with deadline={}",
-                            votingCompletionDeadlineBlockNumber);
-                }
-            }
             if (ctx.appConfig().getConfigData(BlockStreamConfig.class).enableCutover()) {
                 ctx.sharedValues().put(SHARED_BLOCK_RECORD_INFO, blockInfoSingleton.get());
                 ctx.sharedValues()

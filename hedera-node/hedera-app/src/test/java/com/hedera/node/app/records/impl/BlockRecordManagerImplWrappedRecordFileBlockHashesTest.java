@@ -232,9 +232,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(record), state);
 
-            // Cross logPeriod boundary to end record block 0 and enqueue
-            final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            // Explicitly close the current record block (startUserTransaction no longer closes it)
+            mgr.closeCurrentRecordFileIfOpen(state);
             final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashesComputationInput.class);
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
@@ -361,8 +360,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             // Trigger a block boundary immediately; since no endUserTransaction was called, there are no captured
             // items.
-            final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         verify(diskWriter, never()).appendAsync(any());
@@ -423,8 +421,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
-            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         // appendAsync should never be called when only live mode is on
@@ -487,9 +484,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -695,8 +690,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
-            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         verify(diskWriter).appendAsync(any());
@@ -758,9 +752,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         verify(diskWriter).appendAsync(any());
@@ -908,13 +900,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
-            // Drive a block boundary: start block 0 (EPOCH path), add items, cross period
+            // Drive closure: start block 0 (EPOCH path), add items, then explicitly close.
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1004,9 +994,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Add items for the second boundary
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
-            // Second boundary: crosses logPeriod, currentBlockStartRunningHash is now set
-            final var t1 = InstantUtils.instant(204, 0);
-            mgr.startUserTransaction(t1, state);
+            // Explicitly close current block so wrapped-hash state advances from the seed
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1396,11 +1385,16 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
             // Simulate vote finalization
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
+            final var blockInfoState =
+                    state.getWritableStates(BlockRecordService.NAME).<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            blockInfoState.put(requireNonNull(blockInfoState.get())
+                    .copyBuilder()
+                    .votingComplete(true)
+                    .build());
 
-            // Add items and cross current block boundary, causing latest block info write to state
+            // Add items and close current block, causing latest block info write to state
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-            final var t1 = InstantUtils.instant(204, 1);
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
 
             // Simulate freeze
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
@@ -1617,13 +1611,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RECONNECT)) {
-            // Open block 0 (EPOCH path), add items, cross period
+            // Open block 0 (EPOCH path), add items, then explicitly close
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1778,6 +1770,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         @Override
+        public CompletableFuture<Bytes> finishCurrentBlock() {
+            return recordFileHashFuture;
+        }
+
+        @Override
         public void writeRecordStreamItems(final Stream<SingleTransactionRecord> recordStreamItems) {
             // consume stream
             recordStreamItems.forEach(ignore -> {});
@@ -1837,19 +1834,17 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RECONNECT);
 
-        // Block 0: emit one record at t0
+        // Block 0: emit one record at t0, then explicitly close.
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+        mgr.closeCurrentRecordFileIfOpen(state);
 
-        // Cross the 2-second log period boundary -> finalizes block 0, opens block 1
+        // Block 1: emit one record at t1, then explicitly close.
         final var t1 = InstantUtils.instant(13, 1);
         mgr.startUserTransaction(t1, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t1, List.of())), state);
-
-        // Cross another boundary -> finalizes block 1
-        final var t2 = InstantUtils.instant(16, 1);
-        mgr.startUserTransaction(t2, state);
+        mgr.closeCurrentRecordFileIfOpen(state);
 
         // Two block boundaries crossed => two writer instances
         assertEquals(2, handedOutWriters.size(), "expected one writer per WRB block boundary");
@@ -1974,8 +1969,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-        final var t1 = InstantUtils.instant(13, 1);
-        mgr.startUserTransaction(t1, state);
+        mgr.closeCurrentRecordFileIfOpen(state);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
         final var noOpenWrbWritersFuture = mgr.noOpenWrbWritersFuture();
@@ -2067,8 +2061,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-        final var t1 = InstantUtils.instant(13, 1);
-        mgr.startUserTransaction(t1, state);
+        mgr.closeCurrentRecordFileIfOpen(state);
 
         final var writer = handedOutWriters.getFirst();
         signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));
@@ -2121,9 +2114,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-        // Trigger one block boundary so a writer is parked
-        final var t1 = InstantUtils.instant(13, 1);
-        mgr.startUserTransaction(t1, state);
+        // Explicitly close so a writer is parked
+        mgr.closeCurrentRecordFileIfOpen(state);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
         final var noOpenWrbWritersFuture = mgr.noOpenWrbWritersFuture();

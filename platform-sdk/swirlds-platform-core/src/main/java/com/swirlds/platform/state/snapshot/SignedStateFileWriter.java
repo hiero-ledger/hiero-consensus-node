@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
@@ -9,6 +8,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_R
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
@@ -37,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
@@ -198,7 +199,8 @@ public final class SignedStateFileWriter {
             // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
             // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
             // previously raced with PCES writes and found no files to copy.
-            copyPcesFiles(selfId, directory, configuration, pcesLowerBound, round);
+            copyPcesFiles(
+                    selfId, directory, configuration, platformContext.getFileSystemManager(), pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),
@@ -280,6 +282,7 @@ public final class SignedStateFileWriter {
      * @param selfId        the id of the platform
      * @param directory     the directory to write to
      * @param configuration the platform configuration
+     * @param fileSystemManager the file system manager
      * @param lowerBound    the lower bound of events that are non-ancient with respect to the saved state
      * @param round         the round of the saved state
      */
@@ -287,6 +290,7 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             final long lowerBound,
             final long round) {
         if (selfId == null) {
@@ -296,7 +300,7 @@ public final class SignedStateFileWriter {
         // This is a temporary measure that allows us to move this functionality into the consensus module
         // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
         final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
-        pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, directory, lowerBound, round);
+        pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, fileSystemManager, directory, lowerBound, round);
     }
 
     /**
@@ -381,9 +385,9 @@ public final class SignedStateFileWriter {
 
             executeAndRename(
                     savedStateDirectory,
+                    platformContext.getFileSystemManager().resolveNewTemp(),
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),
-                    platformContext.getConfiguration());
+                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
                             signedState.getRound(),

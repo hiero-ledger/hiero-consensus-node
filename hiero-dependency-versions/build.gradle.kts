@@ -20,6 +20,7 @@ val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.3"
 val mockito = "5.18.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
+val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.33.5"
 val blockNodeProtobufSources = "0.30.2"
 val testContainers = "2.0.3"
@@ -69,8 +70,13 @@ dependencies.constraints {
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
-    api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
-    api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
+    api("io.prometheus:simpleclient:$prometheusSimpleclient") { because("simpleclient") }
+    api("io.prometheus:simpleclient_httpserver:$prometheusSimpleclient") {
+        because("simpleclient.httpserver")
+    }
+    api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
+        because("simpleclient.tracer.common")
+    }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }

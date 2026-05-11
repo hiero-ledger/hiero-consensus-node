@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad.internal;
 
-import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryFile;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
@@ -34,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -68,6 +67,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     private final Set<K> fields;
     private final String id;
     private final Configuration configuration;
+    private final FileSystemManager fileSystemManager;
 
     private final Map<K, SelfSerializable> data = new HashMap<>();
     private final AutoClosableLock lock = Locks.createAutoLock();
@@ -88,13 +88,13 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      */
     public StandardScratchpad(
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
         this.configuration = configuration;
-        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
-        scratchpadDirectory = stateConfig
-                .savedStateDirectory()
+        this.fileSystemManager = fileSystemManager;
+        scratchpadDirectory = fileSystemManager
                 .resolve(SCRATCHPAD_DIRECTORY_NAME)
                 .resolve(Long.toString(selfId.id()))
                 .resolve(id);
@@ -224,7 +224,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
                 Files.delete(files.get(index));
             }
 
-            final Path scratchpadFile = files.get(files.size() - 1);
+            final Path scratchpadFile = files.getLast();
             nextScratchpadIndex = getFileIndex(scratchpadFile) + 1;
 
             try (final SerializableDataInputStream in = new SerializableDataInputStream(
@@ -260,7 +260,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      */
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
-        final Path temporaryFile = buildTemporaryFile(configuration);
+        final Path temporaryFile = fileSystemManager.resolveNewTemp("scratchpad");
         try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 

@@ -2,9 +2,9 @@
 package com.swirlds.platform.test.fixtures.recovery;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 

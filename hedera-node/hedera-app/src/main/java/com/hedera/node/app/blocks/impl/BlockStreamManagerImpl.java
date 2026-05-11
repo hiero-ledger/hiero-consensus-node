@@ -28,7 +28,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSeman
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
@@ -604,6 +603,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
+    public boolean willCloseBlock(@NonNull final State state, final long roundNum) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
+        final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
+        return shouldCloseBlock(roundNum, freezeRoundNumber);
+    }
+
+    @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
@@ -936,30 +943,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                if (configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enableStateProofs()) {
-                    final var stateProof = BlockStateProofGenerator.generateStateProof(
-                            currentPendingBlock,
-                            blockNumber,
-                            effectiveSignature,
-                            signedBlock.blockTimestamp(),
-                            // Pass the remaining pending blocks, but don't remove them from the queue
-                            pendingBlocks.stream());
-                    proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
+                final var stateProof = BlockStateProofGenerator.generateStateProof(
+                        currentPendingBlock,
+                        blockNumber,
+                        effectiveSignature,
+                        signedBlock.blockTimestamp(),
+                        // Pass the remaining pending blocks, but don't remove them from the queue
+                        pendingBlocks.stream());
+                proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
-                    if (log.isDebugEnabled()) {
-                        logStateProof(effectiveSignature, currentPendingBlock, blockNumber, stateProof);
-                    }
-                } else {
-                    // (FUTURE) Once state proofs are enabled, this placeholder proof can be removed
-                    proof = currentPendingBlock
-                            .proofBuilder()
-                            .blockStateProof(StateProof.newBuilder()
-                                    .paths(MerklePath.newBuilder().build())
-                                    .signedBlockProof(latestSignedBlockProof)
-                                    .build());
+                if (log.isDebugEnabled()) {
+                    logStateProof(effectiveSignature, currentPendingBlock, blockNumber, stateProof);
                 }
 
                 // Update the metrics

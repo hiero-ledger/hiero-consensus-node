@@ -13,6 +13,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
@@ -168,6 +169,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -478,6 +480,7 @@ public final class Hedera
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param configuration the configuration to use for the node
+     * @param fileSystemManager the file system manager to use for the node
      * @param metrics the metrics object to use for reporting
      * @param time the time source to use for measuring time
      */
@@ -491,6 +494,7 @@ public final class Hedera
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final Time time) {
         requireNonNull(registryFactory);
@@ -598,9 +602,8 @@ public final class Hedera
                         rosterServiceImpl,
                         platformStateService)
                 .forEach(servicesRegistry::register);
-        final var blockStreamsEnabled = isBlockStreamEnabled();
-        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
+        onSealConsensusRound = this::sealConsensusRound;
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
     }
 
     /**
@@ -1494,10 +1497,21 @@ public final class Hedera
         return state;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
-        final var app = requireNonNull(daggerApp);
-        app.nodeRewardManager().updateJudgesOnEndRound(state);
-        return app.blockStreamManager().endRound(state, round.getRoundNum());
+    private boolean sealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+        if (streamMode == RECORDS) {
+            return daggerApp
+                    .blockRecordManager()
+                    .closeCurrentRecordFileIfConsTimeElapsed(state, round.getConsensusTimestamp());
+        }
+        daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
+        if (streamMode == BOTH) {
+            final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
+            if (closesBlock) {
+                daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+            }
+            return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+        }
+        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
 
     /**

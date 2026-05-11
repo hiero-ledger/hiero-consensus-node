@@ -155,6 +155,16 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     Instant lastUsedConsensusTime();
 
     /**
+     * Returns whether ending the given round should close the current block, based on current manager state and
+     * round metadata.
+     *
+     * @param state the mutable state of the network at the end of the round
+     * @param roundNum the number of the round that is about to end
+     * @return true if ending this round should close the current block
+     */
+    boolean willCloseBlock(@NonNull State state, long roundNum);
+
+    /**
      * Updates both the internal state of the block stream manager and the durable state of the network
      * to reflect the end of the last-started round.
      *
