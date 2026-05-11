@@ -1,9 +1,8 @@
 ---
-
 title: Hashgraph
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Hashgraph
 

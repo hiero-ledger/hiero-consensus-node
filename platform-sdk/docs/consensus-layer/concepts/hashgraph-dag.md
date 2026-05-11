@@ -1,9 +1,8 @@
 ---
-
 title: Hashgraph DAG
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Hashgraph DAG
 

@@ -1,9 +1,8 @@
 ---
-
 title: Judges
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Judges
 
