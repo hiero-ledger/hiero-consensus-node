@@ -3,8 +3,8 @@ set -eo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_URL="https://github.com/hashgraph/hedera-services.git"
-REMOTE_REPO_DIR="hedera-services"
+REPO_URL="https://github.com/hiero-ledger/hiero-consensus-node.git"
+REMOTE_REPO_DIR="hiero-consensus-node"
 REMOTE_RESULTS_DIR="/tmp/benchmark-results"
 LOCAL_RESULTS_DIR="$HOME/benchmark-results/remote"
 
@@ -36,6 +36,11 @@ usage() {
     echo "  --benchmark-time Xs       Benchmark measurement duration, e.g. 120s (default: 50s)"
     echo "  --collection-time Xs      Result collection duration, e.g. 15s (default: 10s)"
     echo ""
+    echo "Other options:"
+    echo "  --fork <url>              Additional fork repo (clone-able URL) to fetch the branch"
+    echo "                            from. When set, the branch is resolved from 'fork/<branch>'"
+    echo "                            first, falling back to 'origin/<branch>'."
+    echo ""
     echo "The script will:"
     echo "  1. Verify SSH connectivity (key-based auth required)"
     echo "  2. Check no Gradle tasks or other active users are on the server"
@@ -51,6 +56,7 @@ BRANCH=""
 EXPERIMENT="all"
 NUM_RUNS="1"
 SLOTH_JVM_PROPS=""
+FORK_URL=""
 
 POSITIONAL=0
 while [[ $# -gt 0 ]]; do
@@ -61,6 +67,7 @@ while [[ $# -gt 0 ]]; do
         --warmup-time)        SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.warmupTime=$2";             shift 2 ;;
         --benchmark-time)     SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.benchmarkTime=$2";         shift 2 ;;
         --collection-time)    SLOTH_JVM_PROPS="${SLOTH_JVM_PROPS} -Psloth.collectionTime=$2";        shift 2 ;;
+        --fork)               FORK_URL="$2";                                                          shift 2 ;;
         --*)                  echo -e "${RED}Error: Unknown option: $1${NC}"; usage ;;
         *)
             POSITIONAL=$((POSITIONAL + 1))
@@ -100,6 +107,9 @@ if [[ -n "$SLOTH_JVM_PROPS" ]]; then
     echo "Benchmark params: $SLOTH_JVM_PROPS"
 else
     echo "Benchmark params: (defaults)"
+fi
+if [[ -n "$FORK_URL" ]]; then
+    echo "Fork repo:        $FORK_URL"
 fi
 echo ""
 
@@ -177,14 +187,37 @@ if [[ ! -d "$REMOTE_REPO_DIR/.git" ]]; then
     git clone "$REPO_URL" "$REMOTE_REPO_DIR"
     cd "$REMOTE_REPO_DIR"
 else
-    echo "Repository already exists, fetching latest..."
+    echo "Repository already exists."
     cd "$REMOTE_REPO_DIR"
-    git fetch --all --prune
 fi
 
-echo "Checking out branch: $BRANCH"
-git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
-git reset --hard "origin/$BRANCH"
+# Configure 'fork' remote if --fork was provided; otherwise prune any stale one.
+if [[ -n "$FORK_URL" ]]; then
+    if git remote get-url fork >/dev/null 2>&1; then
+        git remote set-url fork "$FORK_URL"
+    else
+        git remote add fork "$FORK_URL"
+    fi
+    echo "Fork remote: \$(git remote get-url fork)"
+fi
+
+echo "Fetching all remotes..."
+git fetch --all --prune
+
+# Resolve which remote owns this branch (prefer fork when both have it).
+REMOTE_REF=""
+if [[ -n "$FORK_URL" ]] && git rev-parse --verify --quiet "refs/remotes/fork/$BRANCH" >/dev/null; then
+    REMOTE_REF="fork/$BRANCH"
+elif git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" >/dev/null; then
+    REMOTE_REF="origin/$BRANCH"
+else
+    echo "ERROR: branch '$BRANCH' not found on origin${FORK_URL:+ or fork}"
+    exit 1
+fi
+
+echo "Checking out branch: $BRANCH (from \$REMOTE_REF)"
+git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "\$REMOTE_REF"
+git reset --hard "\$REMOTE_REF"
 
 echo "Branch is at: \$(git log --oneline -1)"
 REMOTE_EOF
@@ -284,15 +317,15 @@ fi
 echo "Cleaning up remote temporary files..."
 ssh -o BatchMode=yes "$SSH_DEST" "rm -rf '$REMOTE_TMP_RESULTS' '$REMOTE_TAR'" || true
 echo "Stopping Gradle daemons on remote..."
-ssh -o BatchMode=yes "$SSH_DEST" -t bash <<'STOP_EOF'
-for f in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "/etc/profile"; do
-    [[ -f "$f" ]] && source "$f" 2>/dev/null || true
+ssh -o BatchMode=yes "$SSH_DEST" -t bash <<STOP_EOF
+for f in "\$HOME/.profile" "\$HOME/.bash_profile" "\$HOME/.bashrc" "/etc/profile"; do
+    [[ -f "\$f" ]] && source "\$f" 2>/dev/null || true
 done
-if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
-    export SDKMAN_DIR="$HOME/.sdkman"
-    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+if [[ -s "\$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="\$HOME/.sdkman"
+    source "\$SDKMAN_DIR/bin/sdkman-init.sh"
 fi
-cd hedera-services && ./gradlew --stop 2>/dev/null || true
+cd "$REMOTE_REPO_DIR" && ./gradlew --stop 2>/dev/null || true
 STOP_EOF
 
 echo ""

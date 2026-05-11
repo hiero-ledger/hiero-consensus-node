@@ -118,6 +118,9 @@ src/testPerformance/scripts/deploy-benchmark.sh <user@server> <branch> [experime
 - `branch`: Git branch to checkout and benchmark
 - `experiment`: Which experiment to run (default: `all`)
 - `num_runs`: Number of times to run the experiment(s) (default: `1`)
+- `--fork <url>`: Optional fork repo URL. When set, the branch is resolved from `fork/<branch>`
+  first, falling back to `origin/<branch>`. Useful for benchmarking branches you've pushed to a
+  personal fork without polluting the upstream remote.
 
 Before running, the script verifies that:
 1. SSH key-based authentication works for the target server
@@ -139,6 +142,10 @@ src/testPerformance/scripts/deploy-benchmark.sh ubuntu@10.0.1.5 develop combined
 
 # Run only the baseline benchmark
 src/testPerformance/scripts/deploy-benchmark.sh user@benchmark-host main benchmark
+
+# Benchmark a branch pushed to your personal fork
+src/testPerformance/scripts/deploy-benchmark.sh ubuntu@10.0.1.5 my-tmp-branch \
+    --fork git@github.com:mxtartaglia-sl/hiero-consensus-node.git
 ```
 
 To inspect the downloaded results:
