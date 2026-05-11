@@ -57,9 +57,6 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "500000000") @NodeProperty
         int maxReadBytesSize,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean enableStateProofs,
-
         @ConfigProperty(defaultValue = "4096") @Min(512) @NetworkProperty
         int blockFileBufferOuterSizeKb,
 
