@@ -77,6 +77,17 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
 }
 
+// Allow filtering JMH runs by class via -Pjmh.includes=ClassName (or run subset names).
+// Honors -Pjmh.warmupIterations / -Pjmh.iterations / -Pjmh.timeOnIteration / -Pjmh.fork when set.
+jmh {
+    (findProperty("jmh.includes") as String?)?.let { includes.set(it.split(',')) }
+    (findProperty("jmh.fork") as String?)?.toIntOrNull()?.let { fork.set(it) }
+    (findProperty("jmh.warmupIterations") as String?)?.toIntOrNull()?.let { warmupIterations.set(it) }
+    (findProperty("jmh.iterations") as String?)?.toIntOrNull()?.let { iterations.set(it) }
+    (findProperty("jmh.timeOnIteration") as String?)?.let { timeOnIteration.set(it) }
+    (findProperty("jmh.warmup") as String?)?.let { warmup.set(it) }
+}
+
 // Add all the libs dependencies into the jar manifest!
 tasks.jar {
     inputs.files(configurations.runtimeClasspath)
