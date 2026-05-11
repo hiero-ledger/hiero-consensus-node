@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
+import static org.hiero.consensus.crypto.SigningImplementation.ED25519_ACCP;
 import static org.hiero.consensus.crypto.SigningImplementation.ED25519_SODIUM;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +30,7 @@ public final class SigningFactory {
      * The default implementations to use for each schema.
      */
     private static final Map<SigningSchema, SigningImplementation> defaultImplementations = new EnumMap<>(
-            Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM));
+            Map.of(SigningSchema.RSA, SigningImplementation.RSA_ACCP, SigningSchema.ED25519, ED25519_ACCP));
 
     /**
      * Tracks whether a default-reading signer/verifier has been created. Once true, reconfiguration
