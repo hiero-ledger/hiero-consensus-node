@@ -52,11 +52,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(RESTART)
+@Disabled("https://github.com/hiero-ledger/hiero-consensus-node/issues/25298")
 @HapiTestLifecycle
 @Order(Integer.MAX_VALUE - 2)
 class JumpstartFileSuite implements LifecycleTest {
