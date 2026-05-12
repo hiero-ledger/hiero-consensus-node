@@ -33,6 +33,9 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
@@ -77,6 +80,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
     private final HederaNativeOperations nativeOperations;
+    private final HederaEntityResolver hederaEntityResolver;
     final ContractStateStore contractStateStore;
 
     /**
@@ -87,6 +91,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final ContractStateStore contractStateStore) {
         this.nativeOperations = requireNonNull(nativeOperations);
+        this.hederaEntityResolver = new HederaEntityResolver(nativeOperations);
         this.contractStateStore = requireNonNull(contractStateStore);
     }
 
@@ -231,7 +236,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     }
 
     @Override
-    public com.hedera.hapi.node.state.token.Account getNativeAccount(final AccountID accountID) {
+    public Account getNativeAccount(final AccountID accountID) {
         return validatedAccount(accountID);
     }
 
@@ -528,46 +533,27 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @Nullable AbstractMutableEvmAccount getMutableAccount(@NonNull Address address) {
-        final var number = maybeMissingNumberOf(address, nativeOperations);
-        if (number == MISSING_ENTITY_NUMBER) {
+        final var maybeEntity = hederaEntityResolver.resolveEvmAddressToHederaEntity(address);
+        if (maybeEntity == null) {
             return null;
         }
-        final AccountID accountID = entityIdFactory().newAccountId(number);
-        final var account = nativeOperations.getAccount(accountID);
-        if (account != null) {
-            if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
-                return null;
-            }
-            if (account.smartContract()) {
-                return new ProxyEvmContract(account.accountId(), this);
-            } else {
-                return new ProxyEvmAccount(account, this);
-            }
-        }
-        final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
-        if (token != null) {
-            // If the token is deleted or expired, the system contract executed by the redirect
-            // bytecode will fail with a more meaningful error message, so don't check that here
-            return new TokenEvmAccount(address, this);
-        }
-        final var schedule =
-                nativeOperations.getSchedule(nativeOperations.entityIdFactory().newScheduleId(number));
-        if (schedule != null) {
-            // If the schedule is deleted or expired, the system contract executed by the redirect
-            // bytecode will fail with a more meaningful error message, so don't check that here
-            return new ScheduleEvmAccount(address, this);
-        }
-        return null;
+        return switch (maybeEntity) {
+            case HederaEntityResolver.HederaEntity.AccountEntity(Account account) ->
+                account.smartContract()
+                        ? new ProxyEvmContract(account.accountId(), this)
+                        : new ProxyEvmAccount(account, this);
+            case HederaEntityResolver.HederaEntity.TokenEntity(Token token) ->
+                // If the token is deleted or expired, the system contract executed by the redirect
+                // bytecode will fail with a more meaningful error message, so don't check that here
+                new TokenEvmAccount(address, this);
+            case HederaEntityResolver.HederaEntity.ScheduleEntity(Schedule schedule) ->
+                // If the schedule is deleted or expired, the system contract executed by the redirect
+                // bytecode will fail with a more meaningful error message, so don't check that here
+                new ScheduleEvmAccount(address, this);
+        };
     }
 
-    private boolean isNotPriority(
-            final Address address, final @NonNull com.hedera.hapi.node.state.token.Account account) {
-        requireNonNull(account);
-        final var maybeEvmAddress = extractEvmAddress(account.alias());
-        return maybeEvmAddress != null && !address.equals(pbjToBesuAddress(maybeEvmAddress));
-    }
-
-    private com.hedera.hapi.node.state.token.Account validatedAccount(final AccountID accountID) {
+    private Account validatedAccount(final AccountID accountID) {
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             throw new IllegalArgumentException("No account has id " + accountID);
@@ -575,7 +561,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    private com.hedera.hapi.node.state.token.Account validatedAccount(final ContractID contractID) {
+    private Account validatedAccount(final ContractID contractID) {
         final var account = nativeOperations.getAccount(contractID);
         if (account == null) {
             throw new IllegalArgumentException("No account found for contract ID " + contractID);

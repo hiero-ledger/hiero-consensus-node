@@ -44,7 +44,6 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -804,9 +803,7 @@ public class ConversionUtils {
         throwIfUnsuccessfulCall(
                 outcome,
                 new EthereumTransactionRollbackHandler(
-                        outcome,
-                        hederaOperations.gasChargingEvents(),
-                        rootProxyWorldUpdater));
+                        outcome, hederaOperations.gasChargingEvents(), rootProxyWorldUpdater));
     }
 
     public static void throwIfUnsuccessfulCall(
