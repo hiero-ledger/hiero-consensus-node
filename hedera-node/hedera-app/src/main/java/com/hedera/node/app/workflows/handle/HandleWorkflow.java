@@ -416,21 +416,6 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                //                // Persist live wrapped record block hashes to state before the freeze.
-                //                if (configProvider
-                //                                .getConfiguration()
-                //                                .getConfigData(BlockRecordStreamConfig.class)
-                //                                .liveWritePrevWrappedRecordHashes()
-                //                        && streamMode != BLOCKS) {
-                //                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-                //                }
-                //                if (configProvider
-                //                                .getConfiguration()
-                //                                .getConfigData(BlockRecordStreamConfig.class)
-                //                                .writeWrappedRecordFileBlockHashesToDisk()
-                //                        && streamMode != BLOCKS) {
-                //                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-                //                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
