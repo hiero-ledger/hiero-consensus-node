@@ -300,15 +300,16 @@ public class VirtualLeafBytes<V> {
     private void writeValue(final WritableSequentialData out) {
         // Use valueBytes instead of valueBytes() to avoid allocating a byte array
         final Bytes vb = valueBytes;
-        // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
-        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
         if (vb != null) {
+            // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
+            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
             out.writeVarInt(Math.toIntExact(vb.length()), false);
             vb.writeTo(out);
-        } else {
-            assert value != null;
+        } else if (value != null) {
             assert valueCodec != null;
             try {
+                // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
+                ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
                 out.writeVarInt(valueCodec.measureRecord(value), false);
                 valueCodec.write(value, out);
             } catch (final IOException z) {
