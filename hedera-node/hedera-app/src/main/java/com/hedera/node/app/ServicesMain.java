@@ -237,12 +237,9 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
                         migrationAlreadyApplied);
 
-        final int reservedSystemTxnNanos =
-                hederaConfig.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
-        final int maxPrecedingRecords =
-                hederaConfig.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
-        final int transactionOffsetNanos = reservedSystemTxnNanos + maxPrecedingRecords + 1;
+        final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
         hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
@@ -396,5 +393,20 @@ public class ServicesMain {
         }
         return blockInfo.votingCompletionDeadlineBlockNumber() > 0
                 && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
+    }
+
+    /**
+     * Calculates the minimum transaction offset in nanoseconds, taking into account the reserved system
+     * transaction time range and the maximum number of preceding records.
+     * @param config the configuration to use for the calculation
+     * @return the transaction offset in nanoseconds
+     */
+    @VisibleForTesting
+    public static int transactionOffsetNanos(@NonNull final Configuration config) {
+        final int reservedSystemTxnNanos =
+                config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
+        final int maxPrecedingRecords =
+                config.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
+        return reservedSystemTxnNanos + maxPrecedingRecords + 1;
     }
 }
