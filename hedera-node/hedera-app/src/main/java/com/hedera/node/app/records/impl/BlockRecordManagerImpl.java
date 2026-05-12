@@ -414,60 +414,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull final State state) {
-        if (!writeWrappedRecordFileBlockHashesToDisk()) {
-            return;
-        }
-        final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-        final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        appendWrappedRecordFileBlockHashesToDisk(
-                currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-    }
-
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state) {
-        try {
-            // Treat the current in-progress block as "just finished", writing its data to state or disk as appropriate
-            final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-            if (blockCreationTime == null) {
-                logger.info(
-                        "Skipping write of wrapped record-file block data for block {} because firstConsTimeOfCurrentBlock is null",
-                        currentBlockNumber);
-                return;
-            }
-
-            final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, currentBlockNumber);
-            // Update the in-memory values
-            final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                    currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-            if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
-                appendMigrationWrappedHashes(state, currentBlockNumber, wrappedRecordFileBlockHashes);
-            }
-            if (migrationRootHashVotingComplete(state)) {
-                // Persist the updated values to BlockInfo only after voting finalizes
-                lastBlockInfo = lastBlockInfo
-                        .copyBuilder()
-                        .previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash)
-                        .wrappedIntermediatePreviousBlockRootHashes(
-                                prevWrappedRecordBlockHashes.intermediateHashingState())
-                        .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
-                        .build();
-                putLastBlockInfo(state);
-                logger.info(
-                        "Persisted live wrapped record block root hash (as of block {}): {}",
-                        currentBlockNumber,
-                        previousWrappedRecordBlockRootHash);
-            }
-        } catch (final Exception e) {
-            logger.warn("Failed to persist final wrapped record-file block hashes prior to freeze", e);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
         final var platformState = state.getReadableStates(PlatformStateService.NAME)
                 .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)

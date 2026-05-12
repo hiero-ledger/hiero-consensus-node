@@ -552,9 +552,6 @@ class HandleWorkflowTest {
                         "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false"));
 
         subject.handleRound(state, round, txns -> {});
-
-        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
     }
 
     @Test
@@ -577,9 +574,6 @@ class HandleWorkflowTest {
                         "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
 
         subject.handleRound(state, round, txns -> {});
-
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
     }
 
     private void givenSubjectWith(

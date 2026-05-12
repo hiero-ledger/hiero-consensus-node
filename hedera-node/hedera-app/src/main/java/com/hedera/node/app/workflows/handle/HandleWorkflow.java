@@ -86,7 +86,6 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -417,21 +416,21 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze.
-                if (configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockRecordStreamConfig.class)
-                                .liveWritePrevWrappedRecordHashes()
-                        && streamMode != BLOCKS) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-                }
-                if (configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockRecordStreamConfig.class)
-                                .writeWrappedRecordFileBlockHashesToDisk()
-                        && streamMode != BLOCKS) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-                }
+                //                // Persist live wrapped record block hashes to state before the freeze.
+                //                if (configProvider
+                //                                .getConfiguration()
+                //                                .getConfigData(BlockRecordStreamConfig.class)
+                //                                .liveWritePrevWrappedRecordHashes()
+                //                        && streamMode != BLOCKS) {
+                //                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                //                }
+                //                if (configProvider
+                //                                .getConfiguration()
+                //                                .getConfigData(BlockRecordStreamConfig.class)
+                //                                .writeWrappedRecordFileBlockHashesToDisk()
+                //                        && streamMode != BLOCKS) {
+                //                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                //                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));

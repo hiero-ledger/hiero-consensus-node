@@ -650,9 +650,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             finalStateChangesHash,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
-                    blockNumbers.put(
-                            expectedBlockHash,
-                            thisBlockNum);
+                    blockNumbers.put(expectedBlockHash, thisBlockNum);
                     if (isWrb) {
                         validateWrbBlockProof(blockNumber, blockProof, expectedBlockHash);
                     } else {

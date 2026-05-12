@@ -1061,9 +1061,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-
-            // Persist freeze block wrapped hashes
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1128,7 +1125,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1188,9 +1184,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RECONNECT)) {
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-        }
+                InitTrigger.RECONNECT)) {}
 
         verify(diskWriter, never()).appendAsync(any());
     }
@@ -1247,7 +1241,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
         }
 
         verify(diskWriter).appendAsync(any());
@@ -1310,8 +1303,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
-            // Freeze persistence should use the synced in-memory wrapped hash state.
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1395,9 +1386,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Add items and close current block, causing latest block info write to state
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
             mgr.closeCurrentRecordFileIfOpen(state);
-
-            // Simulate freeze
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1463,7 +1451,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[48])), 1);
-            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)

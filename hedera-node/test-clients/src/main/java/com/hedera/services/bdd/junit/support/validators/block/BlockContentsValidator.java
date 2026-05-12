@@ -30,8 +30,9 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(
+                node0Dir.resolve(
+                        "/Users/derektriley/git/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/hapiTestMisc/node0/data/blockStreams-blocknode/blocknode-0"));
         validator.validateBlocks(blocks);
     }
 

@@ -72,6 +72,14 @@ public class BlockBufferService {
      */
     private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
     /**
+     * The freeze block number registered via {@link #registerFreezeBlockAckFuture(long)}, or -1 if none.
+     */
+    private final AtomicLong registeredFreezeBlockNumber = new AtomicLong(-1);
+    /**
+     * Future completed by {@link #setLatestAcknowledgedBlock(long)} when the registered freeze block is acked.
+     */
+    private final AtomicReference<CompletableFuture<Void>> freezeBlockAckFutureRef = new AtomicReference<>();
+    /**
      * Guard to skip redundant concurrent persist operations. When a periodic persist and a freeze
      * persist overlap, the second one is skipped since the first is already writing the same data.
      */
@@ -377,6 +385,39 @@ public class BlockBufferService {
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
         blockStreamMetrics.recordLatestBlockAcked(highestBlock);
+        final long fbn = registeredFreezeBlockNumber.get();
+        if (fbn >= 0 && highestBlock >= fbn) {
+            final var future = freezeBlockAckFutureRef.get();
+            if (future != null) {
+                future.complete(null);
+            }
+        }
+    }
+
+    /**
+     * Registers the freeze block number and returns a future that completes when it is acknowledged
+     * by a block node. If the block is already acknowledged, returns an already-completed future.
+     * Safe to call concurrently with {@link #setLatestAcknowledgedBlock(long)}.
+     *
+     * @param blockNumber the freeze block number to wait for acknowledgement of
+     * @return a future that completes when the freeze block is acknowledged
+     */
+    public CompletableFuture<Void> registerFreezeBlockAckFuture(final long blockNumber) {
+        if (isAcked(blockNumber)) {
+            logger.info("Freeze block {} is already acknowledged; ack gate immediately satisfied", blockNumber);
+            return CompletableFuture.completedFuture(null);
+        }
+        registeredFreezeBlockNumber.set(blockNumber);
+        final var future = new CompletableFuture<Void>();
+        freezeBlockAckFutureRef.set(future);
+        // Double-check: ack may have arrived between the initial isAcked check and registering the future
+        if (isAcked(blockNumber)) {
+            logger.info("Freeze block {} acknowledged; ack gate satisfied", blockNumber);
+            future.complete(null);
+        } else {
+            logger.info("Waiting for block node acknowledgement of freeze block {}", blockNumber);
+        }
+        return future;
     }
 
     /**
