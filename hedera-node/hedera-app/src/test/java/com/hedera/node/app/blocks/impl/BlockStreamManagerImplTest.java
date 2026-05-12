@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
@@ -13,6 +14,8 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -26,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -42,6 +46,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
@@ -51,8 +56,10 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -70,6 +77,7 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -81,11 +89,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.bouncycastle.util.Arrays;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -113,6 +123,15 @@ class BlockStreamManagerImplTest {
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
     private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray());
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
+    // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
+    private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(
+            "8a9b0805563ed5dd88091b8d923fc5c8f76c61077685420ac34bb0d4e8c842eb198f855b183c93d62e05b25cef3384f4");
+    // Effective last block hash computed by the restart path from blockStreamInfoWith(resultHashes, CREATION_VERSION)
+    private static final Bytes FAKE_NON_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
+            "b223b5f8979cf1baf604069566ae2342dad59cd3ad39671cbc443ff454f085b8016eec56a625d62ea5fe8712a32bb21d");
+    // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
+    private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
+            "817533f6ffc53bb220740b443aa5b8c0b00160a6028c152bbe1d9a8db0674fb86918349cfc423de388f0fa6286f7f675");
     private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
@@ -294,6 +313,50 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void startRoundInitializesLastUsedTimeFromDefaultBlockEndTimeWhenMissingFromState() {
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .blockNumber(N_MINUS_1_BLOCK_NO)
+                .creationSoftwareVersion(CREATION_VERSION.copyBuilder().patch(0).build())
+                .trailingBlockHashes(NONZERO_PREV_BLOCK_HASH)
+                .trailingOutputHashes(Bytes.EMPTY)
+                .lastIntervalProcessTime(CONSENSUS_THEN)
+                .blockEndTime((Timestamp) null)
+                .lastHandleTime(CONSENSUS_THEN)
+                .blockTime(asTimestamp(asInstant(CONSENSUS_THEN).minusSeconds(5)))
+                .build();
+        givenSubjectWith(1, 0, blockStreamInfo, platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        assertEquals(asInstant(blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT)), subject.lastUsedConsensusTime());
+    }
+
+    @Test
+    void startRoundInitializesLastUsedTimeFromBlockEndTimeFromState() {
+        final var blockEndTime = new Timestamp(CONSENSUS_THEN.seconds() + 123, CONSENSUS_THEN.nanos());
+        final var blockStreamInfo = blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build())
+                .copyBuilder()
+                .blockEndTime(blockEndTime)
+                .build();
+        givenSubjectWith(1, 0, blockStreamInfo, platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        assertEquals(asInstant(blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT)), subject.lastUsedConsensusTime());
+    }
+
+    @Test
     void startsAndEndsBlockWithSingleRoundPerBlockAsExpected() throws ParseException {
         givenSubjectWith(
                 1,
@@ -322,7 +385,7 @@ class BlockStreamManagerImplTest {
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
-        assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
+        assertEquals(FAKE_PATCH_RESTART_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertNull(subject.prngSeed());
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
@@ -333,17 +396,19 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
         // End the round
         subject.endRound(state, ROUND_NO);
 
+        verify(blockHashSigner).sign(any(), eq(SUCCINCT_SIGNATURE));
         verify(aWriter).openBlock(N_BLOCK_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
@@ -354,7 +419,7 @@ class BlockStreamManagerImplTest {
                         combine(Bytes.wrap(new byte[HASH_SIZE]), FAKE_RESULT_HASH),
                         appendHash(Bytes.wrap(new byte[HASH_SIZE]), Bytes.EMPTY, 4),
                         4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                appendHash(FAKE_PATCH_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
@@ -370,7 +435,7 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
                 HASH_OF_ZERO,
-                List.of(FAKE_RESTART_BLOCK_HASH),
+                List.of(FAKE_PATCH_RESTART_HASH),
                 1);
 
         final var actualBlockInfo = infoRef.get();
@@ -422,7 +487,46 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Verify signer was checked but never asked to sign
-        verify(blockHashSigner, never()).sign(any());
+        verify(blockHashSigner, never()).sign(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void coversExceptionallyCallbackOfSignatureFuture() {
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        // Initialize the last (N-1) block hash
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        assertTrue(subject.endRound(state, ROUND_NO));
+
+        final ArgumentCaptor<Function<Throwable, ? extends Void>> exceptionHandlerCaptor =
+                ArgumentCaptor.forClass((Class) Function.class);
+        verify(postAcceptFuture).exceptionally(exceptionHandlerCaptor.capture());
+        final var exceptionHandler = exceptionHandlerCaptor.getValue();
+        assertNull(exceptionHandler.apply(
+                new CompletionException(new IllegalStateException(HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE))));
+        assertNull(exceptionHandler.apply(new RuntimeException("boom")));
+        verify(aWriter, never()).closeCompleteBlock();
     }
 
     @Test
@@ -455,7 +559,7 @@ class BlockStreamManagerImplTest {
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
-        assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
+        assertEquals(FAKE_PATCH_RESTART_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertNull(subject.prngSeed());
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
@@ -466,7 +570,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.sign(any()))
+        given(blockHashSigner.sign(any(), any()))
                 .willReturn(new BlockHashSigner.Attempt(null, null, completedFuture(FIRST_FAKE_SIGNATURE)));
         // End the round
         subject.endRound(state, ROUND_NO);
@@ -475,6 +579,94 @@ class BlockStreamManagerImplTest {
         assertNotNull(header);
         assertEquals(N_BLOCK_NO, header.number());
         assertEquals(header.blockTimestamp(), asTimestamp(CONSENSUS_NOW));
+    }
+
+    @Test
+    void pendingBlockProofsFutureCompletesWhenPendingBlockIsSigned() {
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        subject.endRound(state, ROUND_NO);
+        final var pendingBlockProofsFuture = subject.pendingBlockProofsFuture();
+
+        assertFalse(pendingBlockProofsFuture.isDone());
+
+        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+
+        assertTrue(pendingBlockProofsFuture.isDone());
+        verify(aWriter).closeCompleteBlock();
+    }
+
+    @Test
+    void allBlocksSignedTracksLatestPartialSignatureSubmission() {
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        final var submissionFuture = new CompletableFuture<Void>();
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture, submissionFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        assertTrue(subject.allBlocksSigned());
+
+        subject.endRound(state, ROUND_NO);
+        final var pendingBlockProofsFuture = subject.pendingBlockProofsFuture();
+
+        assertFalse(subject.allBlocksSigned());
+        assertFalse(pendingBlockProofsFuture.isDone());
+
+        submissionFuture.complete(null);
+
+        assertTrue(subject.allBlocksSigned());
+        assertFalse(pendingBlockProofsFuture.isDone());
+
+        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+
+        assertTrue(pendingBlockProofsFuture.isDone());
     }
 
     @Test
@@ -548,7 +740,7 @@ class BlockStreamManagerImplTest {
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
-        assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
+        assertEquals(FAKE_NON_EMPTY_RESULTS_RESTART_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
@@ -562,11 +754,12 @@ class BlockStreamManagerImplTest {
         }
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -580,7 +773,7 @@ class BlockStreamManagerImplTest {
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
                 appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                appendHash(FAKE_NON_EMPTY_RESULTS_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
@@ -596,7 +789,7 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
                 HASH_OF_ZERO,
-                List.of(FAKE_RESTART_BLOCK_HASH),
+                List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -644,7 +837,9 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
-        given(blockHashSigner.sign(any()))
+        given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(blockHashSigner.sign(any(), any()))
                 .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
                 .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
         // End the round in block N
@@ -713,11 +908,12 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -803,11 +999,12 @@ class BlockStreamManagerImplTest {
                         PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -844,11 +1041,12 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -918,11 +1116,12 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -989,7 +1188,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately
-        given(blockHashSigner.sign(any()))
+        given(blockHashSigner.sign(any(), any()))
                 .willReturn(new BlockHashSigner.Attempt(
                         Bytes.EMPTY,
                         ChainOfTrustProof.newBuilder()
@@ -999,7 +1198,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1054,7 +1253,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future
-        given(blockHashSigner.sign(any()))
+        given(blockHashSigner.sign(any(), any()))
                 .willReturn(new BlockHashSigner.Attempt(
                         Bytes.EMPTY,
                         ChainOfTrustProof.newBuilder()
@@ -1064,7 +1263,7 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1080,8 +1279,8 @@ class BlockStreamManagerImplTest {
         final var footer = footerItem.get().blockFooterOrThrow();
 
         // Verify each hash in the footer is correct
-        assertEquals(N_MINUS_2_BLOCK_HASH, footer.previousBlockRootHash());
-        assertEquals(N_MINUS_2_BLOCK_HASH, footer.rootHashOfAllBlockHashesTree());
+        assertEquals(FAKE_EMPTY_RESULTS_RESTART_HASH, footer.previousBlockRootHash());
+        assertEquals(FAKE_EMPTY_RESULTS_RESTART_HASH, footer.rootHashOfAllBlockHashesTree());
         assertEquals(FAKE_START_OF_BLOCK_STATE_HASH.getBytes(), footer.startOfBlockStateRootHash());
     }
 
@@ -1127,7 +1326,9 @@ class BlockStreamManagerImplTest {
         // Set up the signature futures
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
-        given(blockHashSigner.sign(any()))
+        given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(blockHashSigner.sign(any(), any()))
                 .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, firstSignature))
                 .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, secondSignature));
 
@@ -1202,11 +1403,12 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup(null, 1L);
         given(blockHashSigner.isReady()).willReturn(true);
         // Set up the async signature to return control to this test immediately upon completion
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1240,11 +1442,12 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
         // Set up the async signature to return control to this test immediately upon completion
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1285,11 +1488,12 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
         // Set up the async signature to return control to this test immediately upon completion
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
+                    return completedFuture(null);
                 })
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
@@ -1316,6 +1520,177 @@ class BlockStreamManagerImplTest {
         final var actualBlockInfo = infoRef.get();
         assertEquals(Collections.emptyList(), actualBlockInfo.intermediatePreviousBlockRootHashes());
         assertEquals(0, actualBlockInfo.intermediateBlockRootsLeafCount());
+    }
+
+    @Test
+    void cutoverSkippedWhenEnableCutoverIsFalse() {
+        // enableCutover defaults to false in HederaTestConfigBuilder; the genesis branch (HASH_OF_ZERO)
+        // is the simplest non-cutover path to exercise.
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics);
+
+        // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
+        subject.init(state, HASH_OF_ZERO);
+        // If cutover had run, it would have tried to read BlockRecordService states,
+        // which are not mocked here; the test succeeding proves cutover was skipped.
+    }
+
+    @Test
+    void cutoverSkippedWhenSchemaDidNotExecute() {
+        // Cutover is enabled, but previewStreamOverwritten=false means the schema did not run, and therefore init
+        // should not run
+        // cutover scenario
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .previewStreamOverwritten(false)
+                .build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
+
+        // init with HASH_OF_ZERO — loadCutoverData should see previewStreamOverwritten=false and skip
+        subject.init(state, HASH_OF_ZERO);
+    }
+
+    @Test
+    void cutoverLoadsInMemoryStateWhenSchemaExecuted() {
+        // When enableCutover=true, previewStreamOverwritten=true, and BlockStreamInfo.blockNumber matches
+        // BlockInfo.lastBlockNumber, init should load in-memory structures from BlockInfo
+        final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var twoHashes = new byte[HASH_SIZE * 2];
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .blockHashes(Bytes.wrap(twoHashes))
+                .previousWrappedRecordBlockRootHash(wrappedHash)
+                .wrappedIntermediatePreviousBlockRootHashes(List.of(wrappedHash))
+                .wrappedIntermediateBlockRootsLeafCount(1)
+                .firstConsTimeOfCurrentBlock(new Timestamp(1000, 0))
+                .lastUsedConsTime(new Timestamp(1001, 0))
+                .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
+                .lastIntervalProcessTime(new Timestamp(1000, 0))
+                .previewStreamOverwritten(true)
+                .build();
+        // BlockStreamInfo.blockNumber must match BlockInfo.lastBlockNumber for cutover loading
+        final var cutoverBsi = BlockStreamInfo.newBuilder().blockNumber(100).build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenReturn(indirectProofsCounter);
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
+
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> cutoverBsi));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
+
+        // init with null lastBlockHash — should trigger the cutover loading path
+        subject.init(state, null);
+    }
+
+    @Test
+    void cutoverSkippedWhenBlockStreamInfoHasAdvanced() {
+        // After post-cutover blocks are produced, BlockStreamInfo.blockNumber advances beyond
+        // BlockInfo.lastBlockNumber; subsequent restarts should use the normal init path
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .previewStreamOverwritten(true)
+                .build();
+        // BlockStreamInfo has advanced — real blocks were produced after cutover
+        final var advancedBsi = BlockStreamInfo.newBuilder().blockNumber(137).build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
+
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> advancedBsi));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
+
+        // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
+        subject.init(state, HASH_OF_ZERO);
     }
 
     private void givenSubjectWith(
@@ -1391,7 +1766,7 @@ class BlockStreamManagerImplTest {
                 .thenReturn(new FunctionWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));
         lenient()
-                .doAnswer(invocationOnMock -> {
+                .doAnswer(ignored -> {
                     blockStreamInfoState.commit();
                     return null;
                 })
@@ -1442,6 +1817,41 @@ class BlockStreamManagerImplTest {
         lenient()
                 .when(mockEvent.consensusTransactionIterator())
                 .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
+    }
+
+    @Test
+    void fatalShutdownClosesCurrentWriter() {
+        // Given a subject with a block that has been opened
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        lenient().when(blockHashSigner.isReady()).thenReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Trigger fatal shutdown (simulating ISS detection)
+        subject.notifyFatalEvent();
+
+        // End the round — the fatalShutdownFuture check should close the current writer
+        subject.endRound(state, ROUND_NO);
+
+        // Verify the current writer was prematurely closed during fatal shutdown
+        verify(aWriter).closeCompleteBlock();
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

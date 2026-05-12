@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
+import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
@@ -16,9 +17,12 @@ import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -29,6 +33,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
+
+    private static final Logger logger = LogManager.getLogger(MerkleBenchmarkUtils.class);
 
     public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree,
@@ -41,9 +47,8 @@ public class MerkleBenchmarkUtils {
             final NodeId selfId,
             final Configuration configuration)
             throws Exception {
-        System.out.println("------------");
-        System.out.println("starting: " + startingTree);
-        System.out.println("desired: " + desiredTree);
+        printVirtualMap("Starting Tree", startingTree);
+        printVirtualMap("Desired Tree", desiredTree);
 
         if (startingTree != null) {
             // calculate hash
@@ -68,7 +73,6 @@ public class MerkleBenchmarkUtils {
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    @SuppressWarnings("unchecked")
     private static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
@@ -90,23 +94,21 @@ public class MerkleBenchmarkUtils {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final VirtualMap newRoot = startingTree.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
-
+            final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingTree, reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
                         getStaticThreadManager(),
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        newRoot,
                         learnerView,
                         () -> {
                             try {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -121,7 +123,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -129,7 +131,6 @@ public class MerkleBenchmarkUtils {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        newRoot,
                         learnerView,
                         randomSeed,
                         delayStorageMicroseconds,
@@ -141,7 +142,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -159,7 +160,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -183,11 +184,12 @@ public class MerkleBenchmarkUtils {
             }
 
             if (workGroup.hasExceptions()) {
+                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return newRoot;
+            return vmapLearner.getVirtualMap();
         }
     }
 

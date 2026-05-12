@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createGossipModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createPcesModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 
@@ -56,7 +52,6 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -102,6 +97,7 @@ public final class PlatformBuilder {
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
     private GossipModule gossipModule;
+    private long transactionOffsetNanos;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -285,7 +281,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!ConsensusCryptoUtils.verifySignature(
+        if (!CryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
@@ -379,7 +375,8 @@ public final class PlatformBuilder {
                 rosterHistory.getCurrentRoster(),
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                pipelineTracker);
+                pipelineTracker,
+                transactionOffsetNanos);
     }
 
     /**
@@ -443,13 +440,27 @@ public final class PlatformBuilder {
         return this;
     }
 
+    /**
+     * Set the nanosecond offset added to the first transaction's timestamp in each event. This value is
+     * computed by the execution layer and must be provided before building the platform.
+     *
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withTransactionOffsetNanos(final long transactionOffsetNanos) {
+        throwIfAlreadyUsed();
+        this.transactionOffsetNanos = transactionOffsetNanos;
+        return this;
+    }
+
     private void initializeGossipModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule();
+            this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
         gossipModule.initialize(
@@ -505,8 +516,12 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad =
-                Scratchpad.create(platformContext.getConfiguration(), selfId, IssScratchpad.class, "platform.iss");
+        final Scratchpad<IssScratchpad> issScratchpad = Scratchpad.create(
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager(),
+                selfId,
+                IssScratchpad.class,
+                "platform.iss");
         issScratchpad.logContents();
 
         final ApplicationCallbacks callbacks =
@@ -552,17 +567,17 @@ public final class PlatformBuilder {
                 new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
 
         if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createEventCreatorModule();
+            this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         }
         if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createEventIntakeModule();
+            this.eventIntakeModule = createModule(EventIntakeModule.class, configuration);
         }
-        this.pcesModule = createPcesModule();
+        this.pcesModule = createModule(PcesModule.class, configuration);
         if (this.hashgraphModule == null) {
-            this.hashgraphModule = createHashgraphModule();
+            this.hashgraphModule = createModule(HashgraphModule.class, configuration);
         }
         if (this.gossipModule == null) {
-            this.gossipModule = createGossipModule();
+            this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
         final PlatformComponents platformComponents = PlatformComponents.create(
@@ -630,7 +645,8 @@ public final class PlatformBuilder {
                 fallenBehindMonitor,
                 reservedSignedStateResultPromise,
                 platformCoordinator,
-                latestImmutableStateNexus);
+                latestImmutableStateNexus,
+                transactionOffsetNanos);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

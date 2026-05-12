@@ -14,7 +14,7 @@ installed, open it and Install **Intellij IDEA Ultimate**.
 Clone this repository using:
 
 ```
-git clone git@github.com:hashgraph/hedera-services.git
+git clone git@github.com:hiero-ledger/hiero-consensus-node.git
 ```
 
 ## Work with the project
@@ -67,7 +67,7 @@ Note especially the roles of the `main` branch:
 
 ### Creating issues on GitHub
 
-GitHub's [issues](https://github.com/hashgraph/hedera-services/issues) are used as the primary
+GitHub's [issues](https://github.com/hiero-ledger/hiero-consensus-node/issues) are used as the primary
 method for tracking project changes. Any actionable item that need to be addressed, should be
 associated to an issue in GitHub.
 
@@ -81,20 +81,14 @@ There are three types of issues:
   Improvement Proposal process.
 
 Any issue created should be added to
-[Services Sprint Tracking](https://github.com/orgs/hashgraph/projects/13) (if it is targeted to be
-addressed in the current sprint)and the associated project type in `Projects` tab. It should also
-have the targeted milestone set on it.
-
-For example, a documentation change targeted for the current sprint in 0.30.0 release should be
-associated to [Services Sprint Tracking](https://github.com/orgs/hashgraph/projects/13) and
-[Documentation](https://github.com/hashgraph/hedera-services/projects/32#card-85521291) projects,
-with 0.30 milestone on it.
+[Foundation](https://github.com/orgs/hiero-ledger/projects/14) (if it is targeted to be
+addressed in the current sprint)and the associated project type in `Projects` tab.
 
 ![labels-on-issue](./assets/labels-on-issue.png)
 
-### Platform-CI Responsibilities
+### GitHub Maintainer Responsibilities
 
-The Platform-CI team will handle the following:
+The `@hiero-ledger/github-maintainers` team will handle the following:
 
 - Will provide automated release processes and coordinate release schedules
 - Will handle production releases
@@ -102,13 +96,7 @@ The Platform-CI team will handle the following:
 
 ### Github CI Workflow Naming Conventions
 
-- `node-*` and `platform-*` prefix is a legacy carryover because node repo and platform repo were merged together.
-- `flow-*` is a standalone workflow that can be executed by a user (should have a workflow-dispatch trigger). It can also be a PR target. Anything the user interacts with starts with flow.
-- `z` is used to force everything to sort to the bottom of the view in the Actions tab of github. We can now pin these.
-- `x` means a workflow is not user facing.
-- `f` means the workflow can be triggered directly by other workflows (or by users). Ex: `workflow_dispatch`.
-- `c` means the file contains a reusable workflow, called a workflow component, triggered by `workflow_call`. 
-- `cron` indicates a workflow has a time-based trigger.
+See the documentation page for [Naming standards](../workflows/docs/naming-standards.md)
 
 ### User Stories
 
@@ -129,8 +117,8 @@ going into upcoming release.
 
 #### As a developer, I would like to merge my feature branch or bug fix for the upcoming release
 
-Open a pull request (PR) from the feature branch to `main` branch and add
-`hashgraph/hedera-services-team` as reviewers.
+Open a pull request (PR) from the feature branch to `main` branch and add `hiero-ledger/hiero-consensus-node-<team>-codeowners` as reviewers.
+Team is one of `[consensus, execution, foundation, smart-contracts]`.
 
 Also add the following labels on the PR :
 

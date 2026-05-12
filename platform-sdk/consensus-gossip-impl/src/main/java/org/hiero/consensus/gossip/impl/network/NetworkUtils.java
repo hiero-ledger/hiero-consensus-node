@@ -11,14 +11,13 @@ import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.Objects;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
@@ -141,11 +140,7 @@ public final class NetworkUtils {
         try {
             return new TlsFactory(
                     ownKeysAndCerts.agrCert(), ownKeysAndCerts.agrKeyPair().getPrivate(), peers, selfId, configuration);
-        } catch (final NoSuchAlgorithmException
-                | UnrecoverableKeyException
-                | KeyStoreException
-                | CertificateException
-                | IOException e) {
+        } catch (final NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new PlatformConstructionException("A problem occurred while creating the SocketFactory", e);
         }
     }

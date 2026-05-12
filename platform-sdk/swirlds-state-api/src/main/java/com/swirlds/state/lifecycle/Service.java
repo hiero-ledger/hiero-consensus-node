@@ -50,6 +50,21 @@ public interface Service {
      *
      * @param writableStates the writable states to initialize
      * @param configuration the configuration to use
+     * @param networkSize the size of the network
+     * @return whether any initialization was done
+     */
+    default boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
+        return doGenesisSetup(writableStates, configuration);
+    }
+
+    /**
+     * Does any state initialization (typically setting default singleton values) that is required at genesis.
+     *
+     * @param writableStates the writable states to initialize
+     * @param configuration the configuration to use
      * @return whether any initialization was done
      */
     default boolean doGenesisSetup(

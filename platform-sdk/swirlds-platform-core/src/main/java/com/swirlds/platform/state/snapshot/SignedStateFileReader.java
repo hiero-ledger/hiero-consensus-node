@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_BIN_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
@@ -21,15 +18,13 @@ import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
@@ -82,19 +77,12 @@ public final class SignedStateFileReader {
                 sigSet.deserialize(in);
             }
         } else {
-            final File sigSetFile =
-                    stateDir.resolve(SIGNATURE_SET_BIN_FILE_NAME).toFile();
-            sigSet = deserializeAndDebugOnFailure(
-                    () -> new BufferedInputStream(new FileInputStream(sigSetFile)),
-                    (final SerializableDataInputStream in) -> {
-                        readAndCheckSigSetFileVersion(in);
-                        return in.readSerializable();
-                    });
+            throw new IOException("No signature set file found at " + pbjFile.getAbsolutePath());
         }
 
         final SignedState newSignedState = new SignedState(
                 conf,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 virtualMapState,
                 "SignedStateFileReader.readState()",
                 false,
@@ -115,29 +103,14 @@ public final class SignedStateFileReader {
      */
     private static void checkSignedStateFilePath(@NonNull final Path stateDirectory) throws IOException {
         final Path signedStatePbjPath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
-        final Path signedStateBinPath = stateDirectory.resolve(SIGNATURE_SET_BIN_FILE_NAME);
-        if (!exists(signedStatePbjPath) && !exists(signedStateBinPath)) {
+        if (!exists(signedStatePbjPath)) {
             throw new IOException(
                     "Directory " + stateDirectory.toAbsolutePath() + " does not contain a signature set!");
         }
     }
 
     /**
-     * Read the version from a signature set file and check it
-     *
-     * @param in the stream to read from
-     * @throws IOException if the version is invalid
-     */
-    private static void readAndCheckSigSetFileVersion(@NonNull final SerializableDataInputStream in)
-            throws IOException {
-        final int fileVersion = in.readInt();
-        if (!SUPPORTED_SIGSET_VERSIONS.contains(fileVersion)) {
-            throw new IOException("Unsupported file version: " + fileVersion);
-        }
-        in.readProtocolVersion();
-    }
-
-    /**
+     * /**
      * Register stub states for PlatformStateService and RosterService so that the State knows about them per the metadata and services registry.
      * <p>
      * Note that the state data objects associated with these services MUST ALREADY EXIST in the merkle tree (or on disk.)

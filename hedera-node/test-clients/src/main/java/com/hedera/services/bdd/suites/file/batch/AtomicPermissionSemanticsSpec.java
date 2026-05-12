@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -127,7 +126,6 @@ class AtomicPermissionSemanticsSpec {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> allowsDeleteWithOneTopLevelSig() {
         KeyShape wacl = KeyShape.listOf(KeyShape.SIMPLE, KeyShape.listOf(2));
 

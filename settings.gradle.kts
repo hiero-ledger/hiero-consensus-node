@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.gradle.environment.EnvAccess
+
 plugins {
-    id("org.hiero.gradle.build") version "0.7.4"
-    id("com.hedera.pbj.pbj-compiler") version "0.14.0" apply false
+    id("org.hiero.gradle.build") version "0.7.7"
+    id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
 }
 
 javaModules {
@@ -49,4 +51,40 @@ javaModules {
     directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
+}
+
+// Flaky test handling
+@Suppress("UnstableApiUsage")
+gradle.lifecycle.afterProject {
+    tasks.withType<Test>().configureEach {
+        reports.junitXml.mergeReruns = true
+
+        // CI: configure rerun to accept and track flakiness
+        develocity.testRetry {
+            maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
+            maxFailures = 10
+            failOnPassedAfterRetry = false
+        }
+        // Write a marker when tests actually execute (not on cache restore).
+        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+        doLast {
+            markerFile.parentFile.mkdirs()
+            markerFile.writeText(java.time.Instant.now().toString())
+        }
+
+        // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
+        // not flaky
+        val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
+        if (runUntilFailure.isPresent) {
+            // no up-to-date or caching in 'runUntilFailure' mode
+            doNotTrackState("Run until failure mode")
+            // re-execute task action (executeTests()) until failure or max rerun reached
+            doLast {
+                for (rerunIndex in 1..runUntilFailure.get()) {
+                    logger.lifecycle("Test Rerun $rerunIndex/${runUntilFailure.get()}")
+                    executeTests()
+                }
+            }
+        }
+    }
 }

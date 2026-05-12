@@ -30,12 +30,11 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions;
@@ -153,7 +152,7 @@ class ReadableFreezeUpgradeActionsTest {
     private NodesConfig nodesConfig;
 
     @Mock
-    private ReadableEntityCounters readableEntityCounters;
+    private ReadableEntityIdStore readableEntityIdStore;
 
     private ReadableNodeStore nodeStore;
 
@@ -172,7 +171,7 @@ class ReadableFreezeUpgradeActionsTest {
         final var readableNodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityIdStore);
 
         freezeExecutor = new ForkJoinPool(
                 1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true);
@@ -500,8 +499,8 @@ class ReadableFreezeUpgradeActionsTest {
                 .value(new EntityNumber(1), node1)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
-        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(5L);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityIdStore);
+        given(readableEntityIdStore.peekAtNextNodeId()).willReturn(5L);
         subject = new FreezeUpgradeActions(
                 configuration,
                 writableFreezeStore,
@@ -643,8 +642,8 @@ class ReadableFreezeUpgradeActionsTest {
                 .value(new EntityNumber(0), node1)
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
-        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
-        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
+        nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityIdStore);
+        given(readableEntityIdStore.peekAtNextNodeId()).willReturn(4L);
         subject = new FreezeUpgradeActions(
                 configuration,
                 writableFreezeStore,

@@ -168,7 +168,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
-            final var virtualMap = VirtualMapUtils.createVirtualMap();
+            final var virtualMap = VirtualMapUtils.createVirtualMap(FILE_SYSTEM_MANAGER);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
                     createTestStateWithVM(virtualMap),

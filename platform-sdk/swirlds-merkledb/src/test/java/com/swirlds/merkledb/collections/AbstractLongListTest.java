@@ -22,7 +22,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -40,10 +39,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
@@ -70,6 +75,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     // Variables used in ordered tests
 
     private static AbstractLongList<?> longList;
+
+    @TempDir
+    static Path fsmTempDir;
+
+    protected static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(fsmTempDir);
+    }
 
     /**
      * Keep track of initial direct memory used already, so we can check if we leek over and above what we started with
@@ -200,14 +215,25 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         }
         // Check all memory is freed after DB is closed, but skip for LongListDisk
         // as LongListDisk use file-based operations (FileChannel#write in LongListDisk#closeChunk)
-        // that don't immediately free memory due to OS-level caching
-        if (!(longList instanceof LongListDisk)) {
+        // that don't immediately free memory due to OS-level caching.
+        // Also skip for LongListSegment — FFM arena allocations are not tracked by the
+        // direct memory BufferPoolMXBean; they are verified separately below.
+        if (!(longList instanceof LongListDisk) && !(longList instanceof LongListSegment)) {
             assertTrue(
                     checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
                     "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
                             + (directMemoryUsedAtStart * BYTES_TO_MEBIBYTES) + "MB and is now "
                             + (getDirectMemoryUsedBytes() * BYTES_TO_MEBIBYTES)
                             + "MB");
+        }
+        // For LongListSegment: Arena.close() is deterministic — no GC dependency. If
+        // AbstractLongList.close() called closeChunk for every chunk (which it does via
+        // getAndSet), all arenas are freed and getOffHeapConsumption() must return 0.
+        if (longList instanceof LongListSegment segmentList) {
+            assertEquals(
+                    0,
+                    segmentList.getOffHeapConsumption(),
+                    "LongListSegment should report zero off-heap consumption after close");
         }
     }
 
@@ -699,7 +725,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION));
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, fileSystemManager));
+    static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
+            LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
     /**
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
@@ -725,7 +753,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     static LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListDisk(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListDisk(
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, fileSystemManager);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+    static LongListReaderFactory segmentReaderFactory =
+            new LongListReaderFactory(LongListSegment.class.getSimpleName(), (file, a) -> {
+                try {
+                    return new LongListSegment(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -747,7 +784,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         return Stream.of(
                 Arguments.of(writerFactory, heapReaderFactory),
                 Arguments.of(writerFactory, offHeapReaderFactory),
-                Arguments.of(writerFactory, diskReaderFactory));
+                Arguments.of(writerFactory, diskReaderFactory),
+                Arguments.of(writerFactory, segmentReaderFactory));
     }
 
     @ParameterizedTest(name = "[{index}] Writer={0}, Reader={1}")
@@ -1005,7 +1043,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             return Stream.of(
                     Arguments.of(writerFactory, readerFactory, heapReaderFactory),
                     Arguments.of(writerFactory, readerFactory, offHeapReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, diskReaderFactory));
+                    Arguments.of(writerFactory, readerFactory, diskReaderFactory),
+                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory));
         });
     }
 
@@ -1353,6 +1392,27 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             } finally {
                 // Clean up the temporary file after the test
                 Files.deleteIfExists(longListFile);
+            }
+        }
+    }
+
+    @RepeatedTest(100)
+    void concurrentPutTest() {
+        final int CHUNK_SIZE = 1000;
+        final int LIST_SIZE = CHUNK_SIZE * 128;
+        try (final LongList list = createLongList(CHUNK_SIZE, LIST_SIZE, 0)) {
+            final int THREADS = 8;
+            final int UPDATES = 1000;
+            final int size = THREADS * UPDATES;
+            list.updateValidRange(0, size - 1);
+            IntStream.range(0, THREADS).parallel().forEach(t -> {
+                for (int i = 0; i < UPDATES; i++) {
+                    final long v = t + i * THREADS;
+                    list.put(v, v + 1);
+                }
+            });
+            for (long v = 0; v < size; v++) {
+                assertEquals(v + 1, list.get(v));
             }
         }
     }

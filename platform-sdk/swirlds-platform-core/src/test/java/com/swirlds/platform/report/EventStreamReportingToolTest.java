@@ -8,7 +8,6 @@ import com.swirlds.platform.event.report.EventStreamScanner;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
 import com.swirlds.platform.test.fixtures.simulated.RandomSigner;
-import com.swirlds.platform.test.fixtures.stream.StreamUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -19,6 +18,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.event.stream.test.fixtures.StreamUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.GenerateConsensus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -47,7 +47,12 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT, numNodes, numEvents, random.nextLong());
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                numNodes,
+                numEvents,
+                random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }
@@ -89,7 +94,12 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT, numNodes, numEvents, random.nextLong());
+                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
+                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
+                DEFAULT_PLATFORM_CONTEXT.getTime(),
+                numNodes,
+                numEvents,
+                random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }

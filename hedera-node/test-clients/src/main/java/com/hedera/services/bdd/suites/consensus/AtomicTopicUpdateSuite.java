@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -313,7 +312,6 @@ class AtomicTopicUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateSubmitKeyToDiffKey() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

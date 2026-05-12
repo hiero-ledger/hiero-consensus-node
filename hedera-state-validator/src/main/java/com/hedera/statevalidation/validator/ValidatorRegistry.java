@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * <p>To register a new validator:
  * <ol>
  *     <li>Create your validator class implementing one of the validator interfaces
- *         ({@link HashRecordValidator}, {@link HdhmBucketValidator}, {@link LeafBytesValidator},
+ *         ({@link HashChunkValidator}, {@link HdhmBucketValidator}, {@link LeafBytesValidator},
  *         or base {@link Validator} for individual validators)</li>
  *     <li>Add a new instance to {@link #ALL_VALIDATORS} list below</li>
  *     <li>Optionally, add a new validator group to {@link ValidateCommand}</li>
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  *
  * <p>That's it. The registry automatically categorizes validators based on their interface:
  * <ul>
- *     <li>{@link HashRecordValidator} → {@link Type#P2H} (Path to Hash)</li>
+ *     <li>{@link HashChunkValidator} → {@link Type#ID2C} (Chunk ID to Chunk)</li>
  *     <li>{@link HdhmBucketValidator} → {@link Type#K2P} (Key to Path)</li>
  *     <li>{@link LeafBytesValidator} → {@link Type#P2KV} (Path to Key/Value)</li>
  *     <li>Base {@link Validator} only → Individual validator (runs outside the pipeline)</li>
@@ -48,7 +48,7 @@ public final class ValidatorRegistry {
      * Master set of all available validators.
      */
     private static final Set<Validator> ALL_VALIDATORS = Set.of(
-            new HashRecordIntegrityValidator(),
+            new HashChunkIntegrityValidator(),
             new HdhmBucketIntegrityValidator(),
             new LeafBytesIntegrityValidator(),
             new AccountAndSupplyValidator(),
@@ -62,7 +62,7 @@ public final class ValidatorRegistry {
      * Returns pipeline validators grouped by the data type they process.
      *
      * <p>Pipeline validators are those that implement one of the specialized interfaces:
-     * {@link HashRecordValidator}, {@link HdhmBucketValidator}, or {@link LeafBytesValidator}.
+     * {@link HashChunkValidator}, {@link HdhmBucketValidator}, or {@link LeafBytesValidator}.
      * They receive data items streamed through the validation pipeline.
      *
      * @return a map from {@link Type} to the set of validators processing that type;
@@ -71,8 +71,8 @@ public final class ValidatorRegistry {
         final Map<Type, Set<Validator>> result = new EnumMap<>(Type.class);
 
         for (final Validator validator : ALL_VALIDATORS) {
-            if (validator instanceof HashRecordValidator) {
-                result.computeIfAbsent(Type.P2H, k -> new HashSet<>()).add(validator);
+            if (validator instanceof HashChunkValidator) {
+                result.computeIfAbsent(Type.ID2C, k -> new HashSet<>()).add(validator);
             } else if (validator instanceof HdhmBucketValidator) {
                 result.computeIfAbsent(Type.K2P, k -> new HashSet<>()).add(validator);
             } else if (validator instanceof LeafBytesValidator) {
@@ -95,7 +95,7 @@ public final class ValidatorRegistry {
      */
     public static Set<Validator> getIndividualValidators() {
         return ALL_VALIDATORS.stream()
-                .filter(v -> !(v instanceof HashRecordValidator)
+                .filter(v -> !(v instanceof HashChunkValidator)
                         && !(v instanceof HdhmBucketValidator)
                         && !(v instanceof LeafBytesValidator))
                 .collect(Collectors.toSet());

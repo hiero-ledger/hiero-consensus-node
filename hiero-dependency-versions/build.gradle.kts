@@ -9,19 +9,20 @@ dependencies {
 }
 
 val besu = "25.2.2"
-val bouncycastle = "1.81"
+val bouncycastle = "1.83"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.73.0"
-val hederaCryptography = "3.6.0"
-val helidon = "4.3.4"
+val hederaCryptography = "3.7.8"
+val helidon = "4.4.1"
 val jackson = "2.21.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.3"
 val mockito = "5.22.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
+val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.33.5"
-val blockNodeProtobufSources = "0.26.2"
+val blockNodeProtobufSources = "0.30.2"
 val testContainers = "2.0.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -69,8 +70,13 @@ dependencies.constraints {
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
-    api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
-    api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
+    api("io.prometheus:simpleclient:$prometheusSimpleclient") { because("simpleclient") }
+    api("io.prometheus:simpleclient_httpserver:$prometheusSimpleclient") {
+        because("simpleclient.httpserver")
+    }
+    api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
+        because("simpleclient.tracer.common")
+    }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }

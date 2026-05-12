@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -47,7 +46,6 @@ import org.junit.jupiter.api.Tag;
 /**
  * Test suite for Crypto operations (Create, Update, Delete)
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoSimpleFeesSuite {

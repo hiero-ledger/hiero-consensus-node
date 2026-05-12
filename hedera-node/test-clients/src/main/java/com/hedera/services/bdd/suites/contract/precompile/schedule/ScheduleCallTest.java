@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -140,7 +139,6 @@ public class ScheduleCallTest {
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithPayerTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 false,
@@ -160,7 +158,6 @@ public class ScheduleCallTest {
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
     @DisplayName("call executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> executeCallOnPayerSignatureTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 true,

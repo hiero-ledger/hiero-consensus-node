@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -31,7 +30,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
@@ -186,7 +185,7 @@ public abstract class VirtualMapReconnectTestBase {
         public void saveRecords(
                 long firstLeafPath,
                 long lastLeafPath,
-                @NonNull Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull Stream<VirtualHashChunk> hashChunksToUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToDelete,
                 boolean isReconnectContext)
@@ -207,7 +206,7 @@ public abstract class VirtualMapReconnectTestBase {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    pathHashRecordsToUpdate,
+                    hashChunksToUpdate,
                     leaves.stream(),
                     leafRecordsToDelete,
                     isReconnectContext);
@@ -234,8 +233,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public Hash loadHash(final long path) throws IOException {
-            return delegate.loadHash(path);
+        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+            return delegate.loadHashChunk(chunkId);
         }
 
         @Override
@@ -261,6 +260,11 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override

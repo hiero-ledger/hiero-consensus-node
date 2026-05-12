@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamBuilderOutputTest {
+    private static final long BLOCK_NUMBER = 1L;
     private static final Timestamp CONSENSUS_TIME = new Timestamp(1_234_567, 890);
     private static final TransactionID TXN_ID = TransactionID.newBuilder()
             .accountID(AccountID.newBuilder().accountNum(2L).build())
@@ -73,7 +74,7 @@ class BlockStreamBuilderOutputTest {
 
     @Test
     void traversesItemsAsExpected() {
-        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext);
+        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext, BLOCK_NUMBER);
 
         subject.forEachItem(action);
 
@@ -82,10 +83,11 @@ class BlockStreamBuilderOutputTest {
 
     @Test
     void translatesNoOutputsToRecordAsExpected() {
-        given(translator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
+        given(translator.translateRecord(
+                        translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null, BLOCK_NUMBER))
                 .willReturn(TransactionRecord.DEFAULT);
 
-        final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext);
+        final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext, BLOCK_NUMBER);
 
         assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator));
     }
@@ -96,11 +98,12 @@ class BlockStreamBuilderOutputTest {
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
                         null,
+                        BLOCK_NUMBER,
                         FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionRecord.DEFAULT);
 
-        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext);
+        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext, BLOCK_NUMBER);
 
         assertSame(TransactionRecord.DEFAULT, subject.toRecord(translator));
     }
@@ -108,10 +111,11 @@ class BlockStreamBuilderOutputTest {
     @Test
     void translatesNoOutputsToReceiptAsExpected() {
         given(translationContext.txnId()).willReturn(TXN_ID);
-        given(translator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(translator.translateReceipt(
+                        translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), BLOCK_NUMBER))
                 .willReturn(TransactionReceipt.DEFAULT);
 
-        final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext);
+        final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext, BLOCK_NUMBER);
 
         assertEquals(
                 new RecordSource.IdentifiedReceipt(TXN_ID, TransactionReceipt.DEFAULT),
@@ -124,11 +128,12 @@ class BlockStreamBuilderOutputTest {
         given(translator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
+                        BLOCK_NUMBER,
                         FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionReceipt.DEFAULT);
 
-        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext);
+        final var subject = new BlockStreamBuilder.Output(ITEMS_WITH_OUTPUTS, translationContext, BLOCK_NUMBER);
 
         assertEquals(
                 new RecordSource.IdentifiedReceipt(TXN_ID, TransactionReceipt.DEFAULT),

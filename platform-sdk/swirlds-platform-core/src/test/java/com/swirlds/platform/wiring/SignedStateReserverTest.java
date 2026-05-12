@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
-import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;

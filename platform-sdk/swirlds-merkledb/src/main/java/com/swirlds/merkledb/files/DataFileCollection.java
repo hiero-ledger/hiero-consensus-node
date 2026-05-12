@@ -8,6 +8,7 @@ import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
 import static com.swirlds.merkledb.files.DataFileCommon.byteOffsetFromDataLocation;
 import static com.swirlds.merkledb.files.DataFileCommon.fileIndexFromDataLocation;
+import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.isFullyWrittenDataFile;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static java.util.Collections.singletonList;
@@ -259,6 +260,11 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         }
     }
 
+    @NonNull
+    public String getStoreName() {
+        return storeName;
+    }
+
     /**
      * Get the valid range of keys for data items currently stored by this data file collection. Any
      * data items with keys below this can be deleted during a merge.
@@ -374,7 +380,8 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
      *     within the file.
      * @throws IOException If there was a problem writing this data item to the file.
      */
-    public long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize) throws IOException {
+    public long storeDataItem(final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
+            throws IOException {
         final DataFileWriter currentDataFileForWriting = currentDataFileWriter.get();
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItemWriter + " when we never started writing.");
@@ -402,7 +409,17 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
             final DataFileMetadata metadata = dataReader.getMetadata();
             setOfNewFileIndexes.remove(metadata.getIndex());
         }
+        dataReader.updateMetadata(dataWriter.getMetadata()); // propagate final itemsCount
         dataReader.setFileCompleted();
+
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Flush file written: index={}, items={}, size={}",
+                storeName,
+                dataReader.getIndex(),
+                dataWriter.getMetadata().getItemsCount(),
+                formatSizeBytes(dataReader.getSize()));
+
         return dataReader;
     }
 

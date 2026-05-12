@@ -6,12 +6,15 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
-import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -22,19 +25,26 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentMap;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+    public FakeHintsService(
+            @NonNull final AppContext appContext,
+            @NonNull final Configuration bootstrapConfig,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
         delegate = new HintsServiceImpl(
                 new NoOpMetrics(),
                 pendingHintsSubmissions::offer,
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                rsaContext,
+                rsaSignings);
     }
 
     @Override
@@ -53,8 +63,13 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return delegate.submissions();
     }
 
     @Override
@@ -89,8 +104,11 @@ public class FakeHintsService implements HintsService {
 
     @Override
     public void executeCrsWork(
-            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
-        delegate.executeCrsWork(hintsStore, now, isActive);
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            final boolean isActive,
+            @NonNull final NetworkInfo networkInfo) {
+        delegate.executeCrsWork(hintsStore, now, isActive, networkInfo);
     }
 
     @Override

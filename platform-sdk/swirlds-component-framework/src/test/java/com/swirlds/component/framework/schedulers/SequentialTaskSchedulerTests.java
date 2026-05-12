@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
@@ -40,6 +39,7 @@ import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
 import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.base.utility.test.fixtures.assertions.AssertionUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -2260,7 +2260,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
      * So even waiting for the handler to finish is not enough to be able to check that the values are the expected ones.
      * One possibility is to wait on each test, but this approach is somehow better.
      *
-     * @see AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
+     * @see org.hiero.base.utility.test.fixtures.assertions.AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
      */
     private static void assertUnprocessedTaskCountIs(
             final @NonNull TaskScheduler<?> taskScheduler, final long expected) {
@@ -2278,6 +2278,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
      */
     private static <T> void assertEventuallyEquals(
             final @NonNull T expected, @NonNull final Supplier<T> actual, @NonNull final String message) {
-        AssertionUtils.assertEventuallyEquals(expected, actual, AWAIT_MAX_DURATION, message);
+        org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals(
+                expected, actual, AWAIT_MAX_DURATION, message);
     }
 }

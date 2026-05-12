@@ -163,6 +163,12 @@ public final class ScheduleUtils {
             scheduleBuilder.setNodeDelete(txn.getNodeDelete());
         } else if (txn.hasNodeUpdate()) {
             scheduleBuilder.setNodeUpdate(txn.getNodeUpdate());
+        } else if (txn.hasRegisteredNodeCreate()) {
+            scheduleBuilder.setRegisteredNodeCreate(txn.getRegisteredNodeCreate());
+        } else if (txn.hasRegisteredNodeUpdate()) {
+            scheduleBuilder.setRegisteredNodeUpdate(txn.getRegisteredNodeUpdate());
+        } else if (txn.hasRegisteredNodeDelete()) {
+            scheduleBuilder.setRegisteredNodeDelete(txn.getRegisteredNodeDelete());
         }
         return scheduleBuilder.build();
     }

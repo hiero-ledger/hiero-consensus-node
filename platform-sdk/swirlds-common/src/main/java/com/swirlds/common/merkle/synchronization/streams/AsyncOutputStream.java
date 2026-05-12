@@ -3,27 +3,25 @@ package com.swirlds.common.merkle.synchronization.streams;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.swirlds.base.time.StopWatch;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.utility.StopWatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * <p>
- * Allows a thread to asynchronously send data over a SerializableDataOutputStream.
+ * Allows a thread to asynchronously send data over a stream.
  * </p>
  *
  * <p>
@@ -43,13 +41,12 @@ public class AsyncOutputStream {
     /**
      * The stream which all data is written to.
      */
-    private final SerializableDataOutputStream outputStream;
+    private final DataOutputStream outputStream;
 
     /**
-     * A queue that needs to be written to the output stream. It contains either message
-     * bytes (byte array) or some code to run (Runnable).
+     * A queue that needs to be written to the output stream.
      */
-    private final BlockingQueue<Object> streamQueue;
+    private final BlockingQueue<byte[]> streamQueue;
 
     /**
      * The time that has elapsed since the last flush was attempted.
@@ -76,28 +73,24 @@ public class AsyncOutputStream {
     /**
      * A condition to check whether it's time to terminate this output stream.
      */
-    private final Supplier<Boolean> alive;
+    private final AtomicBoolean isDone = new AtomicBoolean(false);
 
     /**
-     * Constructs a new instance using the given underlying {@link SerializableDataOutputStream} and
+     * Constructs a new instance using the given underlying {@link DataOutputStream} and
      * {@link StandardWorkGroup}.
      *
      * @param outputStream the outputStream to which all objects are written
      * @param workGroup    the work group that should be used to execute this thread
-     * @param alive        the condition to check if this output stream should be finished, once
-     *                     all scheduled messages are processed
      * @param config       the reconnect configuration
      */
     public AsyncOutputStream(
-            @NonNull final SerializableDataOutputStream outputStream,
+            @NonNull final DataOutputStream outputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final Supplier<Boolean> alive,
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(config, "config must not be null");
 
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.alive = Objects.requireNonNull(alive, "alive must not be null");
         this.streamQueue = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
         this.timeSinceLastFlush = new StopWatch();
         this.timeSinceLastFlush.start();
@@ -112,10 +105,14 @@ public class AsyncOutputStream {
         workGroup.execute("async-output-stream", this::run);
     }
 
+    /**
+     * Background thread loop. Drains the message queue, writes length-prefixed messages to the
+     * underlying stream, and flushes periodically. On termination, writes a {@code -1} marker.
+     */
     public void run() {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
         try {
-            while ((alive.get() || !streamQueue.isEmpty())
+            while ((!isDone.get() || !streamQueue.isEmpty())
                     && !Thread.currentThread().isInterrupted()) {
                 flushIfRequired();
                 boolean workDone = handleQueuedMessages();
@@ -147,28 +144,16 @@ public class AsyncOutputStream {
     }
 
     /**
-     * Send a message asynchronously. Messages are guaranteed to be delivered in the order sent.
+     * Send a pre-serialized message asynchronously. Messages are guaranteed to be delivered
+     * in the order sent.
+     *
+     * This method can be overridden to simulate disk write delays. Note that the caller thread will be delayed.
+     *
+     * @param messageBytes the serialized message bytes
+     * @throws InterruptedException if interrupted while waiting to enqueue
      */
-    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
-        final ByteArrayOutputStream bout = new ByteArrayOutputStream(64);
-        try (final SerializableDataOutputStream dout = new SerializableDataOutputStream(bout)) {
-            serializeMessage(message, dout);
-        } catch (final IOException e) {
-            throw new MerkleSynchronizationException("Can't serialize message", e);
-        }
-        sendAsync(bout.toByteArray());
-    }
-
-    /**
-     * Schedule to run a given runnable, when all messages currently scheduled in this async
-     * stream are serialized into the underlying output stream.
-     */
-    public void whenCurrentMessagesProcessed(final Runnable run) throws InterruptedException {
-        sendAsync(run);
-    }
-
-    private void sendAsync(final Object item) throws InterruptedException {
-        final boolean success = streamQueue.offer(item, timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
+        final boolean success = streamQueue.offer(messageBytes, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
             try {
                 outputStream.close();
@@ -185,35 +170,40 @@ public class AsyncOutputStream {
      * @return true if a message was sent.
      */
     private boolean handleQueuedMessages() {
-        Object item = streamQueue.poll();
+        byte[] item = streamQueue.poll();
         if (item == null) {
             return false;
         }
         try {
-            while (item != null) {
-                switch (item) {
-                    case Runnable runItem -> runItem.run();
-                    case byte[] messageItem -> {
-                        outputStream.writeInt(messageItem.length);
-                        outputStream.write(messageItem);
-                        bufferedMessageCount += 1;
-                    }
-                    default -> throw new RuntimeException("Unknown item type");
-                }
+            do {
+                writeMessage(item);
+                bufferedMessageCount += 1;
                 item = streamQueue.poll();
-            }
+            } while (item != null);
         } catch (final IOException e) {
             throw new MerkleSynchronizationException(e);
         }
         return true;
     }
 
-    protected void serializeMessage(
-            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
-            throws IOException {
-        message.serialize(out);
+    /**
+     * Writes a single length-prefixed message to the underlying output stream. Called on
+     * the <b>writer thread</b> for each dequeued message. This method is helpful for testing
+     * when it comes to simulation of network latency.
+     *
+     * @param messageBytes the serialized message bytes
+     * @throws IOException if writing to the stream fails
+     */
+    protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
+        outputStream.writeInt(messageBytes.length);
+        outputStream.write(messageBytes);
     }
 
+    /**
+     * Flushes the underlying output stream if any messages have been written since the last flush.
+     *
+     * @return {@code true} if a flush was performed
+     */
     private boolean flush() {
         timeSinceLastFlush.reset();
         timeSinceLastFlush.start();
@@ -236,5 +226,14 @@ public class AsyncOutputStream {
         if (timeSinceLastFlush.getElapsedTimeNano() > flushInterval.toNanos()) {
             flush();
         }
+    }
+
+    /**
+     * Marks this async output stream as done. All messages currently enqueued are processed,
+     * then the thread behind this object is exited. In the end, the stream sends a reconnect
+     * termination marker to the underlying output stream.
+     */
+    public void done() {
+        isDone.set(true);
     }
 }

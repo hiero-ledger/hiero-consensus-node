@@ -146,6 +146,29 @@ class ImmutableIndexedObjectListUsingArrayTest {
         assertNull(emptyList.get(42), "Empty lists should always return null");
     }
 
+    @Test
+    @Order(10)
+    void emptyListProducesEmptyStream() {
+        final ImmutableIndexedObjectList<TestIndexedObject> emptyList =
+                factoryForReaderToTest(new TestIndexedObject[0]);
+
+        assertEquals(0, emptyList.stream().count(), "Empty lists should produce empty streams");
+    }
+
+    @Test
+    @Order(11)
+    void withAddedObjectOnEmptyListAddsObject() {
+        final ImmutableIndexedObjectList<TestIndexedObject> emptyList =
+                factoryForReaderToTest(new TestIndexedObject[0]);
+        final TestIndexedObject object42 = new TestIndexedObject(42);
+
+        final ImmutableIndexedObjectList<TestIndexedObject> updatedList = emptyList.withAddedObject(object42);
+
+        assertEquals(1, updatedList.size(), "Adding to an empty list should create a singleton list");
+        assertSame(object42, updatedList.get(42), "Added object should be retrievable by index");
+        assertSame(object42, updatedList.getLast(), "Added object should become the last element");
+    }
+
     private static void checkRange(int max) {
         max++; // add one to make range exclusive from inclusive
         TestIndexedObject[] objects = list.stream().toArray(TestIndexedObject[]::new);

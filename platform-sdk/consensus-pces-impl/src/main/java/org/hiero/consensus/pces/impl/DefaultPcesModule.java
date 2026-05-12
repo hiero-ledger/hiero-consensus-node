@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -28,6 +29,7 @@ import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
+import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -52,6 +54,9 @@ public class DefaultPcesModule implements PcesModule {
 
     @Nullable
     private PcesReplayerWiring pcesReplayerWiring;
+
+    @Nullable
+    private CommonPcesWriter commonPcesWriter;
 
     @Nullable
     private PcesCoordinator pcesCoordinator;
@@ -108,8 +113,9 @@ public class DefaultPcesModule implements PcesModule {
                     configuration, recycleBin, databaseDirectory, startingRound, permitGaps);
             final PcesFileManager fileManager = new PcesFileManager(
                     configuration, metrics, time, initialPcesFiles, databaseDirectory, startingRound);
+            commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
             final InlinePcesWriter pcesWriter =
-                    new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
+                    new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
             pcesWriterWiring.bind(pcesWriter);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -207,6 +213,9 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     public void flush() {
         requireNonNull(pcesWriterWiring, "Not initialized").flush();
+        // After the wiring flush, all writeEvent() calls have completed.
+        // Sync the current file to ensure data is durable on disk.
+        requireNonNull(commonPcesWriter, "Not initialized").syncCurrentFile();
     }
 
     /**
@@ -216,10 +225,12 @@ public class DefaultPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {
+        requireNonNull(fileSystemManager, "Not initialized");
         BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure(
-                configuration, selfId, destinationDirectory, lowerBound, round);
+                configuration, selfId, destinationDirectory, fileSystemManager, lowerBound, round);
     }
 }

@@ -48,7 +48,8 @@ public class TokenAirdropWithOverriddenMaxAllowedPendingAirdropsTest extends Tok
                 tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                         .signedByPayerAnd(OWNER)
                         .hasKnownStatusFrom(SUCCESS, MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, nextNftSerial())
+                                .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                         .signedByPayerAnd(OWNER)
                         .hasKnownStatus(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
     }
