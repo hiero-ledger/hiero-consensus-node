@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.gradle.environment.EnvAccess
 
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven("https://central.sonatype.com/repository/maven-snapshots")
+    }
+}
+
 plugins {
-    id("org.hiero.gradle.build") version "0.7.7"
+    id("org.hiero.gradle.build") version "0.7.8-SNAPSHOT"
     id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
 }
 
