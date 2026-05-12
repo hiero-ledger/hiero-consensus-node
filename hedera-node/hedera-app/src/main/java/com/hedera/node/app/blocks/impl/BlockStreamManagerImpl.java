@@ -87,6 +87,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,6 +95,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -113,6 +115,8 @@ import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+
+    private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -174,6 +178,37 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
      */
     private final Queue<PendingBlock> pendingBlocks = new ConcurrentLinkedQueue<>();
+    /**
+     * The number of blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
+     */
+    private final AtomicInteger pendingBlockProofCount = new AtomicInteger(0);
+    /**
+     * Guards the future returned to callers waiting for all pending block proofs to complete.
+     */
+    private final Object pendingBlockProofsFutureLock = new Object();
+    /**
+     * A future that completes when there are no blocks awaiting proof.
+     */
+    @Nullable
+    private CompletableFuture<Void> pendingBlockProofsFuture = null;
+    /**
+     * Whether the current pending block proofs future has been requested by a caller.
+     */
+    private boolean pendingBlockProofsFutureRequested = false;
+    /**
+     * Guards the latest block signing submission future.
+     */
+    private final Object latestBlockSigningFutureLock = new Object();
+    /**
+     * The latest block number for which this node has requested signing.
+     */
+    private long latestBlockSigningBlockNumber = NO_BLOCK_SIGNING_REQUESTED;
+    /**
+     * A future that completes to the latest requested block number when this node submits its partial signature.
+     */
+    @NonNull
+    private CompletableFuture<Long> latestBlockSigningFuture =
+            CompletableFuture.completedFuture(NO_BLOCK_SIGNING_REQUESTED);
     /**
      * Futures that resolve when the end-of-round state hash is available for a given round number.
      */
@@ -466,7 +501,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.items()
                             .forEach(
                                     item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    pendingBlocks.add(new PendingBlock(
+                    addPendingBlock(new PendingBlock(
                             block.number(),
                             block.contentsPath(),
                             block.blockHash(),
@@ -483,6 +518,49 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
+    }
+
+    private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
+        requireNonNull(pendingBlock);
+        synchronized (pendingBlockProofsFutureLock) {
+            pendingBlocks.add(pendingBlock);
+            final int previousPendingBlocks = pendingBlockProofCount.getAndIncrement();
+            if (previousPendingBlocks == 0) {
+                pendingBlockProofsFuture = new CompletableFuture<>();
+                pendingBlockProofsFutureRequested = false;
+            } else if (pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
+                pendingBlockProofsFuture = new CompletableFuture<>();
+                pendingBlockProofsFutureRequested = false;
+                log.warn(
+                        "Recreated pending block proofs future while {} block proofs are pending",
+                        pendingBlockProofCount.get());
+            }
+        }
+    }
+
+    private void markPendingBlockProofComplete(@NonNull final PendingBlock completedBlock) {
+        requireNonNull(completedBlock);
+        final CompletableFuture<Void> futureToComplete;
+        final boolean futureWasRequested;
+        synchronized (pendingBlockProofsFutureLock) {
+            final int remainingPendingBlocks = pendingBlockProofCount.decrementAndGet();
+            if (remainingPendingBlocks < 0) {
+                log.warn("Pending block proof count went below zero; resetting to zero");
+                pendingBlockProofCount.set(0);
+            }
+            if (pendingBlockProofCount.get() != 0
+                    || pendingBlockProofsFuture == null
+                    || pendingBlockProofsFuture.isDone()) {
+                return;
+            }
+            futureToComplete = pendingBlockProofsFuture;
+            futureWasRequested = pendingBlockProofsFutureRequested;
+            pendingBlockProofsFutureRequested = false;
+        }
+        if (futureWasRequested) {
+            log.info("All pending block proofs completed after proving block #{}", completedBlock.number());
+        }
+        futureToComplete.complete(null);
     }
 
     @Override
@@ -636,7 +714,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Create a pending block, waiting to be signed
             final var blockProofBuilder = BlockProof.newBuilder().block(blockNumber);
-            pendingBlocks.add(new PendingBlock(
+            addPendingBlock(new PendingBlock(
                     blockNumber,
                     null,
                     finalBlockRootHash,
@@ -651,84 +729,76 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
             writer = null;
 
-            // Special case when signing with hinTS and this is the freeze round; we have to wait
-            // until after restart to gossip partial signatures and sign any pending blocks
-            if (hintsEnabled && roundNum == freezeRoundNumber) {
-                // In case the id of the next hinTS construction changed since a block ended
-                pendingBlocks.forEach(block -> {
-                    final var pendingProof = block.asPendingProof();
-                    block.writer().flushPendingBlock(pendingProof);
-                });
-            } else {
-                final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
-                attempt.signatureFuture()
-                        .thenAcceptAsync(signature -> {
-                            if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
-                                log.debug(
-                                        "Signature future completed with empty signature for block num {}, final block hash {}",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                finishProofWithSignature(
-                                        finalBlockRootHash,
-                                        signature,
-                                        attempt.verificationKey(),
-                                        attempt.chainOfTrustProof());
-                            }
-                            if (quiescenceEnabled) {
-                                final var lastCommand = lastQuiescenceCommand.get();
-                                final var commandNow = quiescenceController.getQuiescenceStatus();
-                                if (commandNow != lastCommand
-                                        && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                                    log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                                    platform.quiescenceCommand(commandNow);
-                                    if (commandNow == QUIESCE) {
-                                        final var config = configProvider.getConfiguration();
-                                        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                                        quiescedHeartbeat.start(
-                                                blockStreamConfig.quiescedHeartbeatInterval(),
-                                                new TctProbe(
-                                                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                                        config.getConfigData(StakingConfig.class)
-                                                                .periodMins(),
-                                                        state));
-                                    }
+            final var signedBlockNumber = blockNumber;
+            final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
+            trackLatestBlockSigningFuture(signedBlockNumber, attempt.submissionFuture());
+            attempt.signatureFuture()
+                    .thenAcceptAsync(signature -> {
+                        if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
+                            log.debug(
+                                    "Signature future completed with empty signature for block num {}, final block hash {}",
+                                    signedBlockNumber,
+                                    finalBlockRootHash);
+                        } else {
+                            finishProofWithSignature(
+                                    finalBlockRootHash,
+                                    signature,
+                                    attempt.verificationKey(),
+                                    attempt.chainOfTrustProof());
+                        }
+                        if (quiescenceEnabled) {
+                            final var lastCommand = lastQuiescenceCommand.get();
+                            final var commandNow = quiescenceController.getQuiescenceStatus();
+                            if (commandNow != lastCommand
+                                    && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                                log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                                platform.quiescenceCommand(commandNow);
+                                if (commandNow == QUIESCE) {
+                                    final var config = configProvider.getConfiguration();
+                                    final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                    quiescedHeartbeat.start(
+                                            blockStreamConfig.quiescedHeartbeatInterval(),
+                                            new TctProbe(
+                                                    blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                    config.getConfigData(StakingConfig.class)
+                                                            .periodMins(),
+                                                    state));
                                 }
                             }
-                        })
-                        .exceptionally(t -> {
-                            if (t.getCause() instanceof IllegalStateException illegalStateException) {
-                                if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
-                                        illegalStateException.getMessage())) {
-                                    log.error(
-                                            "Invalid signature detected on block #{} ({})",
-                                            blockNumber,
-                                            finalBlockRootHash,
-                                            t);
-                                    return null;
-                                }
-                            }
-                            final boolean alreadyClosed = t instanceof CompletionException completionException
-                                    && completionException.getCause() instanceof IllegalStateException e
-                                    && Optional.ofNullable(e.getMessage())
-                                            .filter(m -> m.startsWith(
-                                                    "Cannot write to a FileBlockItemWriter that is not open"))
-                                            .isPresent();
-                            if (alreadyClosed) {
-                                log.info(
-                                        "Block #{} with hash {} already closed, skipping direct proof",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                log.warn(
-                                        "Unhandled exception while signing block #{} with hash {}",
-                                        blockNumber,
+                        }
+                    })
+                    .exceptionally(t -> {
+                        if (t.getCause() instanceof IllegalStateException illegalStateException) {
+                            if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
+                                    illegalStateException.getMessage())) {
+                                log.error(
+                                        "Invalid signature detected on block #{} ({})",
+                                        signedBlockNumber,
                                         finalBlockRootHash,
                                         t);
+                                return null;
                             }
-                            return null;
-                        });
-            }
+                        }
+                        final boolean alreadyClosed = t instanceof CompletionException completionException
+                                && completionException.getCause() instanceof IllegalStateException e
+                                && Optional.ofNullable(e.getMessage())
+                                        .filter(m ->
+                                                m.startsWith("Cannot write to a FileBlockItemWriter that is not open"))
+                                        .isPresent();
+                        if (alreadyClosed) {
+                            log.info(
+                                    "Block #{} with hash {} already closed, skipping direct proof",
+                                    signedBlockNumber,
+                                    finalBlockRootHash);
+                        } else {
+                            log.warn(
+                                    "Unhandled exception while signing block #{} with hash {}",
+                                    signedBlockNumber,
+                                    finalBlockRootHash,
+                                    t);
+                        }
+                        return null;
+                    });
 
             final var exportNetworkToDisk =
                     switch (diskNetworkExport) {
@@ -900,6 +970,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
+            markPendingBlockProofComplete(currentPendingBlock);
         }
     }
 
@@ -1209,6 +1280,56 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
                 .join();
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    @Override
+    public @NonNull CompletableFuture<Void> pendingBlockProofsFuture() {
+        synchronized (pendingBlockProofsFutureLock) {
+            if (pendingBlockProofCount.get() == 0) {
+                return CompletableFuture.completedFuture(null);
+            }
+            if (pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
+                pendingBlockProofsFuture = new CompletableFuture<>();
+                pendingBlockProofsFutureRequested = false;
+                log.warn(
+                        "Recreated pending block proofs future while {} block proofs are pending",
+                        pendingBlockProofCount.get());
+            }
+            if (!pendingBlockProofsFutureRequested) {
+                final var oldestPendingBlock = pendingBlocks.peek();
+                log.info(
+                        "Freeze completion is waiting for {} pending block proof(s); oldestPendingBlock={}",
+                        pendingBlockProofCount.get(),
+                        oldestPendingBlock == null ? "<unknown>" : oldestPendingBlock.number());
+                pendingBlockProofsFutureRequested = true;
+            }
+            return pendingBlockProofsFuture;
+        }
+    }
+
+    private void trackLatestBlockSigningFuture(
+            final long blockNumber, @NonNull final CompletableFuture<Void> submissionFuture) {
+        requireNonNull(submissionFuture);
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockSigningBlockNumber = blockNumber;
+            latestBlockSigningFuture = submissionFuture.thenApply(ignore -> blockNumber);
+        }
+    }
+
+    @Override
+    public boolean allBlocksSigned() {
+        final long latestBlockNumber;
+        final CompletableFuture<Long> latestSigningFuture;
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockNumber = latestBlockSigningBlockNumber;
+            latestSigningFuture = latestBlockSigningFuture;
+        }
+        try {
+            return latestSigningFuture.isDone()
+                    && latestSigningFuture.getNow(NO_BLOCK_SIGNING_REQUESTED) == latestBlockNumber;
+        } catch (final CancellationException | CompletionException e) {
+            return false;
+        }
     }
 
     @Override
