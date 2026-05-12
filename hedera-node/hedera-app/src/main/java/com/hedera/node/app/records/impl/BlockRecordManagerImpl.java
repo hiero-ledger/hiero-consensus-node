@@ -256,14 +256,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
-            final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
-                    .map(Bytes::toByteArray)
-                    .toList();
+            final var rawHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
+            final var intermediateHashes =
+                    rawHashes.stream().map(Bytes::toByteArray).toList();
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
                     sha384DigestOrThrow(),
                     intermediateHashes,
                     this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
             this.previousWrappedRecordBlockRootHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            logger.info(
+                    "[LIVE_HASH_INIT] Restored live hash state from BlockInfo:"
+                            + " lastBlockNumber={} prevWrappedBlockHash={}"
+                            + " hasherLeafCount={} hasherIntermediateHashes={}",
+                    this.lastBlockInfo.lastBlockNumber(),
+                    this.previousWrappedRecordBlockRootHash,
+                    this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount(),
+                    String.join(",", rawHashes.stream().map(Bytes::toString).toList()));
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);

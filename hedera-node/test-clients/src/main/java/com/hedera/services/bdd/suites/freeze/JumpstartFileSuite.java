@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -88,6 +87,10 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
         final AtomicReference<BlockInfo> capturedBlockInfo = new AtomicReference<>();
         final AtomicReference<RunningHashes> capturedRunningHashes = new AtomicReference<>();
+        final AtomicReference<String> phase6FreezeBlockNum = new AtomicReference<>();
+        final AtomicReference<String> phase6FreezePrevHash = new AtomicReference<>();
+        final AtomicReference<String> phase6FreezeLeafCount = new AtomicReference<>();
+        final AtomicReference<String> phase6FreezeIntermediateHashes = new AtomicReference<>();
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
@@ -117,13 +120,12 @@ class JumpstartFileSuite implements LifecycleTest {
                 }),
                 prepareFakeUpgrade(),
                 // Restart the network with the corrupted environment overrides
-                doAdhoc(() -> upgradeToNextConfigVersion(
-                        corruptedEnvOverridesRef.get(),
-                        assertHgcaaLogContainsPattern(
-                                NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                                "Jumpstart currentBlockConsensusTimestampHash for block \\d+ does not match wrapped record hashes file entry",
-                                Duration.ofSeconds(30)))),
+                sourcing(() -> upgradeToNextConfigVersion(corruptedEnvOverridesRef.get())),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart currentBlockConsensusTimestampHash for block \\d+ does not match wrapped record hashes file entry \\(aaaaaaaaa",
+                        Duration.ofSeconds(30)),
                 logIt("Phase 3: Restarting with valid jumpstart config"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
@@ -162,6 +164,17 @@ class JumpstartFileSuite implements LifecycleTest {
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Jumpstart migration already applied \\(votingComplete=true\\), skipping",
                         Duration.ofSeconds(30)),
+                assertHgcaaLogContainsPattern(
+                                NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                                "\\[LIVE_HASH_INIT\\] Restored live hash state from BlockInfo:"
+                                        + " lastBlockNumber=(\\d+) prevWrappedBlockHash=(\\S+)"
+                                        + " hasherLeafCount=(\\d+) hasherIntermediateHashes=(\\S+)",
+                                Duration.ofSeconds(1))
+                        .matchingLast()
+                        .exposingMatchGroupTo(1, phase6FreezeBlockNum)
+                        .exposingMatchGroupTo(2, phase6FreezePrevHash)
+                        .exposingMatchGroupTo(3, phase6FreezeLeafCount)
+                        .exposingMatchGroupTo(4, phase6FreezeIntermediateHashes),
                 logIt("Phase 7: Third burst with live wrapped record hashes"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 8: Freeze and live hash verification"),
@@ -179,7 +192,10 @@ class JumpstartFileSuite implements LifecycleTest {
                                 .exposingMatchGroupTo(1, liveBlockNum)
                                 .exposingMatchGroupTo(2, liveWrappedHash)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
+                sourcing(() -> verifyLiveWrappedHash(
+                        liveWrappedHash.get(), liveBlockNum.get(),
+                        phase6FreezeBlockNum.get(), phase6FreezePrevHash.get(),
+                        phase6FreezeLeafCount.get(), phase6FreezeIntermediateHashes.get())),
                 logIt("Phase 9: Ops burst prior to cutover"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 10: Execute cutover"),

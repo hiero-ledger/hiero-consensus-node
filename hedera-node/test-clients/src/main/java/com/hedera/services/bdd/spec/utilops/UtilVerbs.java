@@ -974,15 +974,27 @@ public class UtilVerbs {
 
     /**
      * Verifies the node's persisted live wrapped record block root hash by replaying
-     * {@code .rcd} files from genesis through the given block and comparing the final
-     * chained hash against the node's persisted value.
+     * {@code .rcd} files from a jumpstart block through the live-hash freeze block
+     * and comparing the final chained hash against the node's persisted value.
      *
-     * @param nodeComputedHash the hash the node persisted (from log scraping)
-     * @param liveBlockNum     the block number at which the live hash was persisted
+     * @param nodeComputedHash             the hash the node persisted (from log scraping)
+     * @param liveBlockNum                 the block number at which the live hash was persisted
+     * @param priorFreezeBlockNum          the {@code lastBlockNumber} from Phase 6's LIVE_HASH_INIT log
+     * @param priorFreezePrevHash          the {@code prevWrappedBlockHash} from Phase 6's LIVE_HASH_INIT log
+     * @param priorFreezeLeafCount         the {@code hasherLeafCount} from Phase 6's LIVE_HASH_INIT log
+     * @param priorFreezeIntermediateHashes comma-separated hex hashes from Phase 6's LIVE_HASH_INIT log
      */
     public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
-            @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
-        return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
+            @NonNull final String nodeComputedHash,
+            @NonNull final String liveBlockNum,
+            @NonNull final String priorFreezeBlockNum,
+            @NonNull final String priorFreezePrevHash,
+            @NonNull final String priorFreezeLeafCount,
+            @NonNull final String priorFreezeIntermediateHashes) {
+        return new VerifyLiveWrappedHashOp(
+                nodeComputedHash, liveBlockNum,
+                priorFreezeBlockNum, priorFreezePrevHash,
+                priorFreezeLeafCount, priorFreezeIntermediateHashes);
     }
 
     /**
