@@ -54,6 +54,11 @@ Component soldering happens in
 - `rosterHistoryInputWire()` → routes only to the signature validator.
 - `clearComponentsInputWire()` → broadcast `clear()` to deduplicator
   and orphan buffer.
+- `flush()` → not a wire but a direct method on `EventIntakeModule`
+  ([EventIntakeModule.java:104](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:104)).
+  Drains all in-flight events through the internal components; used by
+  callers that need to quiesce the pipeline (e.g. at shutdown or before
+  a state-changing operation).
 
 **Output**
 
@@ -69,11 +74,14 @@ Component soldering happens in
 > **Delta vs. orphan-buffer.md / sync-protocol.md:** the older docs
 > imply a single hand-off path "intake → hashgraph". Today the path is
 > "intake → PCES writer → hashgraph + gossip + event creator", with
-> PCES persistence as a mandatory waypoint. The `validatedEventsOutputWire`
-> name reflects an in-progress migration; the comment at
+> PCES persistence as a mandatory waypoint. PCES is now its own
+> module ([`consensus-pces`](../../../../consensus-pces)) rather than a
+> stage of event intake. The migration of validation responsibilities
+> into the intake module is complete: every event emitted on
+> `validatedEventsOutputWire` is fully validated. The transitional
+> comment at
 > [PlatformWiring.java:75-77](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:75)
-> notes that some validation responsibilities are still moving into
-> the new module.
+> is out of date and will be cleaned up.
 
 ## Validation pipeline
 
@@ -124,23 +132,20 @@ the gate just not been added there?]
   When a descriptor is seen with a *new* signature, increments the
   `eventsWithDisparateSignature` accumulator
   ([line 107](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:107))
-  — a soft equivocation/branching signal — and lets the event continue.
+  — an indicator that a node is misbehaving by improperly signing the
+  same event (not a branching signal) — and lets the event continue.
 - **Failure outcome**: duplicate → `null`, plus
   `duplicateEventsPerSecond` and the running `dupEvPercent` metric
   update.
 - **Ancient gate**: drops at line 97 if `eventWindow.isAncient(event)`.
 
-[TBD: question for engineer — the deduplicator runs **before** the
-signature validator. A duplicate-descriptor event with a forged
-signature would be detected as a duplicate and dropped without the
-signature ever being checked. Is the ordering an explicit cost-saving
-trade, an artifact of the `eventsWithDisparateSignature` metric semantics,
-or something else?]
-
-[TBD: question for engineer — `eventsWithDisparateSignature` increments
-on descriptor match + new signature, which on its face looks like a
-branching/equivocation indicator. Is this metric purely observability,
-or does the downstream `BranchDetector` rely on it?]
+**Note on stage ordering:** the deduplicator runs **before** the
+signature validator as a performance optimization. The dedup key is the
+`(descriptor, signature)` pair, so a duplicate-descriptor event with a
+forged signature is *not* swallowed as a duplicate here — it falls
+through and is rejected by the signature validator. Running the cheap
+dedup check first avoids the cost of signature verification on the
+common-case true duplicates.
 
 ### 4. Signature verification
 
@@ -158,17 +163,14 @@ or does the downstream `BranchDetector` rely on it?]
   - `EventOrigin.RUNTIME` (self-events) → returns the event without
     verification (line 164).
 
-[TBD: question for engineer — the RUNTIME bypass at
-`DefaultEventSignatureValidator.validateSignature:164` skips signature
-verification for self-events. Self-events also enter via
-`nonValidatedEventsInputWire`
-([PlatformWiring.java:129-132](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:129)),
-which ought to mean every event reaching this stage with origin
-RUNTIME came from the local creator. Is the bypass purely defensive,
-or is there a code path on which a RUNTIME event arrives via the
-`unhashedEventsInputWire`?]
+**Note on the RUNTIME bypass:** skipping signature verification for
+self-events is a performance optimization. A `RUNTIME` event was just
+created, hashed, and signed locally by this node — we trust ourselves,
+so re-verifying the signature (and re-hashing) is unnecessary work.
+Events received from gossip or replayed from PCES are not tagged
+`RUNTIME` and go through the full signature check.
 
-### 5. Orphan buffer (linking + ordering)
+### 5. Orphan buffer (topological ordering)
 
 - **Anchor**: `OrphanBuffer::handleEvent`,
   [DefaultOrphanBuffer.java:105](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:105).
@@ -177,15 +179,16 @@ or is there a code path on which a RUNTIME event arrives via the
   so that no event is emitted before its non-ancient parents. See
   [Orphan buffer](#orphan-buffer) for internals.
 
-[TBD: question for engineer — the orphan buffer's scheduler is
-SEQUENTIAL with capacity 500, while the upstream signature validator is
-CONCURRENT. Throughput-wise the buffer is the narrowest link; was
-SEQUENTIAL chosen for ordering correctness, lock reduction in the
-release walk, or another reason?]
+**Why SEQUENTIAL:** the orphan buffer must release events in
+topological order, so processing arrivals concurrently is not an
+option — the release walk has to run on a single thread to preserve
+that order.
 
 ## Orphan buffer
 
-The orphan buffer is the linking stage. Its public surface is
+The orphan buffer is the topological-ordering stage: it holds back any
+event whose non-ancient parents have not yet been emitted, and releases
+events only once all such parents are out. Its public surface is
 [`OrphanBuffer`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/OrphanBuffer.java),
 implemented by
 [`DefaultOrphanBuffer`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java).
@@ -198,21 +201,26 @@ It exposes three methods:
   because their last missing parent just aged out.
 - `clear()` — reset internal state.
 
-> **Delta vs. orphan-buffer.md:** the source doc references an
-> `EventLinker` class and a `newlyLinkedEvents` field; neither exists in
-> current code. Linking is performed inline by
-> [`DefaultOrphanBuffer.eventIsNotAnOrphan`](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:205).
-> The buffer also lives in `consensus-utility`
-> (`org.hiero.consensus.orphan`), not under the gossip module as the
-> source doc implies. Generation-based ancient phrasing is superseded
-> by birth-round filtering driven by `EventWindow.isAncient` (see
+> **Delta vs. orphan-buffer.md:** the source doc uses "link" to mean
+> "all non-ancient parents resolved, so the child can be released"
+> (the same condition this section describes as *release*) and refers
+> to an `EventLinker` class with a `newlyLinkedEvents` queue. The
+> operation is intact in current code, but the class and queue no
+> longer exist and the "linking" vocabulary has been retired here in
+> favor of *buffer* / *release*. The buffer also lives in
+> `consensus-utility` (`org.hiero.consensus.orphan`), not under the
+> gossip module as the source doc implies. Generation-based ancient
+> phrasing is superseded by birth-round filtering driven by
+> `EventWindow.isAncient` (see
 > [Birth-round filtering](#birth-round-filtering)).
 
 ### What it holds
 
 - `eventsWithParents: SequenceMap<EventDescriptorWrapper, PlatformEvent>`
   ([line 59](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:59)) —
-  events whose parents are linked or have aged out as ancient.
+  events that have already been released because each of their
+  non-ancient parents was either previously released or has aged out
+  as ancient.
 - `missingParentMap: SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>>`
   ([line 65](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:65)) —
   for each missing parent descriptor, the orphans waiting on it.
