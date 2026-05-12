@@ -135,11 +135,26 @@ tasks.assemble {
     dependsOn(copyNodeData)
 }
 
+// Generate the signing PEM file expected by EnhancedKeyStoreLoader for the local node.
+// KeysAndCertsGenerator is deterministic per nodeId, so the resulting cert matches the
+// gossipCaCertificate baked into hedera-node/configuration/dev/genesis-network.json.
+val generateNodeKeys =
+    tasks.register<JavaExec>("generateNodeKeys") {
+        description = "Generate the local node's signing key PEM file used by the run task."
+        dependsOn(copyNodeData)
+        workingDir = nodeWorkingDir.get().asFile
+        jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
+        mainClass.set("org.hiero.consensus.pcli.Pcli")
+        args = listOf("generate-keys", "0", "--path", "data/keys")
+        outputs.file(nodeWorkingDir.get().file("data/keys/s-private-node1.pem"))
+    }
+
 // Create the "run" task for running a Hedera consensus node
 tasks.register<JavaExec>("run") {
     group = "application"
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
+    dependsOn(generateNodeKeys)
     workingDir = nodeWorkingDir.get().asFile
     jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
     mainClass.set("com.hedera.node.app.ServicesMain")
