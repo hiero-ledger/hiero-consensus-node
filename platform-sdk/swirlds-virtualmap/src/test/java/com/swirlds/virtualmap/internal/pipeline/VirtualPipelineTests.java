@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,7 +21,6 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,14 +48,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualPipeline Tests")
 class VirtualPipelineTests {
 
     private Metrics metrics;
-    private VirtualMapConfig config =
+    private final VirtualMapConfig config =
             new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
 
     /**
@@ -260,23 +258,20 @@ class VirtualPipelineTests {
     }
 
     /**
-     * This tests creates 100 copies and either releases and/or detaches them in order from the oldest to the newest.
+     * This tests creates 100 copies, with each 10th available to flush in order from the oldest to the newest.
      * It does this all from within the same thread.
      *
      * @throws InterruptedException
      * 		Side effect of test code
      */
     @ParameterizedTest
-    @CsvSource({"true,false", "false,true", "true,true"})
+    @ValueSource(booleans = {true, false})
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Ordered Release and/or Detach")
-    void orderedReleaseAndOrDetach(boolean doDetach, boolean doRelease) throws IOException, InterruptedException {
+    void orderedRelease(boolean doRelease) throws InterruptedException {
         // Create 100 copies where every 10th is flush eligible
         final List<DummyVirtualRoot> copies = setupCopies(100, i -> i % 10 == 0);
         for (final DummyVirtualRoot copy : copies) {
-            if (doDetach) {
-                copy.getPipeline().pausePipelineAndRun("copy", copy::detach);
-            }
             if (doRelease) {
                 copy.release();
             }
@@ -285,18 +280,18 @@ class VirtualPipelineTests {
     }
 
     /**
-     * This test creates 100 copies and releases and/or detaches them in a completely (pseudo-)random order.
-     * Semantically we should be able to release and/or detach any copy in any order and the pipeline will
+     * This test creates 100 copies and releases them in a completely (pseudo-)random order.
+     * Semantically we should be able to release any copy in any order and the pipeline will
      * make sure that the right thing is done.
      *
      * @throws InterruptedException
      * 		Side effect of test code
      */
     @ParameterizedTest
-    @CsvSource({"true,false", "false,true", "true,true"})
+    @ValueSource(booleans = {true, false})
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Random Release")
-    void randomReleaseAndOrDetach(boolean doDetach, boolean doRelease) throws IOException, InterruptedException {
+    void randomRelease(boolean doRelease) throws InterruptedException {
         // Create 100 copies where every 10th is flush eligible
         final int copyCount = 100;
         final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i % 10 == 0);
@@ -315,9 +310,6 @@ class VirtualPipelineTests {
         // Now release things in the order we determined above.
         for (final int index : order) {
             final DummyVirtualRoot copy = copies.get(index);
-            if (doDetach) {
-                copy.getPipeline().pausePipelineAndRun("copy", copy::detach);
-            }
             if (doRelease) {
                 copy.release();
             }
@@ -494,6 +486,32 @@ class VirtualPipelineTests {
             return true;
         });
         assertEquals(10, sum.get(), "List integrity violated");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
+    @DisplayName("Final destroyed copy is flushed before shutdown")
+    void finalDestroyedCopyIsFlushedBeforeShutdown() throws InterruptedException {
+        final List<DummyVirtualRoot> copies = setupCopies(3, i -> i == 0);
+        final DummyVirtualRoot flushableCopy = copies.get(0);
+        final DummyVirtualRoot middleCopy = copies.get(1);
+        final DummyVirtualRoot lastCopy = copies.get(2);
+
+        // Destroy newer copies first. The pipeline should run, but the flushable copy is still not destroyed,
+        // so it must not be flushed yet.
+        middleCopy.release();
+        lastCopy.release();
+
+        MILLISECONDS.sleep(100);
+        assertFalse(flushableCopy.isFlushed(), "Flushable copy should not flush before it is destroyed");
+
+        // This final release makes the oldest copy both destroyed and flushable.
+        // The pipeline must run one final lifecycle pass before shutdown.
+        flushableCopy.release();
+
+        assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Pipeline should shut down");
+        assertTrue(flushableCopy.isFlushed(), "Final destroyed flushable copy should be flushed before shutdown");
+        assertTrue(lastCopy.isShutdownHandlerCalled(), "Shutdown handler should be invoked");
     }
 
     @Test

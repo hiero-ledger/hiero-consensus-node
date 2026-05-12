@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.QueryHeader;
@@ -32,7 +33,6 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfo
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.converter.BytesConverter;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +53,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
     @BeforeEach
     void setUp() {
         subject = new ConsensusGetTopicInfoHandler();
+        lenient().when(context.ledgerId()).thenReturn(new BytesConverter().convert("0x03"));
     }
 
     @Test
@@ -172,10 +173,6 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableTopicStore.class)).thenReturn(readableStore);
 
-        final var config =
-                HederaTestConfigBuilder.create().withValue("ledger.id", "0x03").getOrCreateConfig();
-        given(context.configuration()).willReturn(config);
-
         final var response = subject.findResponse(context, responseHeader);
         final var op = response.consensusGetTopicInfoOrThrow();
         assertEquals(ResponseCodeEnum.FAIL_FEE, op.header().nodeTransactionPrecheckCode());
@@ -194,10 +191,6 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         final var query = createGetTopicInfoQuery(topicEntityNum);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableTopicStore.class)).thenReturn(readableStore);
-
-        final var config =
-                HederaTestConfigBuilder.create().withValue("ledger.id", "0x03").getOrCreateConfig();
-        given(context.configuration()).willReturn(config);
 
         final var response = subject.findResponse(context, responseHeader);
         final var topicInfoResponse = response.consensusGetTopicInfoOrThrow();

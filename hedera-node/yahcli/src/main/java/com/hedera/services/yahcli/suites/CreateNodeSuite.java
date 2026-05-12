@@ -43,6 +43,9 @@ public class CreateNodeSuite extends HapiSuite {
     private final ServiceEndpoint grpcProxyEndpoint;
 
     @Nullable
+    private final List<Long> associatedRegisteredNode;
+
+    @Nullable
     private Long createdId;
 
     public CreateNodeSuite(
@@ -56,7 +59,8 @@ public class CreateNodeSuite extends HapiSuite {
             @NonNull final String adminKeyLoc,
             @Nullable final String feeAccountKeyLoc,
             final boolean declineRewards,
-            @Nullable final ServiceEndpoint grpcProxyEndpoint) {
+            @Nullable final ServiceEndpoint grpcProxyEndpoint,
+            @Nullable final List<Long> associatedRegisteredNode) {
         this.configManager = requireNonNull(configManager);
         this.accountId = accountId;
         this.description = requireNonNull(description);
@@ -68,6 +72,7 @@ public class CreateNodeSuite extends HapiSuite {
         this.feeAccountKeyLoc = feeAccountKeyLoc;
         this.declineRewards = declineRewards;
         this.grpcProxyEndpoint = grpcProxyEndpoint;
+        this.associatedRegisteredNode = associatedRegisteredNode;
     }
 
     public long createdIdOrThrow() {
@@ -97,6 +102,9 @@ public class CreateNodeSuite extends HapiSuite {
 
         if (grpcProxyEndpoint != null) {
             nodeCreate = nodeCreate.grpcWebProxyEndpoint(fromPbj(grpcProxyEndpoint));
+        }
+        if (associatedRegisteredNode != null) {
+            nodeCreate = nodeCreate.associatedRegisteredNode(associatedRegisteredNode);
         }
 
         final var spec =

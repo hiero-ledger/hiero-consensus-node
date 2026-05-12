@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
@@ -12,6 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,6 +24,10 @@ class DataSourceValidatorTest {
     @TempDir
     private Path tempDir;
 
+    @TempDir
+    private Path fileSystemManagerTempDir;
+
+    private FileSystemManager fileSystemManager;
     private int count;
 
     @BeforeEach
@@ -30,12 +37,18 @@ class DataSourceValidatorTest {
         if (Files.exists(tempDir)) {
             FileUtils.deleteDirectory(tempDir);
         }
+        fileSystemManager = new TestFileSystemManager(fileSystemManagerTempDir);
     }
 
     @Test
     void testValidateValidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                fileSystemManager,
+                tempDir,
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -44,7 +57,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream((int) (count * 2L - 2), dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
@@ -58,7 +71,12 @@ class DataSourceValidatorTest {
     @Test
     void testValidateInvalidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                fileSystemManager,
+                tempDir,
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
                     final var validator = new DataSourceValidator(dataSource);
@@ -66,7 +84,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(count * 2 - 2, dataSource.getHashChunkHeight()),
                             // leaves are missing
                             Stream.empty(),
                             Stream.empty(),

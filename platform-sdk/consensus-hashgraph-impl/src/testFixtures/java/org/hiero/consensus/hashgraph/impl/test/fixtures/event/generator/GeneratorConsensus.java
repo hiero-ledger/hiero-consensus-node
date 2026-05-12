@@ -45,7 +45,7 @@ public class GeneratorConsensus {
      */
     public GeneratorConsensus(
             @NonNull final Configuration configuration, @NonNull final Time time, @NonNull final Roster roster) {
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster);
+        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
     }

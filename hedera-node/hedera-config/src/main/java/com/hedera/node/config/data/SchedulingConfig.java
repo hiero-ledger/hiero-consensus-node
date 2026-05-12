@@ -23,6 +23,7 @@ public record SchedulingConfig(
         @ConfigProperty(defaultValue =
             "ConsensusSubmitMessage,CryptoTransfer,TokenCreate,TokenUpdate,TokenMint,TokenBurn,CryptoCreate,CryptoUpdate,"
                 + "FileUpdate,SystemDelete,SystemUndelete,Freeze,ContractCall,ContractCreate,ContractUpdate,"
-                + "ContractDelete,CryptoApproveAllowance,NodeCreate,NodeUpdate,NodeDelete")
+                + "ContractDelete,CryptoApproveAllowance,NodeCreate,NodeUpdate,NodeDelete,"
+                + "RegisteredNodeCreate,RegisteredNodeUpdate,RegisteredNodeDelete")
                 @NetworkProperty HederaFunctionalitySet whitelist) {}
 // spotless:on

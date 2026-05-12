@@ -16,7 +16,8 @@ import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.hashmap.Bucket;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
@@ -41,7 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>When starting from a non-zero byte offset, the iterator automatically scans forward to
  * locate a valid data item boundary by validating the protobuf structure of encountered data.
- * Supported data types for boundary validation include {@link VirtualHashRecord},
+ * Supported data types for boundary validation include {@link VirtualHashChunk},
  * {@link VirtualLeafBytes}, and {@link Bucket}.
  *
  * <p>Each iterator instance should be used from a single thread, but multiple instances
@@ -55,6 +56,9 @@ public class ChunkedFileIterator implements AutoCloseable {
     private final FileChannel channel;
     /** The file metadata providing file index for data location calculation */
     private final DataFileMetadata metadata;
+
+    /** Hash chunk height. It is read from {@link VirtualMapConfig#hashChunkHeight()} */
+    private final int hashChunkHeight;
 
     /** The starting byte offset in the file for this chunk, adjusted to the nearest valid data item boundary */
     private long startByte;
@@ -86,6 +90,7 @@ public class ChunkedFileIterator implements AutoCloseable {
      *
      * @param path the path to the data file to read
      * @param metadata the file metadata providing the file index
+     * @param hashChunkHeight the hash chunk height, used for hash chunk validation via its deserialization
      * @param dataType the type of data items in this file, used for boundary validation
      * @param startByte the starting byte offset in the file (will be adjusted to nearest boundary if non-zero)
      * @param endByte the ending byte offset in the file (exclusive)
@@ -96,6 +101,7 @@ public class ChunkedFileIterator implements AutoCloseable {
     public ChunkedFileIterator(
             @NonNull final Path path,
             @NonNull final DataFileMetadata metadata,
+            int hashChunkHeight,
             @NonNull final Type dataType,
             long startByte,
             long endByte,
@@ -105,6 +111,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             this.metadata = metadata;
+            this.hashChunkHeight = hashChunkHeight;
 
             this.startByte = startByte;
             this.endByte = endByte;
@@ -295,7 +302,7 @@ public class ChunkedFileIterator implements AutoCloseable {
 
             return switch (dataType) {
                 // Parsing without exception means valid data
-                case P2H -> validateVirtualHashRecord(buffer);
+                case ID2C -> validateVirtualHashChunk(buffer);
                 case P2KV -> validateVirtualLeafBytes(buffer);
                 case K2P -> validateBucket(buffer);
                 default -> false;
@@ -308,13 +315,13 @@ public class ChunkedFileIterator implements AutoCloseable {
     }
 
     /**
-     * Attempts to parse the buffer as a {@link VirtualHashRecord}.
+     * Attempts to parse the buffer as a {@link VirtualHashChunk}.
      *
-     * @param buffer the buffer containing potential hash record bytes
+     * @param buffer the buffer containing potential hash chunk bytes
      * @return true if parsing succeeds
      */
-    private boolean validateVirtualHashRecord(@NonNull final BufferedData buffer) {
-        VirtualHashRecord.parseFrom(buffer);
+    private boolean validateVirtualHashChunk(@NonNull final BufferedData buffer) {
+        VirtualHashChunk.parseFrom(buffer, hashChunkHeight);
         return true;
     }
 

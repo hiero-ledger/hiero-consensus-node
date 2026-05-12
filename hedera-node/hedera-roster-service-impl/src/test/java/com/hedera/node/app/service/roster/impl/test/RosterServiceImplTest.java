@@ -40,7 +40,7 @@ class RosterServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        rosterService = new RosterServiceImpl(canAdopt, onAdopt, stateSupplier, () -> startupNetworks);
+        rosterService = new RosterServiceImpl(canAdopt, onAdopt, () -> startupNetworks);
     }
 
     @Test

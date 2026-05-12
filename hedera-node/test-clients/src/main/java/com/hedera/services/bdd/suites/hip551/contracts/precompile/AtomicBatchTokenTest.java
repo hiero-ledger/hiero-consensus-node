@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -79,7 +78,6 @@ class AtomicBatchTokenTest {
      */
     @HapiTest
     @DisplayName("atomic transferring owner's tokens using transferToken function without explicit allowance")
-    @Tag(MATS)
     Stream<DynamicTest> atomicTransferUsingTransferToken(
             @Contract(contract = "TokenTransferContract", creationGas = 10_000_000L)
                     final SpecContract tokenTransferContract,

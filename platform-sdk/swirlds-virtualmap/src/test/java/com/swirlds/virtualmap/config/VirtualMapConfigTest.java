@@ -115,6 +115,34 @@ class VirtualMapConfigTest {
     }
 
     @Test
+    void testValueParseMaxSizeOutOfRangeMin() {
+        // given
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSizeBytes", 0))
+                .withConfigDataType(VirtualMapConfig.class);
+
+        // then
+        final ConfigViolationException exception = Assertions.assertThrows(
+                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+
+        Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
+    }
+
+    @Test
+    void testValueParseMaxSizeConfigured() {
+        // given
+        final int value = 40 * 1024 * 1024;
+        final Configuration config = ConfigurationBuilder.create()
+                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSizeBytes", value))
+                .withConfigDataType(VirtualMapConfig.class)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
+        // then
+        Assertions.assertEquals(value, virtualMapConfig.valueParseMaxSizeBytes());
+    }
+
+    @Test
     void testFamilyThrottleThresholdZero() {
         // given
         final Configuration config = ConfigurationBuilder.create()

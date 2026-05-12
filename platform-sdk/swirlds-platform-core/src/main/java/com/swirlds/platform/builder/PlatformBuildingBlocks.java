@@ -85,6 +85,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  *                                               and obtain a reference to a ReservedSignedState
  * @param platformCoordinator                    the platform coordinator, which allows components to trigger platform status changes
  * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
+ * @param transactionOffsetNanos                 nanoseconds to add to the first transaction's timestamp in an event,
+ *                                               computed by the execution layer from its configuration
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -116,7 +118,8 @@ public record PlatformBuildingBlocks(
         @NonNull FallenBehindMonitor fallenBehindMonitor,
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull PlatformCoordinator platformCoordinator,
-        @NonNull SignedStateNexus latestImmutableStateNexus) {
+        @NonNull SignedStateNexus latestImmutableStateNexus,
+        long transactionOffsetNanos) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);

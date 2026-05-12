@@ -6,19 +6,31 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Tracks the delay experienced by events at each stage of the event processing pipeline.
+ * <p>
+ * Metrics are split by {@link EventOrigin}, with a dedicated suffix for each origin:
+ * <ul>
+ *   <li>{@code _runtime} — events created by this runtime ({@link EventOrigin#RUNTIME})</li>
+ *   <li>{@code _gossip} — events received through gossip ({@link EventOrigin#GOSSIP})</li>
+ *   <li>{@code _storage} — events read from storage ({@link EventOrigin#STORAGE})</li>
+ * </ul>
  */
 public class EventPipelineTracker {
 
+    private record MetricKey(@NonNull String name, @NonNull EventOrigin origin) {}
+
     private final Metrics metrics;
-    private final Map<String, AverageAndMaxTimeStat> metricMap = new HashMap<>();
+    private final Map<MetricKey, AverageAndMaxTimeStat> metricMap = new HashMap<>();
+    private final Map<EventOrigin, Integer> stepCounters = new EnumMap<>(EventOrigin.class);
 
     /**
      * Constructor.
@@ -30,33 +42,48 @@ public class EventPipelineTracker {
     }
 
     /**
-     * Registers a new metric for tracking event delay after the specified stage.
+     * Registers metrics for tracking event delay after the specified stage, for all {@link EventOrigin} values.
      *
      * @param name the name of the stage
      */
     public void registerMetric(@NonNull final String name) {
-        final int step = metricMap.size() + 1;
-        final AverageAndMaxTimeStat stat = new AverageAndMaxTimeStat(
-                metrics,
-                ChronoUnit.MICROS,
-                PLATFORM_CATEGORY,
-                "eventDelay_%d_%s".formatted(step, name),
-                "event pipeline delay until after " + name);
-        metricMap.put(name, stat);
+        registerMetric(name, EventOrigin.values());
+    }
+
+    /**
+     * Registers metrics for tracking event delay after the specified stage.
+     *
+     * @param name    the name of the stage
+     * @param origins the event origins expected to pass through this stage
+     */
+    public void registerMetric(@NonNull final String name, @NonNull final EventOrigin... origins) {
+        final String baseDesc = "event pipeline delay until after " + name;
+
+        for (final EventOrigin origin : origins) {
+            final int step = stepCounters.merge(origin, 1, Integer::sum);
+            final String originName = origin.name().toLowerCase();
+            metricMap.put(
+                    new MetricKey(name, origin),
+                    new AverageAndMaxTimeStat(
+                            metrics,
+                            ChronoUnit.MICROS,
+                            PLATFORM_CATEGORY,
+                            "eventDelay_%d_%s_%s".formatted(step, name, originName),
+                            baseDesc + " (" + originName + ")"));
+        }
     }
 
     /**
      * Records the delay experienced by a single event after the specified stage.
+     * The event is routed to the appropriate metric based on its {@link EventOrigin}.
      *
      * @param name  the name of the stage
-     * @param start the {@link Instant} when the event entered the pipeline
+     * @param event the platform event
      */
-    public void recordEvent(@NonNull final String name, @NonNull final Instant start) {
-        final AverageAndMaxTimeStat stat = metricMap.get(name);
+    public void recordEvent(@NonNull final String name, @NonNull final PlatformEvent event) {
+        final AverageAndMaxTimeStat stat = metricMap.get(new MetricKey(name, event.getOrigin()));
         if (stat != null) {
-            stat.update(start);
-        } else {
-            throw new IllegalArgumentException("No metric registered for stage: " + name);
+            stat.update(event.getTimeReceived());
         }
     }
 
@@ -64,16 +91,11 @@ public class EventPipelineTracker {
      * Records the delay experienced by a list of events after the specified stage.
      *
      * @param name   the name of the stage
-     * @param starts the list of instances when each event entered the pipeline
+     * @param events the list of platform events
      */
-    public void recordEvents(@NonNull final String name, @NonNull final List<Instant> starts) {
-        final AverageAndMaxTimeStat stat = metricMap.get(name);
-        if (stat != null) {
-            for (final Instant start : starts) {
-                stat.update(start);
-            }
-        } else {
-            throw new IllegalArgumentException("No metric registered for stage: " + name);
+    public void recordEvents(@NonNull final String name, @NonNull final List<PlatformEvent> events) {
+        for (final PlatformEvent event : events) {
+            recordEvent(name, event);
         }
     }
 }

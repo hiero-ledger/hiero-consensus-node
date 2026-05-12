@@ -48,7 +48,7 @@ public record NetworkAdminConfig(
 
         @ConfigProperty(
                 defaultValue =
-                        "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
+                        "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication,MigrationRootHashVote")
         @NetworkProperty
         HederaFunctionalitySet nodeTransactionsAllowList,
 
@@ -73,5 +73,4 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
         @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade,
         // Config for high volume throttles
-        @ConfigProperty(defaultValue = "false") @NodeProperty
-        boolean highVolumeThrottlesEnabled) {}
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean highVolumeThrottlesEnabled) {}

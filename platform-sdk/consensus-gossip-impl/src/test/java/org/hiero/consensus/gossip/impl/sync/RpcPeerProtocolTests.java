@@ -9,15 +9,15 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
@@ -43,8 +43,8 @@ public class RpcPeerProtocolTests {
     private long lastSentSync;
     private Throwable foundException;
     private NodeId alreadyAsked = null;
-    private Connection otherConnection = null;
-    private Connection lastConnection = null;
+    private volatile Connection otherConnection = null;
+    private volatile Connection lastConnection = null;
 
     @Test
     public void testPeerProtocolFrequentDisconnections() throws Throwable {
@@ -60,12 +60,10 @@ public class RpcPeerProtocolTests {
 
         final NoOpMetrics metrics = new NoOpMetrics();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        final BroadcastConfig broadcastConfig =
-                platformContext.getConfiguration().getConfigData(BroadcastConfig.class);
+        final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        final BroadcastConfig broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
 
         final Time time = Time.getCurrent();
         final SyncPermitProvider permitProvider = new SyncPermitProvider(
@@ -211,6 +209,7 @@ public class RpcPeerProtocolTests {
             Thread.sleep(100);
             if (lastConnection != null) {
                 lastConnection.disconnect();
+                otherConnection.disconnect();
             }
             if (foundException != null) {
                 throw foundException;
@@ -220,6 +219,7 @@ public class RpcPeerProtocolTests {
         running.set(false);
         if (lastConnection != null) {
             lastConnection.disconnect();
+            otherConnection.disconnect();
         }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;
@@ -264,7 +264,6 @@ public class RpcPeerProtocolTests {
         }
         final Connection connection = otherConnection;
         alreadyAsked = null;
-        otherConnection = null;
         return connection;
     }
 }

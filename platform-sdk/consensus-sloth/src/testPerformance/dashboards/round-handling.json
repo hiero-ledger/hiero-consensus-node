@@ -1,0 +1,175 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "DATASOURCE_UID_PLACEHOLDER"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [],
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true,
+            "values": ["value", "percent"]
+          },
+          "pieType": "donut",
+          "reduceOptions": {
+            "calcs": ["mean"],
+            "fields": "",
+            "values": false
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "12.3.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_IDLE)",
+            "legendFormat": "Idle",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_SETTING_EVENT_CONSENSUS_DATA)",
+            "legendFormat": "Setting event consensus data",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_WAITING_FOR_PREHANDLE)",
+            "legendFormat": "Waiting for prehandle",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_HANDLING_CONSENSUS_ROUND)",
+            "legendFormat": "Handling consensus round",
+            "range": true,
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_UPDATING_PLATFORM_STATE)",
+            "legendFormat": "Updating platform state",
+            "range": true,
+            "refId": "E"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_UPDATING_PLATFORM_STATE_RUNNING_HASH)",
+            "legendFormat": "Updating platform state running hash",
+            "range": true,
+            "refId": "F"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_GETTING_STATE_TO_SIGN)",
+            "legendFormat": "Getting state to sign",
+            "range": true,
+            "refId": "G"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "DATASOURCE_UID_PLACEHOLDER"
+            },
+            "editorMode": "code",
+            "expr": "avg(consensus_fraction_CREATING_SIGNED_STATE)",
+            "legendFormat": "Creating signed state",
+            "range": true,
+            "refId": "H"
+          }
+        ],
+        "title": "Transaction Handler Phases",
+        "type": "piechart"
+      }
+    ],
+    "preload": false,
+    "schemaVersion": 42,
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {"from": "now-1d", "to": "now"},
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Round Handling",
+    "uid": "round-handling",
+    "version": 0,
+    "weekStart": "",
+    "id": null
+  },
+  "overwrite": true
+}

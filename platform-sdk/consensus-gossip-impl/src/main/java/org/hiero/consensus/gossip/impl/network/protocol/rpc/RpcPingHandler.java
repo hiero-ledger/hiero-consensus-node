@@ -82,8 +82,8 @@ final class RpcPingHandler {
         this.pingPeriod = TimeUnit.NANOSECONDS.convert(pingPeriod);
     }
 
-    void handleIncomingPing(final GossipPing ping) {
-        rpcPeerProtocol.sendPingReply(ping);
+    void handleIncomingPing(final long correlationId) {
+        rpcPeerProtocol.sendPingReply(correlationId);
     }
 
     /**
@@ -105,17 +105,17 @@ final class RpcPingHandler {
     /**
      * Called when ping reply was received by network layer
      *
-     * @param pingReply reply to our ping
+     * @param correlationId reply to our ping
      * @return amount of nanoseconds which has passed since we have sent that ping request
      */
-    long handleIncomingPingReply(@NonNull final GossipPing pingReply) {
-        final Long original = sentPings.remove(pingReply.correlationId());
+    long handleIncomingPingReply(final long correlationId) {
+        final Long original = sentPings.remove(correlationId);
         if (original == null) {
             logger.error(
                     NETWORK.getMarker(),
                     "Received unexpected gossip ping reply from peer {} for correlation id {}",
                     remotePeerId,
-                    pingReply.correlationId());
+                    correlationId);
             return 0L;
         } else {
             final long lastPingNanos = (time.nanoTime() - original);

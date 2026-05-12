@@ -98,7 +98,7 @@ message BlockNodeConfig {
      * The port of the block node for accessing the service API.<br/>
      * Valid port range is 1 to 65535.
      */
-    int32 service_port = 8;
+    google.protobuf.Int32Value service_port = 8;
 }
 
 /**

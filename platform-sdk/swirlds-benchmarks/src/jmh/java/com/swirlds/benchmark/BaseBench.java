@@ -2,8 +2,6 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
@@ -20,6 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -35,39 +36,68 @@ public abstract class BaseBench {
 
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
-    protected static final String RUN_DELIMITER = "--------------------------------";
+    /**
+     * Number of outer iterations. Meaning depends on the benchmark:
+     * data files written, VirtualMap copy-cycles, etc.
+     * <p>
+     * {@code numFiles × numRecords} is the total number of operations.
+     * Full-population benchmarks also use this product as the map size.
+     */
+    @Param({"500"})
+    public int numFiles;
 
-    @Param({"100"})
-    public int numFiles = 500;
+    /**
+     * Number of operations per iteration.
+     *
+     * @see #numFiles
+     */
+    @Param({"10000"})
+    public int numRecords;
 
-    @Param({"100000"})
-    public int numRecords = 10_000;
-
-    @Param({"1000000"})
-    public int maxKey = 10_000_000;
-
-    @Param({"8"})
-    public int keySize = 32;
-
-    @Param({"128"})
-    public int recordSize = 1024;
+    /**
+     * Upper bound of the key space for random-access and low-level storage benchmarks.
+     * <p>
+     * In random-access benchmarks ({@code CryptoBench},
+     * {@code VirtualMapBench.update/create/delete}), keys are drawn from
+     * {@code [0, maxKey)}. The ratio to {@code numFiles × numRecords}
+     * controls density: smaller means update-heavy, larger means create-heavy.
+     * <p>
+     * In {@code VirtualMapBench.read()}, used as the exact map population
+     * size — all keys in {@code [0, maxKey)} are inserted, then read
+     * randomly. Map copies during population are spaced to avoid OOM.
+     * <p>
+     * In low-level storage benchmarks ({@code DataFileCollectionBench},
+     * {@code HalfDiskMapBench}, {@code KeyValueStoreBench}), used as
+     * the physical index capacity.
+     * <p>
+     * Not used by {@code ReconnectBench}, which derives map size
+     * from {@code numFiles × numRecords}.
+     */
+    @Param({"10000000"})
+    public int maxKey;
 
     @Param({"32"})
-    public int numThreads = 32;
+    public int keySize;
+
+    @Param({"1024"})
+    public int recordSize;
+
+    @Param({"32"})
+    public int numThreads;
 
     abstract String benchmarkName();
 
-    private static final int SKEW = 2;
     private static final int RECORD_SIZE_MIN = 8;
 
     /* Directory for the entire benchmark */
     private static Path benchDir;
-    /* Directory for each iteration */
-    private Path testDir;
+
     /* Verify benchmark results */
     protected boolean verify;
 
     protected static Configuration configuration;
+
+    protected static FileSystemManager fileSystemManager;
 
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
@@ -87,8 +117,18 @@ public abstract class BaseBench {
         }
     }
 
-    @Setup
-    public void setup() throws IOException {
+    // ── JMH Lifecycle ────────────────────────────────────────────
+
+    /**
+     * JMH trial-level setup. Does the setup and then calls {@link #onTrialSetup()}.
+     *
+     * <p><b>Important:</b> Subclasses must NOT add their own {@code @Setup} or {@code @TearDown}
+     * annotations. JMH's annotation processor does not guarantee a consistent execution order
+     * when multiple such methods exist across a class hierarchy. Override the corresponding
+     * hook method ({@link #onTrialSetup()}) instead.
+     */
+    @Setup(Level.Trial)
+    public void setupTrial() throws IOException {
         loadConfig();
         final BenchmarkConfig benchmarkConfig = getConfig(BenchmarkConfig.class);
         logger.info("Benchmark configuration: {}", benchmarkConfig);
@@ -101,7 +141,7 @@ public abstract class BaseBench {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
 
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
+        fileSystemManager = new TestFileSystemManager(benchDir);
 
         try {
             ConstructableRegistration.registerAllConstructables();
@@ -122,89 +162,119 @@ public abstract class BaseBench {
 
         // Setup metrics system
         BenchmarkMetrics.start(benchmarkConfig);
+
+        // Subclass hook
+        onTrialSetup();
     }
 
-    @TearDown
-    public void destroy() {
+    /**
+     * Hook for subclass trial-level initialization. Called once per trial, after the base
+     * setup is complete.
+     *
+     * <p>Subclasses that override this method <b>must</b> call {@code super.onTrialSetup()}
+     * as the first statement to ensure proper initialization order up the hierarchy.
+     */
+    protected void onTrialSetup() {
+        // no-op by default
+    }
+
+    /**
+     * JMH invocation-level setup. Does the setup and calls {@link #onInvocationSetup()}.
+     *
+     * <p><b>Important:</b> see {@link #setupTrial()} for why subclasses must not add
+     * their own {@code @Setup} annotations.
+     */
+    @Setup(Level.Invocation)
+    public void setupInvocation() {
+        BenchmarkMetrics.reset();
+
+        // Subclass hook
+        onInvocationSetup();
+    }
+
+    /**
+     * Hook for subclass per-invocation initialization. Called before each
+     * {@code @Benchmark} method invocation, after base the base
+     * invocation setup is complete.
+     *
+     * <p>Subclasses that override this method <b>must</b> call
+     * {@code super.onInvocationSetup()} as the first statement.
+     */
+    protected void onInvocationSetup() {
+        // no-op by default
+    }
+
+    /**
+     * JMH trial-level teardown. Calls {@link #onTrialTearDown()}, then does
+     * base teardown.
+     *
+     * <p><b>Important:</b> see {@link #setupTrial()} for why subclasses must not add
+     * their own {@code @TearDown} annotations.
+     */
+    @TearDown(Level.Trial)
+    public void tearDownTrial() throws Exception {
+        // Subclass hook — called before metrics stop and dirs are cleaned
+        onTrialTearDown();
+
         BenchmarkMetrics.stop();
         if (!getBenchmarkConfig().saveDataDirectory()) {
             Utils.deleteRecursively(benchDir);
         }
     }
 
-    @Setup(Level.Invocation)
-    public void beforeTest() {
-        BenchmarkMetrics.reset();
+    /**
+     * Hook for subclass trial-level cleanup. Called once per trial, <b>before</b> base
+     * teardown (metrics stop, directory deletion).
+     *
+     * <p>Subclasses that override this method <b>must</b> call {@code super.onTrialTearDown()}
+     * as the <b>last</b> statement to ensure proper teardown order down the hierarchy
+     * (child cleanup runs before parent cleanup, mirroring the setup order where parent
+     * initializes before child).
+     */
+    protected void onTrialTearDown() throws Exception {
+        // no-op by default
     }
 
-    public void beforeTest(String name) {
-        setTestDir(name);
-    }
+    /**
+     * JMH invocation-level teardown. Calls {@link #onInvocationTearDown()}, does base invocation
+     * teardown.
+     *
+     * <p><b>Important:</b> see {@link #setupTrial()} for why subclasses must not add
+     * their own {@code @TearDown} annotations.
+     *
+     * <p><b>Ordering guarantee:</b> the subclass hook runs first, so resources (data sources,
+     * maps, etc.) are closed before the test directory is deleted.
+     */
+    @TearDown(Level.Invocation)
+    public void tearDownInvocation() throws Exception {
+        // Subclass hook
+        onInvocationTearDown();
 
-    public static Path getBenchDir() {
-        return benchDir;
-    }
-
-    public Path getTestDir() {
-        return testDir;
-    }
-
-    public void setTestDir(String name) {
-        testDir = benchDir.resolve(name);
-    }
-
-    interface RunnableWithException {
-        void run() throws Exception;
-    }
-
-    public void afterTest() throws Exception {
-        afterTest(false, null);
-    }
-
-    public void afterTest(boolean keepTestDir) throws Exception {
-        afterTest(keepTestDir, null);
-    }
-
-    public void afterTest(RunnableWithException runnable) throws Exception {
-        afterTest(false, runnable);
-    }
-
-    public void afterTest(boolean keepTestDir, RunnableWithException runnable) throws Exception {
         BenchmarkMetrics.report();
         if (getBenchmarkConfig().printHistogram()) {
             // Class histogram is interesting before closing
             Utils.printClassHistogram(15);
         }
-        if (runnable != null) {
-            runnable.run();
-        }
-        if (!keepTestDir) {
-            Utils.deleteRecursively(testDir);
-        }
-    }
-
-    private long currentKey;
-    private long currentRecord;
-
-    protected void resetKeys() {
-        currentKey = -1L;
-        currentRecord = 0L;
     }
 
     /**
-     * Randomly select next key id in ascending order.
-     * numRecords values will be uniformly distributed between 0 and maxKey when SKEW == 1.
-     * With larger SKEW, more values will be selected from the lower half of the interval.
+     * Hook for subclass per-invocation cleanup. Called after each {@code @Benchmark}
+     * method invocation, <b>before</b> the base invocation teardown (metrics reporting,
+     * test directory deletion).
      *
-     * @return Next key id > lastKey and < maxKey
+     * <p>Subclasses that override this method <b>must</b> call
+     * {@code super.onInvocationTearDown()} as the <b>last</b> statement to ensure proper
+     * teardown order down the hierarchy (child cleanup runs before parent cleanup,
+     * mirroring the setup order where parent initializes before child).
      */
-    protected long nextAscKey() {
-        for (; ; ) {
-            if (Utils.randomLong(maxKey - ++currentKey) < (numRecords - currentRecord) * SKEW) {
-                ++currentRecord;
-                return currentKey;
-            }
-        }
+    protected void onInvocationTearDown() throws Exception {
+        // no-op by default
+    }
+
+    // ── Benchmark directory utilities ─────────────────────────────────────
+
+    public static Path getBenchDir() {
+        return benchDir;
     }
 
     /**

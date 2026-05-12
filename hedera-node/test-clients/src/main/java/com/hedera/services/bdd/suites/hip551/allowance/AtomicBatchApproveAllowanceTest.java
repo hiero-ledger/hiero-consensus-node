@@ -813,7 +813,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01);
+                        return validateChargedUsdWithin(APPROVE_TXN, 0.052_772, 0.01);
                     }
                 }),
                 getAccountDetails(PAYER)
@@ -1362,7 +1362,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01);
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.050392, 0.01);
                     }
                 }),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -1376,7 +1376,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1);
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.050847, 0.1);
                     }
                 }),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -1390,7 +1390,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1);
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.051302, 0.1);
                     }
                 }));
     }
@@ -1459,7 +1459,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01);
+                        return validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.050392, 0.01);
                     }
                 }),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -1473,7 +1473,7 @@ class AtomicBatchApproveAllowanceTest {
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.001);
                     } else {
-                        return validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01);
+                        return validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_772, 0.01);
                     }
                 }),
                 getAccountDetails(OWNER)

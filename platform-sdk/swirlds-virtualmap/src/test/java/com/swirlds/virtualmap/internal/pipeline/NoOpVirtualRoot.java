@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualRoot;
 
 /**
@@ -63,11 +62,6 @@ public final class NoOpVirtualRoot extends AbstractVirtualRoot implements Virtua
 
     @Override
     public void computeHash() {}
-
-    @Override
-    public RecordAccessor detach() {
-        return null;
-    }
 
     @Override
     public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {

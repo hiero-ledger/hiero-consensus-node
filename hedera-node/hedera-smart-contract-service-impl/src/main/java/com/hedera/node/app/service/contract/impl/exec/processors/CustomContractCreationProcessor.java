@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -22,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -37,7 +37,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * to the {@link HederaWorldUpdater#tryTransfer(Address, Address, long, boolean)}
  * dispatch method.
  */
-public class CustomContractCreationProcessor extends ContractCreationProcessor {
+public class CustomContractCreationProcessor extends PublicContractCreationProcessor {
     // By convention, the halt reason should be INSUFFICIENT_GAS when the contract already exists
     private static final Optional<ExceptionalHaltReason> COLLISION_HALT_REASON =
             Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS);
@@ -53,7 +53,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
      * @param initialContractNonce the initial contract nonce to use for the creation
      */
     public CustomContractCreationProcessor(
-            @NonNull final EVM evm,
+            @NonNull final HEVM evm,
             final boolean requireCodeDepositToSucceed,
             @NonNull final List<ContractValidationRule> contractValidationRules,
             final long initialContractNonce) {

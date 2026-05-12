@@ -3,8 +3,10 @@ package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -22,6 +24,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,12 +41,19 @@ class HalfDiskHashMapTest {
     @TempDir
     Path tempDirPath;
 
+    private FileSystemManager fileSystemManager;
+
+    @BeforeEach
+    void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDirPath);
+    }
+
     // =================================================================================================================
     // Helper Methods
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
+                CONFIGURATION, fileSystemManager, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
         map.printStats();
         return map;
     }
@@ -112,8 +124,8 @@ class HalfDiskHashMapTest {
             // create snapshot
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
-            HalfDiskHashMap mapFromSnapshot =
-                    new HalfDiskHashMap(CONFIGURATION, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
+            HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
+                    CONFIGURATION, fileSystemManager, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -144,14 +156,7 @@ class HalfDiskHashMapTest {
         // create map
         try (HalfDiskHashMap map = createNewTempMap("multipleWriteBatchesAndMerge", 10_000)) {
             final DataFileCompactor dataFileCompactor = new DataFileCompactor(
-                    CONFIGURATION.getConfigData(MerkleDbConfig.class),
-                    "HalfDiskHashMapTest",
-                    map.getFileCollection(),
-                    map.getBucketIndexToBucketLocation(),
-                    null,
-                    null,
-                    null,
-                    null);
+                    map.getFileCollection(), map.getBucketIndexToBucketLocation(), null, null, null, null);
             // create some data
             createSomeData(testType, map, 1, 1111, 1);
             checkData(testType, map, 1, 1111, 1);
@@ -162,7 +167,7 @@ class HalfDiskHashMapTest {
             createSomeData(testType, map, 1111, 10_000, 1);
             checkData(testType, map, 1, 10_000, 1);
             // do a merge
-            dataFileCompactor.compact();
+            dataFileCompactor.compactSingleLevel(map.getFileCollection().getAllCompletedFiles(), 1);
             // check all data after
             checkData(testType, map, 1, 10_000, 1);
         }
@@ -270,7 +275,7 @@ class HalfDiskHashMapTest {
         final long goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
         // Bucket index capacity doesn't depend on HDHM initial size, so 1024 below can be anything
         try (final HalfDiskHashMap hdhm = createNewTempMap("testInitialBucketIndexCapacity", 1024)) {
-            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             final long maxNumOfBuckets = maxNumOfKeys / goodAverageBucketEntryCount;
             final long expectedCapacity =
                     Long.highestOneBit(maxNumOfBuckets * 100 / HalfDiskHashMap.PERCENT_START_RESIZE) * 2;
@@ -385,7 +390,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) (i + 100), 11}), i + initialNumOfBuckets, i + 2L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -419,7 +424,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < numOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -444,7 +449,7 @@ class HalfDiskHashMapTest {
             }
             map.endWriting();
             map.resizeIfNeeded(499, 998);
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
@@ -497,7 +502,7 @@ class HalfDiskHashMapTest {
                 map.put(Bytes.wrap(new byte[] {(byte) (i + 100)}), i + initialNumOfBuckets, i + 4L);
             }
             map.endWriting();
-            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = map.getBucketIndexToBucketLocation();
             // Check bucket 0, it was not updated -> not sanitized
             {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, 0);
@@ -601,12 +606,20 @@ class HalfDiskHashMapTest {
                 .withValue("merkleDb.maxNumOfKeys", "500")
                 .build();
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
-                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
+                config,
+                fileSystemManager,
+                100,
+                tempDirPath.resolve("test"),
+                "testResizeRespectsBucketIndexCapacity",
+                null,
+                false);
         try {
-            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
             assertEquals(4, hdhm.getNumOfBuckets());
+            assertFalse(hdhm.isResizeNeeded(99, 187));
+            assertTrue(hdhm.isResizeNeeded(800, 1600));
             // Resize to 8 buckets
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(8, hdhm.getNumOfBuckets());
@@ -616,6 +629,7 @@ class HalfDiskHashMapTest {
             // Resize again, 32 buckets
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());
+            assertTrue(hdhm.isResizeNeeded(800, 1600));
             // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());

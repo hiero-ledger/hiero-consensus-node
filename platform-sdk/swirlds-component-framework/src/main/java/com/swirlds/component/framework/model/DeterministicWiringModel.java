@@ -127,15 +127,6 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        return heartbeatScheduler.buildHeartbeatWire(frequency, getUncaughtExceptionHandler());
-    }
-
-    /**
      * Get the uncaught exception handler for task schedulers if it has been set, otherwise return a default
      *
      * @return the uncaught exception handler

@@ -155,7 +155,7 @@ public class OtterTestExtension
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
-                return "OtterTest";
+                return context.getRequiredTestMethod().getName();
             }
 
             @Override
@@ -292,12 +292,15 @@ public class OtterTestExtension
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
         final Optional<ContainerSpecs> containerSpecs = findAnnotation(extensionContext, ContainerSpecs.class);
+        final boolean proxyEnabled =
+                containerSpecs.map(ContainerSpecs::proxyEnabled).orElse(true);
+        final boolean gcLoggingEnabled =
+                containerSpecs.map(ContainerSpecs::gcLogging).orElse(false);
+        final List<String> jvmArgs =
+                containerSpecs.map(specs -> List.of(specs.jvmArgs())).orElse(List.of());
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
-        return new ContainerTestEnvironment(
-                randomNodeIds,
-                outputDirectory,
-                containerSpecs.map(ContainerSpecs::proxyEnabled).orElse(true));
+        return new ContainerTestEnvironment(randomNodeIds, outputDirectory, proxyEnabled, gcLoggingEnabled, jvmArgs);
     }
 
     /**

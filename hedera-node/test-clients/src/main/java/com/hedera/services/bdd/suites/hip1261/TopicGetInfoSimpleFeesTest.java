@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedGetTopicInfoFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -33,12 +35,10 @@ import org.junit.jupiter.api.Tag;
  * Tests for GetTopicInfo simple fees.
  * Validates that query fees are correctly calculated.
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TopicGetInfoSimpleFeesTest {
 
-    private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
     private static final String TOPIC = "testTopic";
@@ -57,9 +57,56 @@ public class TopicGetInfoSimpleFeesTest {
         final Stream<DynamicTest> getTopicInfoBaseFee() {
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
                     getTopicInfo(TOPIC).payingWith(PAYER).via("getTopicInfoQuery"),
-                    validateChargedUsdForQueries("getTopicInfoQuery", EXPECTED_CRYPTO_TRANSFER_FEE, 1.0));
+                    validateChargedUsdWithinWithTxnSize(
+                            "getTopicInfoQuery",
+                            txnSize -> expectedGetTopicInfoFullFeeUsd(
+                                    Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount("getTopicInfoQuery", PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("GetTopicInfo - topic with admin and submit keys - same base fee")
+        final Stream<DynamicTest> getTopicInfoWithAllTopicKeysFee() {
+            final String SUBMIT_KEY = "submitKey";
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(ADMIN_KEY),
+                    newKeyNamed(SUBMIT_KEY),
+                    createTopic(TOPIC)
+                            .adminKeyName(ADMIN_KEY)
+                            .submitKeyName(SUBMIT_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY),
+                    getTopicInfo(TOPIC).payingWith(PAYER).via("getTopicInfoQuery"),
+                    validateChargedUsdWithinWithTxnSize(
+                            "getTopicInfoQuery",
+                            txnSize -> expectedGetTopicInfoFullFeeUsd(
+                                    Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount("getTopicInfoQuery", PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("GetTopicInfo - large payer key charges extra signatures fee")
+        final Stream<DynamicTest> getTopicInfoLargePayerKeyExtraFee() {
+            final String PAYER_KEY = "payerKey";
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
+                    getTopicInfo(TOPIC)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
+                            .via("getTopicInfoQuery"),
+                    validateChargedUsdWithinWithTxnSize(
+                            "getTopicInfoQuery",
+                            txnSize -> expectedGetTopicInfoFullFeeUsd(
+                                    Map.of(SIGNATURES, 20L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount("getTopicInfoQuery", PAYER));
         }
     }
 
@@ -70,45 +117,22 @@ public class TopicGetInfoSimpleFeesTest {
         @HapiTest
         @DisplayName("GetTopicInfo - invalid topic fails - no fee charged")
         final Stream<DynamicTest> getTopicInfoInvalidTopicFails() {
-            final AtomicLong initialBalance = new AtomicLong();
-            final AtomicLong afterBalance = new AtomicLong();
-
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                     getTopicInfo("0.0.99999999") // Invalid topic
                             .payingWith(PAYER)
-                            .hasCostAnswerPrecheck(INVALID_TOPIC_ID),
-                    getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                    withOpContext((spec, log) -> {
-                        assertEquals(initialBalance.get(), afterBalance.get());
-                    }));
+                            .hasCostAnswerPrecheck(INVALID_TOPIC_ID));
         }
 
         @HapiTest
         @DisplayName("GetTopicInfo - deleted topic fails - no fee charged")
         final Stream<DynamicTest> getTopicInfoDeletedTopicFails() {
-            final AtomicLong initialBalance = new AtomicLong();
-            final AtomicLong afterBalance = new AtomicLong();
-
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(ADMIN_KEY),
-                    createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
-                    deleteTopic(TOPIC)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
-                    getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                    getTopicInfo(TOPIC).payingWith(PAYER).hasCostAnswerPrecheck(INVALID_TOPIC_ID),
-                    getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                    withOpContext((spec, log) -> {
-                        assertEquals(initialBalance.get(), afterBalance.get());
-                    }));
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
+                    deleteTopic(TOPIC).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
+                    getTopicInfo(TOPIC).payingWith(PAYER).hasCostAnswerPrecheck(INVALID_TOPIC_ID));
         }
     }
 }

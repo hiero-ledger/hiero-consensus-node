@@ -16,6 +16,8 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc13
+          - AdHoc14
           - AdHocSD8
           - AdHocSD9
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
@@ -40,8 +42,10 @@ on:
           - "9"
           - "21"
           - "30"
+          - "60"
           - "180"
           - "330"
+          - "720"
           - "960"
           - "1200"
           - "10080"
@@ -56,6 +60,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: false
+        default: "600"
+        type: string
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       disable-notifications:
         required: false
         default: true
@@ -86,7 +95,7 @@ jobs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -126,16 +135,18 @@ jobs:
     uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref || github.ref }}"
       solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
+      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
@@ -146,7 +157,7 @@ jobs:
     if: ${{ inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -209,7 +220,7 @@ jobs:
       commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -230,17 +241,7 @@ jobs:
           COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
-          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
-            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
-
-          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
-            echo "No Slack user found for email: ${EMAIL}"
-            SLACK_USER_ID="No matching slack user found"
-          else
-            echo "Found slack user for email: ${EMAIL}"
-            SLACK_USER_ID="<@${SLACK_USER_ID}>"
-          fi
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
@@ -261,7 +262,7 @@ jobs:
       inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -388,7 +389,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 

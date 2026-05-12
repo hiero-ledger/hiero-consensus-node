@@ -37,9 +37,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 public class TokenAirdropBase {
+
+    /**
+     * Atomic counter for allocating unique NFT serial numbers across concurrent tests.
+     * Each test that needs a serial from the shared {@link #NON_FUNGIBLE_TOKEN} should call
+     * {@link #nextNftSerial()} instead of hardcoding a value, to avoid collisions when
+     * tests run in parallel on a shared embedded network.
+     */
+    private static final AtomicLong nextNftSerialNo = new AtomicLong(1);
+
+    protected static long nextNftSerial() {
+        return nextNftSerialNo.getAndIncrement();
+    }
 
     protected static final String OWNER = "owner";
     // receivers
@@ -153,17 +166,18 @@ public class TokenAirdropBase {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .name(NON_FUNGIBLE_TOKEN)
-                        .supplyKey(nftSupplyKey),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        IntStream.range(0, 10)
-                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                .toList()),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        IntStream.range(10, 20)
-                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                .toList()),
+                        .supplyKey(nftSupplyKey)));
+        // Mint 100 serials for NON_FUNGIBLE_TOKEN in batches of 10 to provide enough
+        // unique serials for concurrent tests (each test allocates via nextNftSerial())
+        for (int batch = 0; batch < 10; batch++) {
+            final int start = batch * 10;
+            t.add(mintToken(
+                    NON_FUNGIBLE_TOKEN,
+                    IntStream.range(start, start + 10)
+                            .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                            .toList()));
+        }
+        t.addAll(List.of(
                 tokenCreate(NFT_FOR_CONTRACT_TESTS)
                         .treasury(OWNER)
                         .tokenType(NON_FUNGIBLE_UNIQUE)

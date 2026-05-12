@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -24,6 +26,8 @@ import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 /** A Dagger module for facilities in the {@link com.hedera.node.app.records} package. */
@@ -71,7 +75,9 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
-            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter) {
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
@@ -84,6 +90,8 @@ public abstract class BlockRecordInjectionModule {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
                 initTrigger);
     }
 

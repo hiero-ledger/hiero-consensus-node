@@ -30,16 +30,25 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
         final var op = txnBody.consensusSubmitMessageOrThrow();
 
         final var msgSize = op.message().length();
-        addExtraFee(feeResult, serviceDef, Extra.STATE_BYTES, feeSchedule, msgSize);
+        var hasCustomFees = false;
         if (simpleFeeContext.feeContext() != null) {
             final var topic = simpleFeeContext
                     .feeContext()
                     .readableStore(ReadableTopicStore.class)
                     .getTopic(op.topicIDOrThrow());
-            final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
-            if (hasCustomFees) {
-                addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
-            }
+            hasCustomFees = topic != null && !topic.customFees().isEmpty();
+        }
+        if (hasCustomFees) {
+            addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
+            addExtraFee(
+                    feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, feeSchedule, msgSize);
+        } else {
+            addExtraFee(
+                    feeResult,
+                    serviceDef,
+                    Extra.CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES,
+                    feeSchedule,
+                    msgSize);
         }
     }
 

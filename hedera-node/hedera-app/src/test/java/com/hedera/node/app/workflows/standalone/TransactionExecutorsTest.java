@@ -35,6 +35,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.blocks.BlockStreamService;
@@ -119,6 +120,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
+import org.hyperledger.besu.evm.operation.InvalidOperation;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
@@ -435,6 +437,7 @@ public class TransactionExecutorsTest {
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
+        entityIdStore.incrementHighestNodeIdAndGet();
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
@@ -641,6 +644,22 @@ public class TransactionExecutorsTest {
         @Override
         public boolean isExtendedTracing() {
             return delegate.isExtendedTracing();
+        }
+
+        @Override
+        public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
+            frame.setCurrentOperation(op);
+            delegate.tracePostExecution(frame, new Operation.OperationResult(gas, halt));
+        }
+
+        @Override
+        public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
+            delegate.tracePostExecution(parent, InvalidOperation.INVALID_RESULT);
+        }
+
+        @Override
+        public void traceNotExecuting(MessageFrame child) {
+            delegate.tracePostExecution(child, InvalidOperation.INVALID_RESULT);
         }
     }
 }

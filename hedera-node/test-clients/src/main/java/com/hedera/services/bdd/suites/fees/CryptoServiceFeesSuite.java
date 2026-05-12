@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -30,7 +29,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -38,6 +36,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
@@ -62,20 +62,19 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class CryptoServiceFeesSuite {
-    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_INFO = 0.0001;
+    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_INFO = 0.000102;
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
-    private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
-    private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.05;
+    private static final double BASE_FEE_CRYPTO_DELETE = 0.0051;
+    private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.050395;
     private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214952;
     private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.000221485;
     private static final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;
-    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.0001;
+    private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.000102;
 
     private static final String CIVILIAN = "civilian";
     private static final String FEES_ACCOUNT = "feesAccount";
@@ -118,7 +117,8 @@ public class CryptoServiceFeesSuite {
                         .via(cryptoDelete)
                         .payingWith(CIVILIAN)
                         .signedBy(CIVILIAN),
-                validateChargedUsd(cryptoDelete, BASE_FEE_CRYPTO_DELETE));
+                validateFees(
+                        cryptoDelete, BASE_FEE_CRYPTO_DELETE, CRYPTO_DELETE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE));
     }
 
     @HapiTest
@@ -169,7 +169,7 @@ public class CryptoServiceFeesSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
                         .via(baseDeleteNft),
-                validateChargedUsdWithin(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 0.01),
+                validateFees(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, CRYPTO_DELETE_ALLOWANCE_FEE),
                 cryptoApproveAllowance().payingWith(OWNER).addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L)),
                 /* with specifying owner */
                 cryptoDeleteAllowance()
@@ -177,7 +177,7 @@ public class CryptoServiceFeesSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(OWNER, nft, List.of(1L))
                         .via(baseDeleteNft),
-                validateChargedUsdWithin(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 0.01));
+                validateFees(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
     @HapiTest
@@ -225,7 +225,7 @@ public class CryptoServiceFeesSuite {
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via("approve")
                         .blankMemo(),
-                validateChargedUsdWithin("approve", 0.05, 0.01),
+                validateFees("approve", 0.050392, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
@@ -291,7 +291,6 @@ public class CryptoServiceFeesSuite {
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     @DisplayName("CryptoUpdate transaction has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoUpdateBaseUSDFee() {
 
         final var baseTxn = "baseTxn";
@@ -468,7 +467,6 @@ public class CryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoGetAccountRecords query has expected base fee")
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoCryptoGetAccountRecordsBaseUSDFee() {
         final var nonTreasurySender = "nonTreasurySender";
 
@@ -480,7 +478,7 @@ public class CryptoServiceFeesSuite {
                         .payingWith(nonTreasurySender)
                         .via("baseGetAccountRecord"),
                 sleepFor(2000),
-                validateChargedUsd("baseGetAccountRecord", BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS));
+                validateFees("baseGetAccountRecord", BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS, NODE_AND_NETWORK_BASE_FEE));
     }
 
     @HapiTest
@@ -503,6 +501,6 @@ public class CryptoServiceFeesSuite {
                 Map.of("memo.useSpecName", "false"),
                 getAccountInfo(CIVILIAN).via("basicGetInfo").payingWith(FEES_ACCOUNT),
                 sleepFor(1000),
-                validateChargedUsd("basicGetInfo", BASE_FEE_CRYPTO_GET_ACCOUNT_INFO));
+                validateFees("basicGetInfo", BASE_FEE_CRYPTO_GET_ACCOUNT_INFO, NODE_AND_NETWORK_BASE_FEE));
     }
 }

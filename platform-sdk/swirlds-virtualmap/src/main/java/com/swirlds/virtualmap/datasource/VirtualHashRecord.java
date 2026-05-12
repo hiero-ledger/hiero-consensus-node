@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
@@ -11,10 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.io.IOException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A record that contains a path and a hash. It serves for both node types, internal and leaf.
@@ -35,6 +30,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * @param path the path of the node
  * @param hash the hash of the node
  */
+@Deprecated
 public record VirtualHashRecord(long path, Hash hash) {
 
     public static final FieldDefinition FIELD_HASHRECORD_PATH =
@@ -111,32 +107,6 @@ public record VirtualHashRecord(long path, Hash hash) {
             final Bytes hashBytes = hash.getBytes();
             ProtoWriterTools.writeDelimited(
                     out, FIELD_HASHRECORD_HASH, Math.toIntExact(hashBytes.length()), hashBytes::writeTo);
-        }
-    }
-
-    public static void extractAndWriteHashBytes(final ReadableSequentialData in, final SerializableDataOutputStream out)
-            throws IOException {
-        // Hash.serialize() format is: digest ID (4 bytes) + size (4 bytes) + hash (48 bytes)
-        out.writeInt(DigestType.SHA_384.id());
-        // hashBytes is in protobuf format
-        while (in.hasRemaining()) {
-            final int tag = in.readVarInt(false);
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-            if (fieldNum == FIELD_HASHRECORD_PATH.number()) {
-                in.skip(Long.BYTES);
-            } else if (fieldNum == FIELD_HASHRECORD_HASH.number()) {
-                final int hashSize = in.readVarInt(false);
-                // It would be helpful to have BufferedData.readBytes(OutputStream) method, similar to
-                // readBytes(ByteBuffer) or readBytes(BufferedData). Since there is no such method,
-                // use a workaround to allocate a byte array
-                final byte[] arr = new byte[hashSize];
-                in.readBytes(arr);
-                out.writeInt(hashSize);
-                out.write(arr);
-                break;
-            } else {
-                throw new IllegalArgumentException("Unknown virtual hash record field: " + fieldNum);
-            }
         }
     }
 }

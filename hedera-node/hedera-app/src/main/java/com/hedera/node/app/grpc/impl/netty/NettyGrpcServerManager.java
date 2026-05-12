@@ -350,9 +350,10 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         try {
             builder = withConfigForActiveProfile(getInitialServerBuilder(port, localHostOnly), config, activeProfile)
                     .channelType(EpollServerSocketChannel.class)
-                    .bossEventLoopGroup(new EpollEventLoopGroup())
-                    .workerEventLoopGroup(new EpollEventLoopGroup());
-            logger.info("Using Epoll for gRPC server");
+                    .bossEventLoopGroup(new EpollEventLoopGroup(config.bossThreads()))
+                    .workerEventLoopGroup(new EpollEventLoopGroup(config.workerThreads()));
+            logger.info(
+                    "Using Epoll for gRPC server (boss={}, worker={})", config.bossThreads(), config.workerThreads());
         } catch (final UnsatisfiedLinkError | NoClassDefFoundError ignored) {
             // If we can't use Epoll, then just use NIO
             logger.info("Epoll not available, using NIO");

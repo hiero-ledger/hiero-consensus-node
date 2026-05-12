@@ -5,8 +5,8 @@
 ########################################################################################################################
 ARG UBUNTU_SHA="sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab"
 
-ARG OPENJDK_VERSION=21.0.1
-ARG OPENJDK_DL_KEY="415e3f918a1f4062a0074a2794853d0d/12"
+ARG OPENJDK_VERSION=25.0.2
+ARG OPENJDK_DL_KEY="b1e0dfa218384cb9959bdcb897162d4e/10"
 
 ########################################################################################################################
 #
@@ -98,6 +98,7 @@ RUN mkdir -p "/opt/hgcapp" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/apps" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/config" && \
+    mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/cutover" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/diskFs" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/keys" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data/lib" && \
@@ -125,6 +126,7 @@ VOLUME "/opt/hgcapp/recordStreams"
 VOLUME "/opt/hgcapp/blockStreams"
 VOLUME "/opt/hgcapp/wrappedRecordHashes"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/config"
+VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/cutover"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/diskFs"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/keys"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/onboard"
