@@ -801,7 +801,7 @@ public class HandleWorkflow {
                 lastTime = streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime();
-                nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                nextTime = lastTime.plusNanos(txnOffsetNanos);
                 n--;
             }
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
