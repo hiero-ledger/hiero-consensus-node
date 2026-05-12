@@ -55,11 +55,12 @@ public class DualBlockHashSigner implements BlockHashSigner {
                 if (!(signing instanceof RsaContext.Signing rsaSigning)) {
                     throw new IllegalStateException("RSA signing required for block hash " + blockHash);
                 }
-                submissions.submitRsaSignature(blockHash).exceptionally(t -> {
+                final var submissionFuture = submissions.submitRsaSignature(blockHash);
+                submissionFuture.exceptionally(t -> {
                     log.warn("Failed to submit RSA signature for block hash {}", blockHash, t);
                     return null;
                 });
-                yield new Attempt(null, null, rsaSigning.future());
+                yield new Attempt(null, null, rsaSigning.future(), submissionFuture);
             }
         };
     }
