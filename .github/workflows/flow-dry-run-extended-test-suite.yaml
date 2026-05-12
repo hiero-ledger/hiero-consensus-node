@@ -6,9 +6,12 @@ on:
       ref:
         required: true
         description: "The commit sha, tag, or branch to check out"
-      branch_name:
+      branch-name:
         required: false
         description: "The branch name, for JRS Panel output"
+      solo-version:
+        required: false
+        description: "Override default solo version for testing"
       enable-timing-sensitive-test-suite:
         type: boolean
         description: "Run Timing Sensitive Test Suite"
@@ -94,7 +97,7 @@ jobs:
             HELM_NAME="mirror-1"
           fi
           echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ inputs.branch-name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Timing Sensitive Test Suite: ${{ inputs.enable-timing-sensitive-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hammer Test Suite: ${{ inputs.enable-hammer-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable HAPI Test Suite: ${{ inputs.enable-hapi-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -108,7 +111,7 @@ jobs:
           echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${{ inputs.solo-version || vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
@@ -127,7 +130,7 @@ jobs:
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
-      branch_name: ${{ inputs.branch_name }}
+      branch-name: ${{ inputs.branch-name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
