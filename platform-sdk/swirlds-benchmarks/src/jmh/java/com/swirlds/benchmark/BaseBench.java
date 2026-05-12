@@ -216,6 +216,8 @@ public abstract class BaseBench {
         onTrialTearDown();
 
         BenchmarkMetrics.stop();
+
+        Utils.deleteRecursively(benchDir.resolve("tmp"));
         if (!getBenchmarkConfig().saveDataDirectory()) {
             Utils.deleteRecursively(benchDir);
         }
