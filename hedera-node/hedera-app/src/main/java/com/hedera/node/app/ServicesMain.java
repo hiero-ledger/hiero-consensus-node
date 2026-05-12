@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
@@ -17,16 +15,22 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -34,15 +38,14 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -68,6 +71,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -143,6 +149,8 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
         final var selfId = commandLineArgs.localNodesToStart().stream()
                 .findFirst()
@@ -156,12 +164,11 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, metrics, time);
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, time);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
@@ -214,6 +221,20 @@ public class ServicesMain {
                 ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
                 // Otherwise derive it from the node's id in state
                 : canonicalEventStreamLoc(selfId.id(), state);
+
+        // Run the wrapped record block hash migration before platform.build() so the result is available when
+        // BlockRecordManagerImpl is constructed during DI initialization.
+        // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
+        // If migration voting has already completed in state, skip the migration entirely.
+        final var hederaConfig = hedera.configProvider().getConfiguration();
+        final var migrationAlreadyApplied = isMigrationVotingComplete(state);
+        hedera.wrappedRecordBlockHashMigration()
+                .execute(
+                        hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        hederaConfig.getConfigData(BlockRecordStreamConfig.class),
+                        hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
+                        migrationAlreadyApplied);
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -231,12 +252,6 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-
-        // The migration itself is gated by appropriate feature flags
-        hedera.wrappedRecordBlockHashMigration()
-                .execute(
-                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
-                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
 
         platform.start();
         hedera.run();
@@ -294,12 +309,16 @@ public class ServicesMain {
      * Creates a canonical {@link Hedera} instance for the given node id and metrics.
      *
      * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param fileSystemManager the file system manager instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      * @param time          the time instance to use when creating the new instance of state
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
         requireNonNull(configuration);
         requireNonNull(metrics);
         requireNonNull(time);
@@ -309,16 +328,19 @@ public class ServicesMain {
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                        rsaContext,
+                        rsaSignings),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
-                TssBlockHashSigner::new,
+                DualBlockHashSigner::new,
                 configuration,
+                fileSystemManager,
                 metrics,
                 time);
     }
@@ -345,5 +367,24 @@ public class ServicesMain {
 
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
+    }
+
+    /**
+     * Checks if migration root hash voting has already completed in state.
+     */
+    @VisibleForTesting
+    static boolean isMigrationVotingComplete(@NonNull final State state) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return false;
+        }
+        if (blockInfo.votingComplete()) {
+            return true;
+        }
+        return blockInfo.votingCompletionDeadlineBlockNumber() > 0
+                && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
     }
 }

@@ -63,6 +63,9 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private Optional<Boolean> declineReward = Optional.empty();
 
     @Nullable
+    private List<Long> associatedRegisteredNode;
+
+    @Nullable
     private LongConsumer nodeIdObserver;
 
     @Nullable
@@ -156,6 +159,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
+    public HapiNodeCreate associatedRegisteredNode(@NonNull final List<Long> ids) {
+        this.associatedRegisteredNode = requireNonNull(ids);
+        return this;
+    }
+
     public HapiNodeCreate adminKey(final String name) {
         adminKeyName = Optional.of(name);
         return this;
@@ -217,13 +225,20 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
                             declineReward.ifPresent(builder::setDeclineReward);
+                            if (associatedRegisteredNode != null) {
+                                builder.addAllAssociatedRegisteredNode(associatedRegisteredNode);
+                            }
                         });
         return b -> b.setNodeCreate(opBody);
     }
 
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
-        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ignore -> adminKey);
+        final var signers = new java.util.ArrayList<Function<HapiSpec, Key>>();
+        signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
+        signers.add(ignore -> adminKey);
+        account.ifPresent(acct -> signers.add(spec -> spec.registry().getKey(acct)));
+        return signers;
     }
 
     @Override

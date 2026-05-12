@@ -8,10 +8,15 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -22,6 +27,16 @@ import org.junit.jupiter.params.provider.MethodSource;
  * concurrency concerns.
  */
 class LongListAdHocTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setup() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     @ParameterizedTest
     @MethodSource("provideLongLists")
@@ -51,15 +66,16 @@ class LongListAdHocTest {
         final int capacity = longsPerChunk * 4096;
         return Stream.of(
                 new LongListHeap(longsPerChunk, capacity, 0),
-                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4));
+                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4),
+                new LongListSegment(longsPerChunk, capacity, longsPerChunk / 4));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860
     @Test
     void testReallocateThreadLocalBufferWhenMemoryChunkSizeChanges() throws IOException {
         // Create two long lists with different memory chunk sizes
-        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION);
-        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION);
+        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
+        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
 
         // Populate both long lists with sample data and validate
         populateList(largeMemoryChunkList);

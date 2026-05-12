@@ -32,6 +32,7 @@ import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -70,12 +71,10 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -84,6 +83,7 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
@@ -121,7 +121,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(StateCommonConfig.class)
                 .withConfigDataType(CryptoConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
                 .withConfigDataType(ReconnectConfig.class)
                 .withConfigDataType(MetricsConfig.class)
                 .withConfigDataType(PrometheusConfig.class)
@@ -173,6 +172,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(NodesConfig.class)
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockStreamJumpstartConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withConfigDataType(AtomicBatchConfig.class)

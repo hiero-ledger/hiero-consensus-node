@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -147,7 +155,7 @@ class ProofControllerImplTest {
     void isStillInProgressFalseWhenHasTargetProof() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -203,7 +211,7 @@ class ProofControllerImplTest {
     void advanceConstructionReturnsEarlyWhenAlreadyFinished() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -341,7 +349,7 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
@@ -484,6 +492,101 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void advanceConstructionReturnsEarlyForIrrecoverableFailureAtStart() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .failureReason("irrecoverable")
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verifyNoMoreInteractions(writableHistoryStore, prover);
+    }
+
+    @Test
+    void advanceConstructionReturnsEarlyWhenRetryBudgetExhausted() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .failureReason(RECOVERABLE_REASON)
+                .wrapsRetryCount(DEFAULT_TSS_CONFIG.maxWrapsRetries())
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore, never()).restartWrapsSigning(anyLong(), any());
+        verifyNoMoreInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void advanceConstructionPublishesKeyWhileWaitingForAssemblyBeforeGracePeriodEnds() {
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(submissions.submitProofKeyPublication(any())).willReturn(CompletableFuture.completedFuture(null));
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(5), METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(submissions).submitProofKeyPublication(eq(keyPair.publicKey()));
+        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+    }
+
+    @Test
+    void advanceConstructionHandlesFailedProofKeyPublication() {
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(submissions.submitProofKeyPublication(any()))
+                .willReturn(CompletableFuture.failedFuture(new RuntimeException("boom")));
+
+        assertDoesNotThrow(
+                () -> subject.advanceConstruction(Instant.EPOCH, null, writableHistoryStore, true, tssConfig));
+
+        verify(submissions).submitProofKeyPublication(eq(keyPair.publicKey()));
+    }
+
+    @Test
+    void advanceConstructionReportsIntermediateWrapsStages() {
+        assertStageForWrapsPhase(R2, HistoryProofMetrics.Stage.WRAPS_R2);
+        assertStageForWrapsPhase(R3, HistoryProofMetrics.Stage.WRAPS_R3);
+        assertStageForWrapsPhase(AGGREGATE, HistoryProofMetrics.Stage.WRAPS_AGGREGATE);
+    }
+
+    @Test
     void addProofKeyPublicationIgnoredWhenNoGracePeriod() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -517,6 +620,15 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void addProofKeyPublicationIgnoresNonTargetNode() {
+        final var publication = new ProofKeyPublication(OTHER_NODE_ID, PROOF_KEY_1, Instant.EPOCH);
+
+        given(weights.targetIncludes(OTHER_NODE_ID)).willReturn(false);
+
+        subject.addProofKeyPublication(publication);
+    }
+
+    @Test
     void addProofKeyPublicationTracksKeysForTargetNode() {
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
@@ -538,7 +650,7 @@ class ProofControllerImplTest {
     void addWrapsMessagePublicationReturnsFalseWhenHasTargetProof() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -584,7 +696,7 @@ class ProofControllerImplTest {
     void addProofVoteIgnoresWhenAlreadyCompleted() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(HistoryProof.newBuilder().build())
+                .targetProof(aValidProof())
                 .build();
 
         subject = new ProofControllerImpl(
@@ -605,18 +717,16 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
-        final var vote = HistoryProofVote.newBuilder()
-                .proof(HistoryProof.newBuilder().build())
-                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(aValidProof()).build();
 
-        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
     }
 
     @Test
     void addProofVoteStoresDirectProofVoteAndMayFinish() {
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
@@ -624,7 +734,7 @@ class ProofControllerImplTest {
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
                 .willReturn(construction);
 
-        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
@@ -633,7 +743,7 @@ class ProofControllerImplTest {
 
     @Test
     void addProofVoteHandlesCongruentVotes() {
-        final var proof = HistoryProof.newBuilder().build();
+        final var proof = aValidProof();
         final var baseVote = HistoryProofVote.newBuilder().proof(proof).build();
         existingVotes.put(OTHER_NODE_ID, baseVote);
 
@@ -663,9 +773,264 @@ class ProofControllerImplTest {
         given(weights.sourceWeightThreshold()).willReturn(15L);
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), any())).willReturn(construction);
 
-        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore);
+        subject.addProofVote(SELF_ID, congruentVote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(congruentVote));
+    }
+
+    @Test
+    void addProofVoteIgnoresDuplicateVote() {
+        final var originalVote =
+                HistoryProofVote.newBuilder().proof(aValidProof()).build();
+        existingVotes.put(SELF_ID, originalVote);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        reset(writableHistoryStore, prover);
+
+        subject.addProofVote(SELF_ID, originalVote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void addProofVoteIgnoresMalformedCongruentVote() {
+        final var vote =
+                HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build();
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void addProofVoteStoresAggregatedSignatureVoteWithoutFinishingBelowThreshold() {
+        final var proof = aggregatedSignatureProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(4L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(prover).observeProofVote(eq(SELF_ID), eq(vote), eq(false), eq(ProofVoteCategory.NOT_RECURSIVE));
+    }
+
+    @Test
+    void addProofVoteCategorizesInvalidRecursiveVoteWithoutFinishing() {
+        final var proof = recursiveProof("compressed", "uncompressed");
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(historyLibrary.verifyCompressedProof(
+                        eq(Bytes.wrap("compressed").toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray())))
+                .willReturn(false);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(15L);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(prover).observeProofVote(eq(SELF_ID), eq(vote), eq(false), eq(ProofVoteCategory.INVALID_RECURSIVE));
+    }
+
+    @Test
+    void addProofVoteFinishesRecursiveProofWhenValidVotesReachThreshold() {
+        final var higherNodeProof = recursiveProof("compressed-2", "uncompressed-2");
+        final var lowerNodeProof = recursiveProof("compressed-1", "uncompressed-1");
+        existingVotes.put(
+                OTHER_NODE_ID,
+                HistoryProofVote.newBuilder().proof(higherNodeProof).build());
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var lowerNodeVote =
+                HistoryProofVote.newBuilder().proof(lowerNodeProof).build();
+
+        given(historyLibrary.verifyCompressedProof(
+                        eq(Bytes.wrap("compressed-1").toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray())))
+                .willReturn(true);
+        given(historyLibrary.verifyCompressedProof(
+                        eq(Bytes.wrap("compressed-2").toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray()),
+                        eq(Bytes.EMPTY.toByteArray())))
+                .willReturn(true);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightOf(OTHER_NODE_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(15L);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(lowerNodeProof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, lowerNodeVote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(lowerNodeVote));
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(lowerNodeProof));
+        verify(prover)
+                .observeProofVote(eq(SELF_ID), eq(lowerNodeVote), eq(true), eq(ProofVoteCategory.VALID_RECURSIVE));
+    }
+
+    @Test
+    void addProofVoteIgnoresCompletedWrapsExtensibleProofWhenWrapsEnabled() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .targetProof(recursiveProof("compressed", "uncompressed"))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+
+        final var vote = HistoryProofVote.newBuilder()
+                .proof(recursiveProof("later", "later-uncompressed"))
+                .build();
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void advanceConstructionStartsAssemblyAfterGracePeriodWhenPublishedWeightMeetsThreshold() {
+        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(weights.targetWeightOf(SELF_ID)).willReturn(7L);
+        given(weights.targetWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any())).willReturn(construction);
+
+        subject.addProofKeyPublication(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(20), METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(writableHistoryStore).setAssemblyTime(eq(CONSTRUCTION_ID), any());
+    }
+
+    @Test
+    void constructorReplaysWrapsMessagesAndSkipsLateProofKeyPublications() {
+        keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        keyPublications.add(new ProofKeyPublication(OTHER_NODE_ID, Bytes.wrap("late"), Instant.EPOCH.plusSeconds(11)));
+        wrapsMessagePublications.add(
+                new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH.plusSeconds(2)));
+
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        given(weights.numTargetNodesInSource()).willReturn(2);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(5), METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(prover).replayWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(wrapsMessagePublications.getFirst()));
+        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+    }
+
+    @Test
+    void constructorUsesSourceProofKeysWhenSourceProofPresent() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .targetProofKeys(new com.hedera.hapi.node.state.history.ProofKey(SELF_ID, PROOF_KEY_1))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                sourceProof,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        verify(proverFactory)
+                .create(
+                        eq(SELF_ID),
+                        eq(DEFAULT_TSS_CONFIG),
+                        eq(keyPair),
+                        eq(sourceProof),
+                        eq(weights),
+                        eq(Map.of(SELF_ID, PROOF_KEY_1)),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions));
     }
 
     @Test
@@ -690,6 +1055,64 @@ class ProofControllerImplTest {
 
     private static Timestamp asTimestamp(final Instant instant) {
         return new Timestamp(instant.getEpochSecond(), instant.getNano());
+    }
+
+    private static HistoryProof aValidProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+    }
+
+    private static HistoryProof aggregatedSignatureProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                Bytes.wrap("aggSig"), new ArrayList<>(List.of(SELF_ID)), PROOF_KEY_1)))
+                .build();
+    }
+
+    private static HistoryProof recursiveProof(final String compressedProof, final String uncompressedProof) {
+        return HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.wrap(uncompressedProof))
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap(compressedProof)))
+                .build();
+    }
+
+    private void assertStageForWrapsPhase(
+            final com.hedera.hapi.node.state.history.WrapsPhase phase, final HistoryProofMetrics.Stage stage) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(phase).build())
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(historyProofMetrics, times(2)).observeStage(CONSTRUCTION_ID, stage, now);
+        reset(historyProofMetrics, prover, writableHistoryStore);
     }
 
     private void setField(String name, Object value) throws Exception {

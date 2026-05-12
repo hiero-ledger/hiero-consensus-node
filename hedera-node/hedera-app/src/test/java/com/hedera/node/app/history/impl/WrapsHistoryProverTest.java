@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -30,6 +32,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -212,6 +217,39 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void advanceDoesNotCachePartialWrapsStateIfHashingThrows() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.hashAddressBook(any())).willThrow(new IllegalArgumentException("boom"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.advance(
+                        EPOCH,
+                        constructionWithPhase(R1, null),
+                        TARGET_METADATA,
+                        targetProofKeys,
+                        tssConfig,
+                        LEDGER_ID));
+
+        assertNull(getField("targetAddressBook"));
+        assertNull(getField("wrapsMessage"));
+        assertNull(getField("targetAddressBookHash"));
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void advancePublishesR3WhenEligible() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
@@ -299,6 +337,28 @@ class WrapsHistoryProverTest {
     @Test
     void addWrapsSigningMessageRejectsWrongPhase() {
         final var publication = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R2, EPOCH);
+
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, publication, writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void addWrapsSigningMessageIgnoresNodeWithMissingSourceSchnorrKey() {
+        proofKeys.put(OTHER_NODE_ID, HistoryLibrary.MISSING_SCHNORR_KEY);
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+
+        final var publication = new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH);
 
         assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, publication, writableHistoryStore));
         verifyNoInteractions(writableHistoryStore);
@@ -554,7 +614,7 @@ class WrapsHistoryProverTest {
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
         // voteDecisionFuture is null by default, so this should return early
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
@@ -568,7 +628,7 @@ class WrapsHistoryProverTest {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
@@ -582,7 +642,7 @@ class WrapsHistoryProverTest {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, true);
+        subject.observeProofVote(OTHER_NODE_ID, vote, true, NOT_RECURSIVE);
 
         // The vote decision future should be completed
         assertTrue(pendingFuture.isDone());
@@ -598,7 +658,7 @@ class WrapsHistoryProverTest {
                 .build();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed since historyProof is null
         assertFalse(pendingFuture.isDone());
@@ -618,7 +678,7 @@ class WrapsHistoryProverTest {
         // Create a vote with the same proof
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should be completed since the proofs match
         assertTrue(pendingFuture.isDone());
@@ -643,7 +703,7 @@ class WrapsHistoryProverTest {
                 .build();
         final var vote = HistoryProofVote.newBuilder().proof(otherProof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed since the proofs don't match
         assertFalse(pendingFuture.isDone());
@@ -657,10 +717,90 @@ class WrapsHistoryProverTest {
         // Create a vote with congruent_node_id instead of proof
         final var vote = HistoryProofVote.newBuilder().congruentNodeId(999L).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed
         assertFalse(pendingFuture.isDone());
+    }
+
+    @Test
+    void canceledConstructionSkipsMessagePublicationAfterOutputResolves() {
+        final var manualExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                manualExecutor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
+
+        final var outcome = subject.advance(
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        manualExecutor.runNext();
+        assertEquals(1, manualExecutor.pendingTasks());
+
+        assertTrue(subject.cancelPendingWork());
+        manualExecutor.runNext();
+
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void canceledConstructionSkipsVoteSchedulingAfterProofOutputResolves() {
+        final var manualExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                manualExecutor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(
+                        new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        manualExecutor.runNext();
+        assertEquals(1, manualExecutor.pendingTasks());
+
+        assertTrue(subject.cancelPendingWork());
+        manualExecutor.runNext();
+
+        assertNull(getField("historyProof"));
+        assertNull(getField("voteDecisionFuture"));
+        verifyNoInteractions(submissions);
     }
 
     private void setField(String name, Object value) {
@@ -670,6 +810,36 @@ class WrapsHistoryProverTest {
             field.set(subject, value);
         } catch (Exception e) {
             fail(e);
+        }
+    }
+
+    private Object getField(String name) {
+        try {
+            final var field = WrapsHistoryProver.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(subject);
+        } catch (Exception e) {
+            fail(e);
+            return null;
+        }
+    }
+
+    private static final class ManualExecutor implements Executor {
+        private final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+
+        @Override
+        public void execute(final Runnable command) {
+            tasks.add(command);
+        }
+
+        void runNext() {
+            final var task = tasks.poll();
+            assertNotNull(task);
+            task.run();
+        }
+
+        int pendingTasks() {
+            return tasks.size();
         }
     }
 }

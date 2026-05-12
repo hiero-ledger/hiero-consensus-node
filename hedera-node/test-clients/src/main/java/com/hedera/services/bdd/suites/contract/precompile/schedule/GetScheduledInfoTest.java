@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -31,6 +31,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
@@ -46,10 +47,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class GetScheduledInfoTest {
 
+    // Use a high entity number to avoid collisions with sequentially assigned entity IDs
+    // from concurrently running tests, which could cause INVALID_SCHEDULE_ID instead of
+    // RECORD_NOT_FOUND when the colliding entity is not a matching token creation schedule
+    private static final long NON_EXISTENT_SCHEDULE_NUM = 999_999_999L;
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String HTS_COLLECTOR = "denomFee";
     private static final String TOKEN_TREASURY = "treasury";
@@ -71,23 +75,25 @@ public class GetScheduledInfoTest {
     @Contract(contract = "GetScheduleInfo", creationGas = 5_000_000)
     static SpecContract contract;
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot get scheduled info for non-existent fungible create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            GET_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                            GET_FUNGIBLE_CREATE_TOKEN_INFO,
+                            asHeadlongAddress(asSolidityAddress(spec, NON_EXISTENT_SCHEDULE_NUM)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot get scheduled info for non-existent NFT create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO,
+                            asHeadlongAddress(asSolidityAddress(spec, NON_EXISTENT_SCHEDULE_NUM)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
@@ -95,7 +101,6 @@ public class GetScheduledInfoTest {
 
     @HapiTest
     @DisplayName("Can get scheduled info for fungible create schedule")
-    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();
@@ -172,7 +177,6 @@ public class GetScheduledInfoTest {
 
     @HapiTest
     @DisplayName("Can get scheduled info for nft create schedule")
-    @Tag(MATS)
     public Stream<DynamicTest> canGetScheduleInfoForNonFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var ledgerId = new AtomicReference<ByteString>();

@@ -317,7 +317,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
                 if (!rec.transactionSidecarRecords().isEmpty()) hasSidecars = true;
             }
             final var endRunningHash = new HashObject(HashAlgorithm.SHA_384, (int) previousHash.length(), previousHash);
-            writer.close(endRunningHash);
+            final var signedRecordFileHash = writer.close(endRunningHash);
 
             // read written file and validate hashes
             final var readRecordStreamFile =
@@ -343,6 +343,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             final var messageDigest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
             final var fileBytes = new GZIPInputStream(Files.newInputStream(recordPath)).readAllBytes();
             byte[] fileHash = messageDigest.digest(fileBytes);
+            assertThat(signedRecordFileHash).isEqualTo(Bytes.wrap(fileHash));
             final var dupe = fileSystem.getPath("/sigCheck.rcd");
             SignatureWriterV6.writeSignatureFile(
                     dupe,

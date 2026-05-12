@@ -7,7 +7,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
@@ -23,10 +22,10 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHtsFeeInSchedule;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fractionalFeeInSchedule;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
-import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
@@ -47,7 +46,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -158,9 +156,7 @@ public class TokenFeeScheduleUpdateSpecs {
 
         return defaultHapiSpec("OnlyValidCustomFeeScheduleCanBeUpdated")
                 .given(
-                        fileUpdate(APP_PROPERTIES)
-                                .payingWith(GENESIS)
-                                .overridingProps(Map.of("tokens.maxCustomFeesAllowed", "10")),
+                        overriding("tokens.maxCustomFeesAllowed", "10"),
                         newKeyNamed(adminKey),
                         newKeyNamed(feeScheduleKey),
                         cryptoCreate(htsCollector),
@@ -205,9 +201,7 @@ public class TokenFeeScheduleUpdateSpecs {
                                         minimumToCollect,
                                         OptionalLong.of(maximumToCollect),
                                         tokenCollector)),
-                        fileUpdate(APP_PROPERTIES)
-                                .payingWith(GENESIS)
-                                .overridingProps(Map.of("tokens.maxCustomFeesAllowed", "1")))
+                        overriding("tokens.maxCustomFeesAllowed", "1"))
                 .when(
                         tokenFeeScheduleUpdate(immutableTokenWithFeeScheduleKey)
                                 .withCustom(fractionalFee(
@@ -276,9 +270,7 @@ public class TokenFeeScheduleUpdateSpecs {
                         tokenFeeScheduleUpdate(token)
                                 .withCustom(incompleteCustomFee(hbarCollector))
                                 .hasKnownStatus(CUSTOM_FEE_NOT_FULLY_SPECIFIED),
-                        fileUpdate(APP_PROPERTIES)
-                                .payingWith(GENESIS)
-                                .overridingProps(Map.of("tokens.maxCustomFeesAllowed", "10")),
+                        overriding("tokens.maxCustomFeesAllowed", "10"),
                         tokenAssociate(newTokenCollector, token),
                         tokenFeeScheduleUpdate(token)
                                 .withCustom(fixedHbarFee(newHbarAmount, newHbarCollector))

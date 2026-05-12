@@ -64,18 +64,18 @@ import "block/stream/tss_signed_block_proof.proto";
  *    Leaf nodes in this subtree SHALL be ordered in the same order that
  *    the block items are encountered in the stream.
  * 6. The root of a merkle tree composed of all output items in the
- *    block. Output items SHALL be transaction result or transaction
- *    output items. Leaf nodes in this subtree SHALL be ordered in the
- *    same order that the block items are encountered in the stream.
+ *    block. Output items SHALL be `BlockHeader`, `RecordFileItem`,
+ *    `TransactionResult`, and `TransactionOutput` items. Leaf nodes in
+ *    this subtree SHALL be ordered in the same order that the block
+ *    items are encountered in the stream.
  * 7. The root of a merkle tree composed of all state changes in the
- *    block. State change items SHALL be transaction result or
- *    transaction output items. Leaf nodes in this subtree SHALL be
- *    ordered in the same order that the block items are encountered
- *    in the stream.
+ *    block. State change items SHALL be `StateChanges` items. Leaf
+ *    nodes in this subtree SHALL be ordered in the same order that
+ *    the block items are encountered in the stream.
  * 8. The root of a merkle tree composed of all trace data items in the
- *    block. Trace data items SHALL be transaction result or transaction
- *    output items. Leaf nodes in this subtree SHALL be ordered in the
- *    same order that the block items are encountered in the stream.
+ *    block. Trace data items SHALL be `TraceData` items. Leaf nodes in
+ *    this subtree SHALL be ordered in the same order that the block
+ *    items are encountered in the stream.
  * 9-16: Empty leaf nodes reserved for future use.<br/>
  * For the "right-most" subtree's internal nodes:
  * - Level four's internal nodes SHALL be the parents of the (ordered)

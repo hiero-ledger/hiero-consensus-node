@@ -12,8 +12,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.Reservable;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -24,7 +22,9 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
+import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -52,7 +52,10 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager());
         // copy just to init immutableLastState
         initialState = stateLifecycleManager.copyMutableState();
         TestingAppStateInitializer.initPlatformState(initialState);

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -14,11 +13,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -26,17 +28,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class MiscellaneousFeesSuite {
     private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     private static final String BOB = "bob";
     private static final String ALICE = "alice";
-    private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
+    private static final double BASE_FEE_MISC_GET_VERSION = 0.000102;
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
     private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
-    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.0001;
-    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.0010010316;
+    public static final double BASE_FEE_MISC_GET_TRX_RECORD = 0.000102;
+    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.001009;
 
     @HapiTest
     @DisplayName("USD base fee as expected for Prng transaction")
@@ -52,7 +53,7 @@ public class MiscellaneousFeesSuite {
                 validateChargedUsd(baseTxn, BASE_FEE_MISC_PRNG_TRX),
                 hapiPrng(10).payingWith(BOB).via(plusRangeTxn).blankMemo().logged(),
                 getTxnRecord(plusRangeTxn).hasOnlyPseudoRandomNumberInRange(10).logged(),
-                validateChargedUsd(plusRangeTxn, EXPECTED_FEE_PRNG_RANGE_TRX, 0.5));
+                validateFees(plusRangeTxn, EXPECTED_FEE_PRNG_RANGE_TRX, BASE_FEE_MISC_PRNG_TRX));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
@@ -63,7 +64,7 @@ public class MiscellaneousFeesSuite {
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo().signedBy(BOB).payingWith(BOB).via("versionInfo"),
                 handleAnyRepeatableQueryPayment(),
-                validateChargedUsd("versionInfo", BASE_FEE_MISC_GET_VERSION));
+                safeValidateChargedUsdWithin("versionInfo", BASE_FEE_MISC_GET_VERSION, 1.0, QUERY_BASE_FEE, 0.1));
     }
 
     @HapiTest
@@ -78,7 +79,6 @@ public class MiscellaneousFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for get transaction record")
-    @Tag(MATS)
     final Stream<DynamicTest> miscGetTransactionRecordBaseUSDFee() {
         String baseTransactionGetRecord = "baseTransactionGetRecord";
         String createTxn = "createTxn";
@@ -89,16 +89,14 @@ public class MiscellaneousFeesSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .signedBy(ALICE)
                         .payingWith(ALICE)
-                        .via(createTxn)
-                        .logged(),
+                        .via(createTxn),
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(baseTransactionGetRecord),
                 sleepFor(1000),
-                validateChargedUsd(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD));
+                validateFees(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD, QUERY_BASE_FEE));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for atomic batch transaction")
-    @Tag(MATS)
     public Stream<DynamicTest> validateAtomicBatchBaseUSDFee() {
         final var batchOperator = "batchOperator";
 

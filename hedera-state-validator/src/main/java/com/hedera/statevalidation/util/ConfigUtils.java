@@ -22,7 +22,9 @@ import com.hedera.node.config.converter.ScaleFactorConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -43,9 +45,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -88,6 +92,8 @@ public final class ConfigUtils {
 
     public static String JOB_URL = System.getProperty("job.url");
 
+    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "600000");
+
     private static Configuration configuration;
 
     private static void initConfiguration() {
@@ -113,10 +119,16 @@ public final class ConfigUtils {
                 .withConfigDataType(PcesConfig.class)
                 .withConfigDataType(BasicConfig.class)
                 .withConfigDataType(MetricsConfig.class)
+                .withConfigDataType(BlockRecordStreamConfig.class)
+                .withConfigDataType(BlockStreamJumpstartConfig.class)
+                .withConfigDataType(ModulesConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
+                .withSource(
+                        new SimpleConfigSource().withValue("virtualMap.fullRehashTimeoutMs", FULL_REHASH_TIMEOUT_MS))
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(KnownBlockValues.class, new KnownBlockValuesConverter())
@@ -146,5 +158,9 @@ public final class ConfigUtils {
             initConfiguration();
         }
         return configuration;
+    }
+
+    public static int getVirtualMapValueParseMaxSizeBytes() {
+        return getConfiguration().getConfigData(VirtualMapConfig.class).valueParseMaxSizeBytes();
     }
 }

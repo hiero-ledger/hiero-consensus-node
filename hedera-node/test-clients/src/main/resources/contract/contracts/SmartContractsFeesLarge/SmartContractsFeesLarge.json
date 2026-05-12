@@ -1,0 +1,15 @@
+[
+  {
+    "inputs": [],
+    "name": "marker",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

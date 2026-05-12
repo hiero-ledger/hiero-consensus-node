@@ -46,7 +46,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -172,7 +171,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER)))),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
 
                 // assert balances
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10),
@@ -431,7 +430,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
         return blockingOrder(
                 claimFn.get().via("claimTxn" + claimNum),
                 claimFn.get().hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
-                validateChargedUsd("claimTxn" + claimNum, 0.0010031904, 1));
+                validateFees("claimTxn" + claimNum, 0.0010031904, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -478,7 +477,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                 pendingAirdrop(ALICE, TOM, FUNGIBLE_TOKEN_9),
                                 pendingAirdrop(ALICE, STEVE, FUNGIBLE_TOKEN_10))
                         .payingWith(BOB)
-                        .signedByPayerAnd(BOB, CAROL, YULIA, TOM, STEVE)
+                        .signedBy(BOB, CAROL, YULIA, TOM, STEVE)
                         .via("claimTxn"),
                 validateFees("claimTxn", 0.0010127628, TOKEN_CLAIM_FEE + 4 * SIGNATURE_FEE_AFTER_MULTIPLIER),
                 tokenClaimAirdrop(
@@ -931,7 +930,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(validAlias)
                         .sigMapPrefixes(uniqueWithFullPrefixesFor(validAlias))
                         .via("claimTxn"),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE),
 
                 // check if account was finalized and auto associations were not modified
                 getAliasedAccountInfo(validAlias).isNotHollow().hasMaxAutomaticAssociations(0)));
@@ -968,13 +967,15 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(OWNER),
                 tokenClaimAirdrop(pendingAirdrop(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
                         .via("claimTxn1")
-                        .payingWith(RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
+                        .payingWith(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)
+                        .signedBy(RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
                 tokenClaimAirdrop(pendingAirdrop(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
                         .via("claimTxn2")
                         .payingWith(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)
+                        .signedBy(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
-                validateChargedUsd("claimTxn1", 0.001, 1),
-                validateChargedUsd("claimTxn2", 0.001, 1)));
+                validateFees("claimTxn1", 0.001, TOKEN_CLAIM_FEE),
+                validateFees("claimTxn2", 0.001, TOKEN_CLAIM_FEE)));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1020,6 +1021,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 tokenClaimAirdrop(pendingAirdrop(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
                         .via("claimTxn")
                         .payingWith(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)
+                        .signedBy(RECEIVER_WITH_0_AUTO_ASSOCIATIONS)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Missing signature from second receiver
                 tokenClaimAirdrop(
@@ -1038,7 +1040,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                 RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 1),
                 getAccountBalance(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 1),
-                validateChargedUsd("claimTxn", 0.001, 1)));
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE)));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

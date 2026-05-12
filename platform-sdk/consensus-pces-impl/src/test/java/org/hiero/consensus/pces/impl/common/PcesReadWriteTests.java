@@ -9,8 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,10 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.junit.extensions.ParamName;
@@ -41,6 +45,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("PCES Read Write Tests")
 class PcesReadWriteTests {
+
+    private static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
+    private static final Metrics METRICS = new NoOpMetrics();
+    private static final Time TIME = Time.getCurrent();
 
     /**
      * Temporary directory provided by JUnit
@@ -83,7 +91,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -140,7 +150,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -227,7 +239,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -301,7 +315,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -370,7 +386,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -442,7 +460,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -514,7 +534,9 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                TestPlatformContextBuilder.create().build(),
+                CONFIGURATION,
+                METRICS,
+                TIME,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),

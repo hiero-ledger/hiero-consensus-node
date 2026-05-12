@@ -34,9 +34,9 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -93,7 +93,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
             contractGetInfo.contractInfo(infoFor(
                     contract,
                     config.getConfigData(TokensConfig.class),
-                    config.getConfigData(LedgerConfig.class),
+                    context.ledgerId(),
                     config.getConfigData(StakingConfig.class),
                     context.createStore(ReadableTokenStore.class),
                     context.createStore(ReadableStakingInfoStore.class),
@@ -123,7 +123,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
     private ContractInfo infoFor(
             @NonNull final Account contract,
             @NonNull final TokensConfig tokensConfig,
-            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final Bytes ledgerId,
             @NonNull final StakingConfig stakingConfig,
             @NonNull final ReadableTokenStore tokenStore,
             @NonNull final ReadableStakingInfoStore stakingInfoStore,
@@ -139,7 +139,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
                 instantSource.instant());
         final var maxReturnedRels = tokensConfig.maxRelsPerInfoQuery();
         final var builder = ContractInfo.newBuilder()
-                .ledgerId(ledgerConfig.id())
+                .ledgerId(ledgerId)
                 .accountID(accountId)
                 .contractID(entityIdFactory.newContractId(accountId.accountNumOrThrow()))
                 .deleted(contract.deleted())

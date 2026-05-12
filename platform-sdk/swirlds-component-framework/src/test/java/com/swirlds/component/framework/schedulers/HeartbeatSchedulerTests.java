@@ -27,7 +27,7 @@ class HeartbeatSchedulerTests {
                 model.<Void>schedulerBuilder("test").build();
 
         final BindableInputWire<Instant, Void> heartbeatBindable = scheduler.buildInputWire("heartbeat");
-        model.buildHeartbeatWire(100).solderTo(heartbeatBindable);
+        model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindable);
 
         final AtomicLong counter = new AtomicLong(0);
         heartbeatBindable.bindConsumer((time) -> {
@@ -86,7 +86,7 @@ class HeartbeatSchedulerTests {
         final BindableInputWire<Instant, Void> heartbeatBindableB = scheduler.buildInputWire("heartbeatB");
         final BindableInputWire<Instant, Void> heartbeatBindableC = scheduler.buildInputWire("heartbeatC");
 
-        model.buildHeartbeatWire(100).solderTo(heartbeatBindableA);
+        model.buildHeartbeatWire(Duration.ofMillis(10)).solderTo(heartbeatBindableA);
         model.buildHeartbeatWire(Duration.ofMillis(5)).solderTo(heartbeatBindableB);
         model.buildHeartbeatWire(Duration.ofMillis(50)).solderTo(heartbeatBindableC);
 

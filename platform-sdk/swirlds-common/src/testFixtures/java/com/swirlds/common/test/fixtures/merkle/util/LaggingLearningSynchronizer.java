@@ -6,15 +6,15 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import org.hiero.base.crypto.Hashable;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link LearningSynchronizer} with simulated latency.
+ *
  */
 public class LaggingLearningSynchronizer extends LearningSynchronizer {
 
@@ -22,16 +22,22 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
 
     /**
      * Create a new learning synchronizer with simulated latency.
+     *
+     * @param in the input stream for receiving data from the teacher
+     * @param out the output stream for sending data to the teacher
+     * @param view the learner's view into the merkle tree
+     * @param latencyMilliseconds the simulated latency in milliseconds
+     * @param breakConnection a callback to disconnect the connection on failure
+     * @param reconnectConfig the reconnect configuration
      */
     public LaggingLearningSynchronizer(
-            final SerializableDataInputStream in,
-            final SerializableDataOutputStream out,
-            final Hashable newRoot,
-            final LearnerTreeView view,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final LearnerTreeView view,
             final int latencyMilliseconds,
-            final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig) {
-        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
+            @NonNull final Runnable breakConnection,
+            @NonNull final ReconnectConfig reconnectConfig) {
+        super(getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.latencyMilliseconds = latencyMilliseconds;
     }
@@ -40,8 +46,10 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
      * {@inheritDoc}
      */
     @Override
-    public <T extends SelfSerializable> AsyncOutputStream<T> buildOutputStream(
-            final StandardWorkGroup workGroup, final SerializableDataOutputStream out) {
-        return new LaggingAsyncOutputStream<>(out, workGroup, latencyMilliseconds, reconnectConfig);
+    protected AsyncOutputStream buildOutputStream(
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final DataOutputStream out,
+            @NonNull final ReconnectConfig reconnectConfig) {
+        return new LaggingAsyncOutputStream(out, workGroup, latencyMilliseconds, reconnectConfig);
     }
 }

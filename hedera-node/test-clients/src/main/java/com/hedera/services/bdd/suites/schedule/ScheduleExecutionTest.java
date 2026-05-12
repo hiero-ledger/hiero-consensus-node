@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -49,8 +49,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageServiceOnly;
 import static com.hedera.services.bdd.suites.hip904.UnlimitedAutoAssociationSuite.UNLIMITED_AUTO_ASSOCIATION_SLOTS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.A_SCHEDULE;
@@ -120,7 +119,7 @@ import static java.lang.Integer.parseInt;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
@@ -135,7 +134,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class ScheduleExecutionTest {
@@ -216,7 +214,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledTxsCanIncurHandlerAssessedFees(
             @FungibleToken SpecFungibleToken firstToken,
             @FungibleToken SpecFungibleToken secondToken,
@@ -260,7 +257,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledUniqueBurnExecutesProperly() {
         return hapiTest(
                 cryptoCreate(TREASURY),
@@ -398,7 +394,9 @@ public class ScheduleExecutionTest {
                 getTokenInfo(A_TOKEN).hasTotalSupply(0));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.maxBatchSizeMint"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.nfts.maxBatchSizeMint"})
     final Stream<DynamicTest> scheduledUniqueMintFailsWithInvalidBatchSize() {
         return hapiTest(
                 overriding("tokens.nfts.maxBatchSizeMint", "5"),
@@ -758,7 +756,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledXferFailingWithNonKycedAccountTransferPaysServiceFeeButNoImpact() {
         String xToken = "XXX";
         String validSchedule = "withKycedToken";
@@ -1044,15 +1041,17 @@ public class ScheduleExecutionTest {
                                             / 100;
                             // Scheduled execution charges service-only: base + byte overage
                             Assertions.assertEquals(
-                                    CONS_SUBMIT_MESSAGE_BASE_FEE_USD,
+                                    expectedTopicSubmitMessageServiceOnly(1024L, false),
                                     successUsd,
-                                    0.01 * CONS_SUBMIT_MESSAGE_BASE_FEE_USD,
+                                    0.01 * expectedTopicSubmitMessageServiceOnly(1024L, false),
                                     String.format("Success fee (%s) not within 1%% of expected!", successUsd));
                             Assertions.assertEquals(
-                                    CONS_SUBMIT_MESSAGE_BASE_FEE_USD + STATE_BYTES_FEE_USD,
+                                    expectedTopicSubmitMessageServiceOnly(1025L, false),
                                     failureUsd,
-                                    0.01 * (CONS_SUBMIT_MESSAGE_BASE_FEE_USD + STATE_BYTES_FEE_USD),
-                                    String.format("Failure fee (%s) not within 1%% of expected!", failureUsd));
+                                    0.01 * expectedTopicSubmitMessageServiceOnly(1025L, false),
+                                    String.format(
+                                            "Failure fee (%s) expectedTopicSubmitMessageServiceOnly within 1%% of expected!",
+                                            failureUsd));
                         });
                     } else {
                         return assertionsHold((spec, opLog) ->

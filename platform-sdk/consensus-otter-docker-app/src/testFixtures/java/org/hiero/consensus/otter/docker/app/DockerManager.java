@@ -103,8 +103,9 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 "-XX:+StartAttachListener"));
 
         if (request.getGcLoggingEnabled()) {
-            command.add("-Xlog:gc:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");
+            command.add("-Xlog:gc*:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");
         }
+        command.addAll(request.getJvmArgsList());
 
         command.addAll(List.of(
                 "-cp", DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS, CONSENSUS_NODE_MAIN_CLASS, String.valueOf(selfId.id())));

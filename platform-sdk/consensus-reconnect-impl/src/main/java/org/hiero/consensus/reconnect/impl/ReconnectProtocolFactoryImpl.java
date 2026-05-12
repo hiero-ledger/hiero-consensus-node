@@ -24,9 +24,6 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  */
 public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     @NonNull
     public Protocol createProtocol(

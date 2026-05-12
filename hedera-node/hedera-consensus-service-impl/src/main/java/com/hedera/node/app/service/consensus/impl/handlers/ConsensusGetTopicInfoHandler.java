@@ -39,7 +39,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -107,7 +107,6 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
         final var query = context.query();
-        final var config = context.configuration().getConfigData(LedgerConfig.class);
         final var topicStore = context.createStore(ReadableTopicStore.class);
         final var op = query.consensusGetTopicInfoOrThrow();
         final var response = ConsensusGetTopicInfoResponse.newBuilder();
@@ -117,7 +116,7 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         response.header(header);
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
-            final var optionalInfo = infoForTopic(topic, topicStore, config);
+            final var optionalInfo = infoForTopic(topic, topicStore, context.ledgerId());
             optionalInfo.ifPresent(response::topicInfo);
         }
 
@@ -129,13 +128,13 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
      *
      * @param topicID the topic to get information about
      * @param topicStore the topic store
-     * @param config the LedgerConfig
+     * @param ledgerId the ledger id to surface in the query response
      * @return the information about the topic
      */
     private Optional<ConsensusTopicInfo> infoForTopic(
             @NonNull final TopicID topicID,
             @NonNull final ReadableTopicStore topicStore,
-            @NonNull final LedgerConfig config) {
+            @NonNull final Bytes ledgerId) {
         final var meta = topicStore.getTopic(topicID);
         if (meta == null) {
             return Optional.empty();
@@ -154,7 +153,7 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             if (!meta.feeExemptKeyList().isEmpty()) info.feeExemptKeyList(meta.feeExemptKeyList());
             if (!meta.customFees().isEmpty()) info.customFees(meta.customFees());
 
-            info.ledgerId(config.id());
+            info.ledgerId(ledgerId);
             return Optional.of(info.build());
         }
     }

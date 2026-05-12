@@ -25,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -151,9 +151,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                         .withFormat(FORMAT_10_0));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean shouldInitiate() {
         // if this neighbor has not told me I have fallen behind, I will not reconnect with him
@@ -172,18 +169,12 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         return acquiredPermit;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void initiateFailed() {
         reservedSignedStateResultProvider.releaseProvidePermit();
         initiatedBy = InitiatedBy.NO_ONE;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean shouldAccept() {
         // we should not be the teacher if we have fallen behind
@@ -262,9 +253,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         reconnectRejectionMetrics.count();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void acceptFailed() {
         teacherState.close();
@@ -274,9 +262,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         reservedSignedStateResultProvider.releaseProvidePermit();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean acceptOnSimultaneousInitiate() {
         // if both nodes fall behind, it makes no sense to reconnect with each other
@@ -284,9 +269,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         return false;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void runProtocol(final Connection connection) throws NetworkProtocolException {
         try {
@@ -321,7 +303,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     stateLifecycleManager);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
-                            "Starting reconnect in role of the receiver.",
+                            "Starting reconnect in the role of the receiver",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -331,7 +313,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             final ReservedSignedState reservedSignedState = learner.execute();
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
-                            "Finished reconnect in the role of the receiver.",
+                            "Finished reconnect in the role of the receiver",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),

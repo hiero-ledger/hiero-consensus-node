@@ -1873,6 +1873,11 @@ enum HederaFunctionality {
      * Delete a registered node
      */
     RegisteredNodeDelete = 115;
+
+    /**
+     * Vote on wrapped record migration hash state.
+     */
+    MigrationRootHashVote = 116;
 }
 
 /**
@@ -2488,6 +2493,26 @@ message TokenAssociation {
      * An account identifier for the associated account.
      */
     AccountID account_id = 2;
+}
+
+/**
+ * An association between an account and a token; this message exists in addition
+ * to TokenAssociation because we wanted a more readable name for EntityIDPair;
+ * but for the block stream state changes, we *also* needed to preserve the relative
+ * order of the account id and token id. (TokenAssociation accidentally reversed the
+ * order of those fields, changing the serialized bytes and breaking binary-only
+ * replay of state changes.)
+ */
+message AccountTokenAssociation {
+    /**
+     * An account identifier for the associated account.
+     */
+    AccountID account_id = 1;
+
+    /**
+     * A token identifier for the associated token.
+     */
+    TokenID token_id = 2;
 }
 
 /**

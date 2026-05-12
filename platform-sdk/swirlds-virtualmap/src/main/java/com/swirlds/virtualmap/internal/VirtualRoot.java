@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal;
 
-import com.swirlds.common.FastCopyable;
-import com.swirlds.common.Reservable;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
+import org.hiero.base.FastCopyable;
+import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 
@@ -81,16 +81,6 @@ public interface VirtualRoot extends FastCopyable, Hashable, Reservable, Seriali
      * before this copy is flushed or merged.
      */
     void computeHash();
-
-    /**
-     * Prepares this copy so that it may be used even when removed from the pipeline. A detached copy is still part
-     * of the pipeline until it is fully handled (merged or flushed). The pipeline will make sure any flushing
-     * copy completes before calling this method, and will make sure no copy is being merged or flushed while
-     * this method executes.
-     *
-     * @return a reference to the detached state
-     */
-    RecordAccessor detach();
 
     /**
      * Check if this virtual root is registered to a given pipeline. Used for sanity checks.
