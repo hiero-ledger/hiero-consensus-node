@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -354,8 +355,9 @@ public class HandleWorkflow {
         }
 
         final var setLedgerIdContext = new AtomicReference<LedgerIdContext>(null);
-        // If only producing a record stream, no reason to do any TSS work
-        if (streamMode != RECORDS) {
+        // If only producing a record stream, no reason to do any TSS work; and if post-upgrade
+        // setup is pending, TSS singleton states may not have been initialized yet
+        if (streamMode != RECORDS && blockStreamManager.pendingWork() != POST_UPGRADE_WORK) {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
@@ -701,6 +703,31 @@ class HandleWorkflowTest {
         } finally {
             logCaptor.stopCapture();
         }
+    }
+
+    @Test
+    void skipsTssWorkWhilePostUpgradeWorkIsPending() {
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(blockStreamManager.pendingWork()).willReturn(POST_UPGRADE_WORK);
+        givenSubjectWith(
+                BOTH,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(hintsService, never()).onFinishedConstruction(any());
+        verify(historyService, never()).onFinishedConstruction(any());
+        verify(hintsService, never()).executeCrsWork(any(), any(), anyBoolean(), any());
+        verify(hintsService, never()).reconcile(any(), any(), any(), any(), anyBoolean());
+        verify(historyService, never()).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
     }
 
     @Test

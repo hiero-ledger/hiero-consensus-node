@@ -7,6 +7,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_ST
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -26,6 +27,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -169,5 +171,55 @@ public class HistoryServiceImpl implements HistoryService {
                 .put(HistoryProofConstruction.DEFAULT);
         writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(ProtoBytes.DEFAULT);
         return true;
+    }
+
+    @Override
+    public boolean doPostUpgradeSetup(
+            @NonNull final WritableStates writableStates, @NonNull final PostUpgradeContext context) {
+        requireNonNull(writableStates);
+        requireNonNull(context);
+        boolean changed = false;
+        final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+        if (tssConfig.historyEnabled()) {
+            final var ledgerIdState = writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID);
+            if (ledgerIdState.get() == null) {
+                ledgerIdState.put(ProtoBytes.DEFAULT);
+                changed = true;
+            }
+            final var activeConstructionState =
+                    writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
+            var activeConstruction = activeConstructionState.get();
+            if (activeConstruction == null) {
+                activeConstructionState.put(HistoryProofConstruction.DEFAULT);
+                activeConstruction = activeConstructionState.get();
+                changed = true;
+            }
+            final var nextConstructionState =
+                    writableStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
+            if (nextConstructionState.get() == null) {
+                nextConstructionState.put(HistoryProofConstruction.DEFAULT);
+                changed = true;
+            }
+            if (activeConstruction != null && activeConstruction.hasTargetProof()) {
+                setLatestHistoryProof(activeConstruction.targetProofOrThrow());
+            }
+        }
+
+        final var hashState = writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
+        final var currentProtoBytes = hashState.get();
+        if (currentProtoBytes == null) {
+            hashState.put(ProtoBytes.DEFAULT);
+            changed = true;
+        }
+        final var configuredHash = tssConfig.wrapsProvingKeyHash();
+        if (!isBlank(configuredHash)) {
+            final var newHash = Bytes.fromHex(configuredHash);
+            final var existingHash = currentProtoBytes != null ? currentProtoBytes.value() : Bytes.EMPTY;
+            if (!existingHash.equals(newHash)) {
+                hashState.put(ProtoBytes.newBuilder().value(newHash).build());
+                changed = true;
+            }
+        }
+        return changed;
     }
 }
