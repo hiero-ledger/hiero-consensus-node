@@ -521,6 +521,9 @@ public class DataFileCompactor {
             final DataFileWriter newFileWriter = currentWriter.get();
             final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
             if (itemBytesWithTag == null) {
+                // If the index still points to this location, the item is live but unreadable
+                assert index.get(key) != oldLocation
+                        : "Failed to read live data item at " + DataFileCommon.dataLocationToString(oldLocation);
                 return 0;
             }
             // Check if the index was changed while this thread was reading data
