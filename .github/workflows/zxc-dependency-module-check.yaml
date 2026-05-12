@@ -85,12 +85,9 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.check-dependency-scopes.outcome || 'skipped' }}" == "success" \
-            && "${{ steps.prepare-runner.outcome || 'skipped' }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.check-dependency-scopes.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          workflow-outcomes: |
+            ${{ steps.prepare-runner.outcome }}
+          test-outcomes: |
+            ${{ steps.check-dependency-scopes.outcome }}
