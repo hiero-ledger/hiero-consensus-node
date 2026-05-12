@@ -596,7 +596,7 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
-            systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            systemTransactions.doPostUpgradeSetup(consensusNow, state, this::doStreamingAllChanges);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }

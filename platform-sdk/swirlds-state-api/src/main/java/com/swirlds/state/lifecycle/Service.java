@@ -73,4 +73,18 @@ public interface Service {
         requireNonNull(configuration);
         return false;
     }
+
+    /**
+     * Does any state initialization that is required after a software upgrade boundary.
+     *
+     * @param writableStates the service-owned writable states to initialize
+     * @param context the post-upgrade context
+     * @return whether any initialization was done
+     */
+    default boolean doPostUpgradeSetup(
+            @NonNull final WritableStates writableStates, @NonNull final PostUpgradeContext context) {
+        requireNonNull(writableStates);
+        requireNonNull(context);
+        return false;
+    }
 }

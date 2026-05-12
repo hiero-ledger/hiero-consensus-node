@@ -112,6 +112,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -192,6 +194,23 @@ public class SystemTransactions {
                 @NonNull WritableStates writableStates,
                 @Nullable WritableStates entityIdWritableStates,
                 @NonNull Runnable action);
+    }
+
+    private record PostUpgradeContextImpl(
+            @NonNull Instant consensusTime,
+            @NonNull Configuration configuration,
+            int networkSize,
+            @NonNull State state) implements PostUpgradeContext {
+        private PostUpgradeContextImpl {
+            requireNonNull(consensusTime);
+            requireNonNull(configuration);
+            requireNonNull(state);
+        }
+
+        @Override
+        public @NonNull ReadableStates readableStates(@NonNull final String serviceName) {
+            return state.getReadableStates(requireNonNull(serviceName));
+        }
     }
 
     /**
@@ -435,11 +454,27 @@ public class SystemTransactions {
      * Sets up post-upgrade state for the system.
      * @param now the current time
      * @param state the state to set up
+     * @param stateChangeStreaming the callback to stream state changes
      */
-    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doPostUpgradeSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
+        requireNonNull(now);
+        requireNonNull(state);
+        requireNonNull(stateChangeStreaming);
+        final var config = configProvider.getConfiguration();
+        final int networkSize = networkInfo.addressBook().size();
+        final var postUpgradeContext = new PostUpgradeContextImpl(now, config, networkSize, state);
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            stateChangeStreaming.doStreamingChanges(
+                    writableStates, null, () -> service.doPostUpgradeSetup(writableStates, postUpgradeContext));
+        }
+
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
