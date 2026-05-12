@@ -777,7 +777,13 @@ tasks.register<Test>("testRepeatable") {
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
-tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
+tasks.shadowJar {
+    archiveFileName.set("SuiteRunner.jar")
+    // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+    // restricted-method warning for callers in the unnamed module of this JAR
+    // when launched via `java -jar`.
+    manifest { attributes("Enable-Native-Access" to "ALL-UNNAMED") }
+}
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
@@ -787,5 +793,12 @@ val rcdiffJar =
         archiveFileName = "rcdiff.jar"
         configurations = listOf(project.configurations["rcdiffRuntimeClasspath"])
 
-        manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
+        manifest {
+            attributes(
+                "Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper",
+                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+                // restricted-method warning for callers in the unnamed module of this JAR.
+                "Enable-Native-Access" to "ALL-UNNAMED",
+            )
+        }
     }
