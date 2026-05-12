@@ -468,7 +468,8 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 ```shell
 java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-stream-dir=<path-to-block-stream-files> \
  --node-id=<self-id> \
- [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>]
+ [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>] \
+ [--rate=<rounds per second>]
 ```
 
 ### Parameters
@@ -482,6 +483,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-s
 - `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
 - `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
 - `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
+- `--rate` (or `-r`) - Maximum rounds to apply per second (integer, ≥ 1). Controls CPU/IO load independently of state size. For example, `10` means at most 10 rounds/s. Default = unlimited (apply as fast as possible).
 
 ### Notes:
 

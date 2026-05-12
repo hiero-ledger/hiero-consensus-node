@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -38,8 +37,6 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("PcesReplayer Tests")
 class PcesReplayerTests {
-    private PlatformContext noRateLimitContext;
-    private PlatformContext rateLimitedContext;
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;

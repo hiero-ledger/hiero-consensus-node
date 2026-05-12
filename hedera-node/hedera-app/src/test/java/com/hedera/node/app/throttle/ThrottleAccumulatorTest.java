@@ -46,6 +46,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -508,6 +509,69 @@ public class ThrottleAccumulatorTest {
                     CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), numericQuery, state, PAYER_ID)
         };
         assertThat(numericResult).containsExactly(false, true);
+    }
+
+    @Test
+    void worksAsExpectedForCountsAssociationsWhenContractIdIsProvidedInGetBalance() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tokens.countingGetBalanceThrottleEnabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Use a contractID for the balance query
+        final var contractId = ContractID.newBuilder()
+                .contractNum(RECEIVER_ID.accountNumOrThrow())
+                .build();
+        final var contractQuery = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .contractID(contractId)
+                        .build())
+                .build();
+
+        // The underlying contract account has 2 associations
+        final var contractAccount =
+                Account.newBuilder().smartContract(true).numberAssociations(2).build();
+        final var states = MapReadableStates.builder()
+                .state(new MapReadableKVState<>(
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, contractAccount)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
+                .build();
+        given(state.getReadableStates(TokenService.NAME)).willReturn(states);
+        final var entityIdStates = MapReadableStates.builder()
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
+                .build();
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+
+        // when (contractID path)
+        final var contractResult = new boolean[] {
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(0), contractQuery, state, PAYER_ID),
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), contractQuery, state, PAYER_ID)
+        };
+
+        // then (contractID path)
+        // With 2 associations, the first passes and the second is throttled
+        assertThat(contractResult).containsExactly(false, true);
     }
 
     @Test
