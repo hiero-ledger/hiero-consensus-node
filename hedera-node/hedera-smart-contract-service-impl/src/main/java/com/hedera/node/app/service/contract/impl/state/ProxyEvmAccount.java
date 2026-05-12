@@ -60,6 +60,11 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     }
 
     @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return state.getAccountRedirectCodePBJ(address);
+    }
+
+    @Override
     public @NonNull Hash getCodeHash() {
         return state.getAccountRedirectCodeHash(address);
     }

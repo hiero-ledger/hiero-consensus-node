@@ -768,6 +768,11 @@ tasks.register<Test>("testRepeatable") {
     // Scale heap and processor count to match available resources
     maxHeapSize = testMaxHeap
     jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
+
+    // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
+    project.properties
+        .filter { (k, _) -> k.startsWith("sysProp.") }
+        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
