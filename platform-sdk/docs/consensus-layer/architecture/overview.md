@@ -17,21 +17,24 @@ discussion live in the source proposal,
 ## What is the consensus layer
 
 A consensus node is split into two layers. The **Consensus layer** takes
-transactions in and produces an ordered stream of consensus rounds out;
+transactions in and produces a deterministically ordered stream of transactions
+out in the form of consensus rounds;
 the **Execution layer** takes those rounds, executes the transactions
 inside them, transitions state, and produces signed blocks. Each round
 that comes out of Consensus is a list of events with consensus timestamps
-plus metadata (round number, judges, roster).
+plus metadata (round number, judges, roster). In general, the Consensus layer 
+works with events and rounds, while the Execution layer works with transactions.
 
-Crossing the layer in the other direction, Consensus pulls from Execution.
-The Event Creator asks Execution for the transactions to fill an outgoing
-event, and Consensus exposes lifecycle hooks (`initialize`, `destroy`) at
-the boundary. The merkle tree itself belongs to Execution; some
+The Consensus layer is delivered as a set of JPMS
+modules paired API + impl. However, there will be a single API 
+module that the Execution layer interacts with. The remaining modules are
+internal Consensus layer organization designed to allow the submodule 
+implementations to be swapped out as needed without affecting the API. There
+are additional library modules utilities, data models, and shared structures.
+The responsibility of interacting with the database itself belongs to Execution; some
 state-adjacent modules (`consensus-state`, `consensus-platformstate`)
 currently live on the Consensus side, as does reconnect orchestration in
-`consensus-reconnect`. The Consensus layer is delivered as a set of JPMS
-modules paired API + impl, designed to be reusable as a library that an
-Execution implementation links against.
+`consensus-reconnect`.
 
 ## Module map
 
@@ -148,35 +151,76 @@ topics are not strictly disjoint.
 
 ### Consensus / Execution boundary
 
-In current code, the boundary is drawn across two interfaces in
-`swirlds-platform-core`:
+In current code, the boundary is muddy and implemented in several shapes
+rather than as a single API. The shapes below all carry traffic between
+Consensus and Execution today.
 
-- Consensus invokes Execution callbacks through
-  [`ConsensusStateEventHandler`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/ConsensusStateEventHandler.java)
-  — `onPreHandle` (per pre-consensus event), `onHandleConsensusRound`
-  (per consensus round), `onSealConsensusRound`, `onStateInitialized`.
-- Consensus pulls data and state-related callbacks from Execution
-  through [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
-  — `getTransactionsForEvent` and related state-signature, status, and
-  health calls.
+**Per-event / per-round callbacks (Consensus → Execution).** Consensus
+invokes Execution through
+[`ConsensusStateEventHandler`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/ConsensusStateEventHandler.java)
+— `onPreHandle` (per pre-consensus event), `onHandleConsensusRound` (per
+consensus round), `onSealConsensusRound`, `onStateInitialized`.
 
-At the module level, [`HashgraphModule`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/HashgraphModule.java)
-exposes its inputs and outputs as wires rather than direct method calls;
-the rest of the platform is wired against those.
+**Data and state-related pulls/pushes (Consensus → Execution).** Consensus
+pulls transactions from Execution through
+[`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
+— `getTransactionsForEvent`, and pushes data like status and health.
+
+**Construction-time callbacks (Execution → Consensus).** Execution
+supplies a bundle of consumers to the platform at build time through
+[`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+wired in via
+[`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
+(`withPreconsensusEventCallback`, `withSnapshotOverrideCallback`,
+`withStaleEventCallback`). Consensus invokes these consumers as the
+corresponding events occur (pre-consensus event in topological order,
+consensus-snapshot override at reconnect/restart boundaries, stale
+self-event detected).
+
+**Notifications (Consensus → Execution).** Lifecycle events are
+delivered through the notification engine rather than direct calls.
+Examples:
+[`StateWriteToDiskCompleteNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/StateWriteToDiskCompleteNotification.java),
+[`PlatformStatusChangeNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java),
+[`ReconnectCompleteNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/ReconnectCompleteNotification.java),
+[`StateHashedNotification`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/state/notifications/StateHashedNotification.java),
+and
+[`IssNotification`](../../../consensus-model/src/main/java/org/hiero/consensus/model/notification/IssNotification.java).
+
+**Shared state (bidirectional).** Some traffic crosses the boundary
+through fields on the state itself rather than through a method call.
+The most prominent examples are the freeze timestamps in
+[`PlatformState`](../../../consensus-platformstate/src/main/java/org/hiero/consensus/platformstate/PlatformStateAccessor.java)
+(written by Execution, read by Consensus) and the roster carried in
+state and as round metadata
+([`consensus-roster`](../../../consensus-roster)).
 
 For the full method-by-method walk and direction-of-call discussion, see
 [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 
 ### Public API surface
 
-The methods that cross the boundary today live on the two interfaces
-above. `ConsensusStateEventHandler` carries the per-event and per-round
-callbacks (`onPreHandle`, `onHandleConsensusRound`, `onSealConsensusRound`,
-`onStateInitialized`). `ExecutionLayer` carries the data pulls and
-state-related calls (`getTransactionsForEvent` plus state-signature,
-status, and health calls). Per-Consensus-module `initialize` and
-`destroy` hooks complete the lifecycle surface. Method-by-method
-discussion in
+There is no single "Consensus public API" today; the surface is the
+union of the shapes listed above:
+
+- Consensus → Execution call-outs:
+  [`ConsensusStateEventHandler`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/ConsensusStateEventHandler.java)
+  (per-event/per-round callbacks) and
+  [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
+  (data pulls plus state-signature, status, and health calls).
+- Execution → Consensus call-ins at construction time:
+  [`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+  registered via
+  [`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java).
+- Consensus → Execution lifecycle signals via the notification engine
+  (see notifications listed above).
+- Shared state fields read or written across the boundary
+  ([`PlatformState`](../../../consensus-platformstate/src/main/java/org/hiero/consensus/platformstate/PlatformStateAccessor.java),
+  rosters).
+- Per-Consensus-module `initialize` and `destroy` hooks complete the
+  lifecycle surface.
+
+Method-by-method discussion in
 [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
 
 ## Wiring overview
@@ -237,7 +281,7 @@ the framework itself is documented in
 >   or class exists in current code; neighbor-discipline routing is
 >   distributed across Gossip and Event Intake today.
 > - **State under Execution.** The proposal places all state firmly
->   under Execution. `consensus-state` and `consensus-platformstate`
+>   under Execution. `consensus-state`, `consensus-roster`, and `consensus-platformstate`
 >   currently sit on the Consensus side and are scheduled to move.
 > - **Reconnect under Execution.** The proposal makes reconnect wholly
 >   Execution's responsibility. Today `consensus-reconnect` and
@@ -250,5 +294,5 @@ the framework itself is documented in
 >   pull each round from Consensus (carrying any new roster), giving
 >   natural backpressure. Current code does not expose this exact pull
 >   shape.
-> - **`onBehind`, `onStaleEvent`, `onBadNode` / `badNode`.** Named in
->   the proposal's public API; no direct counterparts in current code.
+> - **`onBadNode` / `badNode`.** Named in
+>   the proposal's public API; no direct counterpart in current code.
