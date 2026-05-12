@@ -8,7 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
-import com.swirlds.merkledb.test.fixtures.TestType;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -30,12 +30,11 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * This is a regression test for swirlds/swirlds-platform/issues/6151, but
@@ -45,17 +44,11 @@ import org.junit.jupiter.api.io.TempDir;
  * disk. Right after a flush is started, the last map is released, which triggers virtual
  * pipeline shutdown. The test then makes sure the flush completes without exceptions.
  */
-public class CloseFlushTest {
-
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
+public class CloseFlushTest extends AbstractFileManagerAwareTest {
 
     @BeforeAll
-    public static void setup() throws IOException {
+    public static void setup() {
         Configurator.setRootLevel(Level.WARN);
-        fileSystemManager = new TestFileSystemManager(tempDir);
     }
 
     @AfterAll
@@ -71,10 +64,8 @@ public class CloseFlushTest {
         final Path tmpFileDir = fileSystemManager.resolveNewTemp();
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
-            final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
-            final VirtualDataSource dataSource = TestType.long_fixed
-                    .dataType()
-                    .createDataSource(CONFIGURATION, fileSystemManager, storeDir, "closeFlushTest", count, false, true);
+            final VirtualDataSource dataSource = MerkleDbTestUtils.createDataSource(
+                    CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder =
@@ -118,13 +109,8 @@ public class CloseFlushTest {
 
     public static class CustomDataSourceBuilder extends MerkleDbDataSourceBuilder {
 
-        private VirtualDataSource delegate = null;
-        private AtomicReference<Exception> exceptionSink = null;
-
-        // Provided for deserialization
-        public CustomDataSourceBuilder() {
-            super(CONFIGURATION, fileSystemManager);
-        }
+        private final VirtualDataSource delegate;
+        private final AtomicReference<Exception> exceptionSink;
 
         public CustomDataSourceBuilder(
                 final VirtualDataSource delegate,

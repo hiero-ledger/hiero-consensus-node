@@ -18,7 +18,9 @@ module com.swirlds.merkledb.test.fixtures {
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.utility;
     requires java.management;
-    requires jdk.management;
     requires org.junit.jupiter.api;
     requires org.mockito;
+
+    opens com.swirlds.merkledb.test.fixtures to
+            org.junit.platform.commons;
 }
