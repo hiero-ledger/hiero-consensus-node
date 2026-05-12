@@ -18,12 +18,12 @@ gossips that event, and sends it to pre-handle.
 
 ### How event creation interacts with freeze
 
-The consensus layer's event-creation behavior during freeze is governed by platform status:
+The consensus layer's event-creation behavior during freeze is governed by consensus layer status:
 
-- In `FREEZING`, the platform **continues to create events** as long as
+- In `FREEZING`, the consensus layer **continues to create events** as long as
   `SignatureTransactionCheck.hasBufferedSignatureTransactions()` returns `true`. This is what
   allows freeze-block signature transactions to be included in an event and gossiped.
-- In `FREEZE_COMPLETE`, the platform **stops creating events entirely**.
+- In `FREEZE_COMPLETE`, the consensus layer **stops creating events entirely**.
 
 Event creation must stop at `FREEZE_COMPLETE` for memory safety. Once consensus stops advancing, the ancient boundary
 also stops advancing,
@@ -95,10 +95,10 @@ created and gossiped.
 During `FREEZING`, event creation is driven by the event creator's heartbeat tick and is subject
 to the same rules as in any other status:
 
-- the heartbeat must fire while the platform is still in `FREEZING`, and
+- the heartbeat must fire while the consensus layer is still in `FREEZING`, and
 - the event creator must be able to create an event with valid other parents.
 
-On healthy nodes this is highly likely to occur before the platform transitions to
+On healthy nodes this is highly likely to occur before the consensus layer transitions to
 `FREEZE_COMPLETE` — the heartbeat fires frequently and valid other-parents are typically
 available. It is **not** guaranteed. If a node cannot select valid other-parents for the entire
 duration of `FREEZING` (for example, due to peer unavailability or partition), no event is
@@ -176,7 +176,7 @@ See **Decision** above.
 - `ConsensusStateEventHandler.onSealConsensusRound(...)` — the call site where execution blocks.
 - `SignatureTransactionCheck.hasBufferedSignatureTransactions()` — keeps event creation alive in
   `FREEZING` while signature transactions remain to be gossiped.
-- Platform statuses `FREEZING` and `FREEZE_COMPLETE` — define the event-creation window.
+- Consensus layer statuses `FREEZING` and `FREEZE_COMPLETE` — define the event-creation window.
 
 ## Authors / Deciders
 
