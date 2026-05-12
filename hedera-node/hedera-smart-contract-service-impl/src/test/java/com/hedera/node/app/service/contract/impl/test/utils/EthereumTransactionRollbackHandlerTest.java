@@ -15,17 +15,15 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations.GasChargingEvent;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import java.util.List;
-
 import com.hedera.node.config.data.EntitiesConfig;
 import com.swirlds.config.api.Configuration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public final class EthereumTransactionRollbackHandlerTest {
@@ -58,8 +56,7 @@ public final class EthereumTransactionRollbackHandlerTest {
         when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
         when(handleContext.storeFactory()).thenReturn(storeFactory);
         final var configuration = mock(Configuration.class);
-        when(configuration.getConfigData(EntitiesConfig.class))
-                .thenReturn(new EntitiesConfig(0, false, false));
+        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(new EntitiesConfig(0, false, false));
         when(handleContext.configuration()).thenReturn(configuration);
 
         // When
