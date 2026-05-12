@@ -719,7 +719,9 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var payerAccount = ALICE.accountID();
             final var payerKey = ALICE.keyInfo().publicKey();
             final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch();
-            final var innerTxInfo = scenario().withPayer(payerAccount).txInfo();
+            final var innerTxInfo = scenario().withPayer(payerAccount)
+                    .withTransactionValidStart(batchTxInfo.txBody().transactionIDOrThrow().transactionValidStart())
+                    .txInfo();
             final var txBytes = asByteArray(batchTxInfo.signedTx());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
