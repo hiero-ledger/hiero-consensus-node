@@ -6,14 +6,18 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.transaction.Transaction;
 
 @Singleton
 public class TxPipelineTracker {
+
     /**
      * Cheap, highly ephemeral count of this node's txs going through ingest checks but not yet submitted to network.
      */
@@ -22,10 +26,20 @@ public class TxPipelineTracker {
      * Count of all txs (user + node) that this node has submitted, but not seen in either a stale or pre-handled event.
      */
     private final AtomicInteger inFlightCount = new AtomicInteger();
+    /**
+     * Wall-clock time of the most recent transaction activity (ingest start or platform submission). Used by the
+     * {@link QuiescenceController} grace period so that brief pre-flight spikes — which can happen between block-sign
+     * boundaries when {@link QuiescenceController#getQuiescenceStatus} is polled — still count as network activity,
+     * even if the counts have already returned to zero by the time the controller next observes them.
+     */
+    private final AtomicReference<Instant> lastActivityAt;
+
+    private final InstantSource time;
 
     @Inject
-    public TxPipelineTracker() {
-        // Dagger2
+    public TxPipelineTracker(@NonNull final InstantSource time) {
+        this.time = requireNonNull(time);
+        this.lastActivityAt = new AtomicReference<>(time.instant());
     }
 
     /**
@@ -36,9 +50,27 @@ public class TxPipelineTracker {
     }
 
     /**
+     * Returns the wall-clock instant of the most recent observed transaction activity.
+     */
+    public @NonNull Instant lastActivityAt() {
+        return lastActivityAt.get();
+    }
+
+    /**
+     * Records that some form of transaction activity was just observed (e.g. an event from gossip was
+     * pre-handled, or a block was fully signed). Callers outside of ingest use this to reset the
+     * grace-period baseline so that a node which is participating in the network via gossip — but not
+     * receiving any local submissions — does not prematurely quiesce.
+     */
+    public void recordActivity() {
+        lastActivityAt.set(time.instant());
+    }
+
+    /**
      * Called when a transaction is beginning ingest checks.
      */
     public void incrementPreFlight() {
+        lastActivityAt.set(time.instant());
         preFlightCount.incrementAndGet();
     }
 
@@ -53,6 +85,7 @@ public class TxPipelineTracker {
      * Called when this node submits a quiescence-relevant transaction to the network.
      */
     public void incrementInFlight() {
+        lastActivityAt.set(time.instant());
         inFlightCount.incrementAndGet();
     }
 

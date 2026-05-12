@@ -13,6 +13,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
@@ -520,7 +521,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     public void maybeQuiesce(@NonNull final State state) {
         final var commandNow = quiescenceController.getQuiescenceStatus();
-        if (quiescenceCommands.sendIfChanged(commandNow)) {
+        // Only dispatch BREAK_QUIESCENCE when waking from a quiesced state. While the platform is
+        // already active, BREAK_QUIESCENCE is semantically a no-op but causes platform-monitor
+        // churn and risks producing an unnecessary self-only break event.
+        final var isTransientBreak = commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
+        if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {
             logger.info("Updated quiescence command to {}", commandNow);
             if (commandNow == QUIESCE) {
                 final var config = configProvider.getConfiguration();

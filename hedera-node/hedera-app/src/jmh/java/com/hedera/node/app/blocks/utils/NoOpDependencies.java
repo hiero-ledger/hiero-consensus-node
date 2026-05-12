@@ -176,7 +176,7 @@ public final class NoOpDependencies {
     /** Creates a real QuiescenceController with disabled quiescence for benchmarking */
     public static QuiescenceController createBenchmarkQuiescenceController(@NonNull ConfigProvider configProvider) {
         final var config = configProvider.getConfiguration().getConfigData(QuiescenceConfig.class);
-        return new QuiescenceController(config, java.time.Instant::now, () -> 0L);
+        return new QuiescenceController(config, java.time.Instant::now, () -> 0L, java.time.Instant::now, () -> {});
     }
 
     /** Creates a no-op InitialStateHash */

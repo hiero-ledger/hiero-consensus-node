@@ -58,6 +58,7 @@ import java.io.BufferedOutputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.List;
@@ -110,7 +111,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -173,7 +178,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -325,7 +334,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -384,7 +397,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -448,7 +465,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -514,7 +535,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -586,7 +611,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -652,7 +681,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -713,7 +746,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -797,7 +834,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -886,7 +927,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -955,7 +1000,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1022,7 +1071,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1085,7 +1138,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1140,7 +1197,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1198,7 +1259,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1267,7 +1332,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1345,7 +1414,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1431,7 +1504,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1496,7 +1573,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
@@ -1565,7 +1646,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ofSeconds(5)),
+                InstantSource.system(),
+                () -> 0,
+                Instant::now,
+                () -> {});
         final var commands = new QuiescenceCommands(app.platform());
         final var heartbeat = new QuiescedHeartbeat(controller, commands);
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);

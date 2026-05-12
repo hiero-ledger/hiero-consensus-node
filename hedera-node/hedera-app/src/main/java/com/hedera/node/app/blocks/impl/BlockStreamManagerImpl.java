@@ -20,6 +20,7 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
@@ -619,7 +620,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             }
                             if (quiescenceEnabled) {
                                 final var commandNow = quiescenceController.getQuiescenceStatus();
-                                if (quiescenceCommands.sendIfChanged(commandNow)) {
+                                // BREAK_QUIESCENCE is only meaningful as a wake-up from QUIESCE.
+                                // When the platform is already producing events (lastSent == DONT_QUIESCE),
+                                // a transient pipeline=0 + pending>0 observation between blocks is just
+                                // an artifact of polling on block-sign boundaries; dispatching it would
+                                // churn the platform monitor and risk a wasted self-only break event.
+                                final var isTransientBreak =
+                                        commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
+                                if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {
                                     log.info("Updated quiescence command to {}", commandNow);
                                     if (commandNow == QUIESCE) {
                                         final var config = configProvider.getConfiguration();

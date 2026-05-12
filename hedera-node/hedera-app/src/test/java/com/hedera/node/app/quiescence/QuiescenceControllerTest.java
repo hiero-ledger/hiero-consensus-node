@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class QuiescenceControllerTest {
-    private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3));
+    private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3), Duration.ZERO);
     private static final TransactionBody TXN_TRANSFER = TransactionBody.newBuilder()
             .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
             .build();
@@ -54,7 +54,7 @@ class QuiescenceControllerTest {
     void setUp() {
         pendingTransactions.set(0);
         time = new FakeTime();
-        controller = new QuiescenceController(CONFIG, time::now, pendingTransactions::get);
+        controller = new QuiescenceController(CONFIG, time::now, pendingTransactions::get, time::now, () -> {});
     }
 
     @Test
@@ -227,7 +227,11 @@ class QuiescenceControllerTest {
         controller.onPreHandle(createTransactions(TXN_TRANSFER));
         controller.platformStatusUpdate(PlatformStatus.RECONNECT_COMPLETE);
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)), time::now, pendingTransactions::get);
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
+                time::now,
+                pendingTransactions::get,
+                time::now,
+                () -> {});
 
         // When - we try to finish handling in-progress block
         controller.finishHandlingInProgressBlock();
@@ -266,7 +270,11 @@ class QuiescenceControllerTest {
     void inProgressBlockTransactionWhenDisabled() {
         // Given - quiescence is disabled
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)), time::now, pendingTransactions::get);
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
+                time::now,
+                pendingTransactions::get,
+                time::now,
+                () -> {});
         final ConsensusTransaction consensusTxn = createConsensusTransaction(time.now());
 
         // When - we try to record a transaction
@@ -341,7 +349,11 @@ class QuiescenceControllerTest {
     void switchTrackerWhenDisabled() {
         // Given - quiescence is disabled
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)), time::now, pendingTransactions::get);
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
+                time::now,
+                pendingTransactions::get,
+                time::now,
+                () -> {});
 
         // When - we try to switch tracker
         final boolean finishedPrevious = controller.switchTracker(1);

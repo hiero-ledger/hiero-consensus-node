@@ -7,6 +7,7 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.config.data.QuiescenceConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
@@ -33,6 +35,8 @@ public class QuiescenceController {
     private final QuiescenceConfig config;
     private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
+    private final Supplier<Instant> lastActivityAt;
+    private final Runnable recordActivity;
 
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
@@ -51,14 +55,25 @@ public class QuiescenceController {
      * @param time                    the time source
      * @param pendingTransactionCount a supplier that provides the number of transactions submitted to the node but not
      *                                yet included put into an event
+     * @param lastActivityAt          a supplier that returns the wall-clock instant of the most recent transaction
+     *                                activity observed by this node (ingest start or platform submission, or any
+     *                                non-ingest activity recorded via {@code recordActivity}). Used as the baseline
+     *                                for the grace period.
+     * @param recordActivity          a callback the controller invokes when it observes non-ingest activity (a
+     *                                pre-handled event or a fully-signed block), so the grace-period baseline can be
+     *                                refreshed for nodes participating via gossip but not receiving local submissions.
      */
     public QuiescenceController(
             @NonNull final QuiescenceConfig config,
             @NonNull final InstantSource time,
-            @NonNull final LongSupplier pendingTransactionCount) {
+            @NonNull final LongSupplier pendingTransactionCount,
+            @NonNull final Supplier<Instant> lastActivityAt,
+            @NonNull final Runnable recordActivity) {
         this.config = requireNonNull(config);
         this.time = requireNonNull(time);
         this.pendingTransactionCount = requireNonNull(pendingTransactionCount);
+        this.lastActivityAt = requireNonNull(lastActivityAt);
+        this.recordActivity = requireNonNull(recordActivity);
         nextTct = new AtomicReference<>();
         pipelineTransactionCount = new AtomicLong(0);
         blockTrackers = new ConcurrentHashMap<>();
@@ -76,7 +91,13 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
+            final long relevant = QuiescenceUtils.countRelevantTransactions(transactions.iterator());
+            if (relevant > 0) {
+                // Pre-handling an event with relevant transactions is real network activity even on nodes
+                // that never see local ingest — refresh the grace baseline so they don't quiesce prematurely.
+                recordActivity.run();
+                pipelineTransactionCount.addAndGet(relevant);
+            }
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
@@ -199,6 +220,9 @@ public class QuiescenceController {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
             return;
         }
+        // Successfully signing a block is unambiguous network activity — refresh the grace baseline
+        // so the next post-drain evaluation doesn't immediately fall through to QUIESCE.
+        recordActivity.run();
         updateTransactionCount(-blockTracker.getRelevantTransactionCount());
         nextTct.accumulateAndGet(blockTracker.getMaxConsensusTime(), QuiescenceController::tctUpdate);
     }
@@ -266,6 +290,14 @@ public class QuiescenceController {
         }
         if (pendingTransactionCount.getAsLong() > 0) {
             return QuiescenceCommand.BREAK_QUIESCENCE;
+        }
+        // Both counts are 0 at this moment. Apply the grace period using the most recent observed
+        // transaction activity — not the moment the controller first noticed counts were zero. This way
+        // brief pre-flight spikes between block-sign boundaries still count as activity even if the
+        // controller's poll missed them. Once gracePeriod elapses since the last activity, report
+        // QUIESCE; otherwise stay DONT_QUIESCE so the platform keeps producing events.
+        if (Duration.between(lastActivityAt.get(), time.instant()).compareTo(config.gracePeriod()) < 0) {
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         return QuiescenceCommand.QUIESCE;
     }
