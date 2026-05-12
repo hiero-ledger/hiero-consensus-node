@@ -38,8 +38,12 @@ public class JcaVerifier implements BytesSignatureVerifier {
     @Override
     public boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
         try {
-            data.updateSignature(verifier);
-            return signature.verifySignature(verifier);
+            // The JCA Signature object holds mutable state across update()/verify(); guard it so concurrent
+            // callers sharing this verifier don't interleave bytes and produce false negatives.
+            synchronized (verifier) {
+                data.updateSignature(verifier);
+                return signature.verifySignature(verifier);
+            }
         } catch (final SignatureException e) {
             throw new CryptographyException(e);
         }

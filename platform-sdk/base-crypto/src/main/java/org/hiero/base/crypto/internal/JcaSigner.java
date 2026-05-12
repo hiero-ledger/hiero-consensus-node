@@ -38,8 +38,12 @@ public class JcaSigner implements BytesSigner {
     @Override
     public @NonNull Bytes sign(@NonNull final Bytes data) {
         try {
-            data.updateSignature(signature);
-            return Bytes.wrap(signature.sign());
+            // The JCA Signature object holds mutable state across update()/sign(); guard it so concurrent
+            // callers sharing this signer don't interleave bytes and produce an unverifiable signature.
+            synchronized (signature) {
+                data.updateSignature(signature);
+                return Bytes.wrap(signature.sign());
+            }
         } catch (final SignatureException e) {
             throw new CryptographyException(e);
         }
