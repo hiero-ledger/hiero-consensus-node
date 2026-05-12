@@ -32,6 +32,7 @@ import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
+import com.hedera.services.bdd.junit.support.validators.RunningHashChainValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
@@ -103,7 +104,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 new TransactionBodyValidator(),
                 new ExpiryRecordsValidator(),
                 new BalanceReconciliationValidator(),
-                new TokenReconciliationValidator());
+                new TokenReconciliationValidator(),
+                new RunningHashChainValidator());
     }
 
     @Override
