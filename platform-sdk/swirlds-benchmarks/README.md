@@ -15,10 +15,10 @@ Run Gradle tasks with the full project path. For example, from the repository
 root:
 
 ```shell
-./gradlew :swirlds-benchmarks:jmhReconnect
+./gradlew :swirlds-benchmarks:jmhCrypto
 ```
 
-Do not run only `jmhReconnect`. Gradle can match that task name in multiple
+Do not run only `./gradlew jmhReconnect`. Gradle can match that task name in multiple
 projects, which can start more than one reconnect benchmark. The full task path
 runs only the benchmark from this module.
 
