@@ -2,9 +2,12 @@
 package org.hiero.base.utility.test.fixtures.assertions;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -185,5 +188,25 @@ public class AssertionUtils {
                 maxDuration,
                 message,
                 mostRecentException::getValue);
+    }
+
+    /**
+     * Walk over two iterators and assert that each element returned is equal
+     *
+     * @param iteratorA
+     * 		the first iterator
+     * @param iteratorB
+     * 		the second iterator
+     * @param <T>
+     * 		the type of the data returned by the iterator
+     */
+    public static <T> void assertIteratorEquality(final Iterator<T> iteratorA, final Iterator<T> iteratorB) {
+        int count = 0;
+        while (iteratorA.hasNext() && iteratorB.hasNext()) {
+            assertEquals(iteratorA.next(), iteratorB.next(), "The element at position " + count + " does not match.");
+            count++;
+        }
+        assertFalse(iteratorA.hasNext(), "iterator A is not depleted");
+        assertFalse(iteratorB.hasNext(), "iterator B is not depleted");
     }
 }
