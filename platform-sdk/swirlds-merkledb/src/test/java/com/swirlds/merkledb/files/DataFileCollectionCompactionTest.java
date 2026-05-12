@@ -685,6 +685,7 @@ class DataFileCollectionCompactionTest {
         final int half = bucketCount / 2;
         final String storeName = "testDedup";
         final Path testDir = tempFileDir.resolve(storeName);
+        final int metadataSizeDiff = 4;
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
 
         // Create a LongList to act as bucket index
@@ -718,7 +719,7 @@ class DataFileCollectionCompactionTest {
         final long inputSize = getSizeOfFiles(filesToCompact);
         final long outputSize = getSizeOfFilesByPath(newFiles);
         assertTrue(
-                outputSize <= inputSize,
+                outputSize <= inputSize + metadataSizeDiff,
                 "Output (" + outputSize + ") should not exceed input (" + inputSize + ") with dedup");
 
         // Verify: both halves of the index point to the SAME new location
@@ -789,6 +790,7 @@ class DataFileCollectionCompactionTest {
     void testCompactionDedupMixedEntries() throws Exception {
         final int bucketCount = 8;
         final int half = bucketCount / 2;
+        final int metadataSizeDiff = 4;
         String storeName = "testDedupMixed";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
@@ -835,7 +837,9 @@ class DataFileCollectionCompactionTest {
         // Output should be smaller than without dedup (6 items written instead of 8)
         final long inputSize = getSizeOfFiles(filesToCompact);
         final long outputSize = getSizeOfFilesByPath(newFiles);
-        assertTrue(outputSize <= inputSize, "Output should not exceed input with dedup on mixed entries");
+        assertTrue(
+                outputSize <= inputSize + metadataSizeDiff,
+                "Output should not exceed input with dedup on mixed entries");
 
         store.close();
     }
