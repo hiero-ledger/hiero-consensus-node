@@ -1003,7 +1003,8 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             if (includeSingletons) {
-                boundaryStateChangeListener.reset();
+                // Post-upgrade setup can run after earlier round-level singleton writes.
+                streamAndResetSingletonChanges();
             }
         }
         action.run();
@@ -1021,14 +1022,19 @@ public class HandleWorkflow {
                         .build());
             }
             if (includeSingletons) {
-                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
-                if (!singletonChanges.isEmpty()) {
-                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
-                            .build());
-                }
+                streamAndResetSingletonChanges();
             }
         }
+    }
+
+    private void streamAndResetSingletonChanges() {
+        final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+        if (!singletonChanges.isEmpty()) {
+            blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                    .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                    .build());
+        }
+        boundaryStateChangeListener.reset();
     }
 
     /**

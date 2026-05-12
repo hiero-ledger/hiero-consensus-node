@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.SUBTASK_NAME_PROPERTY;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -198,6 +199,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     static void main() {
+        System.setProperty(SUBTASK_NAME_PROPERTY, "hapiTestRestart");
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
                 .toAbsolutePath()
@@ -213,7 +215,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 HintsEnabled.YES,
-                HistoryEnabled.YES,
+                HistoryEnabled.NO,
                 false,
                 hintsThresholdDenominator,
                 false,

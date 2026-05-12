@@ -21,6 +21,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -78,6 +79,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -728,6 +730,28 @@ class HandleWorkflowTest {
         verify(hintsService, never()).executeCrsWork(any(), any(), anyBoolean(), any());
         verify(hintsService, never()).reconcile(any(), any(), any(), any(), anyBoolean());
         verify(historyService, never()).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void streamingAllChangesFlushesPendingSingletonChangesBeforeResetting() throws Exception {
+        final var pendingChange =
+                StateChange.newBuilder().stateId(BLOCKS_STATE_ID).build();
+        given(boundaryStateChangeListener.allStateChanges())
+                .willReturn(List.of(pendingChange))
+                .willReturn(emptyList());
+        given(immediateStateChangeListener.getKvStateChanges()).willReturn(emptyList());
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
+
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemSpecCaptor = ArgumentCaptor.forClass(Function.class);
+        verify(blockStreamManager).writeItem(itemSpecCaptor.capture());
+        final var stateChanges = itemSpecCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow();
+        assertEquals(List.of(pendingChange), stateChanges.stateChanges());
+        verify(boundaryStateChangeListener, times(2)).reset();
     }
 
     @Test
