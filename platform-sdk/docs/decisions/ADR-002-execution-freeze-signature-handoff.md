@@ -22,20 +22,18 @@ The consensus layer's event-creation behavior during freeze is governed by platf
 
 - In `FREEZING`, the platform **continues to create events** as long as
   `SignatureTransactionCheck.hasBufferedSignatureTransactions()` returns `true`. This is what
-  allows freeze-block signature transactions to be gossiped.
+  allows freeze-block signature transactions to be included in an event and gossiped.
 - In `FREEZE_COMPLETE`, the platform **stops creating events entirely**.
 
-Event creation must stop at `FREEZE_COMPLETE` for two reasons:
-
-1. **Clean shutdown.** Everything in the pipeline — including PCES — must be flushed to disk
-   cleanly before the node exits. Continuing to create events would leave work in flight.
-2. **Memory safety.** Once consensus stops advancing, the ancient boundary also stops advancing,
-   which means events are no longer garbage-collected. Unbounded event creation in that state
-   would run the node out of memory.
+Event creation must stop at `FREEZE_COMPLETE` for memory safety. Once consensus stops advancing, the ancient boundary
+also stops advancing,
+which means events are no longer garbage-collected. Unbounded event creation in that state
+would run the node out of memory. A second, nice to have reason to stop event creation is that it reduces the amount
+of "in-flight" events and allows all nodes to receive all events prior to shutdown and write them to disk.
 
 To participate in this mechanism, the execution layer also adds its freeze-block signature
 transactions to the pool, and those transactions are included in the
-`hasBufferedSignatureTransactions()` check — so the consensus layer keeps creating events while
+`hasBufferedSignatureTransactions()` check — so the consensus layer is permitted to continue creating events while
 execution still has freeze-block signatures to gossip.
 
 ### The race
@@ -82,8 +80,34 @@ consensus layer transitions FREEZING → FREEZE_COMPLETE
 event creation ceases
 ```
 
-The signature is guaranteed to be in the pool before event creation stops, so it will be picked
-up and gossiped, provided that event creator heartbeat is functioning properly and a valid event can be created.
+The happens-before guarantee this establishes is narrow: **the signature is in the transaction
+pool before the consensus layer transitions to `FREEZE_COMPLETE`**. It does **not** guarantee
+that an event containing the signature is created or gossiped. Event creation during `FREEZING`
+remains best-effort and is subject to the event creator's normal rules; see
+[Limitations](#limitations) below.
+
+## Limitations
+
+This decision establishes ordering between the signature being placed in the pool and event
+creation ceasing. It does **not** establish that an event containing the signature is actually
+created and gossiped.
+
+During `FREEZING`, event creation is driven by the event creator's heartbeat tick and is subject
+to the same rules as in any other status:
+
+- the heartbeat must fire while the platform is still in `FREEZING`, and
+- the event creator must be able to create an event with valid other parents.
+
+On healthy nodes this is highly likely to occur before the platform transitions to
+`FREEZE_COMPLETE` — the heartbeat fires frequently and valid other-parents are typically
+available. It is **not** guaranteed. If a node cannot select valid other-parents for the entire
+duration of `FREEZING` (for example, due to peer unavailability or partition), no event is
+created, and the signature transaction sitting in the pool is never gossiped despite being
+present.
+
+This residual risk is accepted. It is bounded by node and network health during the freeze
+window, which a healthy network is expected to satisfy in practice. Eliminating it would require
+either changing event-creation rules during freeze - a larger redesign out of scope for this decision.
 
 ## Consequences
 
