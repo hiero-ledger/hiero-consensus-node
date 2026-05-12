@@ -2,9 +2,20 @@
 package com.hedera.statevalidation;
 
 import static com.hedera.statevalidation.blockstream.BlockStreamRecoveryWorkflow.applyBlocks;
+import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileName;
 
+import com.hedera.statevalidation.gcp.BlockRangeResolver;
+import com.hedera.statevalidation.gcp.GcpPathHelper;
+import com.hedera.statevalidation.util.StateUtils;
+import com.swirlds.state.BinaryState;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
 import picocli.CommandLine.Command;
@@ -14,25 +25,37 @@ import picocli.CommandLine.ParentCommand;
 @Command(name = "apply-blocks", description = "Update the state by applying blocks from a block stream.")
 public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
+    private static final Logger log = LogManager.getLogger(ApplyBlocksCommand.class);
+
     @ParentCommand
     private StateOperatorCommand parent;
 
     private Path blockStreamDirectory;
+    private String gcpBlockStreamPath;
     private Path outputPath = Path.of("./out");
     private NodeId selfId;
     public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
     private long targetRound = DEFAULT_TARGET_ROUND;
     private String expectedHash = "";
     private int roundsPerSecond = Integer.MAX_VALUE;
+    private String billingProject;
+    private int downloadThreads = 32;
 
     private ApplyBlocksCommand() {}
 
     @Option(
             names = {"-d", "--block-stream-dir"},
             required = true,
-            description = "The path to a directory tree containing block stream files.")
-    private void setBlockStreamDirectory(final Path blockStreamDirectory) {
-        this.blockStreamDirectory = pathMustExist(blockStreamDirectory.toAbsolutePath());
+            description = "The path to a directory tree containing block stream files. "
+                    + "Accepts a local path or a GCS URI (gs://...). "
+                    + "When a GCS path is provided, --target-round is required.")
+    private void setBlockStreamDirectory(final String blockStreamDir) {
+        if (GcpPathHelper.isGcpPath(blockStreamDir)) {
+            this.gcpBlockStreamPath = blockStreamDir;
+            // Don't call pathMustExist — the path is remote
+        } else {
+            this.blockStreamDirectory = pathMustExist(Path.of(blockStreamDir).toAbsolutePath());
+        }
     }
 
     @Option(
@@ -56,7 +79,7 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
             names = {"-t", "--target-round"},
             defaultValue = "9223372036854775807",
             description = "The last round that should be applied to the state, any higher rounds are ignored. "
-                    + "Default = apply all available rounds")
+                    + "Default = apply all available rounds. Required when --block-stream-dir is a GCS path.")
     private void setTargetRound(final long targetRound) {
         this.targetRound = targetRound;
     }
@@ -78,13 +101,159 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
         this.roundsPerSecond = roundsPerSecond;
     }
 
+    @Option(
+            names = {"-bp", "--billing-project"},
+            description = "GCP billing project for requester-pays buckets. "
+                    + "Applies to the block stream directory download.")
+    private void setBillingProject(final String billingProject) {
+        this.billingProject = billingProject;
+    }
+
+    @Option(
+            names = {"-dt", "--download-threads"},
+            defaultValue = "32",
+            description = "Number of parallel workers for downloading block files from GCP. Default = 32.")
+    private void setDownloadThreads(final int downloadThreads) {
+        this.downloadThreads = downloadThreads;
+    }
+
     @Override
     public void run() {
-        parent.initializeStateDir();
+        // Step 1: Resolve and initialize the state directory (handles GCS download if needed)
+        parent.resolveAndGetStateDir();
+
         try {
+            // Step 2: If block stream directory is on GCS, resolve the block range and download
+            if (gcpBlockStreamPath != null) {
+                blockStreamDirectory = resolveGcpBlockStream();
+            }
+
+            // Step 3: Apply blocks using the (now local) block stream directory
             applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash, roundsPerSecond);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Resolves a GCS block stream path by:
+     * <ol>
+     *   <li>Validating that {@code --target-round} is specified (required for GCS)</li>
+     *   <li>Reading {@link com.hedera.hapi.node.state.blockstream.BlockStreamInfo} from the loaded
+     *       state to determine the left block boundary</li>
+     *   <li>Running the scatter-gather binary search to find the right boundary block</li>
+     *   <li>Downloading the resolved block range in parallel to a temp directory</li>
+     * </ol>
+     *
+     * @return the local path to the downloaded block files
+     * @throws IOException if any step fails
+     */
+    private Path resolveGcpBlockStream() throws IOException {
+        // Validate: --target-round is mandatory for GCS paths
+        if (targetRound == DEFAULT_TARGET_ROUND) {
+            throw new IllegalArgumentException(
+                    "--target-round is required when --block-stream-dir is a GCS path (gs://). "
+                            + "Cannot download the entire block stream from GCS.");
+        }
+
+        GcpPathHelper.ensureGcloudAvailable();
+
+        // Read BlockStreamInfo from the state to get the left boundary
+        final BinaryState state = (BinaryState) StateUtils.getDefaultState();
+        final long leftBlock = BlockRangeResolver.extractLeftBoundary(state);
+
+        // Use a deterministic directory name containing the source round (from the state path)
+        // and the target round, so identical runs reuse cached block files.
+        final String sourceRound = GcpPathHelper.extractLastPathElement(parent.getRawStateDir());
+        final String cacheName = "state-validator-blocks-" + sourceRound + "-to-" + targetRound;
+        final Path tempBlockDir = Path.of(".", cacheName);
+        Files.createDirectories(tempBlockDir);
+        parent.trackTempDirectory(tempBlockDir);
+
+        // Resolve the block range (probe files are downloaded into tempBlockDir as a side effect)
+        final BlockRangeResolver resolver = new BlockRangeResolver(gcpBlockStreamPath, billingProject, tempBlockDir);
+        final BlockRangeResolver.BlockRange range = resolver.resolve(leftBlock, targetRound);
+
+        log.info(
+                "Block range resolved: [{}, {}] ({} files). Starting bulk download...",
+                range.leftBlock(),
+                range.rightBlock(),
+                range.fileCount());
+
+        // Clean up probe files outside the resolved range — if left in the directory,
+        // the downstream validator will interpret them as part of the expected block range
+        // and report gaps for the un-downloaded blocks between the range and the probes.
+        cleanUpProbeFiles(tempBlockDir, range.leftBlock(), range.rightBlock());
+
+        // Build the list of file names to download
+        final List<String> fileNames = new ArrayList<>();
+        for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
+            final String fileName = blockFileName(blockNum);
+            // Skip files already present (from probing or a previous cached run)
+            final Path localFile = tempBlockDir.resolve(fileName);
+            if (localFile.toFile().exists() && localFile.toFile().length() > 0) {
+                continue;
+            }
+            fileNames.add(fileName);
+        }
+
+        final long preCached = range.fileCount() - fileNames.size();
+        if (preCached == range.fileCount()) {
+            System.out.printf("All %d block files already cached locally.%n", range.fileCount());
+            log.info("All {} block files already cached in {}", range.fileCount(), tempBlockDir);
+        } else {
+            log.info("{} files already cached. {} files remaining to download.", preCached, fileNames.size());
+
+            // Bulk download the remaining files
+            GcpPathHelper.downloadFiles(gcpBlockStreamPath, fileNames, tempBlockDir, billingProject, downloadThreads);
+        }
+
+        // Final validation: ensure all files in the range are present and non-empty
+        long missingCount = 0;
+        for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
+            final Path localFile = tempBlockDir.resolve(blockFileName(blockNum));
+            if (!localFile.toFile().exists() || localFile.toFile().length() == 0) {
+                missingCount++;
+                if (missingCount <= 10) {
+                    log.error("Missing or empty block file after download: {}", localFile.getFileName());
+                }
+            }
+        }
+        if (missingCount > 0) {
+            throw new IOException(missingCount + " block file(s) missing or empty after download. "
+                    + "The block stream may be incomplete in GCS, or downloads failed.");
+        }
+
+        log.info("All {} block files ready in {}", range.fileCount(), tempBlockDir);
+        return tempBlockDir;
+    }
+
+    /**
+     * Removes any {@code .blk.gz} files from the directory whose block number falls outside
+     * the resolved range. These are artifacts from the binary search probing phase.
+     */
+    private static void cleanUpProbeFiles(@NonNull final Path dir, final long leftBlock, final long rightBlock)
+            throws IOException {
+        int removed = 0;
+        try (var stream = Files.list(dir)) {
+            for (final Path file : stream.toList()) {
+                final String name = file.getFileName().toString();
+                if (!name.endsWith(".blk.gz")) {
+                    continue;
+                }
+                try {
+                    final long blockNum = Long.parseLong(name.substring(0, name.indexOf('.')));
+                    if (blockNum < leftBlock || blockNum > rightBlock) {
+                        Files.delete(file);
+                        removed++;
+                    }
+                } catch (NumberFormatException e) {
+                    // Not a standard block file name — leave it alone
+                }
+            }
+        }
+        if (removed > 0) {
+            log.info("Removed {} probe files outside resolved range [{}, {}]", removed, leftBlock, rightBlock);
         }
     }
 }
