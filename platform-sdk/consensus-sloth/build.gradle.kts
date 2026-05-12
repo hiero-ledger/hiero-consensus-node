@@ -115,13 +115,13 @@ tasks.named<Test>("testPerformance") {
     // Note: project properties (-P) are used instead of system properties (-D) because -D flags
     // are set on the Gradle client JVM and are not reliably forwarded to the daemon's
     // System.getProperties().
-    project.properties
-        .filterKeys { it.startsWith("sloth.") }
-        .forEach { (key, value) -> systemProperty(key, value.toString()) }
+    providers.gradlePropertiesPrefixedBy("sloth.").get().forEach { (key, value) ->
+        systemProperty(key, value)
+    }
 
     // Allow running @Disabled tests for manual remote runs, e.g.:
     //   ./gradlew :consensus-sloth:testPerformance -PincludeDisabled
-    if (project.hasProperty("includeDisabled")) {
+    if (providers.gradleProperty("includeDisabled").isPresent) {
         systemProperty("junit.jupiter.conditions.deactivate", "org.junit.*Disabled*")
     }
 }
