@@ -140,7 +140,7 @@ if [[ "$unamestr" == 'Linux' ]]; then
         if [ -f $SERVICE_LOG4J2 ]; then
             LOG4j2XML=$SERVICE_LOG4J2
             java -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ConcGCThreads=14 \
-            -XX:+UseLargePages -Xmx98g -Xms10g -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=32g \
+            -XX:+UseLargePages -Xmx98g -Xms10g -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=1g \
             -XX:MetaspaceSize=100M  -Xlog:gc*:gc.log  -Dlog4j.configurationFile=log4j2-services-regression.xml \
             -cp 'data/lib/*' com.swirlds.platform.Browser >>output.log 2>&1 & disown -h
         else

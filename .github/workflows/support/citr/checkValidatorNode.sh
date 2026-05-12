@@ -11,7 +11,7 @@ cd /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp
 currentRound=`ls -1t ../com.hedera.services.ServicesMain/${node_id}/123/ | head -n 1`
 
 java -Xms16g -Xmx64g -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 \
-     -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=32g -XX:NativeMemoryTracking=detail -XX:MetaspaceSize=100M \
+  -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=1g -XX:NativeMemoryTracking=detail -XX:MetaspaceSize=100M \
      -XX:+ZGenerational -Dthread.num=16 \
      -jar /tmp/hedera-state-validator-*-all.jar ../com.hedera.services.ServicesMain/${node_id}/123/${currentRound} \
      validate rehash stateAnalyzer account tokenRelations internal leaf > validatorRun.log 2>&1
