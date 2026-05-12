@@ -299,7 +299,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
-        final Path tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
+        tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }
