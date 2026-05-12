@@ -215,15 +215,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-misc.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-misc-records-crypto-and-serial:
     name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
@@ -319,15 +315,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-misc-records-crypto-and-serial.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-misc-records-crypto-and-serial.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-misc-records-crypto-and-serial.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-misc-records-crypto-and-serial.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-token-and-time-consuming:
     name: "HAPI Tests (Token & Time Consuming)"
@@ -421,15 +413,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-token-and-time-consuming.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-simple-fees-and-nd-reconnect:
     name: "HAPI Tests (Simple Fees & ND Reconnect)"
@@ -523,15 +511,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-simple-fees-and-nd-reconnect.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-simple-fees-and-nd-reconnect.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-simple-fees-and-nd-reconnect.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-simple-fees-and-nd-reconnect.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
@@ -624,15 +608,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-smart-contract-and-iss.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-smart-contract-and-iss.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-smart-contract-and-iss.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-smart-contract-and-iss.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
@@ -708,15 +688,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-restart.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
@@ -790,15 +766,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-bn-communication.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
@@ -891,15 +863,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-atomic-batch.outcome }}
+          cancelled-is-workflow: "true"
 
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
@@ -975,15 +943,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        uses: ./.github/actions/set-failure-mode
+        with:
+          test-outcomes: |
+            ${{ steps.gradle-hapi-state-throttling.outcome }}
+          cancelled-is-workflow: "true"
 
   set-failure-mode:
     name: "Set Failure Mode"
@@ -1005,53 +969,33 @@ jobs:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            "${{ needs.hapi-tests-misc.result || 'skipped' }}"
-            "${{ needs.hapi-tests-misc-records-crypto-and-serial.result || 'skipped' }}"
-            "${{ needs.hapi-tests-token-and-time-consuming.result || 'skipped' }}"
-            "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result || 'skipped' }}"
-            "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
-            "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
-            "${{ needs.hapi-tests-restart.result || 'skipped' }}"
-            "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
-            "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
-          )
-
-          # Must be kept in the same order as job_statuses above so the loop below
-          # can index into both arrays consistently.
-          job_failure_modes=(
-            "${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
-          )
-
-          failure_mode="none"
-
-          for i in "${!job_statuses[@]}"; do
-            status="${job_statuses[$i]}"
-            mode="${job_failure_modes[$i]}"
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              elif [[ "${mode}" == "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-            elif [[ "${status}" == "cancelled" ]]; then
-              # A cancelled job signals an infrastructure/runner issue, not a test bug.
-              # Default to workflow so report-status routes to the environment channel.
-              if [[ "${failure_mode}" != "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        uses: ./.github/actions/aggregate-failure-mode
+        with:
+          handle-cancelled: "true"
+          job-results: |
+            ${{ needs.hapi-tests-misc.result }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
+            ${{ needs.hapi-tests-token-and-time-consuming.result }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result }}
+            ${{ needs.hapi-tests-atomic-batch.result }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.result }}
+            ${{ needs.hapi-tests-restart.result }}
+            ${{ needs.hapi-tests-bn-comms.result }}
+            ${{ needs.hapi-tests-state-throttling.result }}
+          job-failure-modes: |
+            ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}

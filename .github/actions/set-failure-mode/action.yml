@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Set Failure Mode Output
+description: Classifies a job as none/test/workflow failure based on step outcomes.
+
+inputs:
+  workflow-outcomes:
+    description: "Newline-separated outcomes of workflow/infrastructure steps (success|failure|skipped|cancelled)"
+    required: false
+    default: ""
+  test-outcomes:
+    description: "Newline-separated outcomes of test steps"
+    required: false
+    default: ""
+  cancelled-is-workflow:
+    description: "If 'true', treat a cancelled test step as workflow failure instead of none"
+    required: false
+    default: "false"
+
+outputs:
+  failure-mode:
+    description: "none | test | workflow"
+    value: ${{ steps.classify.outputs.failure-mode }}
+
+runs:
+  using: composite
+  steps:
+    - name: Classify failure mode
+      id: classify
+      if: always()
+      shell: bash
+      env:
+        WORKFLOW_OUTCOMES: ${{ inputs.workflow-outcomes }}
+        TEST_OUTCOMES: ${{ inputs.test-outcomes }}
+      run: |
+        mapfile -t workflow_statuses < <(echo "${WORKFLOW_OUTCOMES}" | grep -v '^[[:space:]]*$')
+        mapfile -t test_statuses    < <(echo "${TEST_OUTCOMES}"      | grep -v '^[[:space:]]*$')
+
+        failure_mode="none"
+
+        has_failure() {
+          local arr=("$@")
+          for status in "${arr[@]}"; do
+            [[ "${status}" == "failure" ]] && return 0
+          done
+          return 1
+        }
+
+        if has_failure "${test_statuses[@]}"; then
+          failure_mode="test"
+        fi
+
+        if has_failure "${workflow_statuses[@]}"; then
+          failure_mode="workflow"
+        fi
+
+        if [[ "${{ inputs.cancelled-is-workflow }}" == "true" ]]; then
+          for status in "${test_statuses[@]}"; do
+            if [[ "${status}" == "cancelled" ]]; then
+              failure_mode="workflow"
+              break
+            fi
+          done
+        fi
+
+        echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
