@@ -55,33 +55,44 @@ Template justification — section list traced to the pedagogy research and the 
 
   - Prerequisites: tutor system prompt's entry behavior surfaces this list for
     trust-based self-assessment. Names the prereq IDs with one-line mental
-    models so a senior learner can judge their own readiness.
+    models so the learner can judge their own readiness.
 
   - Incoming retrieval probes: successive-relearning queue (Rawson & Dunlosky
     2022), free-recall opening from prior cluster (research lesson architecture).
-    The tutor runs these as recall-with-feedback before new content lands.
+    The tutor runs these as recall-with-feedback before new content is added.
 
   - Misconception watchlist: EMT-style representation (Chi et al.; tutor
-    system prompt). Enumerates Paxos/Raft/PBFT imports and other senior-engineer
-    wrong models the tutor listens for during delivery.
+    system prompt). Enumerates likely wrong models — adjacent-protocol imports
+    and over-generalizations from familiar parts of this codebase — that the
+    tutor listens for during delivery.
 
-  - Productive impasse: predict-observe-explain or productive-failure (Kapur
-    2008/2014/2016; Loibl et al. 2017). Sets up the scenario, the prediction
-    prompt with low-stakes thinking-aloud framing, and the consolidation move
-    that explicitly contrasts learner prediction with canonical mechanism.
+  - Mechanism: the lesson's spine. Segmented into chunks the tutor paces
+    through, with load-bearing lines signaled explicitly (Mayer signaling).
+    Pre-training of terms before integration. The default delivery move on a
+    chunk is a direct walk with a cued check; richer move types live in the
+    Engagement moves section and are invoked contingent on what the learner
+    shows.
 
-  - Mechanism walkthrough: worked examples paired with self-explanation prompts
-    at load-bearing lines, for the codebase-novice half of the split (Sweller &
-    Cooper 1985; Renkl 2014; Bisra et al. 2018 g = 0.55). Segmenting and
-    signaling per Mayer; pre-training of terms before integration.
+  - Engagement moves: an inventory of move types the tutor may invoke at named
+    moments in the lesson. Five types: prediction-and-reveal (Kapur 2008/2014;
+    Loibl et al. 2017; hypercorrection effect), worked example with
+    self-explanation (Sweller & Cooper 1985; Renkl 2014; Bisra et al. 2018
+    g = 0.55), direct walk with cued check (Kalyuga expertise-reversal;
+    Adesope et al. testing-effect meta-analysis), contrasting cases (Gick &
+    Holyoak 1983; Gentner structure-mapping), and free recall (Roediger &
+    Karpicke testing effect). Each moment in the lesson lists which moves are
+    available and what each one supplies. The tutor picks contingent on
+    diagnosed prior knowledge for the specific point in front of it, and
+    varies move type across moments so the session does not become monotonous.
 
-  - Contrasting cases: included only when the lesson covers a threshold concept
-    (Meyer & Land 2005; Boustedt et al. 2007). Gick & Holyoak 1983 — two or
-    three contrasting cases with explicit comparison prompts surface the
-    invariant that survives surface differences.
+  - Contrasting cases material: a separate section (not a separate move type)
+    that supplies the two-or-three cases needed when a threshold concept is in
+    scope (Meyer & Land 2005; Boustedt et al. 2007). The Engagement moves
+    section references this material when listing the contrasting-cases move
+    at a moment.
 
   - Completion problems with backward fading: Atkinson, Renkl & Merrill 2003 —
-    fade scaffolding step by step as learner demonstrates the pattern. Each
+    fade scaffolding step by step as the learner demonstrates the pattern. Each
     problem ships with the hint ladder the tutor uses to escalate help.
 
   - Delta callout: codebase-canonical policy. Pointer to delta-map entry rather
@@ -96,12 +107,24 @@ Template justification — section list traced to the pedagogy research and the 
   - Open questions: KB-silence over fabrication. Surfaces every [TBD] from the
     body so the reviewer can fill gaps without re-reading the whole lesson.
 
+Design constraint on Engagement moves: prediction-and-reveal is used only when
+the learner can produce a coherent answer from prior lessons and existing
+schemas. Prompts that would require concepts this lesson has not yet
+introduced are excluded — they produce frustration rather than productive
+failure (Loibl et al. 2017 fidelity conditions). For material the learner is
+new to on this codebase, the appropriate engagement move is a worked example
+with self-explanation prompts, not a prediction.
+
 The earlier draft's section list (motivating problem, concept, how it works,
 worked example, code anchor, delta callout, comprehension prompt, where we're
 going next) is replaced because it conflates retrieval, impasse engineering,
 and consolidation under a single "comprehension prompt" and omits the
 prerequisite surface and the successive-relearning tagging the research and
-system prompt both treat as load-bearing.
+system prompt both treat as load-bearing. The intermediate draft's rigid
+"Productive impasse" section is also replaced, because hardcoding
+prediction-first openings forces the tutor into a posture the runtime evidence
+may not support and the engagement-moves inventory generalizes the technique
+appropriately.
 -->
 
 ```yaml
@@ -138,7 +161,7 @@ last_verified_against: <git-sha-of-main-at-authoring-time>
 
 ## Prerequisites
 
-List each prerequisite lesson by ID and give a one-line description of the mental model that lesson establishes — enough for a senior engineer to judge whether they feel solid on it. If this lesson has no prerequisites, state so explicitly:
+List each prerequisite lesson by ID and give a one-line description of the mental model that lesson establishes — enough for the learner to judge whether they feel solid on it. If this lesson has no prerequisites, state so explicitly:
 
 > None — this lesson assumes only general distributed-systems background.
 
@@ -146,41 +169,59 @@ Do not omit this section even when prerequisites are empty; the tutor's entry be
 
 ## Incoming retrieval probes
 
-List concepts from prior lessons that should be retrieved before this lesson's new content lands on top of them. Each probe carries the concept name, a free-recall prompt for the tutor to run, and the canonical answer the tutor consolidates against. Threshold concepts from earlier lessons whose successive-relearning interval lands in this lesson's session belong here. If the lesson sits early enough in the curriculum that no probes apply, state so explicitly.
+List concepts from prior lessons that should be retrieved before this lesson's new content is added on top of them. Each probe carries the concept name, a free-recall prompt for the tutor to run, and the canonical answer the tutor consolidates against. Threshold concepts from earlier lessons whose successive-relearning interval falls in this lesson's session belong here. If the lesson sits early enough in the curriculum that no probes apply, state so explicitly.
 
 ## Misconception watchlist
 
-Enumerate the senior-engineer wrong models most likely to surface on this material. Each entry names the misconception, what it sounds like in learner utterances, and the correction the tutor applies in line. Pay particular attention to imports from Paxos, Raft, and PBFT that look right on the surface and break on closer reading of the hashgraph specifics — these are the dominant failure mode for this audience. If the topic does not surface a familiar adjacent-protocol analog, note that and list whatever else the literature or KB flags as a likely confusion.
-
-## Productive impasse
-
-Pose the prediction problem before delivering canonical content. The section contains:
-
-- The framing scenario — concrete enough that the learner has something to predict against. Anchor in real test runs or KB scenarios where possible.
-- The prediction prompt the tutor reads to the learner, phrased as low-stakes thinking-aloud ("what's your gut prediction here?" or "before I show what happens, what does your model say?"). Avoid quiz framing.
-- Confidence elicitation when the prediction targets a concept where high-confidence wrong beliefs are likely — the hypercorrection effect is strongest there.
-- The reveal — what the code or specification actually does, with a direct pointer (file path link, or GitHub URL when a code anchor is involved) rather than a restatement.
-- The consolidation move — explicit contrast between the predicted behavior and the canonical mechanism. Name what the learner's model was missing and why the codebase's choice resolves it. This is the step Loibl et al. 2017 flag as essential and most often skipped.
-
-For threshold concepts, the impasse takes a predict-observe-explain or productive-failure shape. For codebase-procedural material where the learner is a novice on the specifics, the impasse can take a worked-example-with-blanks shape — present the surrounding mechanism, leave the load-bearing step for the learner to predict.
+Enumerate the wrong models most likely to surface on this material. Each entry names the misconception, what it sounds like in learner utterances, and the correction the tutor applies in line. Two categories tend to dominate. The first is imports from other consensus protocols — Paxos, Raft, PBFT — that look right at the surface and break on closer reading of the hashgraph specifics. The second is over-generalization from a familiar part of this codebase: a learner who has spent months in one subsystem may carry assumptions from there into the topic this lesson covers, and those assumptions may not hold. List both kinds when they apply. If the topic surfaces neither, note that and list whatever else the KB or the literature flags as a likely confusion.
 
 ## Mechanism
 
-Pre-training: name the key components and terms this lesson integrates, with one-sentence semantics each. Pull definitions from `glossary.md` and `concepts/` by link rather than restating.
+The lesson's spine. Read by the tutor as the script for what to cover; the engagement-moves section below supplies the techniques the tutor may use at named moments along this spine.
 
-Then segment the mechanism into small chunks the tutor paces through. For each chunk:
+Start with pre-training: name the key components and terms this lesson integrates, with one-sentence semantics each. Pull definitions from `glossary.md` and `concepts/` by link rather than restating them. The tutor uses this list to set vocabulary before the spine begins.
+
+Then segment the spine into chunks the tutor paces through. For each chunk:
 
 - A short prose description anchored on the actual code behavior, with a link to the relevant topic file under `architecture/topics/`.
 - The code anchor as a GitHub URL against `main` (the `last_verified_against` SHA in frontmatter records the verification point). Use the format `https://github.com/<org>/<repo>/blob/main/path/to/file.java#L<start>-L<end>`. Discover the canonical org/repo via `git remote get-url origin`.
-- A signaling note when the chunk includes safety-critical or invariant-bearing lines versus bookkeeping — mark the load-bearing lines explicitly so the tutor knows where to invest self-explanation effort.
-- A self-explanation prompt at each load-bearing line, principle-based and inference-demanding rather than open-ended. "Which invariant justifies this step?" "What failure scenario does this rule prevent?" "What breaks in the next round if we remove this check?" Avoid "explain this" — it produces restatement.
+- A signaling note when the chunk includes safety-critical or invariant-bearing lines versus bookkeeping — mark the load-bearing lines explicitly so the tutor knows where to invest self-explanation effort if it uses that move.
 - When the chunk's design hinges on a decision with documented alternatives, link the relevant ADR under `decisions/` rather than reconstructing the rationale in prose.
+- A `moment_id` for any chunk the engagement-moves section attaches a move inventory to. Not every chunk needs a moment_id — only those rich enough to warrant a choice of teaching technique.
 
-## Contrasting cases
+The tutor's default delivery on a chunk without an attached moment is a direct walk: state what the code does, cite the anchor, and move on. Chunks with an attached moment offer the tutor a choice of moves, described next.
 
-Include this section only when the lesson covers a threshold concept; omit otherwise.
+## Engagement moves
 
-Provide two or three contrasting cases — e.g. this codebase's choice versus a textbook approach, or hashgraph's mechanism versus the analogous mechanism in a familiar BFT variant. For each case, give a short concrete description, the surface differences, and the comparison prompt the tutor reads to the learner. Name the deep invariant that survives the surface differences — this is the structural transfer that the contrasting-cases technique exists to produce.
+A small inventory of teaching moves the tutor may invoke at named moments along the spine. The tutor picks contingent on what it sees from the learner: which moves fit depends on whether the learner is showing fluency, novelty, or a likely misconception on the specific point in front of it. The tutor also varies move type across moments to keep the session from becoming monotonous.
+
+A lesson typically has two to four moments with engagement-move inventories — the load-bearing transitions, the threshold-concept introduction, the points where misconceptions are most likely. Not every chunk in the Mechanism section warrants a moment. The reviewer's eye on the lesson is partly an eye on whether the moments are well-chosen.
+
+Each moment in this section names:
+
+- The `moment_id` matching a chunk in the Mechanism section.
+- A one-sentence description of why this moment is load-bearing.
+- An inventory of available moves, each tagged with the diagnosis it fits. Supply at least two moves per moment so the tutor has a real choice.
+
+The available move types:
+
+**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing distributed-systems schemas. Include the framing scenario, the prediction prompt phrased as low-stakes thinking-aloud ("what's your gut prediction?", "before I show what happens, what does your model say?"), an optional confidence elicitation when high-confidence wrong beliefs are likely, the canonical answer with code anchor, and the consolidation move that names the gap between the prediction and the canonical mechanism. Diagnosis tag: the learner is showing strong grasp of the surrounding material or is likely to hold a confidently-wrong adjacent-protocol intuition. Do not supply this move type if the prediction would require concepts the lesson has not yet established — that is not productive failure, just frustration.
+
+**Worked example with self-explanation.** Supply when the learner is likely new to this point on this codebase. Include the example, the load-bearing lines marked explicitly, and a principle-based self-explanation prompt at each load-bearing line — "which invariant justifies this step?", "what failure scenario does this rule prevent?", "what breaks if we remove this check?" Avoid "explain this," which produces restatement. Diagnosis tag: the learner is asking for an example, hesitating on terms specific to this code path, or showing they have not encountered this subsystem before.
+
+**Direct walk with cued check.** Supply when the chunk is content the learner is likely fluent on but the tutor needs to verify before moving on. State the mechanism briefly, then run a short cued-recall or application check — "given this snippet, what is the precondition?" or "in this trace, which line would violate the invariant?" Diagnosis tag: the learner has shown fluency on the surrounding material; a fuller scaffolding would be redundant.
+
+**Contrasting cases with comparison prompt.** Supply when the moment introduces a threshold concept and the lesson includes contrasting-cases material in the section below. Reference the cases by name, supply the comparison prompt ("what is the same across these, what is different, what is the invariant that survives?"), and name the deep invariant the cases surface. Diagnosis tag: threshold concept; transfer is the goal.
+
+**Free recall.** Supply when the moment lands on something the lesson has already covered and the tutor needs the learner to retrieve it in their own words. Include the prompt and the canonical answer for consolidation. Diagnosis tag: mid-session check on something just covered, or a retrieval cycle the lesson wants to run before the next chunk.
+
+Each moment should usually offer the worked-example move and at least one other, so the tutor has a fallback when the diagnosis points toward novelty. The contrasting-cases move is available only at moments tied to threshold concepts.
+
+## Contrasting cases material
+
+Include this section only when the lesson covers a threshold concept; omit otherwise. The Engagement moves section references this material when it lists the contrasting-cases move at a moment.
+
+Provide two or three contrasting cases — e.g. this codebase's choice versus a textbook approach, or hashgraph's mechanism versus the analogous mechanism in a familiar BFT variant. For each case, give a short concrete description and the surface differences. Then name the deep invariant that survives the surface differences. This is the structural transfer the contrasting-cases technique exists to produce; without an explicit invariant, the cases sit side by side without doing the pedagogical work.
 
 ## Completion problems
 
@@ -229,25 +270,36 @@ Template justification — section list traced to research and system prompt:
     several components; naming each with one-sentence semantics up front
     relieves working memory before the trace integrates them.
 
-  - Scenario setup and Productive impasse: research mandates a prediction
-    before the canonical content, scaled to the depth of the scenario.
-    Orientation scenarios use light prediction (role-level), full and edge
-    scenarios use rigorous prediction (mechanism-level, with confidence
-    elicitation for high-leverage transitions).
+  - Scenario setup: the initial state and triggering event the trace starts
+    from. Concrete enough that the learner can hold the state mentally before
+    the first stop.
 
   - Trace: the scenario's spine. Pass 1 stays at role and component level
     (no code anchors); Pass 3 anchors each stop in code, marks load-bearing
-    transitions, and surfaces cross-cluster stitch points.
+    transitions, and surfaces cross-cluster stitch points. The trace is
+    annotated with named moments where engagement-moves apply.
+
+  - Engagement moves: an inventory of move types the tutor may invoke at named
+    moments along the trace, mirroring the lesson template. Five types:
+    prediction-and-reveal, worked example with self-explanation, direct walk
+    with cued check, contrasting cases, and free recall. The tutor picks
+    contingent on diagnosed prior knowledge for the specific transition in
+    front of it, and varies move type across moments so the trace does not
+    become a sequence of similar predictions. Orientation scenarios have
+    fewer moments (often only one or two, at the start) and lighter moves
+    (typically role-level prediction-and-reveal or direct walks); full and
+    edge scenarios populate more moments with richer moves.
 
   - Perturbation prompts: Pass 3 only. The project brief's success criteria
     require learners to predict behavior under perturbations; the scenario
-    is where this capability is exercised.
+    is where this capability is exercised. Each perturbation is itself a
+    moment with an engagement-moves inventory.
 
   - Delta callouts: Pass 3 only; orientation scenarios stay at present-code
     altitude and leave delta material to the Pass 2 lessons.
 
   - Consolidation: same Loibl et al. 2017 rationale — explicit contrast
-    between predictions and canonical, named at the end of the trace.
+    between learner predictions and canonical, named at the end of the trace.
 
   - Close-out: orientation scenarios consolidate the mental sketch; full and
     edge scenarios consolidate cross-cluster invariants with
@@ -262,6 +314,12 @@ Template justification — section list traced to research and system prompt:
 The depth flag (`orientation`, `full`, `edge`) tunes which sections are
 fleshed out: orientation skips misconception watchlist, code anchors,
 perturbation prompts, and delta callouts; full and edge populate all of them.
+
+Same design constraint as the lesson template applies to engagement moves
+here: prediction-and-reveal is only supplied when the prediction is
+answerable from prior lessons and existing schemas. A scenario whose
+prediction prompt would require concepts the trace has not yet surfaced
+should use a different move type at that moment.
 -->
 
 ```yaml
@@ -325,30 +383,52 @@ Pre-training section. Name each component the scenario touches and give a one-se
 
 The initial state of the system and the triggering event or events that start the trace. Concrete enough that the learner can hold the state mentally — name the relevant nodes, the relevant queues or buffers, the relevant rounds. Anchor in a real test run or a documented `scenarios/SCN-NNN` entry where one applies.
 
-## Productive impasse
-
-For orientation scenarios: a light prediction at role level. "Before I walk through what happens, which components do you think get involved here, and in what order?" Frame as thinking-aloud.
-
-For full and edge scenarios: a rigorous prediction. Pose a high-leverage question whose answer hinges on a load-bearing mechanism in the trace. Elicit confidence when high-confidence wrong beliefs are likely. The reveal comes through the trace itself; the consolidation comes at the end of the trace.
-
 ## Trace
 
-The scenario's spine, segmented into stops. Each stop carries:
+The scenario's spine, segmented into stops. Read by the tutor as the script for what to walk through; the engagement-moves section below supplies the techniques the tutor may use at named moments along the trace.
+
+Each stop carries:
 
 - The component or transition the stop sits at, linked to its topic file.
 - A short prose description of what happens at the stop, at the appropriate altitude — role-level for orientation, mechanism-level for full and edge.
 - A code anchor as a GitHub URL against `main` (full and edge only; orientation omits code anchors and stays at role level).
-- Predict-then-reveal moves at high-leverage transitions, especially in full and edge scenarios. Frame as thinking-aloud, not quiz.
-- Self-explanation prompts at invariant-bearing transitions (full and edge), principle-based — "which invariant survives this transition?" "what would break if this component skipped this step?"
+- A signaling note when the stop sits at a load-bearing transition versus a bookkeeping one — mark these explicitly so the tutor knows where to invest engagement-move effort.
 - Cross-cluster stitch callouts (full and edge) at points where this scenario touches a mechanism from a different cluster than the one the current stop sits in. Name the stitch explicitly — these are the cross-cluster interactions the Pass 2 lessons could not teach in isolation.
+- A `moment_id` for any stop the engagement-moves section attaches a move inventory to. Not every stop needs a moment_id — only those rich enough to warrant a choice of teaching technique.
 
-For orientation scenarios the trace is the whole point: walk the components and their roles, plant the complete-but-low-fidelity mental sketch, do not go deep on mechanism. For full and edge scenarios the trace integrates everything the prerequisite Pass 2 lessons established.
+The tutor's default delivery on a stop without an attached moment is a direct walk: state what happens at this stop, cite the anchor when one applies, and continue. Stops with an attached moment offer the tutor a choice of moves.
+
+For orientation scenarios the trace is the whole point: walk the components and their roles, plant the complete-but-low-fidelity mental sketch, do not go deep on mechanism. Orientation scenarios typically have one or two moments — often at the start, to elicit a role-level prediction of which components will be involved — and the rest of the trace is direct walks. For full and edge scenarios the trace integrates everything the prerequisite Pass 2 lessons established, with more moments populated along the load-bearing transitions.
+
+## Engagement moves
+
+A small inventory of teaching moves the tutor may invoke at named moments along the trace. The tutor picks contingent on what it sees from the learner, and varies move type across moments to keep the session from becoming monotonous. The five available move types mirror the lesson template.
+
+Each moment in this section names:
+
+- The `moment_id` matching a stop in the Trace section (or a perturbation in the section below, if the perturbation itself is the moment).
+- A one-sentence description of why this moment is load-bearing.
+- An inventory of available moves, each tagged with the diagnosis it fits. Supply at least two moves per moment where possible.
+
+The available move types:
+
+**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing schemas — for full and edge scenarios, that includes everything the prerequisite Pass 2 lessons established. Include the framing scenario, the prediction prompt phrased as low-stakes thinking-aloud, optional confidence elicitation, the canonical answer with code anchor when applicable, and the consolidation move. For orientation scenarios this move is light and role-level ("which components do you think get involved here, and in what order?"). For full and edge scenarios it is rigorous and mechanism-level. Do not supply this move type at a moment where the prediction would require a mechanism the trace has not yet reached.
+
+**Worked example with self-explanation.** Supply when the learner is likely new to the subsystem the current stop sits in. Include the example and a principle-based self-explanation prompt at each load-bearing line — "which invariant survives this transition?", "what would break if this component skipped this step?" Diagnosis tag: the learner is hesitating on the current component or asking for clarification on how it behaves.
+
+**Direct walk with cued check.** Supply when the stop is content the learner is likely fluent on but the tutor needs to verify before moving on. State what happens, then run a short cued-recall or application check. Diagnosis tag: the learner has shown fluency on the surrounding components.
+
+**Contrasting cases with comparison prompt.** Supply only at moments that introduce or revisit a threshold concept, and only if contrasting-cases material is available in the prerequisite lessons or in this scenario. Reference the cases, supply the comparison prompt, and name the deep invariant they surface.
+
+**Free recall.** Supply at moments that land on something already covered earlier in the trace or in a prerequisite lesson, when the tutor needs the learner to articulate it before moving on. Include the prompt and the canonical answer for consolidation.
+
+Each load-bearing moment should usually offer the worked-example move and at least one other, so the tutor has a fallback when the diagnosis points toward novelty.
 
 ## Perturbation prompts
 
 Omit for orientation scenarios.
 
-For full and edge scenarios: questions of the form "what changes if X happens at this point in the trace?" — the perturbation prediction the project brief's success criteria require. Each prompt names the perturbation, the trace stop it applies to, and the canonical answer for consolidation. Edge cases often have the perturbation prompt as the spine of the scenario itself, since the edge case is the perturbation.
+For full and edge scenarios: questions of the form "what changes if X happens at this point in the trace?" — the perturbation prediction the project brief's success criteria require. Each perturbation is itself a moment, with its own `moment_id` and entry in the Engagement moves section (typically the prediction-and-reveal move). Name the perturbation, the trace stop it applies to, and the canonical answer for consolidation. Edge cases often have the perturbation prompt as the spine of the scenario itself, since the edge case is the perturbation.
 
 ## Delta callouts
 
@@ -358,7 +438,7 @@ For full and edge scenarios: brief callouts pointing to `delta-map/<topic>.md` f
 
 ## Consolidation
 
-Explicit contrast between the learner's predictions and the canonical mechanism, named at the end of the trace. For orientation scenarios this is a brief consolidation of the mental sketch — "the learner should now be able to name each component and its role." For full and edge scenarios this is the deep consolidation: which invariants the trace exercised, where the prediction missed, what the codebase's choice resolves, and (for cross-cluster scenarios) which cluster interactions the trace surfaced.
+Explicit contrast between the learner's predictions and the canonical mechanism, named at the end of the trace. The tutor consolidates against any prediction-and-reveal moves it ran during the trace; this section gives it the canonical answer to consolidate against. For orientation scenarios this is a brief consolidation of the mental sketch — the learner should now be able to name each component and its role. For full and edge scenarios this is the deep consolidation: which invariants the trace exercised, where any prediction missed, what the codebase's choice resolves, and (for cross-cluster scenarios) which cluster interactions the trace surfaced.
 
 ## Close-out
 
@@ -381,23 +461,23 @@ Surface every `[TBD]` marker from the body. Same KB-silence-over-fabrication pri
 <coherence_with_tutor_system_prompt>
 Each authored lesson supplies content in the shape the tutor's delivery model needs. The coherence requirements below are the load-bearing ones — write each lesson so the tutor can deliver it without improvising the scaffolding the system prompt expects to find pre-shaped.
 
-The tutor surfaces the Prerequisites section at session entry and asks for confirmation rather than probing. Write each prerequisite description as a single line that a senior engineer can read and respond to with a yes-or-no readiness judgement — not as a paragraph, not as a checklist of sub-topics. The section is uniform across all lessons including those with no prerequisites.
+The tutor surfaces the Prerequisites section at session entry and asks for confirmation rather than probing. Write each prerequisite description as a single line that the learner can read and respond to with a yes-or-no readiness judgement — not as a paragraph, not as a checklist of sub-topics. The section is uniform across all lessons including those with no prerequisites.
 
 The tutor runs incoming retrieval probes early in the session as recall-with-feedback. Each probe needs three components present in the lesson: the concept being retrieved, the prompt the tutor reads to the learner, and the canonical answer the tutor consolidates against. The probe is run as a thinking-aloud move, not a quiz.
 
 The tutor escalates a hint ladder when the learner is stuck — point to where to look, then a focused question, then a partial walkthrough, then the full answer. The Completion problems section ships each problem with its hint ladder so the tutor does not have to invent the rungs in the moment.
 
-The tutor elicits predictions before revealing mechanisms at high-leverage moments. The Productive impasse section pre-stages the prediction prompt, the framing scenario, and the consolidation move so the predict-observe-explain sequence is structurally complete when the tutor reaches it. Without the consolidation move pre-staged the effect collapses.
+The tutor diagnoses prior knowledge point by point during delivery and picks a teaching move contingent on what it sees. The Engagement moves section pre-stages an inventory of moves at named load-bearing moments along the Mechanism spine (or the Trace, for scenarios). Each moment offers two or more moves so the tutor has a real choice. The tutor varies move type across moments to avoid making the session feel monotonous — three prediction prompts in a row reads as quizzing even when each prediction is well-pitched. Predictions are reserved for moments where the learner can answer from prior lessons and existing schemas; moments that introduce material the lesson has not yet built up are walked through as worked examples with self-explanation prompts instead.
 
-The tutor uses different postures for concept-level versus codebase-procedural material within the same lesson. The Mechanism section marks chunks that are concept-level (where the tutor defaults to less scaffolding) versus codebase-procedural (where the tutor defaults to worked examples with self-explanation prompts at the load-bearing lines). Signaling load-bearing versus bookkeeping is how the tutor knows where to invest self-explanation effort.
+The tutor consolidates explicitly after any prediction-and-reveal move. The move entry in the Engagement moves section supplies the consolidation prompt and the canonical answer; without these the predict-observe-explain effect collapses.
 
-The tutor refuses restatement as self-explanation and pushes for inference. Self-explanation prompts at load-bearing lines are principle-based ("which invariant justifies this step?") rather than open ("explain this"), so the prompt itself elicits inference rather than paraphrase.
+The tutor refuses restatement as self-explanation and presses for inference. Self-explanation prompts at load-bearing lines are principle-based ("which invariant justifies this step?") rather than open ("explain this"), so the prompt itself elicits inference rather than paraphrase.
 
-The tutor uses the Misconception watchlist during delivery to detect Paxos/Raft/PBFT imports and other senior-engineer wrong models. Each entry pre-stages the learner utterance to listen for and the correction to apply, so the tutor recognizes the misconception in line rather than discovering it from scratch.
+The tutor uses the Misconception watchlist during delivery to detect both adjacent-protocol imports (Paxos, Raft, PBFT) and over-generalizations from familiar parts of this codebase. Each entry pre-stages the learner utterance to listen for and the correction to apply, so the tutor recognizes the misconception in line rather than discovering it from scratch.
 
 The tutor declines to fabricate when the KB is silent. Open questions surface every gap so the tutor and the reviewer share a single canonical list rather than the tutor improvising answers and the reviewer never seeing them.
 
-Across the curriculum, scaffolding withdraws as the learner progresses through a cluster. Earlier lessons in a cluster carry fuller worked examples and richer hint ladders; later lessons in the cluster — and especially the synthesis lesson at A.5 or each cluster's terminal entry — present the same content shape with less scaffolding, so the tutor's contingent fading has material at the right altitude. When authoring a later-cluster lesson, write the completion problems with fewer hint rungs and the mechanism walkthrough with fewer signaling markers than the cluster's opening lessons.
+Across the curriculum, scaffolding withdraws as the learner progresses through a cluster. Earlier lessons in a cluster carry richer engagement-move inventories and fuller hint ladders; later lessons in the cluster — and especially the synthesis lesson at A.5 or each cluster's terminal entry — present the same content shape with fewer moves per moment and shorter hint ladders, so the tutor's contingent fading has material at the right altitude. When authoring a later-cluster lesson, supply fewer alternative moves per moment and fewer hint rungs on the completion problems than the cluster's opening lessons.
 </coherence_with_tutor_system_prompt>
 
 <authoring_principles>
@@ -409,7 +489,9 @@ Code anchors are GitHub URLs against `main`, formatted `https://github.com/<org>
 
 When the KB or the code does not speak to a question the lesson needs to answer, write `[TBD: short description]` rather than fabricating. Surface every marker at the end under Open questions. The audience trusts the tutor precisely because it does not pretend to know things it does not — this discipline starts at the lesson level.
 
-Avoid restating concept-level mechanisms the audience already understands. Senior engineers have strong distributed-systems schemas; front-loading textbook BFT explanations is expertise-reversal harm and reads as condescension. For concept-level material, anchor the lesson on prediction and contrast against the canonical mechanism; reserve heavy worked-example scaffolding for codebase-procedural material where the learner is a novice on the specifics.
+The learner's prior knowledge is uneven and varies per learner and per point — not predictable from whether the material is conceptual or implementation-specific. Author the engagement-moves inventory so the tutor has a real choice at each load-bearing moment: a worked-example option for when the diagnosis is novelty, and a lighter option (direct walk, prediction-and-reveal, free recall) for when the diagnosis is fluency. Do not assume a fixed posture for the whole lesson.
+
+Use prediction-and-reveal sparingly and only where the prediction is genuinely answerable from prior knowledge. A prompt that requires concepts the lesson has not yet introduced is not productive failure — it is plain failure, and it reads to the learner as a quiz they could not have prepared for. The fidelity conditions matter: the question must sit in the learner's zone of proximal failure, the learner must be able to generate something to contrast against, and consolidation must follow. When any of these is doubtful, choose a different move type for that moment.
 
 Do not pre-answer the questions the tutor's dialogue would handle. The lesson is the tutor's script, not a transcript. A completion problem provides the problem and the hint ladder and the canonical answer — it does not provide the conversation that gets the learner from one to the other. That conversation is the tutor's job, conducted live.
 
