@@ -3,14 +3,11 @@ package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
-import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.node.app.blocks.impl.BlockStreamCutover;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -21,10 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Schema that executes the block stream cutover during migration. Reads the final record-stream
- * {@link BlockInfo} and {@link RunningHashes} from shared values (populated by
- * {@code V0560BlockRecordSchema}), reshapes them into the block stream format, and overwrites
- * the {@link BlockStreamInfo} singleton in state.
+ * Schema that prepares for the block stream cutover during migration. It reads the final record-stream
+ * {@link BlockInfo} and {@link RunningHashes} from shared values (populated by {@code V0560BlockRecordSchema})
+ * and deletes preview block files before the platform starts writing real post-cutover blocks.
  */
 public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
 
@@ -36,16 +32,8 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(74).patch(0).build();
 
-    private final Runnable previewStreamOverwrittenMarker;
-
-    /**
-     * @param previewStreamOverwrittenMarker called when the preview block stream info has been overwritten
-     *                                       with cutover data, with the express purpose of marking
-     *                                       {@code BlockInfo.previewStreamOverwritten} as true.
-     */
-    public V0740BlockStreamSchema(@NonNull final Runnable previewStreamOverwrittenMarker) {
+    public V0740BlockStreamSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.previewStreamOverwrittenMarker = requireNonNull(previewStreamOverwrittenMarker);
     }
 
     @Override
@@ -66,9 +54,8 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
             return;
         }
 
-        log.info("Performing preview stream overwrite for block streams cutover");
+        log.info("Preparing preview stream overwrite for block streams cutover");
 
-        // Step 1: Gather data from shared values and own state
         final var runningHashes =
                 (RunningHashes) requireNonNull(ctx.sharedValues().get(SHARED_RUNNING_HASHES));
         log.info(
@@ -104,10 +91,6 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                 runningHashes.nMinus2RunningHash().toHex(),
                 runningHashes.nMinus3RunningHash().toHex());
 
-        final var blockStreamInfoState = ctx.newStates().<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        final var lastBlockStreamInfo = requireNonNull(blockStreamInfoState.get());
-
-        // Step 2: delete preview block files
         final var cutoverConfig = ctx.appConfig();
         final var blockDirPath = blockDirFor(cutoverConfig);
         log.info("Cutover deleting all preview block files from {}", blockDirPath);
@@ -130,40 +113,5 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         } catch (IOException e) {
             log.warn("Failed to remove preview block files", e);
         }
-
-        // Step 3: Overwrite the (preview) block stream info in state
-        log.info(
-                "Using current preview stream state hash {} as the starting state hash for first block after cutover",
-                lastBlockStreamInfo.startOfBlockStateHash());
-        final var cutoverBlockStreamInfo =
-                BlockStreamCutover.blockStreamInfoFrom(blockInfo, runningHashes, lastBlockStreamInfo);
-        blockStreamInfoState.put(cutoverBlockStreamInfo);
-
-        log.info(
-                """
-                        Cutover initial BlockStreamInfo:
-                          blockNumber={}
-                          blockTime={}
-                          trailingBlockHashes={}
-                          trailingOutputHashes={}
-                          blockEndTime={}
-                          lastIntervalProcessTime={}
-                          lastHandleTime={}
-                          startOfBlockStateHash={}
-                          intermediatePreviousBlockRootHashes={}
-                          intermediateBlockRootsLeafCount={}""",
-                cutoverBlockStreamInfo.blockNumber(),
-                cutoverBlockStreamInfo.blockTime(),
-                cutoverBlockStreamInfo.trailingBlockHashes().toHex(),
-                cutoverBlockStreamInfo.trailingOutputHashes().toHex(),
-                cutoverBlockStreamInfo.blockEndTime(),
-                cutoverBlockStreamInfo.lastIntervalProcessTime(),
-                cutoverBlockStreamInfo.startOfBlockStateHash(),
-                cutoverBlockStreamInfo.lastHandleTime(),
-                cutoverBlockStreamInfo.intermediatePreviousBlockRootHashes(),
-                cutoverBlockStreamInfo.intermediateBlockRootsLeafCount());
-
-        // Signal that cutover was executed
-        previewStreamOverwrittenMarker.run();
     }
 }

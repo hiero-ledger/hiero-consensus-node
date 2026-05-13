@@ -4,7 +4,9 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
@@ -41,6 +43,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -57,6 +61,8 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.impl.BlockStreamCutover;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
@@ -481,6 +487,7 @@ public class SystemTransactions {
             stateChangeStreaming.doStreamingChanges(
                     writableStates, null, () -> service.doPostUpgradeSetup(writableStates, postUpgradeContext));
         }
+        markPreviewBlockStreamOverwrittenIfCutoverComplete(state, config, stateChangeStreaming);
 
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
@@ -548,6 +555,60 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
+
+    private void markPreviewBlockStreamOverwrittenIfCutoverComplete(
+            @NonNull final State state,
+            @NonNull final Configuration config,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        if (!blockStreamConfig.enableCutover()) {
+            return;
+        }
+
+        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+        if (!blockRecordStates.contains(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                || !blockRecordStates.contains(RUNNING_HASHES_STATE_ID)) {
+            return;
+        }
+        final var blockInfoState = blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+        final var blockInfo = blockInfoState.get();
+        if (blockInfo == null || blockInfo.previewStreamOverwritten()) {
+            return;
+        }
+        final var runningHashes = blockRecordStates
+                .<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID)
+                .get();
+        if (runningHashes == null) {
+            return;
+        }
+
+        final var blockStreamStates = state.getReadableStates(BlockStreamService.NAME);
+        if (!blockStreamStates.contains(BLOCK_STREAM_INFO_STATE_ID)) {
+            return;
+        }
+        final var blockStreamInfo = blockStreamStates
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                .get();
+        if (blockStreamInfo == null) {
+            return;
+        }
+        final var expectedBlockStreamInfo =
+                BlockStreamCutover.blockStreamInfoFrom(blockInfo, runningHashes, blockStreamInfo);
+        if (!expectedBlockStreamInfo.equals(blockStreamInfo)) {
+            return;
+        }
+
+        stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
+            final var currentBlockInfo = requireNonNull(blockInfoState.get());
+            if (!currentBlockInfo.previewStreamOverwritten()) {
+                blockInfoState.put(currentBlockInfo
+                        .copyBuilder()
+                        .previewStreamOverwritten(true)
+                        .build());
+                log.info("Preview block stream's info overwritten for cutover; state is notified");
+            }
+        });
     }
 
     /**
