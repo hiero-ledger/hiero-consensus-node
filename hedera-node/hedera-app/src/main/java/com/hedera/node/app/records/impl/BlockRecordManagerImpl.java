@@ -56,6 +56,7 @@ import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;

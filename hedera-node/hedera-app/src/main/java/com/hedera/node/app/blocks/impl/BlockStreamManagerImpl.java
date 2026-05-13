@@ -23,7 +23,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
@@ -97,6 +96,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;

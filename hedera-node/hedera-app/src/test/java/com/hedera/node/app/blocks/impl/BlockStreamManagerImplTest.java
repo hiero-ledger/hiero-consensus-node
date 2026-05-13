@@ -1614,12 +1614,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
@@ -1650,12 +1650,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -1701,12 +1701,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -1747,12 +1747,12 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
-                platform,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                quiescenceCommands,
                 metrics);
 
         final var blockRecordReadable = mock(ReadableStates.class);
