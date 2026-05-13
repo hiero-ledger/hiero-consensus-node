@@ -12,9 +12,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -52,7 +50,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 // --- actual test workflow ---
                 withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
-                // schedule transfer after 6 units
+                // schedule transfer
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
                         .payingWith(GENESIS)
@@ -63,13 +61,11 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                // stop the traffic for the grace period
+                // sleep the grace period
                 doWithStartupDuration(
                         "quiescence.gracePeriod", gracePeriod -> sleepForSeconds(2 * gracePeriod.toSeconds())),
                 // sleep the schedule duration + buffer
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(8 * duration.toSeconds())),
-                // validate enter the quiescence
-                sourcing(() -> logIt("TEST - Log timeframe start - " + sleepStart.get())),
                 assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
                         sleepStart::get,
@@ -92,10 +88,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                             "Execution time " + actual + " was more than " + maxDelay + " after scheduled expiry "
                                     + expected);
                 }),
-                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                logIt("RESTART AND BURST")
-                //                LifecycleTest.restartAtNextConfigVersion(),
-                //                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION)
-                );
+                LifecycleTest.restartAtNextConfigVersion(),
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION));
     }
 }

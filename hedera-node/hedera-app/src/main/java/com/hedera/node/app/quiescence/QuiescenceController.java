@@ -266,9 +266,16 @@ public class QuiescenceController {
         if (isDisabled()) {
             return;
         }
-        if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
+        if (platformStatus == PlatformStatus.ACTIVE) {
+            // Reset the grace-period baseline. Otherwise the timer counts from TxPipelineTracker
+            // construction (very early in JVM startup) and can already be expired by the time the
+            // platform reaches ACTIVE — causing peer nodes that don't see local ingest to quiesce
+            // immediately on ACTIVE and breaking quiescence symmetry across the network.
+            recordActivity.run();
+        } else if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
             pipelineTransactionCount.set(0);
             blockTrackers.clear();
+            recordActivity.run();
         }
     }
 
