@@ -458,8 +458,8 @@ jobs:
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
 
-          git checkout copilot/remove-blockitembatchsize
-
+          #git checkout copilot/remove-blockitembatchsize
+          git checkout 04225-reduce-pvcs-error-severity
           task build:compile
           #npm run build
 
