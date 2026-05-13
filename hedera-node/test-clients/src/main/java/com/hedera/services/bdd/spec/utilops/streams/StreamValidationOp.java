@@ -98,8 +98,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     // WRB blocks contain only a header, a single RecordFileItem, and a proof — none of the
     // transaction/event/state-change content that the full validator set expects.
-    private static final List<BlockStreamValidator.Factory> WRB_BLOCK_VALIDATOR_FACTORIES =
-            List.of(BlockNumberSequenceValidator.FACTORY, WrbRecordFileValidator.FACTORY);
+    private static final List<BlockStreamValidator.Factory> WRB_BLOCK_VALIDATOR_FACTORIES = List.of(
+            BlockNumberSequenceValidator.FACTORY, WrbRecordFileValidator.FACTORY, BlockContentsValidator.FACTORY);
 
     private record DataOrException(
             @Nullable StreamFileAccess.RecordStreamData data,

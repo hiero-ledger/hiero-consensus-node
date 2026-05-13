@@ -30,9 +30,8 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var validator = new BlockContentsValidator();
-        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(
-                node0Dir.resolve(
-                        "/Users/derektriley/git/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/hapiTestMisc/node0/data/blockStreams-blocknode/blocknode-0"));
+        final var blocks =
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
         validator.validateBlocks(blocks);
     }
 
@@ -89,23 +88,11 @@ public class BlockContentsValidator implements BlockStreamValidator {
             final var kind = item.item().kind();
             switch (kind) {
                 case STATE_CHANGES -> {
-                    if (blockNumber != 0) {
-                        Assertions.fail(
-                                "WRB for non-genesis block " + blockNumber + " contains StateChanges at index " + i);
-                    }
-                    if (foundRecordFile) {
-                        Assertions.fail("WRB StateChanges found after RecordFileItem at index " + i);
-                    }
-                    if (foundFooter) {
-                        Assertions.fail("WRB StateChanges found after BlockFooter at index " + i);
-                    }
+                    Assertions.fail("WRB StateChanges found  at index " + i);
                 }
                 case RECORD_FILE -> {
                     if (foundRecordFile) {
                         Assertions.fail("WRB contains more than one RecordFileItem at index " + i);
-                    }
-                    if (foundFooter) {
-                        Assertions.fail("WRB RecordFileItem found after BlockFooter at index " + i);
                     }
                     validateRecordFileItem(item, i);
                     foundRecordFile = true;

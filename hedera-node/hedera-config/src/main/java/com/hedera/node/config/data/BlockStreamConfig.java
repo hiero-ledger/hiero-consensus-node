@@ -23,7 +23,6 @@ import java.time.Duration;
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
- * @param freezeBlockAckTimeout how long to wait for a block node acknowledgement of the freeze block before proceeding with freeze marker externalization
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -70,10 +69,8 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean streamWrappedRecordBlocks,
-
-        @ConfigProperty(defaultValue = "10s") @NodeProperty Duration freezeBlockAckTimeout) {
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean streamWrappedRecordBlocks) {
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main
