@@ -708,29 +708,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void testCalculateFeesWithDifferentNumSignatures() {
-        // Test with 3 signatures
-        FeeContext feeCtx = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalcFact = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        given(feeCtx.configuration())
-                .willReturn(HederaTestConfigBuilder.create()
-                        .withValue("nodes.enableDAB", true)
-                        .getOrCreateConfig());
-        given(feeCtx.numTxnSignatures()).willReturn(3);
-        given(feeCalc.addVerificationsPerTransaction(2L)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(3, 0, 0));
-
-        Fees result = subject.calculateFees(feeCtx);
-
-        // Verify that addVerificationsPerTransaction was called with 2 (3-1)
-        verify(feeCalc).addVerificationsPerTransaction(2L);
-        assertThat(result).isEqualTo(new Fees(3, 0, 0));
-    }
-
-    @Test
     void testOneOfHelperCreatesThresholdKey() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();

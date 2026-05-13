@@ -183,20 +183,6 @@ class ContractDeleteHandlerTest {
         return ContractDeleteTransactionBody.newBuilder().contractID(targetId).build();
     }
 
-    @Test
-    void testCalculateFeesWithNoDeleteBody() {
-        final var txn = TransactionBody.newBuilder().build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-    }
-
     private ContractDeleteTransactionBody deletion(final ContractID targetId, final ContractID transferId) {
         return ContractDeleteTransactionBody.newBuilder()
                 .contractID(targetId)

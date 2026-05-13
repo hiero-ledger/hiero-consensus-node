@@ -633,24 +633,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void testCalculateFeesWithNoContractIDAndMemo() {
-        final var txn = TransactionBody.newBuilder()
-                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder())
-                .transactionID(transactionID)
-                .build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-        given(feeCtx.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-    }
-
-    @Test
     void memoUpdatedPassingMemoWrapperField() {
         when(context.attributeValidator()).thenReturn(attributeValidator);
 

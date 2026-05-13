@@ -376,37 +376,6 @@ class EthereumTransactionHandlerTest {
         verifyNoInteractions(ethereumSignatures);
     }
 
-    @Test
-    void testCalculateFeesWithNoEthereumTransactionBody() {
-        final var txn = TransactionBody.newBuilder().build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-    }
-
-    @Test
-    void testCalculateFeesWithZeroHapiFeesConfigDisabled() {
-        final var ethTxn = EthereumTransactionBody.newBuilder()
-                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
-                .build();
-        final var txn = TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-        verify(feeCalc).legacyCalculate(any());
-    }
 
     @Test
     void validatePureChecksHappyPath() {

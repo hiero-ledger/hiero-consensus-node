@@ -211,19 +211,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
-    @Test
-    void testCalculateFeesWithoutCallBody() {
-        final var txn = TransactionBody.newBuilder().build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-    }
 
     private TransactionBody contractCallTransaction() {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);

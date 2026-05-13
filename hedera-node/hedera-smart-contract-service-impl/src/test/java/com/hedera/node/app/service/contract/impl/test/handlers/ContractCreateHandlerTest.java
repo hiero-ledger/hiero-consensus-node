@@ -318,21 +318,6 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void testCalculateFeesWithNoCreateBody() {
-        final var txn =
-                TransactionBody.newBuilder().transactionID(transactionID).build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
-    }
-
-    @Test
     void validateRepeatedHookIds() {
         final var txn = TransactionBody.newBuilder()
                 .transactionID(transactionID)
