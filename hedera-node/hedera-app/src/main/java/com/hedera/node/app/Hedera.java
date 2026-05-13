@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -39,6 +40,7 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -142,7 +144,9 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -150,6 +154,7 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -181,6 +186,8 @@ import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -1161,6 +1168,36 @@ public final class Hedera
         return rosterFrom(startupNetworks().genesisNetworkOrThrow(configProvider.getConfiguration()));
     }
 
+    /**
+     * Returns the roster history to use for startup components, including any candidate roster adoption that is pending
+     * post-upgrade setup and can be previewed without mutating state.
+     *
+     * @param state the startup state
+     * @return the effective startup roster history
+     */
+    public @NonNull RosterHistory effectiveStartupRosterHistory(@NonNull final State state) {
+        requireNonNull(state);
+        final var persistedRosterHistory = RosterStateUtils.createRosterHistory(state);
+        if (!isPostUpgradeSetupPending(state)) {
+            return persistedRosterHistory;
+        }
+        final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+        final var candidateRoster = rosterStore.getCandidateRoster();
+        if (candidateRoster == null) {
+            return persistedRosterHistory;
+        }
+        final long activeRoundNumber = roundNumberOf(state) + 1;
+        final var context = new StartupRosterAdoptionContext(
+                requireNonNull(configProvider).getConfiguration(),
+                activeRoundNumber,
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries().size(),
+                state);
+        if (!canAdoptRoster(candidateRoster, context)) {
+            return persistedRosterHistory;
+        }
+        return RosterStateUtils.createRosterHistoryWithCandidateAdoption(state, candidateRoster, activeRoundNumber);
+    }
+
     /*==================================================================================================================
     *
     * Exposed for use by embedded Hedera
@@ -1317,18 +1354,12 @@ public final class Hedera
         }
         // For other triggers the initial state hash must have been set already
         requireNonNull(initialStateHashFuture);
-        final long roundNum = trigger == GENESIS
-                ? GENESIS_ROUND
-                : requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                                .get())
-                        .consensusSnapshotOrThrow()
-                        .round();
+        final long roundNum = trigger == GENESIS ? GENESIS_ROUND : roundNumberOf(state);
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
-        final var currentRoster =
-                trigger == GENESIS ? genesisRosterOrThrow() : requireNonNull(rosterStore.getActiveRoster());
+        final var currentRoster = trigger == GENESIS
+                ? genesisRosterOrThrow()
+                : effectiveStartupRosterHistory(state).getCurrentRoster();
         rsaContext.initialize(currentRoster, nodeId -> {
             final var entry = RosterUtils.getRosterEntryOrNull(currentRoster, nodeId);
             return entry == null ? 0L : entry.weight();
@@ -1521,6 +1552,48 @@ public final class Hedera
         return appContext.instantSource() == InstantSource.system();
     }
 
+    private static long roundNumberOf(@NonNull final State state) {
+        requireNonNull(state);
+        return requireNonNull(state.getReadableStates(PlatformStateService.NAME)
+                        .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                        .get())
+                .consensusSnapshotOrThrow()
+                .round();
+    }
+
+    private boolean isPostUpgradeSetupPending(@NonNull final State state) {
+        return switch (streamMode) {
+            case RECORDS -> isRecordStreamPostUpgradeSetupPending(state);
+            case BLOCKS -> isBlockStreamPostUpgradeSetupPending(state);
+            case BOTH -> isRecordStreamPostUpgradeSetupPending(state) || isBlockStreamPostUpgradeSetupPending(state);
+        };
+    }
+
+    private static boolean isRecordStreamPostUpgradeSetupPending(@NonNull final State state) {
+        requireNonNull(state);
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        if (!blockRecordStates.contains(BLOCKS_STATE_ID)) {
+            return false;
+        }
+        final var blockInfo =
+                blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).get();
+        return blockInfo != null && !blockInfo.migrationRecordsStreamed();
+    }
+
+    private boolean isBlockStreamPostUpgradeSetupPending(@NonNull final State state) {
+        requireNonNull(state);
+        final var blockStreamStates = state.getReadableStates(BlockStreamService.NAME);
+        if (!blockStreamStates.contains(BLOCK_STREAM_INFO_STATE_ID)) {
+            return false;
+        }
+        final var blockStreamInfo = blockStreamStates
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                .get();
+        return blockStreamInfo != null
+                && (!version.equals(blockStreamInfo.creationSoftwareVersion())
+                        || !blockStreamInfo.postUpgradeWorkDone());
+    }
+
     private class ReadReconnectStartingStateHash implements ReconnectCompleteListener {
         private final NotificationEngine notifications;
 
@@ -1534,6 +1607,33 @@ public final class Hedera
             requireNonNull(initialStateHashFuture)
                     .complete(requireNonNull(notification.getState().getHash()).getBytes());
             notifications.unregister(ReconnectCompleteListener.class, this);
+        }
+    }
+
+    private record StartupRosterAdoptionContext(
+            @NonNull Configuration configuration,
+            long roundNumber,
+            int networkSize,
+            @NonNull State state) implements PostUpgradeContext {
+        private StartupRosterAdoptionContext {
+            requireNonNull(configuration);
+            requireNonNull(state);
+        }
+
+        @Override
+        public @NonNull Instant consensusTime() {
+            throw new UnsupportedOperationException(
+                    "Effective startup roster history cannot depend on an unknown consensus time");
+        }
+
+        @Override
+        public @NonNull ReadableStates readableStates(@NonNull final String serviceName) {
+            return state.getReadableStates(requireNonNull(serviceName));
+        }
+
+        @Override
+        public @NonNull WritableStates writableStates(@NonNull final String serviceName) {
+            throw new UnsupportedOperationException("Effective startup roster history cannot mutate state");
         }
     }
 

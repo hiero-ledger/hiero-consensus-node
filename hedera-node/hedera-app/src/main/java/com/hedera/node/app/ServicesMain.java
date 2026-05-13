@@ -37,7 +37,6 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -74,9 +73,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBinImpl;
-import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -210,9 +207,8 @@ public class ServicesMain {
             rosterHistory = RosterHistory.fromGenesis(genesisRoster);
             rosterEntries = genesisRoster.rosterEntries();
         } else {
-            rosterHistory = RosterStateUtils.createRosterHistory(state);
-            final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
-            rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+            rosterHistory = hedera.effectiveStartupRosterHistory(state);
+            rosterEntries = rosterHistory.getCurrentRoster().rosterEntries();
         }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
