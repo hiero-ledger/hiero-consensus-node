@@ -131,7 +131,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
+        // Compute hashes; state is updated later via migration root hash vote handling.
         computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes);
     }
 
