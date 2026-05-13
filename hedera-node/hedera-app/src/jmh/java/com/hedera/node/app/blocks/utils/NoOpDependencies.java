@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.utils;
 
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -70,7 +73,12 @@ public final class NoOpDependencies {
         }
 
         @Override
-        public Attempt sign(@NonNull Bytes blockHash) {
+        public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
+            requireNonNull(blockHash);
+            requireNonNull(request);
+            if (request != SUCCINCT_SIGNATURE) {
+                throw new IllegalArgumentException("Realistic benchmark signer only supports succinct signatures");
+            }
             // Simulate production behavior: async SHA-384 hash computation
             // This matches TssBlockHashSigner when TSS is disabled (no hintsService)
             return new Attempt(
@@ -88,20 +96,6 @@ public final class NoOpDependencies {
                             return Bytes.wrap(new byte[48]); // SHA-384 = 48 bytes
                         }
                     }));
-        }
-    }
-
-    /** No-op BlockHashSigner (deprecated - use createRealTssBlockHashSigner() for production realism) */
-    @Deprecated
-    public static class NoOpBlockHashSigner implements BlockHashSigner {
-        @Override
-        public boolean isReady() {
-            return true;
-        }
-
-        @Override
-        public Attempt sign(@NonNull Bytes blockHash) {
-            return new Attempt(null, null, CompletableFuture.completedFuture(Bytes.wrap(new byte[64])));
         }
     }
 

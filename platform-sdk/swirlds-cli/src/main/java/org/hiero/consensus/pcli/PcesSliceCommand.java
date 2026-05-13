@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -33,6 +32,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -370,7 +370,7 @@ public class PcesSliceCommand extends AbstractCommand {
             return null;
         }
         try (final FileInputStream fis = new FileInputStream(snapshotPath.toFile())) {
-            return ConsensusSnapshot.JSON.parse(new ReadableStreamingData(fis));
+            return ConsensusSnapshot.JSON.parseStrict(new ReadableStreamingData(fis));
         }
     }
 

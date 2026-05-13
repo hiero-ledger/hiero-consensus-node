@@ -69,7 +69,7 @@ class DependencyMigrationTest extends MerkleTestBase {
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        vmState = new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
+        vmState = new VirtualMapStateImpl(CONFIGURATION, FILE_SYSTEM_MANAGER, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }

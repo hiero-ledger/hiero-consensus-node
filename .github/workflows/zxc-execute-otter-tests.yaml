@@ -84,7 +84,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -123,29 +123,9 @@ jobs:
           path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Full Otter)
-        id: check-tests-executed-full-otter
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/consensus-otter-tests/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
-      - name: Detect Flaky Tests (Full Otter)
-        id: detect-flaky-full-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-full-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Full Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && (steps.gradle-full-otter-tests.conclusion == 'failure' || steps.detect-flaky-full-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -172,7 +152,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -211,29 +191,9 @@ jobs:
           path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Fast Otter)
-        id: check-tests-executed-fast-otter
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/consensus-otter-tests/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
-      - name: Detect Flaky Tests (Fast Otter)
-        id: detect-flaky-fast-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-fast-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Fast Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && (steps.gradle-fast-otter-tests.conclusion == 'failure' || steps.detect-flaky-fast-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -241,7 +201,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && (steps.gradle-fast-otter-tests.conclusion == 'failure' || steps.detect-flaky-fast-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -268,7 +228,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -307,29 +267,9 @@ jobs:
           path: "**/consensus-otter-tests/build/test-results/testChaos/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Chaos Otter)
-        id: check-tests-executed-chaos-otter
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/consensus-otter-tests/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
-      - name: Detect Flaky Tests (Chaos Otter)
-        id: detect-flaky-chaos-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-chaos-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Chaos Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && (steps.gradle-chaos-otter-tests.conclusion == 'failure' || steps.detect-flaky-chaos-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -337,7 +277,7 @@ jobs:
 
       - name: Upload Chaos Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && (steps.gradle-chaos-otter-tests.conclusion == 'failure' || steps.detect-flaky-chaos-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -368,7 +308,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
 
       - name: Set Failure Mode
         id: set-failure-mode

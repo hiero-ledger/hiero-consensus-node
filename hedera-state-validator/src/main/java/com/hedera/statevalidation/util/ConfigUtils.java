@@ -45,9 +45,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -119,6 +121,8 @@ public final class ConfigUtils {
                 .withConfigDataType(MetricsConfig.class)
                 .withConfigDataType(BlockRecordStreamConfig.class)
                 .withConfigDataType(BlockStreamJumpstartConfig.class)
+                .withConfigDataType(ModulesConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
@@ -154,5 +158,9 @@ public final class ConfigUtils {
             initConfiguration();
         }
         return configuration;
+    }
+
+    public static int getVirtualMapValueParseMaxSizeBytes() {
+        return getConfiguration().getConfigData(VirtualMapConfig.class).valueParseMaxSizeBytes();
     }
 }

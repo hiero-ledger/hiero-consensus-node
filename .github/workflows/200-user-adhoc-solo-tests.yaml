@@ -5,21 +5,34 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Consensus-node branch, tag, or SHA to checkout for local build."
+        description: "[Both] Consensus-node branch, tag, or SHA to checkout. Determines both the version of the local build (when used) and the version of the scripts that drive the run."
         required: true
         type: string
       solo-version:
-        description: "Solo version to install (defaults to latest)."
-        required: false
+        description: "[Both] Solo version to install."
+        required: true
         type: string
         default: "latest"
-      starting-tag:
-        description: "Consensus-node release tag used for the initial network deployment."
+      scenario:
+        description: "Which Solo test scenario to run."
+        required: true
+        type: choice
+        default: "jumpstart"
+        options:
+          - "jumpstart"
+          - "wrb-streaming"
+      jumpstart-starting-tag:
+        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.73.0."
         required: false
         type: string
-        default: "v0.73.0"
-      upgrade-tag:
-        description: "Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag."
+        default: ""
+      jumpstart-upgrade-tag:
+        description: "[Jumpstart] Consensus-node release tag to upgrade the network to (e.g. v0.74.0). Leave blank to upgrade to the local build instead."
+        required: false
+        type: string
+        default: ""
+      streaming-tag:
+        description: "[Streaming] Consensus-node release tag for the WRB streaming network deploy (e.g. v0.74.0-rc.1). Leave blank to deploy from the local build instead."
         required: false
         type: string
         default: ""
@@ -42,11 +55,12 @@ env:
 jobs:
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
+    if: ${{ inputs.scenario == 'jumpstart' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -117,6 +131,7 @@ jobs:
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
+        if: ${{ inputs.jumpstart-upgrade-tag == '' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
@@ -127,10 +142,10 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              INITIAL_RELEASE_TAG="${{ inputs.starting-tag }}" \
-              UPGRADE_VERSION="${{ inputs.upgrade-tag }}" \
+              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.73.0' }}" \
+              UPGRADE_VERSION="${{ inputs.jumpstart-upgrade-tag }}" \
               KEEP_NETWORK="false" \
-            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/wrb-script.log"
+            "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
@@ -164,6 +179,157 @@ jobs:
           path: |
             ${{ runner.temp }}/wrb-script.log
             ${{ runner.temp }}/wrb-diagnostics/**
+            hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  solo-wrb-block-node-streaming:
+    name: "Solo WRB Streaming to Block Node"
+    if: ${{ inputs.scenario == 'wrb-streaming' }}
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 120
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        with:
+          cache-read-only: false
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Install grpcurl
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          grpcurl --version
+          kubectl version --client=true
+
+      - name: Resolve Block Node Chart Version
+        run: |
+          set -eo pipefail
+          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          curl_response="$(curl -fsSL -H "Accept: application/vnd.github+json" "${bn_url}")"
+          latest_bn_tag="$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')"
+          if [[ -z "${latest_bn_tag}" ]]; then
+            echo "Unable to resolve latest Block Node release tag from ${bn_url}" >&2
+            exit 1
+          fi
+
+          echo "BLOCK_NODE_CHART_VERSION=${latest_bn_tag}" >> "${GITHUB_ENV}"
+
+      - name: Build Consensus Node Local Artifacts
+        if: ${{ inputs.streaming-tag == '' }}
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run WRB Streaming to Block Node Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-block-node-streaming.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 75m \
+            env \
+              RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
+              BLOCK_NODE_RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
+              BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
+              USE_LOCAL_BUILD="${{ inputs.streaming-tag == '' && 'true' || 'false' }}" \
+              KEEP_NETWORK="false" \
+            "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
+
+      - name: Collect Diagnostics On Failure
+        if: ${{ !cancelled() && failure() }}
+        run: |
+          set +e
+          OUT_DIR="${RUNNER_TEMP}/wrb-block-node-streaming-diagnostics"
+          mkdir -p "${OUT_DIR}"
+
+          kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
+          kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
+          kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
+          kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --tail=-1 \
+            > "${OUT_DIR}/block-node-1-0.log" 2>&1
+
+          for node in node1 node2 node3; do
+            pod="network-${node}-0"
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" -c root-container --tail=-1 > "${OUT_DIR}/${pod}-root-container.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
+              > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+          done
+
+          if [[ -d "${HOME}/.solo/logs" ]]; then
+            mkdir -p "${OUT_DIR}/solo-logs"
+            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+          fi
+
+      - name: Upload WRB Streaming Failure Artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: WRB Block Node Streaming Failure Artifacts
+          path: |
+            ${{ runner.temp }}/wrb-block-node-streaming-script.log
+            ${{ runner.temp }}/wrb-block-node-streaming-diagnostics/**
+            hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/**
           if-no-files-found: warn
           retention-days: 7
 

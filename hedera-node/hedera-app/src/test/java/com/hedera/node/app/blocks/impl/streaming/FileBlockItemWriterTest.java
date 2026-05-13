@@ -16,6 +16,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
@@ -23,6 +26,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -366,5 +370,45 @@ class FileBlockItemWriterTest {
         assertEquals(pendingProof, recoveredProof, "Recovered proof should match the original");
 
         assertDoesNotThrow(() -> subject.flushPendingBlock(PendingProof.DEFAULT));
+    }
+
+    @Test
+    void loadContiguousPendingBlocksDeserializesSignedTransaction() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        subject.openBlock(2);
+
+        final var signedTxBytes = SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
+                .bodyBytes(Bytes.wrap("test-body".getBytes()))
+                .build());
+        final var blockItem =
+                BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(blockItem).toByteArray());
+
+        final var pendingProof = PendingProof.newBuilder()
+                .block(2)
+                .blockHash(Bytes.fromHex("abcd"))
+                .previousBlockHash(Bytes.fromHex("ef01"))
+                .startOfBlockStateRootHash(Bytes.fromHex("2345"))
+                .blockTimestamp(Timestamp.newBuilder().seconds(1_700_000_000L).build())
+                .siblingHashesFromPrevBlockRoot(List.of(
+                        new MerkleSiblingHash(true, Bytes.fromHex("1111")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("2222")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("3333"))))
+                .build();
+        subject.flushPendingBlock(pendingProof);
+
+        final List<OnDiskPendingBlock> loaded = FileBlockItemWriter.loadContiguousPendingBlocks(
+                tempDir, 3, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
+
+        assertEquals(1, loaded.size());
+        final var loadedBlock = loaded.getFirst();
+        assertEquals(pendingProof, loadedBlock.pendingProof());
+        assertEquals(1, loadedBlock.items().size());
+        assertTrue(loadedBlock.items().getFirst().hasSignedTransaction());
+        assertEquals(signedTxBytes, loadedBlock.items().getFirst().signedTransactionOrThrow());
     }
 }

@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -18,7 +19,6 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,15 +72,6 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     private final ReconnectMapStats mapStats;
 
-    // Indicates if a response for path 0 (virtual root) has been received
-    private final CountDownLatch rootResponseReceived = new CountDownLatch(1);
-
-    /**
-     * Indicates if a response from the teacher has been received already. The very first response
-     * must be for path 0 (root virtual node). Used in assertions only.
-     */
-    private final AtomicBoolean rootNodeReceived = new AtomicBoolean(false);
-
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
      * is important for hashing, so it's restored using this queue. Once hashing is improved to work
@@ -125,6 +116,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
+        // Perform the root-node (path 0) request/response handshake synchronously before forking
+        // any parallel tasks. The root response carries the teacher's first/last leaf path range,
+        // which must be known before the traversal order can be started and before any parallel
+        // send tasks can generate meaningful non-root requests.
+        exchangeRootNode(in, out);
+
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
         for (int i = 0; i < 16; i++) {
@@ -133,22 +130,60 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
             learnerReceiveTask.exec();
         }
 
-        final AtomicBoolean rootRequestSent = new AtomicBoolean(false);
         // FUTURE WORK: configurable number of tasks
         final int learnerSendTasks = 16;
         final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
         for (int i = 0; i < learnerSendTasks; i++) {
             final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
-                    reconnectConfig,
-                    workGroup,
-                    out,
-                    this,
-                    rootResponseReceived,
-                    expectedResponses,
-                    rootRequestSent,
-                    tasksDone);
+                    reconnectConfig, workGroup, out, this, expectedResponses, tasksDone);
             learnerSendTask.exec();
         }
+    }
+
+    /**
+     * Synchronously sends the root node request to the teacher, waits for the root response, and
+     * initializes the traversal order and learner state from the response. This must complete
+     * before any parallel tasks are forked, because all subsequent requests depend on the leaf
+     * path range carried in the root response.
+     *
+     * @param in  the async input stream to read the root response from
+     * @param out the async output stream to send the root request to
+     * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
+     */
+    private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
+        logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
+        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash());
+        final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
+        rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
+        try {
+            out.sendAsync(rootRequestBytes);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Interrupted while sending root node request", e);
+        }
+        mapStats.incrementTransfersFromLearner();
+
+        // wait for response
+        final byte[] rootResponseBytes =
+                in.readAnticipatedMessageSync(reconnectConfig.pullLearnerRootResponseTimeout());
+        if (rootResponseBytes == null) {
+            throw new MerkleSynchronizationException("Stream closed before root node response was received");
+        }
+        final PullVirtualTreeResponse rootResponse =
+                PullVirtualTreeResponse.parseFrom(BufferedData.wrap(rootResponseBytes));
+        if (rootResponse.path() != Path.ROOT_PATH) {
+            throw new MerkleSynchronizationException(
+                    "Expected root node response, but received response for path " + rootResponse.path());
+        }
+        logger.info(RECONNECT.getMarker(), "Root node response received from teacher");
+
+        // init with teacher key range
+        final long firstLeafPath = rootResponse.firstLeafPath();
+        final long lastLeafPath = rootResponse.lastLeafPath();
+        traversalOrder.start(
+                originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
+        vmapLearner.init(firstLeafPath, lastLeafPath);
+        handleResponse(rootResponse);
     }
 
     @Override
@@ -195,21 +230,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         }
     }
 
-    // This method is called concurrently from multiple threads
+    // This method is called concurrently from multiple threads and called for non-root nodes (internal and leaves)
     void responseReceived(final PullVirtualTreeResponse response) {
         final long responsePath = response.path();
-        if (responsePath == 0) {
-            logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.firstLeafPath();
-            final long lastLeafPath = response.lastLeafPath();
-            assert rootNodeReceived.compareAndSet(false, true)
-                    : "Root node must be the first node received from the teacher";
-            traversalOrder.start(
-                    originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            vmapLearner.init(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
-        }
-        if ((responsePath == 0) || !isLeaf(responsePath)) {
+        if (!isLeaf(responsePath)) {
             handleResponse(response);
+            mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
         } else {
             responses.put(responsePath, response);
             // Handle responses in the same order as the corresponding requests were sent to the teacher
@@ -225,20 +251,13 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 handleResponse(r);
                 anticipatedLeafPaths.remove();
             }
-        }
-
-        if (responsePath != Path.ROOT_PATH) {
-            final boolean isLeaf = isLeaf(responsePath);
-            if (isLeaf) {
-                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
-            } else {
-                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
-            }
+            mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
         }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
-        assert rootNodeReceived.get() : "Root node must be the first node received from the teacher";
+        // Root node was exchanged synchronously in exchangeRootNode() before any tasks started,
+        // so by the time this is called from parallel tasks the root has already been processed.
         final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
