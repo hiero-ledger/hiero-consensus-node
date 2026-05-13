@@ -1,8 +1,9 @@
 ---
+
 title: Event intake
 kind: architecture-topic
 last_reviewed: TBD
----
+------------------
 
 # Event intake
 
@@ -141,8 +142,8 @@ the gate just not been added there?]
 **Note on stage ordering:** the deduplicator runs **before** the
 signature validator as a performance optimization. The dedup key is the
 `(descriptor, signature)` pair, so a duplicate-descriptor event with a
-forged signature does not cause the valid event that might be received 
-later to be dropped. Both are passed on, and the invalid one is rejected 
+forged signature does not cause the valid event that might be received
+later to be dropped. Both are passed on, and the invalid one is rejected
 by the signature validator. Running the cheap
 dedup check first avoids the cost of signature verification on the
 common-case true duplicates.

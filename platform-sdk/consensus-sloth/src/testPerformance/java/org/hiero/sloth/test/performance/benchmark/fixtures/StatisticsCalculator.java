@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.test.performance.benchmark.fixtures;
 
-import com.swirlds.common.utility.InstantUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.base.utility.InstantUtils;
 
 /**
  * Calculates statistical metrics for benchmark measurements.

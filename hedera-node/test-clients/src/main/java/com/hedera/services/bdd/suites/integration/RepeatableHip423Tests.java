@@ -629,10 +629,8 @@ public class RepeatableHip423Tests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS},
             overrides = {
-                "consensus.handle.maxPrecedingRecords",
                 "consensus.handle.maxFollowingRecords",
                 "scheduling.consTimeSeparationNanos",
-                "scheduling.reservedSystemTxnNanos",
             })
     final Stream<DynamicTest> executionPurgesScheduleStateAsWhenRunningOutOfConsensusTimes() {
         final var lastSecond = new AtomicLong();
@@ -641,13 +639,13 @@ public class RepeatableHip423Tests {
         return hapiTest(
                 exposeSpecSecondTo(lastSecond::set),
                 cryptoCreate("luckyYou").balance(0L),
-                // From time T, the first transfer will be at T+3, the second at T+6, and the third at T+9;
-                // so for a T+12 attempt to run out of time, the separating nanos must be no more than 15
+                // The per-txn offset (txnOffsetNanos) is fixed at startup from reservedSystemTxnNanos(100)
+                // + maxPrecedingRecords(3) + 1 = 104. With maxFollowingRecords=1, lastUsableTime = T+325
+                // (consTimeSeparationNanos=430 minus 105). Executions land at T+104, T+208, T+312 — all
+                // within T+325 — but the fourth at T+416 is not, so only three execute in one user txn.
                 overridingAllOf(Map.of(
-                        "consensus.handle.maxPrecedingRecords", "2",
                         "consensus.handle.maxFollowingRecords", "1",
-                        "scheduling.consTimeSeparationNanos", "16",
-                        "scheduling.reservedSystemTxnNanos", "1")),
+                        "scheduling.consTimeSeparationNanos", "430")),
                 // Schedule the four transfers to lucky you
                 sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
                         .waitForExpiry()
