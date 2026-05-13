@@ -78,6 +78,6 @@ public record BlockStreamConfig(
      * through {@code BlockBufferService}).
      */
     public boolean streamToBlockNodes() {
-        return writerMode != BlockStreamWriterMode.FILE || streamWrappedRecordBlocks;
+        return writerMode != BlockStreamWriterMode.FILE;
     }
 }

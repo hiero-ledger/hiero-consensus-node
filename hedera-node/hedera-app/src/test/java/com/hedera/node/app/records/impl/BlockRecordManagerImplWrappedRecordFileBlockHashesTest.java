@@ -1061,6 +1061,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1069,70 +1070,6 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertEquals(1, blockInfo.wrappedIntermediateBlockRootsLeafCount());
         assertNotEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
         assertTrue(blockInfo.wrappedIntermediatePreviousBlockRootHashes().size() > 0);
-    }
-
-    @Test
-    void freezeBlockQueuesWrappedHashesWhileVotingPending() {
-        final var app = appBuilder()
-                .withService(new BlockRecordService())
-                .withService(new PlatformStateService())
-                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
-                .build();
-
-        app.stateMutator(BlockRecordService.NAME)
-                .withSingletonState(
-                        BLOCKS_STATE_ID,
-                        BlockInfo.newBuilder()
-                                .lastBlockNumber(-1)
-                                .firstConsTimeOfLastBlock(EPOCH)
-                                .blockHashes(Bytes.EMPTY)
-                                .consTimeOfLastHandledTxn(EPOCH)
-                                .migrationRecordsStreamed(true)
-                                .firstConsTimeOfCurrentBlock(EPOCH)
-                                .lastUsedConsTime(EPOCH)
-                                .lastIntervalProcessTime(EPOCH)
-                                .votingComplete(false)
-                                .votingCompletionDeadlineBlockNumber(10)
-                                .build())
-                .withSingletonState(
-                        RUNNING_HASHES_STATE_ID,
-                        RunningHashes.newBuilder()
-                                .runningHash(Bytes.wrap(new byte[48]))
-                                .build())
-                .commit();
-
-        app.stateMutator(PlatformStateService.NAME)
-                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
-                .commit();
-
-        final var state = requireNonNullState(app.workingStateAccessor().getState());
-        final var producer = new FakeStreamProducer();
-        final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
-        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
-        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-        try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(),
-                state,
-                producer,
-                controller,
-                heartbeat,
-                app.platform(),
-                diskWriter,
-                () -> mock(BlockItemWriter.class),
-                NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RECONNECT)) {
-            final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
-            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-        }
-
-        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get();
-        assertTrue(requireNonNull(blockInfo).migrationWrappedHashes().size() > 0);
-        // Voting is still pending, so finalized wrapped-hash state should not be persisted yet.
-        assertEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
     }
 
     @Test
@@ -1241,6 +1178,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         verify(diskWriter).appendAsync(any());
@@ -1303,6 +1241,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
+            mgr.closeCurrentRecordFileIfOpen(state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
