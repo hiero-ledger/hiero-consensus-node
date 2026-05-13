@@ -84,6 +84,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
+    private static final long ROUND_NUMBER = 666L;
     private static final AccountID NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
@@ -470,16 +471,18 @@ class SystemTransactionsTest {
                 .when(stateChangeStreaming)
                 .doStreamingChanges(any(), isNull(), any());
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
 
         verify(stateChangeStreaming).doStreamingChanges(eq(writableStates), isNull(), any());
         final var contextCaptor = ArgumentCaptor.forClass(PostUpgradeContext.class);
         verify(service).doPostUpgradeSetup(eq(writableStates), contextCaptor.capture());
         final var context = contextCaptor.getValue();
         assertEquals(NOW, context.consensusTime());
+        assertEquals(ROUND_NUMBER, context.roundNumber());
         assertEquals(1, context.networkSize());
         assertSame(versionedConfig, context.configuration());
         assertSame(otherReadableStates, context.readableStates(FileService.NAME));
+        assertSame(writableStates, context.writableStates(serviceName));
     }
 
     @Test
@@ -548,7 +551,7 @@ class SystemTransactionsTest {
                 migrationRootHashSubmissions);
 
         given(servicesRegistry.registrations()).willReturn(Set.of());
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
@@ -602,7 +605,7 @@ class SystemTransactionsTest {
                 migrationRootHashSubmissions);
 
         given(servicesRegistry.registrations()).willReturn(Set.of());
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();

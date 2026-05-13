@@ -3,6 +3,7 @@ package com.swirlds.state.lifecycle;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 
@@ -23,6 +24,11 @@ public interface PostUpgradeContext {
     Configuration configuration();
 
     /**
+     * Returns the current round number where the post-upgrade setup work is being handled.
+     */
+    long roundNumber();
+
+    /**
      * Returns the current network size.
      */
     int networkSize();
@@ -35,4 +41,13 @@ public interface PostUpgradeContext {
      */
     @NonNull
     ReadableStates readableStates(@NonNull String serviceName);
+
+    /**
+     * Returns writable states for the requested service.
+     *
+     * @param serviceName the service name
+     * @return the requested writable states
+     */
+    @NonNull
+    WritableStates writableStates(@NonNull String serviceName);
 }

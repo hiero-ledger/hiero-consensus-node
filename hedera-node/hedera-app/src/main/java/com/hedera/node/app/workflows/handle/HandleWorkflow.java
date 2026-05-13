@@ -487,7 +487,12 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
+                            state,
+                            creator,
+                            platformTxn,
+                            event.getEventCore().birthRound(),
+                            round.getRoundNum(),
+                            shortCircuitCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -567,6 +572,7 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
+     * @param roundNumber the current round number
      * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
      * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
@@ -576,6 +582,7 @@ public class HandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
+            final long roundNumber,
             @NonNull final ShortCircuitCallback shortCircuitCallback) {
         final var handleStart = System.nanoTime();
 
@@ -598,7 +605,7 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
-            systemTransactions.doPostUpgradeSetup(consensusNow, state, this::doStreamingAllChanges);
+            systemTransactions.doPostUpgradeSetup(consensusNow, roundNumber, state, this::doStreamingAllChanges);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }

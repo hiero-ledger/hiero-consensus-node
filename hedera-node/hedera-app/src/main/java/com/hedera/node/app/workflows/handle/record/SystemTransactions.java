@@ -199,8 +199,10 @@ public class SystemTransactions {
     private record PostUpgradeContextImpl(
             @NonNull Instant consensusTime,
             @NonNull Configuration configuration,
+            long roundNumber,
             int networkSize,
-            @NonNull State state) implements PostUpgradeContext {
+            @NonNull State state)
+            implements PostUpgradeContext {
         private PostUpgradeContextImpl {
             requireNonNull(consensusTime);
             requireNonNull(configuration);
@@ -210,6 +212,11 @@ public class SystemTransactions {
         @Override
         public @NonNull ReadableStates readableStates(@NonNull final String serviceName) {
             return state.getReadableStates(requireNonNull(serviceName));
+        }
+
+        @Override
+        public @NonNull WritableStates writableStates(@NonNull final String serviceName) {
+            return state.getWritableStates(requireNonNull(serviceName));
         }
     }
 
@@ -453,11 +460,13 @@ public class SystemTransactions {
     /**
      * Sets up post-upgrade state for the system.
      * @param now the current time
+     * @param roundNumber the current round number
      * @param state the state to set up
      * @param stateChangeStreaming the callback to stream state changes
      */
     public void doPostUpgradeSetup(
             @NonNull final Instant now,
+            final long roundNumber,
             @NonNull final State state,
             @NonNull final StateChangeStreaming stateChangeStreaming) {
         requireNonNull(now);
@@ -465,7 +474,7 @@ public class SystemTransactions {
         requireNonNull(stateChangeStreaming);
         final var config = configProvider.getConfiguration();
         final int networkSize = networkInfo.addressBook().size();
-        final var postUpgradeContext = new PostUpgradeContextImpl(now, config, networkSize, state);
+        final var postUpgradeContext = new PostUpgradeContextImpl(now, config, roundNumber, networkSize, state);
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             final var writableStates = state.getWritableStates(service.getServiceName());
