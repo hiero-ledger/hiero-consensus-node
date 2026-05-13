@@ -220,9 +220,11 @@ public class QuiescenceController {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
             return;
         }
-        // Successfully signing a block is unambiguous network activity — refresh the grace baseline
-        // so the next post-drain evaluation doesn't immediately fall through to QUIESCE.
-        recordActivity.run();
+        // Do NOT refresh the activity baseline here. Empty blocks still seal at the configured
+        // blockPeriod regardless of whether real user work is flowing, so treating block sealing as
+        // activity would make the network never quiesce. The activity baseline is refreshed by
+        // {@link #onPreHandle} when a relevant transaction is observed (gossip-received user activity)
+        // and by {@link TxPipelineTracker} on local ingest — both are real user-driven signals.
         updateTransactionCount(-blockTracker.getRelevantTransactionCount());
         nextTct.accumulateAndGet(blockTracker.getMaxConsensusTime(), QuiescenceController::tctUpdate);
     }

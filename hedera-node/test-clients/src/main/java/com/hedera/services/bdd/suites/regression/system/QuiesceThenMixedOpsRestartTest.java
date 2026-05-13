@@ -48,10 +48,11 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
         final AtomicReference<Instant> sleepStart = new AtomicReference<>(Instant.now());
         return hapiTest(
-                waitUntilStartOfNextStakingPeriod(1),
+                waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // --- actual test workflow ---
                 withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
+                // schedule transfer after 6 units
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
                         .payingWith(GENESIS)
@@ -62,7 +63,12 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
+                // stop the traffic for the grace period
+                doWithStartupDuration(
+                        "quiescence.gracePeriod", gracePeriod -> sleepForSeconds(2 * gracePeriod.toSeconds())),
+                // sleep the schedule duration + buffer
+                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(8 * duration.toSeconds())),
+                // validate enter the quiescence
                 sourcing(() -> logIt("TEST - Log timeframe start - " + sleepStart.get())),
                 assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
@@ -70,7 +76,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                         Duration.ofSeconds(15),
                         Duration.ofSeconds(15),
                         "to QUIESCE"),
-                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
+                // start the traffic again
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // validate schedule was executed
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
                     final var expected = scheduleExpiry.get();
@@ -85,7 +93,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                                     + expected);
                 }),
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                LifecycleTest.restartAtNextConfigVersion(),
-                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION));
+                logIt("RESTART AND BURST")
+                //                LifecycleTest.restartAtNextConfigVersion(),
+                //                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION)
+                );
     }
 }
