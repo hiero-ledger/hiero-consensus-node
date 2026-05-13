@@ -173,7 +173,7 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout increase-nft-test-timeout
+          #git checkout increase-nft-test-timeout
           task build:compile
           #npm run build
 
