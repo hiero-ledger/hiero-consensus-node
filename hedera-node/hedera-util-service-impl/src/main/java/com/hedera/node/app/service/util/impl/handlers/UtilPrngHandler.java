@@ -59,23 +59,6 @@ public class UtilPrngHandler implements TransactionHandler {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        // Determine the fees. If the range is specified (i.e. it isn't 0), then we charge for an additional 4 bytes
-        // (one integer), otherwise we don't charge for any additional bytes. Standard transaction usage has already
-        // been determined and loaded into the calculator.
-        final var range = feeContext.body().utilPrngOrThrow().range();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(range > 0 ? Integer.BYTES : 0)
-                .calculate();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void handle(@NonNull final HandleContext context) {
         final var op = context.body().utilPrngOrThrow();
         final var range = op.range();

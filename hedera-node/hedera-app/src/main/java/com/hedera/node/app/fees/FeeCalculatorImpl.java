@@ -235,15 +235,6 @@ public class FeeCalculatorImpl implements FeeCalculator {
         return this;
     }
 
-    @NonNull
-    @Override
-    public Fees legacyCalculate(@NonNull Function<SigValueObj, com.hederahashgraph.api.proto.java.FeeData> callback) {
-        final var sigValueObject = new SigValueObj(sigUsage.numSigs(), sigUsage.numPayerKeys(), sigUsage.sigsSize());
-        final var matrix = callback.apply(sigValueObject);
-        final var feeObject = FeeBuilder.getFeeObject(feeData, matrix, currentRate, 1);
-        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee());
-    }
-
     @Override
     @NonNull
     public Fees calculate() {

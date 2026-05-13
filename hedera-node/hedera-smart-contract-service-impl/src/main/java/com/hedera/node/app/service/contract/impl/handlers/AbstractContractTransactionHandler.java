@@ -59,16 +59,6 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
         }
     }
 
-    @Override
-    public @NonNull Fees calculateFees(@NonNull FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> getFeeMatrices(usageEstimator, fromPbj(op), sigValueObj));
-    }
-
     /**
      * Return the fee matrix for the given transaction.  Inheritor is responsible for picking
      * the correct fee matrix for the transactions it is handling.

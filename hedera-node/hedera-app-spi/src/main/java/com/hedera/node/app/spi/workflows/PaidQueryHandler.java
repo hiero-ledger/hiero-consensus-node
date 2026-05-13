@@ -27,7 +27,4 @@ public abstract class PaidQueryHandler implements QueryHandler {
         return COST_ANSWER == responseType;
     }
 
-    @NonNull
-    @Override
-    public abstract Fees computeFees(@NonNull final QueryContext queryContext);
 }

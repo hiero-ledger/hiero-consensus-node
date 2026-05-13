@@ -125,15 +125,4 @@ public class ContractDeleteHandler implements TransactionHandler {
                 : accountStore.getContractById(op.transferContractIDOrThrow());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        sigValueObj -> usageEstimator.getContractDeleteTxFeeMatrices(fromPbj(op), sigValueObj));
-    }
 }

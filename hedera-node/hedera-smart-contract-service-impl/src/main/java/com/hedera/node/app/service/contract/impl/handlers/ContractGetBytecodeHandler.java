@@ -108,20 +108,6 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
                 .build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        var effectiveBytecode = bytecodeFrom(context);
-        if (effectiveBytecode == null) {
-            effectiveBytecode = Bytes.EMPTY;
-        }
-        final var op = getOperation(context);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var usage = feeBuilder.getContractByteCodeQueryFeeMatrices(
-                (int) effectiveBytecode.length(), fromPbjResponseType(responseType));
-        return context.feeCalculator().legacyCalculate(sigValueObj -> usage);
-    }
-
     /**
      * Checks if the current contractId from the context is: account(contract), token or schedule and return the related
      * bytecode

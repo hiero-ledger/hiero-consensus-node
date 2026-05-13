@@ -194,19 +194,6 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.airdropsClaimEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        feeCalculator.resetUsage();
-
-        return feeCalculator
-                .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                .calculate();
-    }
-
     private void createOrUpdateTransfers(
             @NonNull final PendingAirdropId airdrop,
             @NonNull final WritableAirdropStore airdropStore,

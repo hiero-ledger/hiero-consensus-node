@@ -147,61 +147,6 @@ public class FileAppendHandler implements TransactionHandler {
         fileStore.put(fileBuilder.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.fileAppendOrThrow();
-        final var fileID = op.fileIDOrThrow();
-        final var fileStore = feeContext.readableStore(ReadableFileStore.class);
-        final var config = feeContext.configuration();
-        final var fileServiceConfig = config.getConfigData(FilesConfig.class);
-
-        final var dataLength = op.contents().length();
-
-        /**
-         * TODO: revisit after modularizaion completed
-         * PR conversation: 8089
-         */
-        final long effectiveLifeTime;
-        final var file = fileStore.getFileLeaf(fileID);
-
-        if (file == null) {
-            return feeContext
-                    .feeCalculatorFactory()
-                    .feeCalculator(SubType.DEFAULT)
-                    .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE)
-                    .calculate();
-        }
-
-        final var fileNum = fileID.fileNum();
-
-        final var firstSoftwareUpdateFile =
-                fileServiceConfig.softwareUpdateRange().left();
-        final var lastSoftwareUpdateFile =
-                fileServiceConfig.softwareUpdateRange().right();
-
-        /* Since only authorized payers can update special files---and their
-        fees will be waived---just return something immediately, without the
-        expense of looking up actual file metadata. */
-        if (firstSoftwareUpdateFile <= fileNum && fileNum <= lastSoftwareUpdateFile) {
-            effectiveLifeTime = THREE_MONTHS_IN_SECONDS;
-        } else {
-            final var effCreationTime =
-                    body.transactionIDOrThrow().transactionValidStartOrThrow().seconds();
-            final var effExpiration =
-                    (file != null && file.expirationSecond() > 0) ? file.expirationSecond() : effCreationTime;
-            effectiveLifeTime = effExpiration - effCreationTime;
-        }
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + dataLength)
-                .addStorageBytesSeconds(dataLength * effectiveLifeTime)
-                .calculate();
-    }
-
     private void handleAppendUpgradeFile(FileAppendTransactionBody fileAppend, HandleContext handleContext) {
         final var fileStore = handleContext.storeFactory().writableStore(WritableUpgradeFileStore.class);
         File file = fileStore.peek(fileAppend.fileID());

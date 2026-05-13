@@ -158,19 +158,6 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var topicStore = queryContext.createStore(ReadableTopicStore.class);
-        final var op = query.consensusGetTopicInfoOrThrow();
-        final var topicId = op.topicIDOrElse(TopicID.DEFAULT);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var topic = topicStore.getTopic(topicId);
-
-        return queryContext.feeCalculator().legacyCalculate(ignored -> usageGivenTypeAndTopic(topic, responseType));
-    }
-
     private FeeData usageGivenTypeAndTopic(@Nullable final Topic topic, @NonNull final ResponseType responseType) {
         requireNonNull(responseType);
         if (topic == null) {

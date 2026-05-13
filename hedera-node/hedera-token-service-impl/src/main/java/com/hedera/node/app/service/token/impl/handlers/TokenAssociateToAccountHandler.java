@@ -188,38 +188,6 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
 
     private record Validated(@NonNull Account account, @NonNull List<Token> tokens) {}
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var op = body.tokenAssociateOrThrow();
-
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(DEFAULT);
-        final var unlimitedAssociationsEnabled =
-                feeContext.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-
-        // If the unlimited auto-associations feature is enabled, we calculate the fees in a new way, because the
-        // association price is changed to $0.05. When the feature is enabled the feeSchedules.json will be updated
-        // to reflect the price change and the else case will be removed.
-        // Until then, we calculate the fees using the legacy method.
-        // NOTE: If this flag is disabled, the feeSchedules.json should be modified as well
-        if (unlimitedAssociationsEnabled) {
-            calculator.resetUsage();
-            calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-            calculator.addBytesPerTransaction(op.tokens().size());
-            return calculator.calculate();
-        } else {
-            final var accountId = op.accountOrThrow();
-            final var readableAccountStore = feeContext.readableStore(ReadableAccountStore.class);
-            final var account = readableAccountStore.getAccountById(accountId);
-            return feeContext
-                    .feeCalculatorFactory()
-                    .feeCalculator(DEFAULT)
-                    .legacyCalculate(
-                            sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, account));
-        }
-    }
 
     private FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn,

@@ -68,22 +68,6 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
         return Response.newBuilder().scheduleGetInfo(response).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        // Need to work out if this is correct, note we effectively (much) more than double total effort
-        // here just to calculate fees based on a single instance of that effort...
-        final Schedule found = findSchedule(context);
-        if (found != null) {
-            final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
-            buildFromSchedule(builder, found, context.ledgerId());
-            return context.feeCalculator()
-                    .legacyCalculate(sigValueObj -> usageGiven(fromPbj(context.query()), fromPbj(builder.build())));
-        } else {
-            return context.feeCalculator().calculate();
-        }
-    }
-
     @Override
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
         Objects.requireNonNull(context);

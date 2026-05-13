@@ -82,14 +82,4 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         recordBuilder.registeredNodeID(registeredNodeId);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext, "feeContext must not be null");
-        checkRegisteredNodesEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
-    }
 }

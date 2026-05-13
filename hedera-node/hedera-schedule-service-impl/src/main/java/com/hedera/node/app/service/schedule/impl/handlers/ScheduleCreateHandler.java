@@ -242,28 +242,6 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
                 .scheduledTransactionID(transactionIdForScheduled(schedule));
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var config = feeContext.configuration();
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
-        final var subType = body.scheduleCreateOrElse(ScheduleCreateTransactionBody.DEFAULT)
-                        .scheduledTransactionBodyOrElse(SchedulableTransactionBody.DEFAULT)
-                        .hasContractCall()
-                ? SCHEDULE_CREATE_CONTRACT_CALL
-                : DEFAULT;
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(subType)
-                .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(body),
-                        sigValueObj,
-                        schedulingConfig.longTermEnabled(),
-                        ledgerConfig.scheduleTxExpiryTimeSecs()));
-    }
 
     /**
      * Returns a code indicating whether the given expiry is valid relative to the given consensus time,

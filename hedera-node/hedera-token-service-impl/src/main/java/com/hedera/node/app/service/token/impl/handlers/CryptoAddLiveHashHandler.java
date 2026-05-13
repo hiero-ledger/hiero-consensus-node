@@ -52,9 +52,4 @@ public class CryptoAddLiveHashHandler implements TransactionHandler {
         throw new HandleException(ResponseCodeEnum.NOT_SUPPORTED);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(final FeeContext feeContext) {
-        return Fees.FREE;
-    }
 }

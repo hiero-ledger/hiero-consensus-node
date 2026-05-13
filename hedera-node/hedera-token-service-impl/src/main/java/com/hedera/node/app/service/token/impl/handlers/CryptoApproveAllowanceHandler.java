@@ -538,30 +538,6 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.cryptoApproveAllowanceOrThrow();
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-
-        final var currentSecond =
-                body.transactionIDOrThrow().transactionValidStartOrThrow().seconds();
-        final var account = accountStore.getAccountById(feeContext.payer());
-
-        final var currentExpiry = account == null ? currentSecond : account.expirationSecond();
-        final long lifeTime = ESTIMATOR_UTILS.relativeLifetime(currentSecond, currentExpiry);
-        // If the value is being adjusted instead of inserting a new entry , the fee charged will be
-        // slightly less than the base price
-        final var adjustedBytes = getNewBytes(body.cryptoApproveAllowanceOrThrow(), account);
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(bytesUsedInTxn(op))
-                .addRamByteSeconds(adjustedBytes > 0 ? (adjustedBytes * lifeTime) : 0)
-                .calculate();
-    }
-
     /**
      * Gets total bytes used in transaction.
      * @param op the crypto approve allowance transaction body

@@ -379,35 +379,6 @@ class FileAppendHandlerTest extends FileTestBase {
         assertThrows(HandleException.class, () -> subject.handle(handleContext));
     }
 
-    @Test
-    void calculateFeesHappyPath() {
-        final var txnId = TransactionID.newBuilder()
-                .accountID(payerId)
-                .transactionValidStart(Timestamp.newBuilder().seconds(111111).build())
-                .build();
-        final var txBody = TransactionBody.newBuilder()
-                .fileAppend(OP_BUILDER.fileID(wellKnownId()))
-                .transactionID(txnId)
-                .build();
-
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txBody);
-
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCtx.configuration()).willReturn(testConfig);
-        given(feeCtx.readableStore(ReadableFileStore.class)).willReturn(readableStore);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addStorageBytesSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        assertNotNull(subject.calculateFees(feeCtx));
-    }
-
     private FileID wellKnownId() {
         return fileId;
     }

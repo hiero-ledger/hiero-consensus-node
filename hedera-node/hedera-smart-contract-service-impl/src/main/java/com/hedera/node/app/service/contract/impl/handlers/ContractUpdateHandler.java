@@ -347,20 +347,6 @@ public class ContractUpdateHandler implements TransactionHandler {
         return builder;
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        final var contractId = op.contractUpdateInstanceOrThrow().contractIDOrElse(ContractID.DEFAULT);
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-        final var contract = accountStore.getContractById(contractId);
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(fromPbj(op), sigValueObj, contract));
-    }
-
     private FeeData usageGiven(
             @NonNull com.hederahashgraph.api.proto.java.TransactionBody txn,
             @NonNull SigValueObj sigUsage,

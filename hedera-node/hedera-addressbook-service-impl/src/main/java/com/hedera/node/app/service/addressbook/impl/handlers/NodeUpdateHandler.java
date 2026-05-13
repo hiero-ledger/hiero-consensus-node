@@ -182,18 +182,6 @@ public class NodeUpdateHandler implements TransactionHandler {
                 Node.JSON.toJSON(updatedNode));
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        checkDABEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        // The price of node update should be increased based on number of signatures.
-        // The first signature is free and is accounted in the base price, so we only need to add
-        // the price of the rest of the signatures.
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
-    }
 
     private Node.Builder updateNode(
             @NonNull final NodeUpdateTransactionBody op, @NonNull final Node node, final boolean unsetWebProxy) {

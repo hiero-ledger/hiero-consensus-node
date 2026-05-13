@@ -132,14 +132,4 @@ public class TokenFreezeAccountHandler implements TransactionHandler {
         return TokenHandlerHelper.getIfUsable(accountId, tokenId, tokenRelStore);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenFreezeUsageFrom();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(meta.getBpt())
-                .calculate();
-    }
 }

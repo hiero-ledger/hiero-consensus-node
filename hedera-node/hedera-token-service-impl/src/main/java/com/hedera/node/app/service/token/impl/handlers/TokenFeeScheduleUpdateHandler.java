@@ -156,46 +156,6 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         return token;
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.tokenFeeScheduleUpdateOrThrow();
-        final var token = feeContext.readableStore(ReadableTokenStore.class).get(op.tokenIdOrThrow());
-        final var tokenOpsUsage = new TokenOpsUsage();
-        var newFees = op.customFees();
-
-        // Ensure no null values for denominatingTokenId
-        newFees = newFees.stream()
-                .map(fee -> {
-                    if (fee.hasFixedFee() && fee.fixedFee().denominatingTokenId() == null) {
-                        return fee.copyBuilder()
-                                .fixedFee(fee.fixedFee()
-                                        .copyBuilder()
-                                        .denominatingTokenId(TokenID.DEFAULT)
-                                        .build())
-                                .build();
-                    }
-                    return fee;
-                })
-                .toList();
-
-        final var newReprBytes = tokenOpsUsage.bytesNeededToRepr(
-                newFees.stream().map(CommonPbjConverters::fromPbj).toList());
-        final var effConsTime =
-                body.transactionIDOrThrow().transactionValidStartOrThrow().seconds();
-        final var lifetime = Math.max(0, token == null ? 0 : token.expirationSecond() - effConsTime);
-        final List<CustomFee> customFees = token == null ? emptyList() : token.customFees();
-
-        final var existingFeeReprBytes = currentFeeScheduleSize(customFees, tokenOpsUsage);
-        final var rbsDelta = ESTIMATOR_UTILS.changeInBsUsage(existingFeeReprBytes, lifetime, newReprBytes, lifetime);
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(LONG_BASIC_ENTITY_ID_SIZE + newReprBytes)
-                .addRamByteSeconds(rbsDelta)
-                .calculate();
-    }
 
     private int currentFeeScheduleSize(List<CustomFee> feeSchedule, final TokenOpsUsage tokenOpsUsage) {
         int numFixedHbarFees = 0;

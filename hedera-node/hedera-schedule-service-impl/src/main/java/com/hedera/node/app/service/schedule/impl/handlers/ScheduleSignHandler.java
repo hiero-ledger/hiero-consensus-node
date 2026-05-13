@@ -109,27 +109,6 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
                 .scheduledTransactionID(transactionIdForScheduled(schedule));
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var scheduleStore = feeContext.readableStore(ReadableScheduleStore.class);
-        final var schedule = scheduleStore.get(
-                body.scheduleSignOrElse(ScheduleSignTransactionBody.DEFAULT).scheduleIDOrElse(ScheduleID.DEFAULT));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(body),
-                        sigValueObj,
-                        schedule,
-                        feeContext
-                                .configuration()
-                                .getConfigData(LedgerConfig.class)
-                                .scheduleTxExpiryTimeSecs()));
-    }
-
     private FeeData usageGiven(
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
             @NonNull final SigValueObj svo,

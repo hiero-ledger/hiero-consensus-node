@@ -300,33 +300,4 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
         }
         return Collections.emptyList();
     }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var accountStore = queryContext.createStore(ReadableAccountStore.class);
-        final var op = query.accountDetailsOrThrow();
-        final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
-        final var account = accountStore.getAliasedAccountById(accountId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, account));
-    }
-
-    private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {
-        if (account == null) {
-            return CONSTANT_FEE_DATA;
-        }
-        final var ctx = ExtantCryptoContext.newBuilder()
-                .setCurrentKey(fromPbj(account.key()))
-                .setCurrentMemo(account.memo())
-                .setCurrentExpiry(account.expirationSecond())
-                .setCurrentNumTokenRels(account.numberAssociations())
-                .setCurrentMaxAutomaticAssociations(account.maxAutoAssociations())
-                .setCurrentCryptoAllowances(Collections.emptyMap())
-                .setCurrentTokenAllowances(Collections.emptyMap())
-                .setCurrentApproveForAllNftAllowances(Collections.emptySet())
-                .build();
-        return cryptoOpsUsage.cryptoInfoUsage(fromPbj(query), ctx);
-    }
 }

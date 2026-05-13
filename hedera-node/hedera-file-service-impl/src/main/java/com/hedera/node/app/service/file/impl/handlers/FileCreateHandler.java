@@ -153,15 +153,4 @@ public class FileCreateHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var txnBody = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(svo -> fileOpsUsage.fileCreateUsage(
-                        CommonPbjConverters.fromPbj(txnBody),
-                        new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount())));
-    }
 }

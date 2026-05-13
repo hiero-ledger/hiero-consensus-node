@@ -278,30 +278,4 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
                 .build();
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body().tokenMintOrThrow();
-        final var subType = op.amount() > 0 ? SubType.TOKEN_FUNGIBLE_COMMON : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(subType);
-        if (SubType.TOKEN_NON_FUNGIBLE_UNIQUE.equals(subType)) {
-            calculator.resetUsage();
-            // The price of nft mint should be increased based on number of signatures.
-            // The first signature is free and is accounted in the base price, so we only need to add
-            // the price of the rest of the signatures.
-            calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        }
-        // FUTURE: lifetime parameter is not being used by the function below, in order to avoid making changes
-        // to mono-service passed a default lifetime of 3 months here
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(
-                CommonPbjConverters.fromPbj(feeContext.body()),
-                CommonPbjConverters.fromPbj(subType),
-                THREE_MONTHS_IN_SECONDS);
-
-        calculator.addBytesPerTransaction(meta.getBpt());
-        calculator.addRamByteSeconds(meta.getRbs());
-        calculator.addNetworkRamByteSeconds(meta.getTransferRecordDb() * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        return calculator.calculate();
-    }
 }

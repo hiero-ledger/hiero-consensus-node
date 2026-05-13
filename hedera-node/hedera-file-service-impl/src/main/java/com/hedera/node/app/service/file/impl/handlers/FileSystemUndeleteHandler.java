@@ -112,14 +112,4 @@ public class FileSystemUndeleteHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var txnBody = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageEstimator.getSystemUnDeleteFileTxFeeMatrices(
-                        CommonPbjConverters.fromPbj(txnBody), sigValueObj));
-    }
 }

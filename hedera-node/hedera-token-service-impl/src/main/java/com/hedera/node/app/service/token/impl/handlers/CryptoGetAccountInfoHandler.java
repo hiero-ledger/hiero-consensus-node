@@ -179,17 +179,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var accountStore = queryContext.createStore(ReadableAccountStore.class);
-        final var op = query.cryptoGetInfoOrThrow();
-        final var accountId = op.accountIDOrElse(AccountID.DEFAULT);
-        final var account = accountStore.getAliasedAccountById(accountId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, account));
-    }
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {
         if (account == null) {

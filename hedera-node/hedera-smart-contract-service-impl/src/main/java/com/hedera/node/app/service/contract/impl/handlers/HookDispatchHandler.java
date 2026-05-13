@@ -132,12 +132,6 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         }
     }
 
-    @Override
-    @NonNull
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // All charges are upfront in CryptoTransfer, so no fees here
-        return Fees.FREE;
-    }
 
     public static class FeeCalculator implements ServiceFeeCalculator {
         @Override

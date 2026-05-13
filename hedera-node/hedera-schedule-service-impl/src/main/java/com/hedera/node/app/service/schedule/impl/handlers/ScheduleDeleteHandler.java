@@ -121,27 +121,6 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var scheduleStore = feeContext.readableStore(ReadableScheduleStore.class);
-        final var op = feeContext.body();
-        final var schedule = scheduleStore.get(
-                op.scheduleDeleteOrElse(ScheduleDeleteTransactionBody.DEFAULT).scheduleIDOrElse(ScheduleID.DEFAULT));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(op),
-                        sigValueObj,
-                        schedule,
-                        feeContext
-                                .configuration()
-                                .getConfigData(LedgerConfig.class)
-                                .scheduleTxExpiryTimeSecs()));
-    }
-
     private FeeData usageGiven(
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
             @NonNull final SigValueObj svo,

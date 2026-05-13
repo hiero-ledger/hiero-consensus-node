@@ -490,40 +490,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         return builder.build();
     }
 
-    @Override
-    @NonNull
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // Variable bytes plus two additional longs for balance and auto-renew period; plus a boolean for receiver sig
-        // required.
-        final var op = feeContext.body().cryptoCreateAccountOrThrow();
-        final var keySize =
-                op.hasKey() ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(op.keyOrElse(Key.DEFAULT))) : 0L;
-        final var unlimitedAutoAssociations =
-                feeContext.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        final var maxAutoAssociationsSize =
-                !unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0 ? INT_SIZE : 0L;
-        final var baseSize = op.memo().length() + keySize + maxAutoAssociationsSize;
-        final var lifeTime = op.autoRenewPeriodOrElse(Duration.DEFAULT).seconds();
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        final var fee = feeCalculator
-                .addBytesPerTransaction(baseSize + (2 * LONG_SIZE) + BOOL_SIZE)
-                .addRamByteSeconds((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime)
-                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
-            fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
-        }
-        // Using SBS here because this part us not used in other calculations. It is a per hour cost
-        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
-        if (!op.hookCreationDetails().isEmpty()) {
-            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * HOUR_TO_SECOND_MULTIPLIER);
-        }
-        if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
-            final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());
-            return fee.calculate().plus(lazyCreationFee);
-        }
-        return fee.calculate();
-    }
-
     private boolean isSystemFile(final long entityNum) {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }

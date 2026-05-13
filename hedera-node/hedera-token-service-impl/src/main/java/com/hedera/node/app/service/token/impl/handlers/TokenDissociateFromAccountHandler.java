@@ -264,21 +264,6 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
             // This is the relation of the token's treasury account ID and the token ID
             @Nullable TokenRelation treasuryTokenRel) {}
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var op = body.tokenDissociateOrThrow();
-        final var accountId = op.accountOrThrow();
-        final var readableAccountStore = feeContext.readableStore(ReadableAccountStore.class);
-        final var account = readableAccountStore.getAccountById(accountId);
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, account));
-    }
 
     public FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn,

@@ -220,14 +220,6 @@ public class FreezeHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        // Can only reach consensus with a privileged account as payer
-        return Fees.FREE;
-    }
-
     /**
      * Performs checks that the entities related to this transaction exist and are valid.
      */

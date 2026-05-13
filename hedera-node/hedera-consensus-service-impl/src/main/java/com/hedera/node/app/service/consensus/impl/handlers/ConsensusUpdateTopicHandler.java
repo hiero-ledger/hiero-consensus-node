@@ -190,20 +190,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         topicStore.put(builder.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        final var topicUpdate = op.consensusUpdateTopicOrElse(ConsensusUpdateTopicTransactionBody.DEFAULT);
-        final var topicId = topicUpdate.topicIDOrElse(TopicID.DEFAULT);
-        final var topic = feeContext.readableStore(ReadableTopicStore.class).getTopic(topicId);
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGivenExplicit(op, sigValueObj, topic));
-    }
 
     private void resolveMutableBuilderAttributes(
             @NonNull final HandleContext handleContext,

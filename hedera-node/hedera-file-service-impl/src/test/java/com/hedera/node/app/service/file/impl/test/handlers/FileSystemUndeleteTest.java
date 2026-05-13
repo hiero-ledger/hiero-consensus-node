@@ -132,23 +132,6 @@ class FileSystemUndeleteTest extends FileTestBase {
     }
 
     @Test
-    @DisplayName("calculateFees method invocations")
-    void testCalculateFeesInvocations() {
-        FeeContext feeContext = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-
-        subject.calculateFees(feeContext);
-
-        InOrder inOrder = inOrder(feeContext, feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeContext).body();
-        inOrder.verify(feeCalculatorFactory).feeCalculator(SubType.DEFAULT);
-        inOrder.verify(feeCalculator).legacyCalculate(any());
-    }
-
-    @Test
     @DisplayName("File not found returns error")
     void fileIdNotFound() throws PreCheckException {
         // given:

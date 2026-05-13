@@ -165,17 +165,6 @@ public class HookStoreHandler implements TransactionHandler {
                 op.hookIdOrThrow().entityIdOrThrow().hasContractId());
     }
 
-    @Override
-    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        final var op = feeContext.body().hookStoreOrThrow();
-        final int n = slotCount(op.storageUpdates());
-        // Simple trick within legacy fee context to ensure ~$0.005 per update, regardless of gas price
-        final long p = feeContext.getGasPriceInTinycents();
-        return calculator.addGas((n * TINYCENTS_PER_UPDATE + (p - 1)) / p).calculate();
-    }
-
     private static int slotCount(@NonNull final List<EvmHookStorageUpdate> storageUpdates) {
         int count = 0;
         for (final var update : storageUpdates) {

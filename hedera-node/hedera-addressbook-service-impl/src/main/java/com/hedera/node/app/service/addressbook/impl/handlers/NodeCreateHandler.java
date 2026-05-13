@@ -172,19 +172,6 @@ public class NodeCreateHandler implements TransactionHandler {
         recordBuilder.nodeID(node.nodeId());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext, "feeContext must not be null");
-        checkDABEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        // The price of node create should be increased based on number of signatures.
-        // The first signature is free and is accounted in the base price, so we only need to add
-        // the price of the rest of the signatures.
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
-    }
 
     /**
      * Determines if a system-dispatched node creation transaction targets a node ID

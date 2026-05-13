@@ -129,21 +129,6 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
         }
     }
 
-    /**
-     * The total price should be N * $0.001, where N is the number of NFTs in the transaction body.
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the total Fee
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var serials = op.tokenUpdateNftsOrThrow().serialNumbers();
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
-        feeCalculator.resetUsage();
-        return feeCalculator.addBytesPerTransaction(serials.size()).calculate();
-    }
-
     private void validateSemantics(
             @NonNull final HandleContext context, @NonNull final TokenUpdateNftsTransactionBody op) {
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);

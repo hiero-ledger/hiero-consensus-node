@@ -62,13 +62,6 @@ public class FakeFeeCalculator implements FeeCalculator {
     }
 
     @NonNull
-    @Override
-    public Fees legacyCalculate(@NonNull Function<SigValueObj, FeeData> callback) {
-        callback.apply(new SigValueObj(0, 0, 0));
-        return new Fees(0, 0, 0);
-    }
-
-    @NonNull
     public FakeFeeCalculator resetUsage() {
         return this;
     }

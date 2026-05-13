@@ -357,39 +357,6 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     }
 
     @Test
-    void calculateFeesHappyPath() {
-        givenValidTopic();
-        final var chunkTxnId =
-                TransactionID.newBuilder().accountID(anotherPayer).build();
-        final var txn = newSubmitMessageTxnWithChunksAndPayer(topicEntityNum, 1, 2, chunkTxnId);
-        final var feeCtx = mock(FeeContext.class);
-        readableStore = mock(ReadableTopicStore.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addNetworkRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-        readableStore = mock(ReadableTopicStore.class);
-        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(readableStore.getTopic(topicId))
-                .willReturn(Topic.newBuilder()
-                        .runningHash(Bytes.wrap(new byte[48]))
-                        .sequenceNumber(1L)
-                        .build());
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(28);
-        verify(feeCalc).addNetworkRamByteSeconds(10080);
-    }
-
-    @Test
     @DisplayName("Handle submit to topic with custom fee works as expected")
     void handleWorksAsExpectedWithCustomFee() {
         givenValidTopic();

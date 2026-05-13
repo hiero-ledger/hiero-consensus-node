@@ -212,24 +212,4 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         /* Validate the topic memo */
         handleContext.attributeValidator().validateMemo(op.memo());
     }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var hasCustomFees =
-                !body.consensusCreateTopicOrThrow().customFees().isEmpty();
-        final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(subType)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj));
-    }
-
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj sigUsage) {
-        return getConsensusCreateTopicFee(txn, sigUsage);
-    }
 }

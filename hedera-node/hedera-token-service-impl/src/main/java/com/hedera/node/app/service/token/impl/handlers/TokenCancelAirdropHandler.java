@@ -126,16 +126,4 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
                 PENDING_AIRDROP_ID_LIST_TOO_LONG);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.cancelTokenAirdropEnabled(), NOT_SUPPORTED);
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        feeCalculator.resetUsage();
-
-        return feeCalculator
-                .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                .calculate();
-    }
 }

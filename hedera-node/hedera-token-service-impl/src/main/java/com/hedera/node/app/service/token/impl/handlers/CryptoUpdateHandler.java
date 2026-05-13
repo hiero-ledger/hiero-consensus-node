@@ -370,27 +370,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     /**
-     * This method calculates the fees for the CryptoUpdate transaction.
-     * Currently, it just duplicates all the logic from mono-service
-     *
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the calculated fees
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // Variable bytes plus two additional longs for balance and auto-renew period; plus a boolean for receiver sig
-        // required.
-        final var body = feeContext.body();
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-        return cryptoUpdateFees(
-                body,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT),
-                accountStore,
-                feeContext.configuration());
-    }
-
-    /**
      * This method calculates the base size of the cryptoUpdate transaction.
      * This is the duplicated code as in mono-service
      *

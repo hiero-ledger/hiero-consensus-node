@@ -142,17 +142,6 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var nftStore = queryContext.createStore(ReadableNftStore.class);
-        final var op = query.tokenGetNftInfoOrThrow();
-        final var nftId = op.nftIDOrThrow();
-        final var nft = nftStore.get(nftId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, nft));
-    }
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Nft nft) {
         if (nft != null) {

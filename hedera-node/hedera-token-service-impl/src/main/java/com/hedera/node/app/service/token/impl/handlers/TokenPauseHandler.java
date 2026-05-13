@@ -88,14 +88,4 @@ public class TokenPauseHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenPauseUsageFrom();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(meta.getBpt())
-                .calculate();
-    }
 }

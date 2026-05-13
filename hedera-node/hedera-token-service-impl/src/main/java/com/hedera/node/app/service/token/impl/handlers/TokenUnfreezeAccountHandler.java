@@ -136,14 +136,4 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
         return tokenRel;
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenUnfreezeUsageFrom();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(meta.getBpt())
-                .calculate();
-    }
 }

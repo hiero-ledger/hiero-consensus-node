@@ -253,16 +253,6 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
     }
 
-    @Override
-    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        // adjust the price based on the number of signatures
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
-    }
-
     /**
      * A {@link FeeCharging} strategy that records all balance adjustments made by the delegate.
      */

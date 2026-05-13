@@ -75,9 +75,6 @@ public interface FeeCalculator {
     @NonNull
     FeeCalculator addGas(long amount);
 
-    @NonNull
-    Fees legacyCalculate(@NonNull final Function<SigValueObj, FeeData> callback);
-
     /**
      * Calculates and returns the {@link Fees} for the transaction.
      * @return The fees.

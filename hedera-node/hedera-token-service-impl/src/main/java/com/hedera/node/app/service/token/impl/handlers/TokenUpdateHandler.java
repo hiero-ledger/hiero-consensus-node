@@ -591,21 +591,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         tokenRelStore.put(newRelCopy.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var op = body.tokenUpdateOrThrow();
-        final var readableStore = feeContext.readableStore(ReadableTokenStore.class);
-        final var token = readableStore.get(op.tokenOrThrow());
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, token));
-    }
-
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
         return isHapiCall || !isZeroAccount(op.treasuryOrElse(AccountID.DEFAULT));
     }
@@ -614,46 +599,4 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         return accountID.equals(ZERO_ACCOUNT_ID);
     }
 
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo, final Token token) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (token != null) {
-            final var estimate = TokenUpdateUsage.newEstimate(
-                            txn, txnEstimateFactory.get(sigUsage, txn, ESTIMATOR_UTILS))
-                    .givenCurrentAdminKey(
-                            token.hasAdminKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.adminKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentFreezeKey(
-                            token.hasFreezeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.freezeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentWipeKey(
-                            token.hasWipeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.wipeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentSupplyKey(
-                            token.hasSupplyKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.supplyKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentKycKey(
-                            token.hasKycKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.kycKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentPauseKey(
-                            token.hasPauseKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.pauseKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentName(token.name())
-                    .givenCurrentMemo(token.memo())
-                    .givenCurrentSymbol(token.symbol())
-                    .givenCurrentExpiry(token.expirationSecond());
-            if (token.hasAutoRenewAccountId()) {
-                estimate.givenCurrentlyUsingAutoRenewAccount();
-            }
-            return estimate.get();
-        } else {
-            return CONSTANT_FEE_DATA;
-        }
-    }
 }

@@ -257,12 +257,9 @@ public class QueryChecker {
                 -1,
                 dispatcher,
                 synchronizedThrottleAccumulator);
-        if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
-        }
-        return cryptoTransferHandler.calculateFees(feeContext).totalFee();
     }
 }

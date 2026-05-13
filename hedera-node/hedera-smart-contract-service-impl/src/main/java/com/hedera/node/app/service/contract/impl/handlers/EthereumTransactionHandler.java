@@ -191,16 +191,6 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
     }
 
-    @Override
-    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        sigValueObj -> usageEstimator.getEthereumTransactionFeeMatrices(fromPbj(body), sigValueObj));
-    }
 
     private EthTxSigs computeEthTxSigsFor(
             @NonNull final EthereumTransactionBody op,

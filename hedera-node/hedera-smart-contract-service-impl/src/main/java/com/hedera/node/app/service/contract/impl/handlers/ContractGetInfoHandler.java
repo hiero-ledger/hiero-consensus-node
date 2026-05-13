@@ -103,23 +103,6 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
         return Response.newBuilder().contractGetInfo(contractGetInfo).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        return context.feeCalculator().legacyCalculate(sigValueObj -> {
-            final var contract = contractFrom(context);
-            if (contract == null) {
-                return CONSTANT_FEE_DATA;
-            } else {
-                return ContractGetInfoUsage.newEstimate(fromPbj(context.query()))
-                        .givenCurrentKey(fromPbj(contract.keyOrThrow()))
-                        .givenCurrentMemo(contract.memo())
-                        .givenCurrentTokenAssocs(contract.numberAssociations())
-                        .get();
-            }
-        });
-    }
-
     private ContractInfo infoFor(
             @NonNull final Account contract,
             @NonNull final TokensConfig tokensConfig,

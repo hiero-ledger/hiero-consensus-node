@@ -170,31 +170,6 @@ public class FileUpdateHandler implements TransactionHandler {
         fileStore.put(builder.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var file = feeContext
-                .readableStore(ReadableFileStore.class)
-                .getFileLeaf(op.fileUpdateOrThrow().fileIDOrThrow());
-
-        final AccountID payerId = op.transactionID().accountID();
-
-        final SystemPrivilege privilege =
-                feeContext.authorizer().hasPrivilegedAuthorization(payerId, HederaFunctionality.FILE_UPDATE, op);
-
-        // Even if the privilege is UNAUTHORIZED or IMPERMISSIBLE continue with a free fee
-        // The appropriate error is thrown at a later stage of the workflow
-        if (privilege != SystemPrivilege.UNNECESSARY) {
-            return Fees.FREE;
-        }
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj ->
-                        usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj, CommonPbjConverters.fromPbj(file)));
-    }
 
     private void handleUpdateUpgradeFile(FileUpdateTransactionBody fileUpdate, HandleContext handleContext) {
         final var fileStore = handleContext.storeFactory().writableStore(WritableUpgradeFileStore.class);

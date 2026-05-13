@@ -270,49 +270,13 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
         return createFungibleTransfer(tokenId, accountID, tokenRelation.balance(), token.treasuryAccountId());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.tokenRejectOrThrow();
-        final var config = feeContext.configuration();
-        final var tokenMultiplier =
-                requireNonNull(config).getConfigData(FeesConfig.class).tokenTransferUsageMultiplier();
-
-        final int totalRejections = op.rejections().size();
-        int numOfFungibleTokenRejections = 0;
-        int numOfNFTRejections = 0;
-        for (final var rejection : op.rejections()) {
-            if (rejection.hasFungibleToken()) {
-                // Each fungible token rejection involves 2 AccountAmount transfers
-                // We add 2 in order to match CryptoTransfer's bpt & rbs fee calculation
-                numOfFungibleTokenRejections += 2;
-            } else {
-                numOfNFTRejections++;
-            }
-        }
-
-        final int weightedTokensInvolved = tokenMultiplier * totalRejections;
-        final int weightedFungibleTokens = tokenMultiplier * numOfFungibleTokenRejections;
-        final long bpt =
-                calculateBytesPerTransaction(weightedTokensInvolved, weightedFungibleTokens, numOfNFTRejections);
-        final long rbs = USAGE_PROPERTIES.legacyReceiptStorageSecs() * bpt;
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(getSubType(numOfNFTRejections))
-                .addBytesPerTransaction(bpt)
-                .addRamByteSeconds(rbs)
-                .calculate();
-    }
-
-    private SubType getSubType(final int numOfNFTRejections) {
-        return numOfNFTRejections != 0 ? TOKEN_NON_FUNGIBLE_UNIQUE : TOKEN_FUNGIBLE_COMMON;
-    }
-
-    private long calculateBytesPerTransaction(
-            final int weightedTokensInvolved, final int weightedFungibleTokens, final int numNFTRejections) {
-        return TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                weightedTokensInvolved, weightedFungibleTokens, numNFTRejections);
-    }
+//    private SubType getSubType(final int numOfNFTRejections) {
+//        return numOfNFTRejections != 0 ? TOKEN_NON_FUNGIBLE_UNIQUE : TOKEN_FUNGIBLE_COMMON;
+//    }
+//
+//    private long calculateBytesPerTransaction(
+//            final int weightedTokensInvolved, final int weightedFungibleTokens, final int numNFTRejections) {
+//        return TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
+//                weightedTokensInvolved, weightedFungibleTokens, numNFTRejections);
+//    }
 }

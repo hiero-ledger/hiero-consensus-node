@@ -82,19 +82,6 @@ public class FileGetInfoHandler extends FileQueryBase {
     }
 
     @Override
-    public @NonNull Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var fileStore = queryContext.createStore(ReadableFileStore.class);
-        final var op = query.fileGetInfoOrThrow();
-        final var fileId = op.fileIDOrElse(FileID.DEFAULT);
-        final File file = fileStore.getFileLeaf(fileId);
-
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), file));
-    }
-
-    @Override
     public @NonNull Response findResponse(@NonNull final QueryContext context, @NonNull final ResponseHeader header) {
         requireNonNull(header);
         final var query = context.query();

@@ -100,11 +100,4 @@ public class NetworkGetVersionInfoHandler extends PaidQueryHandler {
         return Response.newBuilder().networkGetVersionInfo(responseBuilder).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        requireNonNull(queryContext);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> CommonPbjConverters.fromPbj(FIXED_USAGE));
-    }
 }

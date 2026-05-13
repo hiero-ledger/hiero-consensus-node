@@ -412,29 +412,6 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(CommonPbjConverters.fromPbj(body));
-        final var op = body.tokenCreationOrThrow();
-        final var type = op.tokenType();
-
-        final long tokenSizes = TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                        meta.getNumTokens(), meta.getFungibleNumTransfers(), meta.getNftsTransfers())
-                * USAGE_PROPERTIES.legacyReceiptStorageSecs();
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(tokenSubTypeFrom(
-                        type, op.hasFeeScheduleKey() || !op.customFees().isEmpty()))
-                .addBytesPerTransaction(meta.getBaseSize())
-                .addRamByteSeconds(tokenSizes)
-                .addNetworkRamByteSeconds(meta.getNetworkRecordRb() * USAGE_PROPERTIES.legacyReceiptStorageSecs())
-                .addRamByteSeconds((meta.getBaseSize() + meta.getCustomFeeScheduleSize()) * meta.getLifeTime())
-                .calculate();
-    }
 
     /**
      * Get the token subtype to be used for the fees calculation.

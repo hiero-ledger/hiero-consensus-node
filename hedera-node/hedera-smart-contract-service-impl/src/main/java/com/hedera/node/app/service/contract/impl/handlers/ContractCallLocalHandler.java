@@ -146,30 +146,6 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
     }
 
     @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        requireNonNull(context);
-        final var op = context.query().contractCallLocalOrThrow();
-        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
-        return context.feeCalculator().legacyCalculate(sigValueObj -> {
-            final var contractFnResult = ContractFunctionResult.newBuilder()
-                    .setContractID(CommonPbjConverters.fromPbj(op.contractIDOrElse(ContractID.DEFAULT)))
-                    .setContractCallResult(
-                            CommonPbjConverters.fromPbj(Bytes.wrap(new byte[contractsConfig.localCallEstRetBytes()])))
-                    .build();
-            final var builder = new SmartContractFeeBuilder();
-            final var feeData = builder.getContractCallLocalFeeMatrices(
-                    (int) op.functionParameters().length(),
-                    contractFnResult,
-                    CommonPbjConverters.fromPbjResponseType(
-                            op.headerOrElse(QueryHeader.DEFAULT).responseType()));
-            return feeData.toBuilder()
-                    .setNodedata(feeData.getNodedata().toBuilder().setGas(op.gas()))
-                    .build();
-        });
-    }
-
-    @NonNull
     private QueryComponent getQueryComponent(@NonNull final QueryContext context) {
         return requireNonNull(provider.get().create(context, instantSource.instant(), CONTRACT_CALL_LOCAL));
     }

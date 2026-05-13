@@ -51,9 +51,4 @@ public class ContractSystemDeleteHandler implements TransactionHandler {
         throw new HandleException(NOT_SUPPORTED);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(final FeeContext feeContext) {
-        return Fees.FREE;
-    }
 }

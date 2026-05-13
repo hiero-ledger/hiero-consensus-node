@@ -138,46 +138,6 @@ public class NetworkTransactionGetRecordHandler extends PaidQueryHandler {
         return Response.newBuilder().transactionGetRecord(responseBuilder).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final RecordCache recordCache = queryContext.recordCache();
-        final TransactionGetRecordQuery op = queryContext.query().transactionGetRecordOrThrow();
-
-        // fees are the same for all records for a given response type,
-        // so we calculate them once and multiply by the number of records found
-
-        // calculate per-record fees
-        final ResponseType responseType = op.headerOrThrow().responseType();
-        final int stateProofSize =
-                responseType == ResponseType.ANSWER_STATE_PROOF || responseType == ResponseType.COST_ANSWER_STATE_PROOF
-                        ? STATE_PROOF_SIZE
-                        : 0;
-        final FeeComponents feeMatricesForTxNode = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE)
-                .setBpr(BASIC_QUERY_RES_HEADER + BASIC_TX_RECORD_SIZE + stateProofSize)
-                .build();
-        final FeeData perRecordFeeData = FeeData.newBuilder()
-                .setNetworkdata(FeeComponents.getDefaultInstance())
-                .setNodedata(feeMatricesForTxNode)
-                .setServicedata(FeeComponents.getDefaultInstance())
-                .build();
-
-        int recordCount = 1;
-        if (op.includeDuplicates() || op.includeChildRecords()) {
-            final var history = recordCache.getHistory(op.transactionIDOrThrow());
-            if (history != null) {
-                recordCount += op.includeDuplicates() ? history.duplicateCount() : 0;
-                recordCount += op.includeChildRecords() ? history.childRecords().size() : 0;
-            }
-        }
-
-        // multiply node fees to include duplicate and/or child records
-        final FeeData feeData = multiplierOfUsages(perRecordFeeData, recordCount);
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> feeData);
-    }
-
     private static FeeData multiplierOfUsages(final FeeData feeData, final int multiplier) {
         return FeeData.newBuilder()
                 .setNodedata(multiplierOfScopedUsages(feeData.getNodedata(), multiplier))

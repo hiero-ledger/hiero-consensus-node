@@ -208,26 +208,6 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         baseBuilderRecord.tokenType(token.tokenType());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var readableTokenStore = feeContext.readableStore(ReadableTokenStore.class);
-        final var tokenType = Optional.ofNullable(
-                        readableTokenStore.get(op.tokenWipeOrThrow().tokenOrElse(TokenID.DEFAULT)))
-                .map(Token::tokenType)
-                .orElse(TokenType.FUNGIBLE_COMMON);
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(CommonPbjConverters.fromPbj(op));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(
-                        tokenType.equals(TokenType.FUNGIBLE_COMMON)
-                                ? SubType.TOKEN_FUNGIBLE_COMMON
-                                : SubType.TOKEN_NON_FUNGIBLE_UNIQUE)
-                .addBytesPerTransaction(meta.getBpt())
-                .addNetworkRamByteSeconds(meta.getTransferRecordDb() * USAGE_PROPERTIES.legacyReceiptStorageSecs())
-                .calculate();
-    }
 
     private ValidationResult validateSemantics(
             @NonNull final AccountID accountId,

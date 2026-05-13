@@ -106,24 +106,4 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         return Response.newBuilder().cryptoGetAccountRecords(response).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var accountStore = queryContext.createStore(ReadableAccountStore.class);
-        final var op = query.cryptoGetAccountRecordsOrThrow();
-        final var accountId = op.accountIDOrElse(AccountID.DEFAULT);
-        final var account = accountStore.getAccountById(accountId);
-        final var records = recordCache.getRecords(accountId);
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGivenFor(account, records));
-    }
-
-    private FeeData usageGivenFor(final Account account, List<TransactionRecord> pbjRecords) {
-        if (account == null) {
-            return CONSTANT_FEE_DATA;
-        }
-        final var records =
-                pbjRecords.stream().map(CommonPbjConverters::fromPbj).toList();
-        return usageEstimator.getCryptoAccountRecordsQueryFeeMatrices(records, null);
-    }
 }
