@@ -53,8 +53,17 @@ signature transaction must be in the pool **before** the consensus layer is perm
 ## Decision
 
 **The execution layer blocks the return of
-`ConsensusStateEventHandler.onSealConsensusRound(...)` until its freeze-block signature
-transaction has been added to the transaction pool.**
+`ConsensusStateEventHandler.onSealConsensusRound(...)` until both of the following are true:**
+
+1. **the node's own freeze-block signature transaction has been added to the transaction pool,
+   and**
+2. **a threshold of freeze-block signatures has been collected by the execution layer.**
+
+The block is **bounded by a maximum timeout**. If the timeout elapses before both conditions
+are met, `onSealConsensusRound` returns regardless. This prevents an indefinite block, which
+would stop the freeze state from being written to disk and block the node from upgrading — an
+outcome considered harder to recover from than some nodes missing the freeze-block signature
+threshold.
 
 `onSealConsensusRound` is the existing call from the consensus layer into the execution layer
 that runs after all state modifications for the round have been made. It is already on the
@@ -66,6 +75,8 @@ pool, we establish the required ordering:
 
 ```
 execution puts freeze-block signature in pool
+        AND
+execution collects threshold of freeze-block signatures
         │
         ▼
 onSealConsensusRound returns
@@ -80,34 +91,55 @@ consensus layer transitions FREEZING → FREEZE_COMPLETE
 event creation ceases
 ```
 
-The happens-before guarantee this establishes is narrow: **the signature is in the transaction
-pool before the consensus layer transitions to `FREEZE_COMPLETE`**. It does **not** guarantee
-that an event containing the signature is created or gossiped. Event creation during `FREEZING`
-remains best-effort and is subject to the event creator's normal rules; see
-[Limitations](#limitations) below.
+The happens-before guarantee this establishes is: **the self node has both placed its
+freeze-block signature in the transaction pool and collected a threshold of freeze-block
+signatures before the consensus layer transitions to `FREEZE_COMPLETE`**. In other words,
+once the local threshold is met, this node's `onSealConsensusRound` returns, the signed state
+is written, and this node transitions to `FREEZE_COMPLETE` — at which point this node locally
+holds a fully-signed freeze block.
+
+This is a per-node guarantee, and it holds only if the maximum timeout does not fire first.
+It does **not** guarantee that every other node in the network will also hold a fully-signed
+freeze block before transitioning — see [Limitations](#limitations) below.
 
 ## Limitations
 
-This decision establishes ordering between the signature being placed in the pool and event
-creation ceasing. It does **not** establish that an event containing the signature is actually
-created and gossiped.
+This decision guarantees that **the self node** holds a fully-signed freeze block before
+transitioning to `FREEZE_COMPLETE`. It does **not** guarantee the same for every other node in
+the network.
 
-During `FREEZING`, event creation is driven by the event creator's heartbeat tick and is subject
-to the same rules as in any other status:
+The condition that releases the block — "threshold of freeze-block signatures collected by the
+execution layer" — is evaluated locally. This node's own signature counts toward its local
+threshold the moment it is applied (before it is added to the pool). The signatures received
+from peers arrive via gossiped events processed in `prehandle`.
 
-- the heartbeat must fire while the consensus layer is still in `FREEZING`, and
-- the event creator must be able to create an event with valid other parents.
+The residual risk is a **gossip partition / outgoing gossip buffer scenario**:
 
-On healthy nodes this is highly likely to occur before the consensus layer transitions to
-`FREEZE_COMPLETE` — the heartbeat fires frequently and valid other-parents are typically
-available. It is **not** guaranteed. If a node cannot select valid other-parents for the entire
-duration of `FREEZING` (for example, due to peer unavailability or partition), no event is
-created, and the signature transaction sitting in the pool is never gossiped despite being
-present.
+- The self event carrying this node's freeze-block signature gets stuck in this node's
+  outgoing gossip buffer (or is otherwise not delivered to peers).
+- This node continues to receive peers' events through gossip and counts their signatures
+  toward its local threshold.
+- Once the local threshold is met, this node's `onSealConsensusRound` returns, the signed
+  state is written, transitions to `FREEZE_COMPLETE`, and is shut down — having locally observed
+  a fully-signed freeze block that **no peer has seen in full**, because this node's own
+  signature never reached them.
 
-This residual risk is accepted. It is bounded by node and network health during the freeze
-window, which a healthy network is expected to satisfy in practice. Eliminating it would require
-either changing event-creation rules during freeze - a larger redesign out of scope for this decision.
+The network-level outcome of this scenario is that **at least one node** (the self node) ends
+up with a fully-signed freeze block, but peers may end up short by one signature.
+
+A second scenario is the **maximum timeout firing**. If, for any reason, this node cannot
+collect a threshold within the timeout (extended partition, persistent inability to receive
+peer events, etc.), `onSealConsensusRound` returns without the second condition having been
+met. The signed state is still written and this node transitions to `FREEZE_COMPLETE` without
+having locally observed a fully-signed freeze block. This is preferred over blocking
+indefinitely, since failure to write the freeze state to disk would block the node from
+upgrading — a harder failure mode to recover from than some nodes lacking the freeze-block
+signature threshold.
+
+This residual risk is accepted. Eliminating it would require a network wide consensus that
+enough nodes have collected enough signatures
+which is a
+larger redesign out of scope for this decision.
 
 ## Consequences
 
@@ -115,7 +147,7 @@ either changing event-creation rules during freeze - a larger redesign out of sc
 
 - **Uses an existing interface.** No new cross-layer API, no new future or callback object to
   thread between the layers.
-- **Provides the required happens-before guarantee** between execution placing its signature and
+- **Provides the required happens-before guarantee** between execution submitting its signature AND collecting enough signatures and
   consensus halting event creation.
 - **Localized change.** The blocking behavior lives inside execution's implementation of
   `onSealConsensusRound`; the consensus layer is unchanged.
@@ -132,7 +164,7 @@ either changing event-creation rules during freeze - a larger redesign out of sc
 ### Neutral
 
 - The condition that releases the block is owned by execution: it returns once the freeze-block
-  signature transaction has been added to the pool. The consensus layer does not need to know
+  signature transaction has been added to the pool and a minimum threshold of signatures has been collected. The consensus layer does not need to know
   the release condition.
 
 ## Alternatives Considered
@@ -141,17 +173,16 @@ either changing event-creation rules during freeze - a larger redesign out of sc
 
 Add a new interface where execution hands the consensus layer a `Future` (or similar gate) that
 must complete before the `FREEZING → FREEZE_COMPLETE` transition is allowed. Execution would
-complete the future when either:
+complete the future when both:
 
-- its own freeze-block signature was observed in `prehandle`, or
+- its own freeze-block signature was observed in `prehandle`, and
 - a threshold of freeze-block signatures had been collected.
 
 **Rejected because:**
 
 - Adds another interface interaction between the consensus and execution layers purely to enforce
   ordering that an existing call site can already enforce.
-- Considered messy: introduces a new object whose lifecycle (create / complete / cancel) must be
-  reasoned about in addition to the status transition it gates.
+- Considered messy: introduces a new component that does something only once per upgrade and adds to an already complex wiring system.
 - The same happens-before guarantee is achievable by blocking inside an existing call, with no
   new types crossing the layer boundary.
 
