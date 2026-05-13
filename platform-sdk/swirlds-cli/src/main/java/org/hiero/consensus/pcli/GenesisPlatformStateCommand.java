@@ -60,7 +60,10 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
         final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager());
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =

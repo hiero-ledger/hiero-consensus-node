@@ -136,10 +136,10 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary (reason: HIGHER_PRIORITY_FOUND)",
+                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary (reason: HIGHER_PRIORITY_FOUND",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/CLOSING] Closing connection (reason: HIGHER_PRIORITY_FOUND)",
+                                "/localhost:%s/CLOSING] Closing connection (reason: HIGHER_PRIORITY_FOUND",
                                 portNumbers.get(3)))),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 waitUntilNextBlocks(5),
@@ -201,7 +201,7 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "saturation=50.0%",
+                        "saturation: 50.0%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -216,7 +216,7 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "saturation=0.0%")));
+                        "saturation: 0.0%")));
     }
 
     @HapiTest
@@ -270,7 +270,7 @@ public class BlockNodeSuite {
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // saturation should drop as the block node acknowledges the buffered blocks
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation: 0.0%")));
     }
 
     @HapiTest
@@ -383,7 +383,7 @@ public class BlockNodeSuite {
 
                 // Block processing error assertions
                 assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), " not found in buffer (latestBlock=", Duration.ofSeconds(0)),
+                        byNodeId(0), " not found in buffer (latestBlock: ", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received SkipBlock response for block ", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
@@ -405,6 +405,6 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(30)));
+                        byNodeId(0), "Sending request to block node (type: END_OF_BLOCK)", Duration.ofSeconds(30)));
     }
 }

@@ -118,7 +118,8 @@ public final class DiagramCommand extends AbstractCommand {
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration);
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

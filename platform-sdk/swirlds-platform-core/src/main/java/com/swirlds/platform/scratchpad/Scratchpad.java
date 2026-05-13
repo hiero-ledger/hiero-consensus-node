@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -25,6 +26,7 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
      * Create a new scratchpad.
      *
      * @param configuration the configuration to use
+     * @param fileSystemManager the file system manager to use for all file location management
      * @param selfId the ID of this node
      * @param clazz the enum class that defines the scratchpad fields
      * @param id the unique ID of this scratchpad (creating multiple scratchpad instances on the same node with the same
@@ -33,10 +35,11 @@ public interface Scratchpad<K extends Enum<K> & ScratchpadType> {
      */
     static <K extends Enum<K> & ScratchpadType> Scratchpad<K> create(
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-        return new StandardScratchpad<>(configuration, selfId, clazz, id);
+        return new StandardScratchpad<>(configuration, fileSystemManager, selfId, clazz, id);
     }
 
     /**

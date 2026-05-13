@@ -21,7 +21,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFro
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
@@ -51,6 +50,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -126,10 +126,16 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final TransactionMetrics transactionMetrics;
 
     /**
+     * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving
+     * space for preceding and system records. Injected at construction time from the application layer.
+     */
+    private final long transactionOffsetNanos;
+
+    /**
      * Constructor
      *
      * @param platformContext       contains various platform utilities
-     * @param stateLifecycleManager    the swirld state manager to send events to
+     * @param stateLifecycleManager the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
      */
@@ -139,7 +145,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            final long transactionOffsetNanos) {
 
         this.platformContext = requireNonNull(platformContext);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
@@ -147,6 +154,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.selfId = requireNonNull(selfId);
+        this.transactionOffsetNanos = transactionOffsetNanos;
 
         this.roundsNonAncient = platformContext
                 .getConfiguration()
@@ -216,7 +224,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         try {
             handlerMetrics.setPhase(SETTING_EVENT_CONSENSUS_DATA);
             for (final PlatformEvent event : consensusRound.getConsensusEvents()) {
-                event.setConsensusTimestampsOnTransactions();
+                event.setConsensusTimestampsOnTransactions(transactionOffsetNanos);
             }
 
             handlerMetrics.setPhase(UPDATING_PLATFORM_STATE);

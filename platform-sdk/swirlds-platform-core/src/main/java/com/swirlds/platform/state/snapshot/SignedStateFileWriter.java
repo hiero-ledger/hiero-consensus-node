@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
@@ -9,10 +8,12 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_R
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
@@ -36,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
@@ -58,20 +60,16 @@ public final class SignedStateFileWriter {
      * human needs to decide what is contained within a signed state file. If the file already exists in the given
      * directory then it is overwritten.
      *
-     * @param platformContext the platform context
-     * @param state           the state that is being written
-     * @param directory       the directory where the state is being written
+     * @param directory the directory where the state is being written
+     * @param state     the state that is being written
      */
-    public static void writeHashInfoFile(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Path directory,
-            @NonNull final VirtualMapState state)
+    public static void writeHashInfoFile(@NonNull final Path directory, @NonNull final VirtualMapState state)
             throws IOException {
         final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
-                        Information for state written to disk:
-                        {}""", platformInfo);
+                Information for state written to disk:
+                {}""", platformInfo);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
@@ -103,7 +101,8 @@ public final class SignedStateFileWriter {
 
     /**
      * Write the signature set file.
-     * @param directory the directory to write to
+     *
+     * @param directory   the directory to write to
      * @param signedState the signature set file
      */
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
@@ -139,6 +138,14 @@ public final class SignedStateFileWriter {
      *       the flush-triggered snapshot completes or a configurable timeout
      *       ({@link StateConfig#asyncSnapshotTimeout()}) expires.</li>
      * </ul>
+     * <p>
+     * <b>Snapshot before PCES copy:</b> PCES copying must happen only after the state snapshot has completed.
+     * The copy logic performs a best-effort filesystem scan and does not coordinate with the PCES writer.
+     * Recent PCES data may still be buffered or otherwise not yet visible to that scan. Keeping the snapshot
+     * write before the PCES scan provides the ordering and I/O activity needed in practice for recent PCES
+     * files to be discoverable. Moving the PCES scan earlier can produce a saved state with no copied PCES
+     * files. Do not reorder this unless PCES copying is changed to explicitly coordinate with, or sync
+     * with the PCES writer.
      *
      * @param platformContext       the platform context
      * @param selfId                the id of the platform
@@ -149,7 +156,7 @@ public final class SignedStateFileWriter {
      * @throws IOException if the snapshot creation fails, times out, or is interrupted
      */
     public static void writeSignedStateFilesToDirectory(
-            @Nullable final PlatformContext platformContext,
+            @NonNull final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final ReservedSignedState reservedSignedState,
@@ -163,28 +170,13 @@ public final class SignedStateFileWriter {
         final Configuration configuration = platformContext.getConfiguration();
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final SignedState signedState = reservedSignedState.get();
-
-        writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState());
-        writeMetadataFile(selfId, directory, signedState);
-        final Roster currentRoster = signedState.getRoster();
-        writeRosterFile(directory, currentRoster);
-        writeSettingsUsed(directory, configuration);
-
-        if (selfId != null) {
-            // This is a temporary measure that allows us to move this functionality into the consensus module
-            // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-            final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
-            pcesModule.copyPcesFilesRetryOnFailure(
-                    configuration,
-                    selfId,
-                    directory,
-                    ancientThresholdOf(signedState.getState()),
-                    signedState.getRound());
-        }
+        final long pcesLowerBound = ancientThresholdOf(signedState.getState());
+        final long round = signedState.getRound();
 
         Future<Void> snapshotFuture = null;
         try {
+            writeSnapshotSupplementalFiles(selfId, directory, signedState, configuration);
+
             if (stateConfig.saveStateAsync()
                     && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
@@ -202,8 +194,13 @@ public final class SignedStateFileWriter {
                 snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
-                reservedSignedState.close();
             }
+
+            // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
+            // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
+            // previously raced with PCES writes and found no files to copy.
+            copyPcesFiles(
+                    selfId, directory, configuration, platformContext.getFileSystemManager(), pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),
@@ -253,6 +250,86 @@ public final class SignedStateFileWriter {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
+        }
+    }
+
+    /**
+     * Write supplemental files for a state snapshot.
+     *
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param signedState   the signed state being written
+     * @param configuration the platform configuration
+     */
+    private static void writeSnapshotSupplementalFiles(
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final SignedState signedState,
+            @NonNull final Configuration configuration)
+            throws IOException {
+        writeSignatureSetFile(directory, signedState);
+        writeHashInfoFile(directory, signedState.getState());
+        writeMetadataFile(selfId, directory, signedState);
+        writeConsensusSnapshotFile(directory, signedState);
+        final Roster currentRoster = signedState.getRoster();
+        writeRosterFile(directory, currentRoster);
+        writeSettingsUsed(directory, configuration);
+    }
+
+    /**
+     * Copy PCES files for a state snapshot.
+     *
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param configuration the platform configuration
+     * @param fileSystemManager the file system manager
+     * @param lowerBound    the lower bound of events that are non-ancient with respect to the saved state
+     * @param round         the round of the saved state
+     */
+    private static void copyPcesFiles(
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long lowerBound,
+            final long round) {
+        if (selfId == null) {
+            return;
+        }
+
+        // This is a temporary measure that allows us to move this functionality into the consensus module
+        // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
+        final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
+        pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, fileSystemManager, directory, lowerBound, round);
+    }
+
+    /**
+     * Write the consensus snapshot file. This is a JSON file that contains a human-readable summary of the state of
+     * consensus at the time the signed state was created. It is useful for debugging and replaying PCES files on top of
+     * the state snapshot.
+     *
+     * @param directory   the directory to write to
+     * @param signedState the signed state being written
+     */
+    private static void writeConsensusSnapshotFile(
+            @NonNull final Path directory, @NonNull final SignedState signedState) {
+        final Path consensusSnapshotFile = directory.resolve(SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        final ConsensusSnapshot snapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
+        if (snapshot == null) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "No consensus snapshot found in state for round {}.",
+                    signedState.getRound());
+            return;
+        }
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(consensusSnapshotFile.toFile()))) {
+            writer.write(ConsensusSnapshot.JSON.toJSON(snapshot));
+        } catch (final IOException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Failed to write consensus snapshot file to disk at {}",
+                    consensusSnapshotFile,
+                    e);
         }
     }
 
@@ -308,9 +385,9 @@ public final class SignedStateFileWriter {
 
             executeAndRename(
                     savedStateDirectory,
+                    platformContext.getFileSystemManager().resolveNewTemp(),
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),
-                    platformContext.getConfiguration());
+                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
                             signedState.getRound(),

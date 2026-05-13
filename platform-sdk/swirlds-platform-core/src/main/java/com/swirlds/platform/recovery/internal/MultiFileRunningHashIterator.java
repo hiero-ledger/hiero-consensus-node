@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
-import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 

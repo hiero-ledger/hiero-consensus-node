@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.merkledb.test.fixtures.files.DataFileCollectionTestUtils.checkData;
 import static com.swirlds.merkledb.test.fixtures.files.DataFileCollectionTestUtils.getVariableSizeDataForI;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,7 +19,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.logging.test.fixtures.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
@@ -62,14 +61,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 
-@SuppressWarnings("SameParameterValue")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DataFileCollectionTest {
 
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     static Path tempFileDir;
 
@@ -131,16 +128,11 @@ class DataFileCollectionTest {
             }
             // put in 1000 items
             for (int i = count; i < count + 100; i++) {
-                long[] dataValue;
-                switch (testType) {
-                    default:
-                    case fixed:
-                        dataValue = new long[] {i, i + 10_000};
-                        break;
-                    case variable:
-                        dataValue = getVariableSizeDataForI(i, 10_000);
-                        break;
-                }
+                long[] dataValue =
+                        switch (testType) {
+                            case variable -> getVariableSizeDataForI(i, 10_000);
+                            default -> new long[] {i, i + 10_000};
+                        };
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
@@ -449,16 +441,11 @@ class DataFileCollectionTest {
         fileCollection.startWriting();
         // put in 1000 items
         for (int i = 0; i < 50; i++) {
-            long[] dataValue;
-            switch (testType) {
-                default:
-                case fixed:
-                    dataValue = new long[] {i, i + 100_000};
-                    break;
-                case variable:
-                    dataValue = getVariableSizeDataForI(i, 100_000);
-                    break;
-            }
+            long[] dataValue =
+                    switch (testType) {
+                        case variable -> getVariableSizeDataForI(i, 100_000);
+                        default -> new long[] {i, i + 100_000};
+                    };
             // store in file
             storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
         }
@@ -680,16 +667,11 @@ class DataFileCollectionTest {
             fileCollection.startWriting();
             // put in 1000 items
             for (int i = count; i < count + 100; i++) {
-                long[] dataValue;
-                switch (testType) {
-                    default:
-                    case fixed:
-                        dataValue = new long[] {i, i + 10_000};
-                        break;
-                    case variable:
-                        dataValue = getVariableSizeDataForI(i, 10_000);
-                        break;
-                }
+                long[] dataValue =
+                        switch (testType) {
+                            case variable -> getVariableSizeDataForI(i, 10_000);
+                            default -> new long[] {i, i + 10_000};
+                        };
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
@@ -775,13 +757,7 @@ class DataFileCollectionTest {
     @AfterEach
     void checkDirectMemoryUsage() {
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     private static class LoadedDataCallbackImpl implements DataFileCollection.LoadedDataCallback {

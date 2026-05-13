@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.test.fixtures.communication;
 
-import com.swirlds.common.io.utility.IOConsumer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.base.io.IOConsumer;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;

@@ -18,8 +18,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.IORunnable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
@@ -65,6 +63,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.IORunnable;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -248,11 +249,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     public MerkleDbDataSource(
             final Path storageDir,
             final Configuration config,
+            final FileSystemManager fileSystemManager,
             final String tableName,
             final boolean compactionEnabled,
             final boolean offlineUse)
             throws IOException {
-        this(storageDir, config, tableName, 0, compactionEnabled, offlineUse);
+        this(storageDir, config, fileSystemManager, tableName, 0, compactionEnabled, offlineUse);
     }
 
     /**
@@ -275,6 +277,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     public MerkleDbDataSource(
             final Path storageDir,
             final Configuration config,
+            final FileSystemManager fileSystemManager,
             final String tableName,
             final long initialCapacity,
             final boolean compactionEnabled,
@@ -370,11 +373,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, config)
+                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, config, fileSystemManager)
                     : new LongListSegment(idToHashChunksFile, hashIndexCapacity, config);
         } else {
             idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(hashIndexCapacity, config)
+                    ? new LongListDisk(hashIndexCapacity, config, fileSystemManager)
                     : new LongListSegment(hashIndexCapacity, config);
         }
 
@@ -393,7 +396,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Try to rebuild hash chunks from legacy hash store RAM / disk. If hash store / disk
             // is used, but the legacy path to hash disk location index file is missing, the method
             // below will throw an exception (even if index rebuilding is forced)
-            rebuildHashChunks(config, maxPath + 1, hashesRamToDiskThreshold);
+            rebuildHashChunks(config, fileSystemManager, maxPath + 1, hashesRamToDiskThreshold);
         } else {
             final LoadedDataCallback hashChunkLoadedCallback;
             // Check if hash chunk index is to be restored: either the index file is missing, or
@@ -430,14 +433,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         final long kvIndexCapacity = VirtualLeafChunk.pathToChunkId(maxPath, leafChunkSize) + 1;
         // KV disk location index (path to disk location)
-        final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
-        if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
+        final Path idToLeafChunksFile = dbPaths.idToDiskLocationLeafChunksFile;
+        if (Files.exists(idToLeafChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationLeafChunks = preferDiskBasedIndices
-                    ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config)
-                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
+                    ? new LongListDisk(idToLeafChunksFile, kvIndexCapacity, config, fileSystemManager)
+                    : new LongListSegment(idToLeafChunksFile, kvIndexCapacity, config);
         } else {
             idToDiskLocationLeafChunks = preferDiskBasedIndices
-                    ? new LongListDisk(kvIndexCapacity, config)
+                    ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
                     : new LongListSegment(kvIndexCapacity, config);
         }
 
@@ -475,6 +478,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Keys (keys to paths)
         keyToPath = new HalfDiskHashMap(
                 config,
+                fileSystemManager,
                 this.initialCapacity,
                 dbPaths.keyToPathDirectory,
                 tableName + "_objectkeytopath",
@@ -521,8 +525,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 this.leafChunkSize);
     }
 
+    @NonNull
+    public MerkleDbPaths getDbPaths() {
+        return dbPaths;
+    }
+
     private void rebuildHashChunks(
-            final Configuration config, final long hashIndexCapacity, final long hashesRamToDiskThreshold)
+            final Configuration config,
+            final FileSystemManager fileSystemManager,
+            final long hashIndexCapacity,
+            final long hashesRamToDiskThreshold)
             throws IOException {
         assert hashChunkStore != null;
         assert idToDiskLocationHashChunks.size() == 0;
@@ -549,7 +561,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 final LongList pathToDiskLocationInternalNodes;
                 if (Files.exists(dbPaths.pathToDiskLocationInternalNodesFile)) {
                     pathToDiskLocationInternalNodes = preferDiskBasedIndices
-                            ? new LongListDisk(dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config)
+                            ? new LongListDisk(
+                                    dbPaths.pathToDiskLocationInternalNodesFile,
+                                    hashIndexCapacity,
+                                    config,
+                                    fileSystemManager)
                             : new LongListSegment(
                                     dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config);
                 } else {

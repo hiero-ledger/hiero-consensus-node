@@ -22,7 +22,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.utility.Labeled;
@@ -66,6 +65,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
@@ -136,8 +136,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * The number of elements to have in the buffer used during rehashing on start.
      */
     private static final int MAX_REHASHING_BUFFER_SIZE = 10_000_000;
-
-    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
     /**
      * Hardcoded virtual map label
@@ -648,7 +646,16 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
         final VirtualLeafBytes<V> rec = records.findLeafRecord(key);
         statistics.countReadEntities();
-        return rec == null ? null : rec.value(valueCodec);
+        return rec == null ? null : rec.value(valueCodec, virtualMapConfig.valueParseMaxSizeBytes());
+    }
+
+    /**
+     * Gets the configured maximum size (in bytes) for parsing a virtual map value payload.
+     *
+     * @return the max parse size in bytes
+     */
+    public int valueParseMaxSizeBytes() {
+        return virtualMapConfig.valueParseMaxSizeBytes();
     }
 
     /**
@@ -753,7 +760,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                             false,
                             false,
                             DEFAULT_MAX_DEPTH,
-                            MAX_PBJ_RECORD_SIZE);
+                            virtualMapConfig.valueParseMaxSizeBytes());
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);
         }
@@ -1227,10 +1234,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     VirtualDataSource detachAsDataSourceCopy() {
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
-            VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
-
-            flush(cache.snapshot(), metadata, dataSourceCopy);
-            return dataSourceCopy;
+            try {
+                VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
+                flush(cache.snapshot(), metadata, dataSourceCopy);
+                return dataSourceCopy;
+            } finally {
+                try {
+                    // Delete the snapshot directory
+                    FileUtils.deleteDirectory(snapshotPath);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
+                }
+            }
         });
     }
 
@@ -1243,10 +1258,20 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     public RecordAccessor detach() {
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
-            final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-            final VirtualNodeCache cacheSnapshot = cache.snapshot();
-            final int hashChunkHeight = dataSource.getHashChunkHeight();
-            return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+            try {
+                final VirtualDataSource dataSourceCopy =
+                        dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
+                final VirtualNodeCache cacheSnapshot = cache.snapshot();
+                final int hashChunkHeight = dataSource.getHashChunkHeight();
+                return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+            } finally {
+                try {
+                    // Delete the snapshot directory
+                    FileUtils.deleteDirectory(snapshotPath);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
+                }
+            }
         });
     }
 

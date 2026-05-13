@@ -25,26 +25,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@SuppressWarnings({"SameParameterValue"})
-class HalfDiskHashMapTest {
-
-    /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
-    @TempDir
-    Path tempDirPath;
+class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
 
     // =================================================================================================================
     // Helper Methods
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, new ForkJoinPool(4), false);
+                CONFIGURATION,
+                fileSystemManager,
+                count,
+                fileSystemManager.resolve(name),
+                "HalfDiskHashMapTest",
+                null,
+                new ForkJoinPool(4),
+                false);
         map.printStats();
         return map;
     }
@@ -53,7 +54,7 @@ class HalfDiskHashMapTest {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final LongList index = new LongListHeap(count, CONFIGURATION);
         return new MemoryIndexDiskKeyValueStore(
-                merkleDbConfig, tempDirPath.resolve(name + "_kv"), "HalfDiskHashMapTestKV", null, null, index);
+                merkleDbConfig, fileSystemManager.resolve(name + "_kv"), "HalfDiskHashMapTestKV", null, null, index);
     }
 
     private static void createSomeData(
@@ -96,7 +97,7 @@ class HalfDiskHashMapTest {
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void createDataAndCheck(FilesTestType testType) throws Exception {
-        final Path tempSnapshotDir = tempDirPath.resolve("DataFileTestSnapshot_" + testType.name());
+        final Path tempSnapshotDir = fileSystemManager.resolve("DataFileTestSnapshot_" + testType.name());
         final int count = 10_000;
         // create map
         try (HalfDiskHashMap map = createNewTempMap("createDataAndCheck", count)) {
@@ -116,7 +117,7 @@ class HalfDiskHashMapTest {
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
             HalfDiskHashMap mapFromSnapshot =
-                    new HalfDiskHashMap(CONFIGURATION, count, tempSnapshotDir, "HalfDiskHashMapTest", null, new ForkJoinPool(4), false);
+                    new HalfDiskHashMap(CONFIGURATION, fileSystemManager, count, tempSnapshotDir, "HalfDiskHashMapTest", null, new ForkJoinPool(4), false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -277,7 +278,7 @@ class HalfDiskHashMapTest {
     @ParameterizedTest
     @ValueSource(longs = {100, 1000, 2000, 1_000_000, 1_000_000_000})
     void testDefaultNumOfBuckets(final long count) throws Exception {
-        try (HalfDiskHashMap map = createNewTempMap("testDefaultNumOfBuckets", count)) {
+        try (HalfDiskHashMap map = createNewTempMap("testDefaultNumOfBuckets" + count, count)) {
             assertEquals(calcExpectedNumOfBuckets(count), map.getNumOfBuckets());
         }
     }
@@ -597,8 +598,15 @@ class HalfDiskHashMapTest {
                 .withValue("merkleDb.maxNumOfKeys", "500")
                 .build();
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
-                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, new ForkJoinPool(4), false);
-        try {
+                config,
+                fileSystemManager,
+                100,
+                fileSystemManager.resolve("test"),
+                "testResizeRespectsBucketIndexCapacity",
+                null,
+                new ForkJoinPool(4),
+                false);
+        try (hdhm) {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
@@ -618,8 +626,6 @@ class HalfDiskHashMapTest {
             // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());
-        } finally {
-            hdhm.close();
         }
     }
 

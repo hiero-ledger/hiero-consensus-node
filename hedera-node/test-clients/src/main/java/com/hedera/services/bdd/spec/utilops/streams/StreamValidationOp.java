@@ -32,6 +32,7 @@ import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
+import com.hedera.services.bdd.junit.support.validators.RunningHashChainValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
@@ -103,7 +104,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 new TransactionBodyValidator(),
                 new ExpiryRecordsValidator(),
                 new BalanceReconciliationValidator(),
-                new TokenReconciliationValidator());
+                new TokenReconciliationValidator(),
+                new RunningHashChainValidator());
     }
 
     @Override
@@ -119,7 +121,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
-        // Validate the record streams
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
@@ -130,6 +131,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         "Unable to read stream data at " + recordStreamLocationsOf(spec),
                                         dataOrException.e());
                             }
+                            dataRef.set(data);
                             final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
@@ -139,7 +141,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                 throw new AssertionError(
                                         "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
-                            dataRef.set(data);
                         },
                         () -> Assertions.fail(
                                 "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));

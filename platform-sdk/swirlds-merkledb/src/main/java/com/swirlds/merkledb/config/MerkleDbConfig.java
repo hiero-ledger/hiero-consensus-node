@@ -106,7 +106,7 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
         @ConfigProperty(defaultValue = "32") int goodAverageBucketEntryCount,
         @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
-        @ConfigProperty(defaultValue = "100.0") double percentHalfDiskHashMapFlushThreads,
+        @ConfigProperty(defaultValue = "80.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,

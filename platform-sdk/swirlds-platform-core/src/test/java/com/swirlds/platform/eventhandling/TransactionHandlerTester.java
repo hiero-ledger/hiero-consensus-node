@@ -64,7 +64,10 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager());
         stateLifecycleManager.initWithState(state.getState());
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
@@ -79,7 +82,8 @@ public class TransactionHandlerTester implements AutoCloseable {
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
                 consensusStateEventHandler,
-                NodeId.of(1));
+                NodeId.of(1),
+                0L);
     }
 
     /**
