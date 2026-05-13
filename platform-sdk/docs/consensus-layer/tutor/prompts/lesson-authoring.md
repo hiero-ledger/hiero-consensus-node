@@ -1,308 +1,459 @@
-# Lesson Authoring — Meta-prompt for Claude Code
+# Consensus Layer Tutor — Lesson Authoring Meta-Prompt
 
-This file is a meta-prompt for Claude Code that authors one Consensus Layer Tutor lesson per invocation, with no parameters supplied by the operator. From a clone of the consensus-node repo checked out on an authoring branch, configure Claude Code to use Opus 4.7 at `xhigh` effort and feed it this file as the prompt; the run decides what to do entirely by inspecting repo state. Opus 4.7 at xhigh is the recommended configuration because every run synthesizes the architecture topic file, multiple concept files, the glossary, invariants, the delta entry, and source code in a single session, verifies code anchors against the working tree, and self-directs from `tutor/curriculum.md` — work that benefits from the strongest reasoning model at the highest effort setting. Adaptive thinking on Opus 4.7 is the only mode available, so no separate thinking budget needs to be configured.
-
-<role>
-You are Claude Code, authoring lessons for the Consensus Layer Tutor curriculum on behalf of the Hedera consensus team. The repo is `consensus-node`; you are running on an authoring branch with full read/write access to the working tree.
-</role>
+This file is the autonomous lesson-authoring prompt for the Consensus Layer Tutor curriculum. Save at `tutor/prompts/lesson-authoring.md`. Run it from Claude Code at the root of a clone of the consensus-node repo on an authoring branch by feeding its contents as the user message (or as a slash command, if registered). It takes no parameters and idempotently advances the curriculum: on first invocation it bootstraps `tutor/curriculum.md`; on each subsequent invocation it authors exactly one lesson against the appropriate embedded template, commits the file, updates the manifest, and stops. Recommended configuration: Opus 4.7 at `xhigh` effort — the cross-source synthesis (KB topics, concept files, glossary, invariants, delta map, source code), the agentic state detection across runs, and the pedagogical shaping inside each lesson all benefit from the highest reasoning budget on the strongest agentic model.
 
 <context>
-The Consensus Layer Tutor is a curriculum for internal Hedera consensus-team engineers — strong distributed-systems backgrounds, high-level Hedera familiarity. The knowledge base lives at `platform-sdk/docs/consensus-layer/` and is structured per the layout document at the repo root or in the project's onboarding materials. Lessons live at `tutor/lessons/`. The curriculum manifest lives at `tutor/curriculum.md` and is the source of truth for what exists, what is drafted, and what comes next. Lessons are read alongside a tutor-Claude in a Claude project, so they leave Socratic openings rather than answering every question inline. Truth basis is current code; where the proposed redesign differs, that lives in delta callouts referencing `delta-map/<topic>.md`. The KB itself is still under review and the tutor system prompt will be tuned later, but lessons themselves are drafted at production quality — review will catch factual errors, code-anchor drift, and pedagogical issues, not structural placeholders.
+The Consensus Layer Tutor is a curriculum-shaped Claude project that teaches the eleven consensus-layer topics to senior Hedera consensus-team engineers. The learner is expert on distributed-systems concepts (BFT, asynchrony, quorum reasoning, gossip propagation) and novice on this specific codebase (wiring framework, event format, signed-state serialization, scheduler invariants, migration deltas). Lessons are not consumed directly by the learner — the tutor system prompt drives a chat session and reads the lesson file as its working script. Lesson structure therefore supplies content in the shape the tutor needs to deliver it: chunked for the tutor's pacing model, examples shaped for the tutor's worked-example pattern, comprehension elements shaped for the tutor's retrieval and check practices.
+
+The pedagogical foundation lives in the evidence-based pedagogy research document; the operational behavior lives in the tutor system prompt. Both are inputs to the templates embedded below. The truth basis for content is the current code as it actually runs; proposal-versus-current differences live in `delta-map/` and are referenced from lesson delta callouts rather than restated.
 </context>
 
-<default_to_action>
-Produce files, do not propose them. If state is ambiguous, infer the most useful next action from repo state and proceed; resolve missing details with tool calls rather than asking. The one place to surface uncertainty is inside the lesson body, as `[TBD]` markers gathered in an Open questions callout — see phase two.
-</default_to_action>
-
-<run_structure>
-Every invocation executes two phases in order: bootstrap, then author one lesson. Both phases run on every invocation; the bootstrap phase is a no-op when `tutor/curriculum.md` already exists. After authoring exactly one lesson, stop. Multiple invocations across multiple sessions incrementally produce the entire curriculum.
-</run_structure>
+<task>
+On every invocation, run two phases in order. Phase one bootstraps `tutor/curriculum.md` if missing. Phase two authors the next lesson in the manifest whose file does not yet exist on disk, then stops. Both phases consume only repo state — there are no parameters.
+</task>
 
 <phase_one_bootstrap>
+If `tutor/curriculum.md` exists, skip this phase.
 
-Check whether `tutor/curriculum.md` exists.
+If it does not exist, generate it. Read the curriculum planning sources first: the project brief (the canonical planning document for this curriculum, typically at `tutor/brief.md` or wherever it lives in the repo — discover it), the KB layout document, `platform-sdk/docs/consensus-layer/architecture/topics/` (every topic file), `platform-sdk/docs/consensus-layer/concepts/` (every concept file), `platform-sdk/docs/consensus-layer/glossary.md`, and `platform-sdk/docs/consensus-layer/invariants.md`. These give the shape of what needs to be taught.
 
-If it exists, skip the rest of this phase.
+The manifest covers the full curriculum in pedagogical order:
 
-If it does not exist, generate it. Read these inputs in order, accumulating context for the curriculum decision:
+- Pass 1 — four canonical orientation scenarios: transaction to consensus, node falls behind, coordinated network upgrade, event creation under stress.
+- Pass 2 — Cluster 0 (Wiring Framework Foundation), then Cluster A.1 (Hashgraph Algorithm), A.2 (Event Intake), A.3 (Gossip), A.4 (Event Creator), A.5 (Steady-state synthesis), then Cluster B (Health Monitor and Backpressure, Reasons not to gossip), Cluster C (Signed State, Restart + PCES, Reconnect), Cluster D (Freeze and Upgrade).
+- Pass 3 — the four canonical scenarios revisited at full depth, then five edge cases: reconnect during freeze, fall-behind triggered by Health Monitor during heavy gossip, roster change during reconnect, PCES replay after upgrade, squelching during freeze.
 
-- `platform-sdk/docs/consensus-layer/README.md` — the KB entry point. If absent, fall back to the closest equivalent (the project brief or any top-level consensus-layer doc) and note the substitution in the curriculum header.
-- The KB layout document — typically at the repo root or in onboarding materials, describing the directory contract.
-- `platform-sdk/docs/consensus-layer/architecture/overview.md` — the navigation map.
-- All files under `platform-sdk/docs/consensus-layer/architecture/topics/` — one per topic, eleven when complete.
-- All files under `platform-sdk/docs/consensus-layer/concepts/` — one per concept.
+Within each Pass 2 cluster, derive the sub-lesson breakdown from KB content. Each cluster typically yields three to seven sub-lessons depending on concept density. Each concept file under `concepts/` that the cluster's topic touches typically anchors one sub-lesson. Each cluster ends with a synthesis lesson that exercises the cluster's components collaborating, not just describing each in turn. Order sub-lessons within a cluster so that prerequisites precede dependents — for A.1, for example, hashgraph-DAG before rounds-and-witnesses before strongly-seeing before judges before consensus-order before birth-round; ancient and stale come after birth-round.
 
-Curriculum order is fixed; do not deviate.
+Lesson IDs follow a stable, lexically-orderable convention. For Pass 1 scenarios: `pass1-NN-short-slug`. For Pass 2 cluster lessons: `cN-MM-short-slug` for Cluster 0, `aN-MM-short-slug` for A sub-clusters (so A.1's third lesson is `a1-03-strongly-seeing`), `b-MM-short-slug`, `c-MM-short-slug`, `d-MM-short-slug` for B/C/D. Synthesis lessons get `-syn` rather than a number: `a1-syn-hashgraph-synthesis`. For Pass 3 canonicals: `pass3-NN-short-slug-deep`. For Pass 3 edges: `pass3-edge-NN-short-slug`. Use these IDs for filenames at `tutor/lessons/<lesson_id>.md`.
 
-1. Pass 1 — four canonical scenarios at lightweight depth: transaction to consensus; node falls behind; coordinated network upgrade; event creation under stress.
-2. Cluster 0 — Wiring Framework Foundation.
-3. Cluster A.1 — Hashgraph Algorithm.
-4. Cluster A.2 — Event Intake.
-5. Cluster A.3 — Gossip.
-6. Cluster A.4 — Event Creator.
-7. Cluster A.5 — Steady-state synthesis.
-8. Cluster B — Stress, health, and self-throttling (Health Monitor & Backpressure plus Reasons not to gossip).
-9. Cluster C — State, persistence, and recovery (Signed State Management, Restart + PCES, Reconnect).
-10. Cluster D — Coordinated network events (Freeze / Upgrade).
-11. Pass 3 canonicals — the four Pass 1 scenarios revisited at full depth.
-12. Pass 3 edge cases — five scenarios: reconnect during freeze; fall-behind triggered by Health Monitor during heavy gossip; roster change during reconnect; PCES replay after upgrade; squelching during freeze.
+Write the manifest as a markdown file with a YAML block at the top capturing the machine-readable entries, followed by a brief human-readable rendering with cluster headings. Each entry carries: `id`, `index` (global ordering), `pass` (1, 2, or 3), `cluster` (e.g. `pass1`, `c0`, `a1`, `a5-syn`, `b`, `c`, `d`, `pass3-canonical`, `pass3-edge`), `title`, `source_topics` (topic files the lesson draws from), and `status: not_started`. The file is human-editable between runs — a reviewer can rename, reorder, split, or merge entries before the next run picks up.
 
-Within each Pass 2 cluster, decide the sub-lesson breakdown from the KB content available at curriculum-generation time. Do not hard-code a count. Guidance:
+Stop after writing the manifest. Report the entry count and the planned cluster-by-cluster breakdown. Do not author any lesson in the same run that bootstraps the manifest.
+</phase_one_bootstrap>
 
-- A typical cluster yields three to seven sub-lessons depending on concept density.
-- A.1 is the concept-densest cluster and yields the most.
-- Each `concepts/<concept>.md` referenced by the cluster's topic file typically anchors one sub-lesson.
-- Each cluster ends with a synthesis lesson that walks the cluster's components collaborating, not just describing each in turn.
-- Sub-lessons are ordered so prerequisites precede dependents.
-- Cluster B contains two topics; cluster C contains three. The same sub-lesson breakdown applies — concepts within each topic anchor sub-lessons, and the synthesis lesson covers the topics together.
+<phase_two_author>
+Read `tutor/curriculum.md`. Scan entries in `index` order. The next lesson to author is the first entry whose target file `tutor/lessons/<lesson_id>.md` does not exist on disk. The file-existence check is the source of truth; the manifest's `status` field is metadata the reviewer can edit but is not relied on for state detection. If every entry has a file, the curriculum is complete — report that and stop.
 
-If the KB is shallow or empty for a cluster at curriculum-generation time, plan the entries you can defend from what is available and mark uncertain titles or ordering with `[TBD]` inline. Curriculum entries are not contracts — the user revises the manifest between runs.
+For the chosen entry, gather the inputs the entry needs.
 
-Write the curriculum to `tutor/curriculum.md`. The format is markdown with a YAML manifest. Each entry has these fields:
+For Pass 2 lessons: read the source topic file(s) under `architecture/topics/`, the concept file(s) the lesson anchors on under `concepts/`, `glossary.md` (for any terms the lesson surfaces), `invariants.md` (for any INV-NNN the lesson rests on), the matching `delta-map/<source_topic>.md`, any `decisions/ADR-NNN-*.md` referenced by the topic file, and the source code at the anchors the topic file names. Verify that every cited code anchor still exists at the line range named — open the file in the repo and check. If an anchor has drifted, mark the citation `[TBD: anchor drifted from KB; verify line range]` rather than guessing. Record the current `main` HEAD SHA via `git rev-parse main` and store it as the lesson's `last_verified_against`.
 
-- `lesson_id` — `<cluster>-<n>-<slug>` for Pass 2 entries, `<pass>-<n>-<slug>` for Pass 1 and Pass 3. The `<n>` is the within-cluster ordinal starting at 1; the slug is short and kebab-case.
-- `cluster` — one of `pass1`, `0`, `A.1`, `A.2`, `A.3`, `A.4`, `A.5`, `B`, `C`, `D`, `pass3`.
-- `title` — human-readable title.
-- `source_topic_id` — for Pass 2 entries, the `architecture/topics/<topic>.md` filename without extension. Omit for Pass 1 and Pass 3.
-- `scenario_kind` — for Pass 1 and Pass 3 entries, one of `canonical` or `edge-case`. Omit for Pass 2.
-- `prerequisites` — list of `lesson_id`s that should precede this one. Treat as advisory; the natural order in the manifest already encodes the dependency graph.
-- `status` — `planned` initially. Phase two updates to `drafted` after the lesson file is written.
+For Pass 1 scenarios: read every topic file the scenario walks through (a Pass 1 scenario touches several components), the relevant concept files for terms the trace introduces, and `glossary.md`. Pass 1 stays at role-level; code anchors are not required for orientation scenarios, though concept-file links and topic-file links should be threaded through. Record `last_verified_against` against `main`.
 
-Skeleton:
+For Pass 3 entries: read all the inputs a Pass 2 lesson would read for each topic the scenario touches, plus `invariants.md` for every invariant the scenario exercises, every relevant `delta-map/` entry, and `scenarios/SCN-NNN-*.md` for any scenario the entry references (Pass 3 edge cases often correspond to documented near-misses or historical incidents). Verify code anchors as above. Record `last_verified_against`.
+
+Draft the lesson against the appropriate template embedded below. Pass 2 entries use `<lesson_template>`. Pass 1 and Pass 3 entries use `<scenario_template>` with `depth: orientation`, `depth: full`, or `depth: edge` respectively. Populate every section the template prescribes. Where the KB or code is silent on a question the section needs to answer, write a bracketed `[TBD: short description of what's missing]` marker in place rather than fabricating, and list every `[TBD]` at the end of the lesson under the Open questions callout. Lessons are committed despite open questions; reviewer review fills them.
+
+Write the file at `tutor/lessons/<lesson_id>.md`. Update the manifest entry's `status` to `drafted`. Stop. Report the lesson_id written, its curriculum index, and the count of entries still without files. Do not move on to the next lesson — one invocation produces exactly one lesson.
+</phase_two_author>
+
+<lesson_template>
+
+<!--
+Template justification — section list traced to the pedagogy research and the tutor system prompt:
+
+  - Prerequisites: tutor system prompt's entry behavior surfaces this list for
+    trust-based self-assessment. Names the prereq IDs with one-line mental
+    models so a senior learner can judge their own readiness.
+
+  - Incoming retrieval probes: successive-relearning queue (Rawson & Dunlosky
+    2022), free-recall opening from prior cluster (research lesson architecture).
+    The tutor runs these as recall-with-feedback before new content lands.
+
+  - Misconception watchlist: EMT-style representation (Chi et al.; tutor
+    system prompt). Enumerates Paxos/Raft/PBFT imports and other senior-engineer
+    wrong models the tutor listens for during delivery.
+
+  - Productive impasse: predict-observe-explain or productive-failure (Kapur
+    2008/2014/2016; Loibl et al. 2017). Sets up the scenario, the prediction
+    prompt with low-stakes thinking-aloud framing, and the consolidation move
+    that explicitly contrasts learner prediction with canonical mechanism.
+
+  - Mechanism walkthrough: worked examples paired with self-explanation prompts
+    at load-bearing lines, for the codebase-novice half of the split (Sweller &
+    Cooper 1985; Renkl 2014; Bisra et al. 2018 g = 0.55). Segmenting and
+    signaling per Mayer; pre-training of terms before integration.
+
+  - Contrasting cases: included only when the lesson covers a threshold concept
+    (Meyer & Land 2005; Boustedt et al. 2007). Gick & Holyoak 1983 — two or
+    three contrasting cases with explicit comparison prompts surface the
+    invariant that survives surface differences.
+
+  - Completion problems with backward fading: Atkinson, Renkl & Merrill 2003 —
+    fade scaffolding step by step as learner demonstrates the pattern. Each
+    problem ships with the hint ladder the tutor uses to escalate help.
+
+  - Delta callout: codebase-canonical policy. Pointer to delta-map entry rather
+    than restating the difference.
+
+  - Transfer prompt: forward-pointing bridge (Perkins & Salomon 1992). Primes
+    the next cluster while consolidating the present one.
+
+  - Close-out retrieval: free-recall in learner's own words plus
+    successive-relearning tags (day 1, day 3, ~2 weeks) for threshold concepts.
+
+  - Open questions: KB-silence over fabrication. Surfaces every [TBD] from the
+    body so the reviewer can fill gaps without re-reading the whole lesson.
+
+The earlier draft's section list (motivating problem, concept, how it works,
+worked example, code anchor, delta callout, comprehension prompt, where we're
+going next) is replaced because it conflates retrieval, impasse engineering,
+and consolidation under a single "comprehension prompt" and omits the
+prerequisite surface and the successive-relearning tagging the research and
+system prompt both treat as load-bearing.
+-->
 
 ```yaml
 ---
-curriculum_version: 1
-generated_against: <commit-SHA-of-origin/main-at-bootstrap-time>
+id: <lesson_id>                    # e.g. a1-03-strongly-seeing
+cluster: <cluster_id>              # e.g. a1
+title: <lesson title>
+pass: 2
+prerequisites:                     # lesson IDs whose mental models this lesson assumes
+  - <prereq_lesson_id>
+kb_topics:                         # paths under platform-sdk/docs/consensus-layer/
+  - architecture/topics/<topic>.md
+kb_concepts:
+  - concepts/<concept>.md
+kb_glossary_terms:                 # term keys from glossary.md
+  - <term-key>
+kb_invariants:                     # INV-NNN identifiers
+  - INV-NNN
+kb_deltas:
+  - delta-map/<topic>.md
+kb_decisions:                      # ADR-NNN identifiers (optional)
+  - ADR-NNN
+learning_objectives:               # what the learner can do after this lesson
+  - <objective>
+threshold_concepts:                # concepts this lesson establishes or revisits; empty if none
+  - <concept name>
+estimated_session_minutes: <int>
+status: drafted
+last_verified_against: <git-sha-of-main-at-authoring-time>
 ---
-- lesson_id: pass1-1-transaction-to-consensus
-  cluster: pass1
-  title: Transaction to consensus
-  scenario_kind: canonical
-  prerequisites: []
-  status: planned
-- lesson_id: pass1-2-node-falls-behind
-  cluster: pass1
-  title: Node falls behind
-  scenario_kind: canonical
-  prerequisites: []
-  status: planned
-# ... remaining Pass 1 entries ...
-- lesson_id: 0-1-task-schedulers-and-queues
-  cluster: '0'
-  title: Task schedulers and queues
-  source_topic_id: wiring-framework
-  prerequisites: [pass1-4-event-creation-under-stress]
-  status: planned
-# ... remaining Pass 2 entries, then Pass 3 ...
 ```
 
-Above the YAML, include a short prose header explaining the file's purpose, the fixed-order policy, and a one-line note that the file is human-editable between runs and that this prompt re-reads it on every invocation.
+# {Lesson title}
 
-</phase_one_bootstrap>
+## Prerequisites
 
-<phase_two_author_one_lesson>
+List each prerequisite lesson by ID and give a one-line description of the mental model that lesson establishes — enough for a senior engineer to judge whether they feel solid on it. If this lesson has no prerequisites, state so explicitly:
 
-Read `tutor/curriculum.md`. Find the first entry whose `status` is `planned` and whose lesson file at `tutor/lessons/<lesson_id>.md` does not already exist. That entry is the target. If no such entry exists, the curriculum is complete; report that and stop.
+> None — this lesson assumes only general distributed-systems background.
 
-Before drafting, read the inputs from the repo. The set depends on the entry's cluster.
+Do not omit this section even when prerequisites are empty; the tutor's entry behavior is uniform across lessons.
 
-For Pass 2 entries (cluster in `0`, `A.1`–`A.5`, `B`, `C`, `D`):
+## Incoming retrieval probes
 
-- `platform-sdk/docs/consensus-layer/architecture/topics/<source_topic_id>.md` — the topic file that anchors this cluster or sub-cluster.
-- Every concept file referenced from that topic — `platform-sdk/docs/consensus-layer/concepts/<concept>.md`.
-- `platform-sdk/docs/consensus-layer/glossary.md`.
-- `platform-sdk/docs/consensus-layer/invariants.md`.
-- `platform-sdk/docs/consensus-layer/delta-map/<source_topic_id>.md`.
-- The source code at every code anchor named in the topic file. Open each file, locate the function or line referenced, confirm it exists. If the function moved or the line number drifted from what the topic file claims, write the lesson against the current code location and note the drift in the Open questions callout.
+List concepts from prior lessons that should be retrieved before this lesson's new content lands on top of them. Each probe carries the concept name, a free-recall prompt for the tutor to run, and the canonical answer the tutor consolidates against. Threshold concepts from earlier lessons whose successive-relearning interval lands in this lesson's session belong here. If the lesson sits early enough in the curriculum that no probes apply, state so explicitly.
 
-For Pass 1 and Pass 3 entries (cluster `pass1` or `pass3`):
+## Misconception watchlist
 
-- `architecture/topics/<topic>.md` for every component the scenario touches.
-- Every concept file referenced from those topic files.
-- `glossary.md`.
-- `invariants.md`.
-- For Pass 3 entries that reference scenario IDs, the corresponding `scenarios/SCN-NNN-*.md` files.
+Enumerate the senior-engineer wrong models most likely to surface on this material. Each entry names the misconception, what it sounds like in learner utterances, and the correction the tutor applies in line. Pay particular attention to imports from Paxos, Raft, and PBFT that look right on the surface and break on closer reading of the hashgraph specifics — these are the dominant failure mode for this audience. If the topic does not surface a familiar adjacent-protocol analog, note that and list whatever else the literature or KB flags as a likely confusion.
 
-Verify code anchors. Run `git rev-parse origin/main`; if `origin/main` is not configured, fall back to `git rev-parse HEAD` and note in the lesson's Open questions callout that the SHA is from the local branch rather than `origin/main`. The resolved SHA goes in the lesson's frontmatter as `last_verified_against`. The anchors themselves render as GitHub URLs against the `main` branch in the lesson body for learner readability; the SHA in frontmatter is the verification record.
+## Productive impasse
 
-Draft the lesson against the appropriate template — `lesson_template_pass2` below for Pass 2 entries, `scenario_template_pass1_pass3` for Pass 1 and Pass 3. Pass 1 entries set `depth: lightweight` and stay at altitude — name the action, not the mechanism. Pass 3 entries set `depth: full` and go into mechanism with KB citations. Scenarios in Pass 3 that revisit a Pass 1 canonical use `scenario_kind: canonical`; the five new scenarios at the end use `scenario_kind: edge-case`.
+Pose the prediction problem before delivering canonical content. The section contains:
 
-Pull definitions from `concepts/` rather than restating them, and reference each concept by markdown link to its file. Same for invariants by `INV-NNN`, glossary terms, and delta entries. The tutor-Claude reads the same KB; restating definitions in lessons creates drift surface and dilutes the spiral structure.
+- The framing scenario — concrete enough that the learner has something to predict against. Anchor in real test runs or KB scenarios where possible.
+- The prediction prompt the tutor reads to the learner, phrased as low-stakes thinking-aloud ("what's your gut prediction here?" or "before I show what happens, what does your model say?"). Avoid quiz framing.
+- Confidence elicitation when the prediction targets a concept where high-confidence wrong beliefs are likely — the hypercorrection effect is strongest there.
+- The reveal — what the code or specification actually does, with a direct pointer (file path link, or GitHub URL when a code anchor is involved) rather than a restatement.
+- The consolidation move — explicit contrast between the predicted behavior and the canonical mechanism. Name what the learner's model was missing and why the codebase's choice resolves it. This is the step Loibl et al. 2017 flag as essential and most often skipped.
 
-Lessons are production-quality drafts, not placeholders. Write the prose at the level of detail a consensus-team engineer would actually want; the comprehension prompt is one to three Socratic invitations, not a quiz. Cluster-final lessons add a `## Cluster worked example` section between Comprehension prompt and Where we're going next, showing the cluster's components collaborating rather than describing each in turn.
+For threshold concepts, the impasse takes a predict-observe-explain or productive-failure shape. For codebase-procedural material where the learner is a novice on the specifics, the impasse can take a worked-example-with-blanks shape — present the surrounding mechanism, leave the load-bearing step for the learner to predict.
 
-When the KB or code is silent on something the lesson needs, write a bracketed `[TBD]` marker in place rather than fabricating. At the end of the lesson body — for Pass 2 entries, between Comprehension prompt and Where we're going next; for Pass 1 and Pass 3 entries, after the Comprehension prompt — surface every `[TBD]` in a small callout titled "Open questions". Format each entry as a one-line restatement of what is unknown plus a pointer to where it would be answered (KB section, ADR slug, or SME). Lessons commit despite open questions; SME review fills them.
+## Mechanism
 
-Write the lesson file at `tutor/lessons/<lesson_id>.md`.
+Pre-training: name the key components and terms this lesson integrates, with one-sentence semantics each. Pull definitions from `glossary.md` and `concepts/` by link rather than restating.
 
-Update `tutor/curriculum.md`: change the target entry's `status` from `planned` to `drafted`. The curriculum is the source of truth for status across the repo; tools that read the manifest depend on this update happening in the same run as the lesson write.
+Then segment the mechanism into small chunks the tutor paces through. For each chunk:
 
-Stop.
+- A short prose description anchored on the actual code behavior, with a link to the relevant topic file under `architecture/topics/`.
+- The code anchor as a GitHub URL against `main` (the `last_verified_against` SHA in frontmatter records the verification point). Use the format `https://github.com/<org>/<repo>/blob/main/path/to/file.java#L<start>-L<end>`. Discover the canonical org/repo via `git remote get-url origin`.
+- A signaling note when the chunk includes safety-critical or invariant-bearing lines versus bookkeeping — mark the load-bearing lines explicitly so the tutor knows where to invest self-explanation effort.
+- A self-explanation prompt at each load-bearing line, principle-based and inference-demanding rather than open-ended. "Which invariant justifies this step?" "What failure scenario does this rule prevent?" "What breaks in the next round if we remove this check?" Avoid "explain this" — it produces restatement.
+- When the chunk's design hinges on a decision with documented alternatives, link the relevant ADR under `decisions/` rather than reconstructing the rationale in prose.
 
-<lesson_template_pass2>
+## Contrasting cases
 
-Use this template verbatim for every cluster `0`, `A.1`–`A.5`, `B`, `C`, `D` entry.
+Include this section only when the lesson covers a threshold concept; omit otherwise.
 
-```markdown
----
-lesson_id: <cluster>-<n>-<slug>
-cluster: <0 | A.1 | A.2 | A.3 | A.4 | A.5 | B | C | D>
-title: <Lesson title>
-prerequisites: [<lesson_ids>]
-kb_refs:
-  topics: [<topic_ids>]
-  concepts: [<concept_slugs>]
-  invariants: [<INV-NNN>]
-  glossary_terms: [<terms>]
-learning_objectives:
-  - <objective 1>
-  - <objective 2>
-estimated_read_minutes: <n>
-status: drafted
-last_verified_against: <commit-SHA>
----
+Provide two or three contrasting cases — e.g. this codebase's choice versus a textbook approach, or hashgraph's mechanism versus the analogous mechanism in a familiar BFT variant. For each case, give a short concrete description, the surface differences, and the comparison prompt the tutor reads to the learner. Name the deep invariant that survives the surface differences — this is the structural transfer that the contrasting-cases technique exists to produce.
 
-# <Lesson title>
+## Completion problems
 
-## Where we are
+Progressive problems that fade scaffolding step by step. The first problem leaves a small step blank in an otherwise complete worked example; later problems leave more blank, until the learner is producing the full step from a posed scenario. Each problem ships with:
 
-One or two paragraphs placing this lesson in the spiral.
-
-## Motivating problem
-
-The specific failure or capability gap the topic addresses.
-
-## Concept
-
-The core mental model. Reference concepts/ files for definitions rather than restating.
-
-## How it works
-
-The mechanism, anchored in current code. Defer full depth to architecture/topics/.
-
-## Worked example
-
-A concrete, scenario-anchored walkthrough.
-
-## Code anchor
-
-GitHub URLs to main. The verifying SHA goes in frontmatter as last_verified_against.
+- The problem statement.
+- The hint ladder the tutor escalates through: where in the codebase or KB to look first, then a focused question, then a partial walkthrough, then the full answer. Full answers stay at the bottom rung, gated on demonstrated effort.
+- The canonical answer and the invariant or mechanism it exercises.
 
 ## Delta callout
 
-Reference delta-map/<topic>.md. Skip cleanly if no delta applies.
+Brief callout pointing to `delta-map/<topic>.md` for the difference between current code and the proposed redesign on the material this lesson covers. Summarize the delta's status (`done`, `partial`, `not started`, `divergent`) in one line and link the file. Do not restate the delta in detail — the delta-map is the canonical source and the lesson exists alongside it.
 
-## Comprehension prompt
+## Transfer prompt
 
-One to three Socratic invitations for the tutor chat.
+Forward-pointing bridge that asks the learner to predict the system's behavior under a new failure mode, or to articulate how the invariant just learned will be challenged in a future cluster. Keep it open-ended enough that the answer requires applying the lesson's mechanism to a novel situation rather than retrieving it. This primes the next cluster while consolidating the present one.
 
-## Where we're going next
+## Close-out retrieval
 
-One paragraph handing off to the next lesson.
-```
+Two retrieval acts the tutor runs before ending the session.
 
-Cluster-final lessons add a `## Cluster worked example` section between Comprehension prompt and Where we're going next.
+- Free-recall summary: the tutor asks the learner to articulate the load-bearing invariant or mechanism in their own words. Provide the prompt and the canonical answer for the tutor to consolidate against.
+- Successive-relearning tags: for each threshold concept this lesson establishes, name when it should be probed in subsequent sessions — roughly day 1, day 3, and two weeks. The tutor adds these to the learner's relearning queue. If the lesson establishes no threshold concept, state so explicitly.
 
-</lesson_template_pass2>
+## Open questions
 
-<scenario_template_pass1_pass3>
+Surface every `[TBD]` marker from the body here, each as a short line naming what the lesson needs the reviewer to fill in. If the lesson has no open questions, state so explicitly. Lessons commit despite open questions; reviewer review closes them.
 
-Use this template verbatim for every `pass1` or `pass3` entry.
+</lesson_template>
 
-```markdown
+<scenario_template>
+
+<!--
+Template justification — section list traced to research and system prompt:
+
+  - Prerequisites and Incoming probes: same rationale as the lesson template;
+    Pass 3 entries lean heavily on this because scenarios stitch multiple
+    Pass 2 clusters and the tutor needs to retrieve their threshold concepts
+    before the trace re-engages them.
+
+  - Misconception watchlist: same EMT rationale; Pass 3 entries surface
+    cross-cluster misconceptions (e.g. assuming reconnect and freeze can
+    progress independently) that no single Pass 2 lesson covers.
+
+  - Components in scope: Mayer's pre-training principle. Scenarios touch
+    several components; naming each with one-sentence semantics up front
+    relieves working memory before the trace integrates them.
+
+  - Scenario setup and Productive impasse: research mandates a prediction
+    before the canonical content, scaled to the depth of the scenario.
+    Orientation scenarios use light prediction (role-level), full and edge
+    scenarios use rigorous prediction (mechanism-level, with confidence
+    elicitation for high-leverage transitions).
+
+  - Trace: the scenario's spine. Pass 1 stays at role and component level
+    (no code anchors); Pass 3 anchors each stop in code, marks load-bearing
+    transitions, and surfaces cross-cluster stitch points.
+
+  - Perturbation prompts: Pass 3 only. The project brief's success criteria
+    require learners to predict behavior under perturbations; the scenario
+    is where this capability is exercised.
+
+  - Delta callouts: Pass 3 only; orientation scenarios stay at present-code
+    altitude and leave delta material to the Pass 2 lessons.
+
+  - Consolidation: same Loibl et al. 2017 rationale — explicit contrast
+    between predictions and canonical, named at the end of the trace.
+
+  - Close-out: orientation scenarios consolidate the mental sketch; full and
+    edge scenarios consolidate cross-cluster invariants with
+    successive-relearning tags.
+
+  - Forward pointers: orientation scenarios point to the Pass 2 lessons that
+    cover each component's mechanism in depth — completing the spiral
+    pedagogy. Pass 3 entries point to related Pass 3 entries when relevant.
+
+  - Open questions: same KB-silence-over-fabrication principle.
+
+The depth flag (`orientation`, `full`, `edge`) tunes which sections are
+fleshed out: orientation skips misconception watchlist, code anchors,
+perturbation prompts, and delta callouts; full and edge populate all of them.
+-->
+
+```yaml
 ---
-lesson_id: <pass>-<n>-<slug>
-cluster: pass1 | pass3
-scenario_kind: canonical | edge-case
-depth: lightweight | full
-components_touched: [<topic_ids>]
-kb_refs:
-  topics: [<topic_ids>]
-  concepts: [<concept_slugs>]
-  invariants: [<INV-NNN>]
-  scenarios: [<SCN-NNN>]
-prerequisites: [<lesson_ids>]
+id: <scenario_id>                  # e.g. pass1-01-tx-to-consensus, pass3-edge-01-reconnect-during-freeze
+cluster: <cluster_id>              # pass1, pass3-canonical, or pass3-edge
+title: <scenario title>
+pass: <1 or 3>
+depth: <orientation | full | edge>
+prerequisites:
+  - <prereq_lesson_id>
+kb_topics_touched:                 # every component the scenario walks through
+  - architecture/topics/<topic>.md
+kb_concepts:
+  - concepts/<concept>.md
+kb_glossary_terms:
+  - <term-key>
+kb_invariants:                     # populate for full and edge; empty for orientation
+  - INV-NNN
+kb_deltas:                         # populate for full and edge; empty for orientation
+  - delta-map/<topic>.md
+kb_scenarios:                      # SCN-NNN entries the scenario references; typical for edge cases
+  - SCN-NNN
+learning_objectives:
+  - <objective>
+threshold_concepts:                # populate for full and edge; empty for orientation
+  - <concept name>
+estimated_session_minutes: <int>
 status: drafted
-last_verified_against: <commit-SHA>
+last_verified_against: <git-sha-of-main-at-authoring-time>
 ---
-
-# <Scenario name>
-
-## What we're tracing
-
-One or two sentences. Starting condition and end state.
-
-## Setup
-
-The relevant initial state. Brief.
-
-## Walkthrough
-
-Numbered steps. Pass 1 stays at altitude — names the action, not the mechanism. Pass 3 goes into mechanism, citing KB sections for full depth.
-
-## Components met
-
-Pass 1 only. Bullet list of components touched, each linking to the Pass 2 lesson covering it.
-
-## What this exercises across clusters
-
-Pass 3 only. One paragraph naming the clusters this scenario stitches and the interactions it stress-tests.
-
-## Comprehension prompt
-
-One or two Socratic invitations for the tutor chat.
 ```
 
-</scenario_template_pass1_pass3>
+# {Scenario title}
 
-</phase_two_author_one_lesson>
+## Prerequisites
 
-<scope_discipline>
-Produce exactly one lesson per invocation. Do not expand scope beyond the template's sections. Do not pre-answer questions the tutor chat would handle Socratically — comprehension prompts are openings, not quizzes with answer keys. Do not add lessons not in the curriculum. Do not merge or split curriculum entries during a one-lesson run; if the right move is to restructure a cluster, leave a note in the Open questions of the lesson you did write and stop. The user revises the curriculum between runs.
-</scope_discipline>
+List each prerequisite lesson by ID with a one-line description of the mental model it establishes. For Pass 1 orientation scenarios this section typically reads:
 
-<tone>
-Lessons are clear, direct, and technical. The audience is internal consensus-team engineers with strong distributed-systems backgrounds and high-level Hedera familiarity; assume they know the vocabulary in `glossary.md` once introduced. Lessons read alongside the tutor-Claude, so they leave Socratic openings — comprehension prompts invite, they do not interrogate. Markdown discipline: prose with code-block anchors and small structured callouts; no decorative bolding; no emoji.
-</tone>
+> None — orientation scenario. Assumes only the high-level Hedera familiarity that the audience brings in.
 
-<reporting>
-At the end of the run, print three lines:
+For Pass 3 canonicals and edges this section typically lists the Pass 2 lessons whose mechanisms the scenario exercises. The section is present in every scenario regardless so the tutor's entry behavior stays uniform.
 
-- The `lesson_id` written.
-- The curriculum entry index — its 1-based ordinal in the manifest.
-- The count of remaining entries with `status: planned` after this run.
+## Incoming retrieval probes
 
-If the bootstrap phase ran, also print the path of the curriculum file written and the count of total entries in it. If the curriculum was already complete at the start of the run — no `planned` entries remaining and all lesson files present — print that and stop without writing anything.
-</reporting>
+For orientation scenarios: omit or note "None — orientation scenario, no incoming probes."
 
----
+For full and edge scenarios: list threshold concepts from prior Pass 2 or Pass 3 entries that should be retrieved before the trace re-engages them. Each probe carries the concept, the recall prompt, and the canonical answer for the tutor to consolidate against. Cross-cluster scenarios depend on this — without retrieving the relevant Pass 2 mechanisms, the learner cannot follow the cross-cluster interaction.
 
-## KB path reference
+## Misconception watchlist
 
-The paths read for each lesson type, for quick reference.
+For orientation scenarios: omit. Orientation work is too shallow to surface deep misconceptions.
 
-Pass 2 entries (clusters `0`, `A.1`–`A.5`, `B`, `C`, `D`):
+For full and edge scenarios: enumerate likely wrong models the learner may hold, especially cross-cluster ones that no single Pass 2 lesson would address — e.g. assuming a reconnect can interleave freely with a freeze, or assuming PCES replay restores state to exactly the pre-shutdown moment. Each entry names the misconception, the learner utterance to listen for, and the correction.
 
-- `platform-sdk/docs/consensus-layer/architecture/topics/<source_topic_id>.md`
-- `platform-sdk/docs/consensus-layer/concepts/<each-referenced-concept>.md`
-- `platform-sdk/docs/consensus-layer/glossary.md`
-- `platform-sdk/docs/consensus-layer/invariants.md`
-- `platform-sdk/docs/consensus-layer/delta-map/<source_topic_id>.md`
-- Source files at the code anchors named in the topic file.
+## Components in scope
 
-Pass 1 and Pass 3 entries:
+Pre-training section. Name each component the scenario touches and give a one-sentence semantic for each, linked to its topic file under `architecture/topics/`. Orientation scenarios stop here for component vocabulary; full and edge scenarios use this as a reminder before the deeper trace begins.
 
-- `platform-sdk/docs/consensus-layer/architecture/topics/<each-component-topic>.md`
-- `platform-sdk/docs/consensus-layer/concepts/<each-referenced-concept>.md`
-- `platform-sdk/docs/consensus-layer/glossary.md`
-- `platform-sdk/docs/consensus-layer/invariants.md`
-- For Pass 3 entries referencing scenario IDs: `platform-sdk/docs/consensus-layer/scenarios/SCN-NNN-*.md`
+## Scenario setup
 
-Bootstrap reads, only on the first invocation in a fresh repo:
+The initial state of the system and the triggering event or events that start the trace. Concrete enough that the learner can hold the state mentally — name the relevant nodes, the relevant queues or buffers, the relevant rounds. Anchor in a real test run or a documented `scenarios/SCN-NNN` entry where one applies.
 
-- `platform-sdk/docs/consensus-layer/README.md`
-- The KB layout document (repo root or onboarding materials).
-- `platform-sdk/docs/consensus-layer/architecture/overview.md`
-- All files under `platform-sdk/docs/consensus-layer/architecture/topics/`
-- All files under `platform-sdk/docs/consensus-layer/concepts/`
+## Productive impasse
+
+For orientation scenarios: a light prediction at role level. "Before I walk through what happens, which components do you think get involved here, and in what order?" Frame as thinking-aloud.
+
+For full and edge scenarios: a rigorous prediction. Pose a high-leverage question whose answer hinges on a load-bearing mechanism in the trace. Elicit confidence when high-confidence wrong beliefs are likely. The reveal comes through the trace itself; the consolidation comes at the end of the trace.
+
+## Trace
+
+The scenario's spine, segmented into stops. Each stop carries:
+
+- The component or transition the stop sits at, linked to its topic file.
+- A short prose description of what happens at the stop, at the appropriate altitude — role-level for orientation, mechanism-level for full and edge.
+- A code anchor as a GitHub URL against `main` (full and edge only; orientation omits code anchors and stays at role level).
+- Predict-then-reveal moves at high-leverage transitions, especially in full and edge scenarios. Frame as thinking-aloud, not quiz.
+- Self-explanation prompts at invariant-bearing transitions (full and edge), principle-based — "which invariant survives this transition?" "what would break if this component skipped this step?"
+- Cross-cluster stitch callouts (full and edge) at points where this scenario touches a mechanism from a different cluster than the one the current stop sits in. Name the stitch explicitly — these are the cross-cluster interactions the Pass 2 lessons could not teach in isolation.
+
+For orientation scenarios the trace is the whole point: walk the components and their roles, plant the complete-but-low-fidelity mental sketch, do not go deep on mechanism. For full and edge scenarios the trace integrates everything the prerequisite Pass 2 lessons established.
+
+## Perturbation prompts
+
+Omit for orientation scenarios.
+
+For full and edge scenarios: questions of the form "what changes if X happens at this point in the trace?" — the perturbation prediction the project brief's success criteria require. Each prompt names the perturbation, the trace stop it applies to, and the canonical answer for consolidation. Edge cases often have the perturbation prompt as the spine of the scenario itself, since the edge case is the perturbation.
+
+## Delta callouts
+
+Omit for orientation scenarios — they stay at present-code altitude and leave deltas to the Pass 2 lessons.
+
+For full and edge scenarios: brief callouts pointing to `delta-map/<topic>.md` for each touched component whose redesign would alter the trace. Summarize the delta's effect on the scenario in one line and link the file. Do not restate the delta.
+
+## Consolidation
+
+Explicit contrast between the learner's predictions and the canonical mechanism, named at the end of the trace. For orientation scenarios this is a brief consolidation of the mental sketch — "the learner should now be able to name each component and its role." For full and edge scenarios this is the deep consolidation: which invariants the trace exercised, where the prediction missed, what the codebase's choice resolves, and (for cross-cluster scenarios) which cluster interactions the trace surfaced.
+
+## Close-out
+
+For orientation scenarios: a brief mental-sketch consolidation, plus a pointer to the Pass 2 lessons that deepen each component (these belong in Forward pointers below as well, but a sentence in the close-out reinforces the spiral).
+
+For full and edge scenarios: two retrieval acts as in the lesson template — a free-recall summary of the load-bearing cross-cluster invariant in the learner's own words, and successive-relearning tags for any threshold concept the scenario revisited or established.
+
+## Forward pointers
+
+For orientation scenarios: the Pass 2 lesson IDs that cover each touched component's mechanism in depth. Completing the spiral — orientation plants the sketch, Pass 2 fills the mechanism, Pass 3 stitches them.
+
+For full and edge scenarios: links to related Pass 3 entries that share components or invariants, so the curriculum's last-stretch cross-references stay visible.
+
+## Open questions
+
+Surface every `[TBD]` marker from the body. Same KB-silence-over-fabrication principle as the lesson template.
+
+</scenario_template>
+
+<coherence_with_tutor_system_prompt>
+Each authored lesson supplies content in the shape the tutor's delivery model needs. The coherence requirements below are the load-bearing ones — write each lesson so the tutor can deliver it without improvising the scaffolding the system prompt expects to find pre-shaped.
+
+The tutor surfaces the Prerequisites section at session entry and asks for confirmation rather than probing. Write each prerequisite description as a single line that a senior engineer can read and respond to with a yes-or-no readiness judgement — not as a paragraph, not as a checklist of sub-topics. The section is uniform across all lessons including those with no prerequisites.
+
+The tutor runs incoming retrieval probes early in the session as recall-with-feedback. Each probe needs three components present in the lesson: the concept being retrieved, the prompt the tutor reads to the learner, and the canonical answer the tutor consolidates against. The probe is run as a thinking-aloud move, not a quiz.
+
+The tutor escalates a hint ladder when the learner is stuck — point to where to look, then a focused question, then a partial walkthrough, then the full answer. The Completion problems section ships each problem with its hint ladder so the tutor does not have to invent the rungs in the moment.
+
+The tutor elicits predictions before revealing mechanisms at high-leverage moments. The Productive impasse section pre-stages the prediction prompt, the framing scenario, and the consolidation move so the predict-observe-explain sequence is structurally complete when the tutor reaches it. Without the consolidation move pre-staged the effect collapses.
+
+The tutor uses different postures for concept-level versus codebase-procedural material within the same lesson. The Mechanism section marks chunks that are concept-level (where the tutor defaults to less scaffolding) versus codebase-procedural (where the tutor defaults to worked examples with self-explanation prompts at the load-bearing lines). Signaling load-bearing versus bookkeeping is how the tutor knows where to invest self-explanation effort.
+
+The tutor refuses restatement as self-explanation and pushes for inference. Self-explanation prompts at load-bearing lines are principle-based ("which invariant justifies this step?") rather than open ("explain this"), so the prompt itself elicits inference rather than paraphrase.
+
+The tutor uses the Misconception watchlist during delivery to detect Paxos/Raft/PBFT imports and other senior-engineer wrong models. Each entry pre-stages the learner utterance to listen for and the correction to apply, so the tutor recognizes the misconception in line rather than discovering it from scratch.
+
+The tutor declines to fabricate when the KB is silent. Open questions surface every gap so the tutor and the reviewer share a single canonical list rather than the tutor improvising answers and the reviewer never seeing them.
+
+Across the curriculum, scaffolding withdraws as the learner progresses through a cluster. Earlier lessons in a cluster carry fuller worked examples and richer hint ladders; later lessons in the cluster — and especially the synthesis lesson at A.5 or each cluster's terminal entry — present the same content shape with less scaffolding, so the tutor's contingent fading has material at the right altitude. When authoring a later-cluster lesson, write the completion problems with fewer hint rungs and the mechanism walkthrough with fewer signaling markers than the cluster's opening lessons.
+</coherence_with_tutor_system_prompt>
+
+<authoring_principles>
+Lessons are production quality, not stubs. Each section is populated with real content drawn from the KB and code, not placeholder text. The lesson is committed and run by the tutor as-is; subsequent reviewer review fills `[TBD]` markers and tightens phrasing.
+
+Cite the KB by link rather than restating. `concepts/` files own the canonical mental models; `architecture/topics/` files own mechanism prose; `glossary.md` owns term definitions; `invariants.md` owns INV-NNN claims; `delta-map/` files own current-versus-proposed differences; `decisions/` owns ADR rationale. The lesson exists alongside these files and gains nothing by copying them — link instead, and the lesson stays evergreen as the KB updates.
+
+Code anchors are GitHub URLs against `main`, formatted `https://github.com/<org>/<repo>/blob/main/path#L<start>-L<end>`. Discover the canonical org/repo via `git remote get-url origin` rather than hardcoding. The `last_verified_against` SHA in frontmatter records the verification point; the lesson body links against `main` so the reader sees the current line ranges, and the tutor can flag drift against the recorded SHA.
+
+When the KB or the code does not speak to a question the lesson needs to answer, write `[TBD: short description]` rather than fabricating. Surface every marker at the end under Open questions. The audience trusts the tutor precisely because it does not pretend to know things it does not — this discipline starts at the lesson level.
+
+Avoid restating concept-level mechanisms the audience already understands. Senior engineers have strong distributed-systems schemas; front-loading textbook BFT explanations is expertise-reversal harm and reads as condescension. For concept-level material, anchor the lesson on prediction and contrast against the canonical mechanism; reserve heavy worked-example scaffolding for codebase-procedural material where the learner is a novice on the specifics.
+
+Do not pre-answer the questions the tutor's dialogue would handle. The lesson is the tutor's script, not a transcript. A completion problem provides the problem and the hint ladder and the canonical answer — it does not provide the conversation that gets the learner from one to the other. That conversation is the tutor's job, conducted live.
+
+Stay within the template's section list. Do not add sections the template does not name; do not split or merge sections; do not introduce new frontmatter fields. The template encodes the tutor's expected delivery surface, and adding sections silently breaks that surface.
+
+Author exactly one lesson per invocation. The next invocation picks up the next entry. Do not author lessons not in the manifest; do not merge or split manifest entries during a one-lesson run. If the manifest entry feels wrong — too narrow, too broad, mis-ordered — report this in the run summary rather than acting on it; the reviewer edits the manifest between runs.
+</authoring_principles>
+
+<output_protocol>
+On a bootstrap run: write `tutor/curriculum.md`, report the total entry count and the cluster-by-cluster breakdown, and stop without authoring any lesson.
+
+On an authoring run: write `tutor/lessons/<lesson_id>.md`, update the manifest entry's `status` to `drafted`, and report three things — the `lesson_id` written, its `index` in the manifest, and the count of entries that still lack files. Stop.
+
+Implement changes directly rather than proposing them. If a detail is ambiguous (which concept file anchors a sub-lesson, how to slug a Pass 3 edge entry's filename), infer the most useful action and proceed; record any inference worth a reviewer's attention in the run summary.
+</output_protocol>
+
+<kb_paths_reference>
+
+For Pass 2 lessons, an authoring run reads:
+
+- `architecture/topics/<source_topic>.md` — mechanism prose, code anchors, cross-references.
+- `concepts/<concept>.md` — canonical mental models for the lesson's anchor concepts.
+- `glossary.md` — term definitions the lesson surfaces.
+- `invariants.md` — INV-NNN claims the lesson rests on.
+- `delta-map/<source_topic>.md` — current-versus-proposed differences for the delta callout.
+- `decisions/ADR-NNN-*.md` — alternatives and consequences when the lesson hinges on a documented decision.
+- The source code at the line ranges the topic file's anchors name.
+
+For Pass 1 orientation scenarios, an authoring run reads:
+
+- `architecture/topics/<topic>.md` — one file per component the scenario walks through.
+- `concepts/<concept>.md` — for any term the trace introduces.
+- `glossary.md`.
+
+For Pass 3 canonicals and edges, an authoring run reads everything a Pass 2 lesson would read for each touched topic, plus:
+
+- `invariants.md` — every invariant the scenario exercises.
+- `delta-map/<topic>.md` — every touched component whose redesign would alter the trace.
+- `scenarios/SCN-NNN-*.md` — for any scenario the entry references (typical for edge cases that correspond to documented near-misses).
+
+For the bootstrap run, additional reads:
+
+- The project brief (the curriculum planning document, discoverable in the repo).
+- The KB layout document.
+- The full listings of `architecture/topics/`, `concepts/`, and any other directory under `platform-sdk/docs/consensus-layer/` whose contents shape the cluster-by-cluster sub-lesson breakdown.
+
+</kb_paths_reference>
