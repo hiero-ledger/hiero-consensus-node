@@ -210,6 +210,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     throw new AssertionError("Block node WRB stream validation failed:" + ERROR_PREFIX + maybeErrors);
                 }
             });
+        } else {
+            validateProofs(spec);
         }
 
         // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files

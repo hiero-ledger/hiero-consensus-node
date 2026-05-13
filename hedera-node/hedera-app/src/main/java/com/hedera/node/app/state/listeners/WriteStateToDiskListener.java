@@ -17,7 +17,6 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -119,47 +118,21 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
             final var blockStreamFuture = requireNonNull(blockStreamManager.pendingBlockProofsFuture());
             final var wrbWritersFuture = requireNonNull(blockRecordManager.noOpenWrbWritersFuture());
             final var freezeCompleteFuture = requireNonNull(freezeMarkerPlatformStatus.freezeCompleteFuture());
-            final var config = configProvider.getConfiguration();
-            final var nowFrozenWriteTimeout =
-                    config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
-            final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-
-            CompletableFuture<Void> blockNodeAckFuture = CompletableFuture.completedFuture(null);
-            final long freezeBlockNumber = blockBufferService.getLastBlockNumberProduced();
-            if (blockStreamConfig.streamToBlockNodes() && freezeBlockNumber >= 0) {
-                final var ackTimeout = blockStreamConfig.freezeBlockAckTimeout();
-                blockNodeAckFuture = blockBufferService
-                        .registerFreezeBlockAckFuture(freezeBlockNumber)
-                        .orTimeout(ackTimeout.toNanos(), NANOSECONDS)
-                        .whenComplete((v, t) -> {
-                            if (t == null) {
-                                log.info(
-                                        "Block node acknowledged freeze block {}; ack gate satisfied",
-                                        freezeBlockNumber);
-                            } else if (t instanceof TimeoutException) {
-                                log.warn(
-                                        "Block node ack gate timed out after {} waiting for ack of freeze block {}; "
-                                                + "proceeding with upgrade marker externalization",
-                                        ackTimeout,
-                                        freezeBlockNumber);
-                            }
-                        })
-                        .exceptionally(t -> null);
-            }
-
+            final var nowFrozenWriteTimeout = configProvider
+                    .getConfiguration()
+                    .getConfigData(HederaConfig.class)
+                    .nowFrozenWriteTimeout();
             log.info(
                     "Freeze state written for round {}; waiting to externalize upgrade marker until "
-                            + "pending block proofs, WRB writers, FREEZE_COMPLETE status, and block node freeze block ack complete; "
+                            + "pending block proofs, WRB writers, and FREEZE_COMPLETE status complete; "
                             + "timeout={}, blockStreamFutureDone={}, wrbWritersFutureDone={}, "
-                            + "freezeCompleteFutureDone={}, blockNodeFreezeBlockAckFutureDone={} (freezeBlock={})",
+                            + "freezeCompleteFutureDone={}",
                     notification.getRoundNumber(),
                     nowFrozenWriteTimeout,
                     blockStreamFuture.isDone(),
                     wrbWritersFuture.isDone(),
-                    freezeCompleteFuture.isDone(),
-                    blockNodeAckFuture.isDone(),
-                    freezeBlockNumber);
-            return allOf(blockStreamFuture, wrbWritersFuture, freezeCompleteFuture, blockNodeAckFuture)
+                    freezeCompleteFuture.isDone());
+            return allOf(blockStreamFuture, wrbWritersFuture, freezeCompleteFuture)
                     .orTimeout(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
         } catch (final RuntimeException e) {
             log.warn(

@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * Validates that each WRB (Wrapped Record Block) block's {@link com.hedera.hapi.block.stream.output.RecordFileItem}
+ * Validates that each WRB (Wrapped Record Block) block's
  * contents — both the {@code RecordStreamFile} and sidecar files — match the corresponding files written to disk
  * by the node, matched by block number.
  */
