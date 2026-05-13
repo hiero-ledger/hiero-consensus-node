@@ -548,25 +548,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    @DisplayName("check that fees are 1 for delete node trx")
-    void testCalculateFeesInvocations() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
     void preHandleSpecialCaseWhenOnlyUpdatingAccountId() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();

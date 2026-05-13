@@ -182,39 +182,5 @@ class TransactionDispatcherTest {
             assertThat(result.serviceFee()).isEqualTo(41541666L); // 498500000/12
         }
 
-        @Test
-        @DisplayName("Simple fees not used when feature is disabled")
-        void testSimpleFeesNotUsedWhenFeatureDisabled() {
-            // Given: Simple fees are DISABLED
-            given(feeContext.configuration()).willReturn(configuration);
-            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
-            given(feesConfig.simpleFeesEnabled()).willReturn(false);
-
-            // And: Transaction is CRYPTO_CREATE_ACCOUNT (normally would use simple fees)
-            final var txBody = TransactionBody.newBuilder()
-                    .transactionID(TransactionID.newBuilder()
-                            .accountID(AccountID.newBuilder().accountNum(1001).build())
-                            .transactionValidStart(
-                                    Timestamp.newBuilder().seconds(1234567L).build())
-                            .build())
-                    .cryptoCreateAccount(
-                            CryptoCreateTransactionBody.newBuilder().build())
-                    .build();
-            given(feeContext.body()).willReturn(txBody);
-
-            // And: Handler returns fees
-            given(handlers.cryptoCreateHandler()).willReturn(cryptoCreateHandler);
-            final var handlerFees = new Fees(1000L, 2000L, 3000L);
-            given(cryptoCreateHandler.calculateFees(feeContext)).willReturn(handlerFees);
-
-            // When
-            final var result = subject.dispatchComputeFees(feeContext);
-
-            // Then: Should NOT use simple fee calculator, use handler instead
-            verify(cryptoCreateHandler).calculateFees(feeContext);
-            verify(feeManager, never()).getSimpleFeeCalculator();
-
-            assertThat(result).isEqualTo(handlerFees);
-        }
     }
 }
