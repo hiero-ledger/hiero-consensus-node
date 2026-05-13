@@ -63,7 +63,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
         @ConfigProperty(defaultValue = "131072000") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
         @ConfigProperty(defaultValue = "200") @Min(1) @NetworkProperty int connectionMonitorCheckIntervalMillis,
-        @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
+        @ConfigProperty(defaultValue = "5000") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
         @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
         @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds,
