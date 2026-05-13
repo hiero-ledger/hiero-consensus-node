@@ -101,8 +101,8 @@ public class DataFileWriterBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        dataFileWriter =
-                new DataFileWriter("test", benchmarkDir, 1, Instant.now(), 1, bufferSizeMb * MEBIBYTES_TO_BYTES);
+        dataFileWriter = new DataFileWriter(
+                "test", benchmarkDir, 1, Instant.now(), 1, bufferSizeMb * MEBIBYTES_TO_BYTES, 1L << 30);
     }
 
     @TearDown(Level.Invocation)

@@ -47,7 +47,6 @@ class BlockStreamConfigTest {
                 Duration.ofSeconds(1),
                 512,
                 500_000_000,
-                false,
                 4096,
                 1024,
                 256,

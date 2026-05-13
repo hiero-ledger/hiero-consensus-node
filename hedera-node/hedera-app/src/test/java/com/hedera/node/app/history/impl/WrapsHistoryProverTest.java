@@ -439,6 +439,82 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void aggregatePhaseSkipsVoteWhenAggregationReturnsNull() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(null);
+
+        setField("entropy", new byte[32]);
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
+
+        final var outcome = subject.advance(
+                EPOCH, constructionWithPhase(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void aggregatePhaseSkipsVoteWhenAggregateSignatureIsInvalid() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(false);
+
+        setField("entropy", new byte[32]);
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
+
+        final var outcome = subject.advance(
+                EPOCH, constructionWithPhase(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void aggregatePhasePublishesIncrementalWrapsVoteWhenSourceProofExtensible() {
         final var sourceProof = HistoryProof.newBuilder()
                 .uncompressedWrapsProof(UNCOMPRESSED)

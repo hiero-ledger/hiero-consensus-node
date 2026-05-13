@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.common;
 
-import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
-import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
+import static org.hiero.base.utility.test.fixtures.file.FileManipulation.corruptFile;
+import static org.hiero.base.utility.test.fixtures.file.FileManipulation.truncateFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

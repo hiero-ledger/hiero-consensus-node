@@ -23,7 +23,15 @@ testFixturesModuleInfo {
 
 tasks.testFixturesJar {
     inputs.files(configurations.testFixturesRuntimeClasspath)
-    manifest { attributes("Main-Class" to "org.hiero.sloth.fixtures.container.docker.DockerMain") }
+    manifest {
+        attributes(
+            "Main-Class" to "org.hiero.sloth.fixtures.container.docker.DockerMain",
+            // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+            // restricted-method warning for callers in the unnamed module of this JAR
+            // when launched via `java -jar` from the Docker image.
+            "Enable-Native-Access" to "ALL-UNNAMED",
+        )
+    }
     doFirst {
         manifest.attributes(
             "Class-Path" to
