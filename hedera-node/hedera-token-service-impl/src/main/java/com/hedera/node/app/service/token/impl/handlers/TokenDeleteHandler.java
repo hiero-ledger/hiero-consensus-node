@@ -10,20 +10,16 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenDeleteUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -111,7 +107,6 @@ public class TokenDeleteHandler implements TransactionHandler {
 
         return token;
     }
-
 
     private FeeData usageGiven(final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo) {
         final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());

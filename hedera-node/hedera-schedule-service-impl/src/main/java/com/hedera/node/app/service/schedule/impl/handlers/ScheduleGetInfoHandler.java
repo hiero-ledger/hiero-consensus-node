@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -23,7 +22,6 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.schedule.ExtantScheduleContext;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;

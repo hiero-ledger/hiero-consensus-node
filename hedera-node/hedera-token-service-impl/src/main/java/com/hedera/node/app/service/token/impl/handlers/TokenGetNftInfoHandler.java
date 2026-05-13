@@ -24,7 +24,6 @@ import com.hedera.node.app.hapi.fees.usage.token.TokenGetNftInfoUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -141,7 +140,6 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
             return Optional.of(info);
         }
     }
-
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Nft nft) {
         if (nft != null) {

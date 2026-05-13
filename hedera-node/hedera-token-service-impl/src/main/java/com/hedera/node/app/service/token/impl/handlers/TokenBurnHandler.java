@@ -9,20 +9,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_META
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -32,8 +28,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -188,5 +182,6 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         return ownerID == null;
     }
 
-    private record ValidationResult(@NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
+    private record ValidationResult(
+            @NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
 }

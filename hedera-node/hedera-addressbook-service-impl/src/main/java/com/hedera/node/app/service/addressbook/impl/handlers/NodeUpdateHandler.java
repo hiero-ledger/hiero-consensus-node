@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -23,7 +22,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -32,8 +30,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -181,7 +177,6 @@ public class NodeUpdateHandler implements TransactionHandler {
                 Node.JSON.toJSON(existingNode),
                 Node.JSON.toJSON(updatedNode));
     }
-
 
     private Node.Builder updateNode(
             @NonNull final NodeUpdateTransactionBody op, @NonNull final Node node, final boolean unsetWebProxy) {

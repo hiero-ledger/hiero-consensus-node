@@ -23,7 +23,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
@@ -31,17 +30,13 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenDissociateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenRelListCalculator;
 import com.hedera.node.app.service.token.impl.validators.TokenListChecks;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -254,7 +249,8 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
         return new ValidatedResult(acct, dissociations);
     }
 
-    private record ValidatedResult(@NonNull Account account, @NonNull List<Dissociation> dissociations) {}
+    private record ValidatedResult(
+            @NonNull Account account, @NonNull List<Dissociation> dissociations) {}
 
     private record Dissociation(
             @Nullable Token token,
@@ -263,7 +259,6 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
             @NonNull Account acct,
             // This is the relation of the token's treasury account ID and the token ID
             @Nullable TokenRelation treasuryTokenRel) {}
-
 
     public FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn,

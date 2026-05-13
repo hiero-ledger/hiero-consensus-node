@@ -13,10 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EX
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TX_HASH_SIZE;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
@@ -29,7 +25,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -47,8 +42,6 @@ import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCu
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -501,5 +494,4 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     !htsLimitHasDuplicate && !hbarLimitsHasDuplicate, DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST);
         }
     }
-
 }

@@ -3,18 +3,14 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkRegisteredNodesEnabled;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -81,5 +77,4 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
                 handleContext.savepointStack().getBaseBuilder(RegisteredNodeCreateStreamBuilder.class);
         recordBuilder.registeredNodeID(registeredNodeId);
     }
-
 }

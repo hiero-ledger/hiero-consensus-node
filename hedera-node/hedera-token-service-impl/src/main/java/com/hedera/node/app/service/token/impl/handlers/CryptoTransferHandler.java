@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
-import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -33,20 +25,16 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -56,13 +44,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -225,7 +209,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
         executeCryptoTransfer(txn, transferContext, context, recordBuilder);
     }
-
 
     /**
      * Sums the gas limits offered by any EVM allowance hooks present on:

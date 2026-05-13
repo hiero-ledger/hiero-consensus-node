@@ -36,7 +36,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -257,9 +256,9 @@ public class QueryChecker {
                 -1,
                 dispatcher,
                 synchronizedThrottleAccumulator);
-            final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
-            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
-            return fees.totalFee();
+        final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
+        final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
+        return fees.totalFee();
     }
 }

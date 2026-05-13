@@ -33,7 +33,6 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.AccountSummariesApi;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -178,7 +177,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
             return Optional.of(info.build());
         }
     }
-
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {
         if (account == null) {

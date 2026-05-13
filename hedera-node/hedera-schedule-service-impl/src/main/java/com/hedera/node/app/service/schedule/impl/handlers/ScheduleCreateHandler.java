@@ -15,9 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIM
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_IS_BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CONFIGURABLE;
-import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.createProvisionalSchedule;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
@@ -35,7 +32,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
-import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
@@ -47,8 +43,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -241,7 +235,6 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
                 .scheduleID(schedule.scheduleId())
                 .scheduledTransactionID(transactionIdForScheduled(schedule));
     }
-
 
     /**
      * Returns a code indicating whether the given expiry is valid relative to the given consensus time,

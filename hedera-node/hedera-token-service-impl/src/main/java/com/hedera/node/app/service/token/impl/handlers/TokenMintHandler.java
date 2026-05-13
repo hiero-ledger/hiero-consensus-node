@@ -11,10 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIAL_NUMBER_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.MAX_SERIAL_NO_ALLOWED;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -23,14 +20,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
@@ -39,8 +34,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -277,5 +270,4 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
                 .metadata(meta)
                 .build();
     }
-
 }

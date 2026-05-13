@@ -30,7 +30,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -43,8 +42,6 @@ import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFees
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -189,7 +186,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         resolveMutableBuilderAttributes(handleContext, op, builder, currentMeta);
         topicStore.put(builder.build());
     }
-
 
     private void resolveMutableBuilderAttributes(
             @NonNull final HandleContext handleContext,

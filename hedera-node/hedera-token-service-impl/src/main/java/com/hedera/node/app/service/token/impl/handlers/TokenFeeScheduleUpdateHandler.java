@@ -6,21 +6,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_SCHEDULE_ALREADY
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -28,8 +23,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -155,7 +148,6 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         validateTrue(op.customFees().size() <= config.maxCustomFeesAllowed(), CUSTOM_FEES_LIST_TOO_LONG);
         return token;
     }
-
 
     private int currentFeeScheduleSize(List<CustomFee> feeSchedule, final TokenOpsUsage tokenOpsUsage) {
         int numFixedHbarFees = 0;

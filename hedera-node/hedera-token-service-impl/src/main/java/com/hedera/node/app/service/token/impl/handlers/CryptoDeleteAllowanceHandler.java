@@ -6,8 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
 import static com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator.getEffectiveOwner;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
@@ -18,7 +16,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
@@ -28,8 +25,6 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -200,7 +195,6 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
 
         deleteAllowanceValidator.validate(context, nftAllowances, payerAccount, accountStore);
     }
-
 
     private int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
         int totalSerials = 0;

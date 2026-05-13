@@ -6,8 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep.removeFromList;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -19,13 +17,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -36,8 +32,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -51,7 +45,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -208,7 +201,6 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         baseBuilderRecord.tokenType(token.tokenType());
     }
 
-
     private ValidationResult validateSemantics(
             @NonNull final AccountID accountId,
             @NonNull final TokenID tokenId,
@@ -241,5 +233,7 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
     }
 
     private record ValidationResult(
-            @NonNull Account account, @NonNull Token token, @NonNull TokenRelation accountTokenRel) {}
+            @NonNull Account account,
+            @NonNull Token token,
+            @NonNull TokenRelation accountTokenRel) {}
 }

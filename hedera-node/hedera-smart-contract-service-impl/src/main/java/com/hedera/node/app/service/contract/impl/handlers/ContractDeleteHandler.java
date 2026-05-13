@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_DOES_NOT_EXIST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -19,7 +18,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
@@ -28,8 +26,6 @@ import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBui
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -124,5 +120,4 @@ public class ContractDeleteHandler implements TransactionHandler {
                 ? accountStore.getAccountById(op.transferAccountIDOrThrow())
                 : accountStore.getContractById(op.transferContractIDOrThrow());
     }
-
 }

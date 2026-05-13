@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -24,7 +23,6 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;

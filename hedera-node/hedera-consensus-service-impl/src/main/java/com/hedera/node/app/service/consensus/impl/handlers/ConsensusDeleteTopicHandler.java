@@ -8,18 +8,14 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;

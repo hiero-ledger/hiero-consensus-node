@@ -2,11 +2,9 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -14,8 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;

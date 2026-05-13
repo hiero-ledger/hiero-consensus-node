@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -51,5 +49,4 @@ public class CryptoAddLiveHashHandler implements TransactionHandler {
         // before we get here
         throw new HandleException(ResponseCodeEnum.NOT_SUPPORTED);
     }
-
 }

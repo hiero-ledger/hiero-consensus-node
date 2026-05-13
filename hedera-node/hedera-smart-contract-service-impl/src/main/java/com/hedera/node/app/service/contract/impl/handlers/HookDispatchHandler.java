@@ -26,8 +26,6 @@ import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -131,7 +129,6 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
             }
         }
     }
-
 
     public static class FeeCalculator implements ServiceFeeCalculator {
         @Override

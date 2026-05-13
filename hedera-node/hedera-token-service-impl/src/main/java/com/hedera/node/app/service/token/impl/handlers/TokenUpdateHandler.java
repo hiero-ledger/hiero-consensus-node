@@ -11,12 +11,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -26,16 +23,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -43,8 +35,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -52,11 +42,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
-import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -598,5 +586,4 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
     private boolean isZeroAccount(@NonNull final AccountID accountID) {
         return accountID.equals(ZERO_ACCOUNT_ID);
     }
-
 }

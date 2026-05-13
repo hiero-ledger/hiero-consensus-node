@@ -18,12 +18,10 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
-import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.hapi.fees.FeeResult;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -138,7 +136,7 @@ public class TransactionDispatcher {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {
-            if(feeContext.body().data().kind() == TransactionBody.DataOneOfType.NODE_STAKE_UPDATE) {
+            if (feeContext.body().data().kind() == TransactionBody.DataOneOfType.NODE_STAKE_UPDATE) {
                 return feeResultToFees(new FeeResult(), fromPbj(feeContext.activeRate()));
             }
             var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())

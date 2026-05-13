@@ -18,22 +18,18 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.file.FileSignatureWaivers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -169,7 +165,6 @@ public class FileUpdateHandler implements TransactionHandler {
                 fileUpdate, builder, fileServiceConfig, file, fileID, accountsConfig, handleContext.payer());
         fileStore.put(builder.build());
     }
-
 
     private void handleUpdateUpgradeFile(FileUpdateTransactionBody fileUpdate, HandleContext handleContext) {
         final var fileStore = handleContext.storeFactory().writableStore(WritableUpgradeFileStore.class);
