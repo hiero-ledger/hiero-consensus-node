@@ -52,7 +52,9 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.BlockStreamCutover;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -1198,6 +1200,20 @@ public final class Hedera
         return RosterStateUtils.createRosterHistoryWithCandidateAdoption(state, candidateRoster, activeRoundNumber);
     }
 
+    /**
+     * Returns the block stream info to use for startup components, including a pending cutover preview that can be
+     * computed without mutating state.
+     *
+     * @param state the startup state
+     * @return the effective startup block stream info
+     */
+    public @NonNull EffectiveStartupBlockStreamInfo effectiveStartupBlockStreamInfo(@NonNull final State state) {
+        requireNonNull(state);
+        final var config = requireNonNull(configProvider).getConfiguration();
+        return BlockStreamCutover.effectiveStartupBlockStreamInfoFrom(
+                state, config.getConfigData(BlockStreamConfig.class).enableCutover());
+    }
+
     /*==================================================================================================================
     *
     * Exposed for use by embedded Hedera
@@ -1356,6 +1372,9 @@ public final class Hedera
         requireNonNull(initialStateHashFuture);
         final long roundNum = trigger == GENESIS ? GENESIS_ROUND : roundNumberOf(state);
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
+        final var effectiveStartupBlockStreamInfo = trigger == GENESIS || !blockStreamEnabled
+                ? EffectiveStartupBlockStreamInfo.NONE
+                : effectiveStartupBlockStreamInfo(state);
 
         final var currentRoster = trigger == GENESIS
                 ? genesisRosterOrThrow()
@@ -1400,6 +1419,7 @@ public final class Hedera
                 .boundaryStateChangeListener(boundaryStateChangeListener)
                 .migrationStateChanges(migrationStateChanges != null ? migrationStateChanges : new ArrayList<>())
                 .initialStateHash(initialStateHash)
+                .effectiveStartupBlockStreamInfo(effectiveStartupBlockStreamInfo)
                 .networkInfo(networkInfo)
                 .selfNodeAccountIdManager(selfNodeAccountIdManager)
                 .startupNetworks(startupNetworks)

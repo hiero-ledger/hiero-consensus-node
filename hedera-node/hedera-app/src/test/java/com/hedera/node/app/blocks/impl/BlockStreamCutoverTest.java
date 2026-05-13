@@ -2,16 +2,30 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.State;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.MapReadableStates;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -101,6 +115,50 @@ class BlockStreamCutoverTest {
         assertTrue(ex.getMessage().contains("at least one record block hash"));
     }
 
+    @Test
+    void effectiveStartupInfoUsesPersistedInfoWhenCutoverDisabled() {
+        final var persistedBlockStreamInfo =
+                BlockStreamInfo.newBuilder().blockNumber(12).build();
+        final var state = stateWith(validBlockInfo(), validRunningHashes(), persistedBlockStreamInfo);
+
+        final var effectiveInfo = BlockStreamCutover.effectiveStartupBlockStreamInfoFrom(state, false);
+
+        assertFalse(effectiveInfo.previewingCutover());
+        assertEquals(persistedBlockStreamInfo, effectiveInfo.blockStreamInfo());
+    }
+
+    @Test
+    void effectiveStartupInfoPreviewsPendingCutover() {
+        final var persistedBlockStreamInfo = BlockStreamInfo.newBuilder()
+                .blockNumber(12)
+                .startOfBlockStateHash(Bytes.fromHex("ef".repeat(HASH_SIZE)))
+                .build();
+        final var blockInfo = validBlockInfo();
+        final var runningHashes = validRunningHashes();
+        final var state = stateWith(blockInfo, runningHashes, persistedBlockStreamInfo);
+
+        final var effectiveInfo = BlockStreamCutover.effectiveStartupBlockStreamInfoFrom(state, true);
+
+        assertTrue(effectiveInfo.previewingCutover());
+        assertEquals(
+                BlockStreamCutover.blockStreamInfoFrom(blockInfo, runningHashes, persistedBlockStreamInfo),
+                effectiveInfo.blockStreamInfo());
+    }
+
+    @Test
+    void effectiveStartupInfoUsesPersistedInfoWhenCutoverAlreadyApplied() {
+        final var persistedBlockStreamInfo =
+                BlockStreamInfo.newBuilder().blockNumber(100).build();
+        final var blockInfo =
+                validBlockInfo().copyBuilder().previewStreamOverwritten(true).build();
+        final var state = stateWith(blockInfo, validRunningHashes(), persistedBlockStreamInfo);
+
+        final var effectiveInfo = BlockStreamCutover.effectiveStartupBlockStreamInfoFrom(state, true);
+
+        assertFalse(effectiveInfo.previewingCutover());
+        assertEquals(persistedBlockStreamInfo, effectiveInfo.blockStreamInfo());
+    }
+
     private static BlockInfo validBlockInfo() {
         final var twoHashes = new byte[HASH_SIZE * 2];
         return BlockInfo.newBuilder()
@@ -119,5 +177,23 @@ class BlockStreamCutoverTest {
 
     private static RunningHashes validRunningHashes() {
         return new RunningHashes(HASH_A, HASH_B, HASH_C, HASH_D);
+    }
+
+    private static State stateWith(
+            final BlockInfo blockInfo, final RunningHashes runningHashes, final BlockStreamInfo blockStreamInfo) {
+        final var state = mock(State.class);
+        given(state.getReadableStates(BlockRecordService.NAME))
+                .willReturn(MapReadableStates.builder()
+                        .state(new FunctionReadableSingletonState<>(
+                                BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo))
+                        .state(new FunctionReadableSingletonState<>(
+                                RUNNING_HASHES_STATE_ID, RUNNING_HASHES_STATE_LABEL, () -> runningHashes))
+                        .build());
+        given(state.getReadableStates(BlockStreamService.NAME))
+                .willReturn(MapReadableStates.builder()
+                        .state(new FunctionReadableSingletonState<>(
+                                BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> blockStreamInfo))
+                        .build());
+        return state;
     }
 }
