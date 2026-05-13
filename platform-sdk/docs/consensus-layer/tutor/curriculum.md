@@ -39,7 +39,7 @@ entries:
       - architecture/topics/gossip.md
       - architecture/topics/hashgraph.md
       - architecture/topics/signed-state-management.md
-    status: not_started
+    status: drafted
 
   - id: pass1-02-node-falls-behind
     index: 2
@@ -52,7 +52,7 @@ entries:
       - architecture/topics/signed-state-management.md
       - architecture/topics/event-intake.md
       - architecture/topics/hashgraph.md
-    status: not_started
+    status: drafted
 
   - id: pass1-03-coordinated-network-upgrade
     index: 3
