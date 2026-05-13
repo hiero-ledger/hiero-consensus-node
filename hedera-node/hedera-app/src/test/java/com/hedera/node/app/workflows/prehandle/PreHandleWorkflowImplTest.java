@@ -713,17 +713,13 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         }
 
         @Test
-        @DisplayName("Happy path for atomic batch transaction reusing previous verification results")
+        @DisplayName("Happy path for atomic batch transaction without reusing previous verification results")
         void happyPathWithoutReuseForAtomicBatch(@Mock SignatureVerificationFuture sigFuture) throws Exception {
             // Given a transaction that is perfectly good
             final var payerAccount = ALICE.accountID();
             final var payerKey = ALICE.keyInfo().publicKey();
-            final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch();
-            final var innerTxInfo = scenario()
-                    .withPayer(payerAccount)
-                    .withTransactionValidStart(
-                            batchTxInfo.txBody().transactionIDOrThrow().transactionValidStart())
-                    .txInfo();
+            final var innerTxInfo = scenario().withPayer(payerAccount).txInfo();
+            final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch(innerTxInfo);
             final var txBytes = asByteArray(batchTxInfo.signedTx());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
