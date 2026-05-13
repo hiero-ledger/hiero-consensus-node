@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
@@ -103,6 +104,10 @@ public class BlockContentsValidator implements BlockStreamValidator {
                     }
                     if (!foundRecordFile) {
                         Assertions.fail("WRB BlockFooter found before RecordFileItem at index " + i);
+                    }
+                    if (!item.blockFooter().startOfBlockStateRootHash().equals(Bytes.EMPTY)) {
+                        Assertions.fail(
+                                "WRB BlockFooter at index " + i + " has non-empty start_of_block_state_root_hash");
                     }
                     foundFooter = true;
                 }
