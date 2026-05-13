@@ -746,11 +746,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         }
                         if (quiescenceEnabled) {
                             final var commandNow = quiescenceController.getQuiescenceStatus();
-                            // BREAK_QUIESCENCE is only meaningful as a wake-up from QUIESCE.
-                            // When the platform is already producing events (lastSent == DONT_QUIESCE),
-                            // a transient pipeline=0 + pending>0 observation between blocks is just
-                            // an artifact of polling on block-sign boundaries; dispatching it would
-                            // churn the platform monitor and risk a wasted self-only break event.
+                            // BREAK_QUIESCENCE only needs to be dispatched when the platform is currently
+                            // quiesced. If the last command sent was anything other than QUIESCE the
+                            // platform is already producing events and a fresh BREAK_QUIESCENCE would only
+                            // cause an unnecessary self-only break event.
                             final var isTransientBreak =
                                     commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
                             if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {

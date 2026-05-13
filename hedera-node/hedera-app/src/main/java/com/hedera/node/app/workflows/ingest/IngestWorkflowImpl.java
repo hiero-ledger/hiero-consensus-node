@@ -72,7 +72,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
         try {
             if (quiescenceEnabled) {
-                //                gracePeriondStart.
                 txPipelineTracker.incrementPreFlight();
             }
             ResponseCodeEnum result = OK;

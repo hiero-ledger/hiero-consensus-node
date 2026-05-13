@@ -27,10 +27,9 @@ public class TxPipelineTracker {
      */
     private final AtomicInteger inFlightCount = new AtomicInteger();
     /**
-     * Wall-clock time of the most recent transaction activity (ingest start or platform submission). Used by the
-     * {@link QuiescenceController} grace period so that brief pre-flight spikes — which can happen between block-sign
-     * boundaries when {@link QuiescenceController#getQuiescenceStatus} is polled — still count as network activity,
-     * even if the counts have already returned to zero by the time the controller next observes them.
+     * Wall-clock instant of the most recent observed transaction activity. Read by the
+     * {@link QuiescenceController} grace period so that activity recorded between successive controller
+     * polls is not lost when the counts return to zero before the next poll.
      */
     private final AtomicReference<Instant> lastActivityAt;
 
@@ -57,10 +56,9 @@ public class TxPipelineTracker {
     }
 
     /**
-     * Records that some form of transaction activity was just observed (e.g. an event from gossip was
-     * pre-handled, or a block was fully signed). Callers outside of ingest use this to reset the
-     * grace-period baseline so that a node which is participating in the network via gossip — but not
-     * receiving any local submissions — does not prematurely quiesce.
+     * Updates {@link #lastActivityAt} to the current instant. Used by callers outside of ingest (such
+     * as the {@link QuiescenceController}) to report observed transaction activity so it counts toward
+     * the grace period.
      */
     public void recordActivity() {
         lastActivityAt.set(time.instant());

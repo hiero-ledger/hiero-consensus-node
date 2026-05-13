@@ -116,10 +116,10 @@ class SealRoundRecordClosureTest extends AppTestBase {
         final var producer = Mockito.mock(BlockRecordStreamProducer.class);
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
         when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
-        final var quiescence = QuiescenceTestComponents.disabled(app.platform());
-        final var controller = quiescence.controller();
-        final var quiescenceCommands = quiescence.commands();
-        final var heartbeat = quiescence.heartbeat();
+        final var quiescence = new QuiescenceTestBase(app.platform());
+        final var controller = quiescence.getController();
+        final var quiescenceCommands = quiescence.getCommands();
+        final var heartbeat = quiescence.getHeartbeat();
         final Supplier<BlockItemWriter> wrbSupplier = () -> Mockito.mock(BlockItemWriter.class);
 
         final var manager = new BlockRecordManagerImpl(

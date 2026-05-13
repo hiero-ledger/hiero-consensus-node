@@ -56,7 +56,6 @@ import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,7 +68,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.inject.Singleton;
@@ -78,7 +76,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 
@@ -623,9 +620,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     public void maybeQuiesce(@NonNull final State state) {
         final var commandNow = quiescenceController.getQuiescenceStatus();
-        // Only dispatch BREAK_QUIESCENCE when waking from a quiesced state. While the platform is
-        // already active, BREAK_QUIESCENCE is semantically a no-op but causes platform-monitor
-        // churn and risks producing an unnecessary self-only break event.
+        // BREAK_QUIESCENCE only needs to be dispatched when the platform is currently quiesced. If the
+        // last command sent was anything other than QUIESCE the platform is already producing events
+        // and a fresh BREAK_QUIESCENCE would only cause an unnecessary self-only break event.
         final var isTransientBreak = commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
         if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {
             logger.info("Updated quiescence command to {}", commandNow);

@@ -11,11 +11,10 @@ import java.time.Duration;
  * @param enabled indicates if quiescence is enabled
  * @param tctDuration the amount of time before the target consensus timestamp (TCT) when quiescence should not be
  * active
- * @param gracePeriod the amount of time the controller must observe no transactions (neither pipeline nor pending)
- * before reporting {@link org.hiero.consensus.model.quiescence.QuiescenceCommand#QUIESCE}. During this window the
- * controller reports {@link org.hiero.consensus.model.quiescence.QuiescenceCommand#DONT_QUIESCE}, keeping the platform
- * active so it can drain its tx pool and emit normal events. A non-zero value avoids racy single-shot BREAK_QUIESCENCE
- * cycles that can stall the network when traffic is sparse.
+ * @param gracePeriod minimum duration of observed inactivity required before the controller will report
+ * {@link org.hiero.consensus.model.quiescence.QuiescenceCommand#QUIESCE}. The controller reports
+ * {@link org.hiero.consensus.model.quiescence.QuiescenceCommand#DONT_QUIESCE} until this duration has elapsed since
+ * the most recently observed transaction activity.
  */
 @ConfigData("quiescence")
 public record QuiescenceConfig(

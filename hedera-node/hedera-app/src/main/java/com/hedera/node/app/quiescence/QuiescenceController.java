@@ -55,13 +55,11 @@ public class QuiescenceController {
      * @param time                    the time source
      * @param pendingTransactionCount a supplier that provides the number of transactions submitted to the node but not
      *                                yet included put into an event
-     * @param lastActivityAt          a supplier that returns the wall-clock instant of the most recent transaction
-     *                                activity observed by this node (ingest start or platform submission, or any
-     *                                non-ingest activity recorded via {@code recordActivity}). Used as the baseline
-     *                                for the grace period.
-     * @param recordActivity          a callback the controller invokes when it observes non-ingest activity (a
-     *                                pre-handled event or a fully-signed block), so the grace-period baseline can be
-     *                                refreshed for nodes participating via gossip but not receiving local submissions.
+     * @param lastActivityAt          supplier of the wall-clock instant of the most recent observed transaction
+     *                                activity; used by the grace period evaluation
+     * @param recordActivity          callback invoked by the controller when it observes transaction activity that
+     *                                originated outside of ingest (e.g. a pre-handled event); allows the activity
+     *                                clock to be updated through a single source
      */
     public QuiescenceController(
             @NonNull final QuiescenceConfig config,
@@ -93,8 +91,8 @@ public class QuiescenceController {
         try {
             final long relevant = QuiescenceUtils.countRelevantTransactions(transactions.iterator());
             if (relevant > 0) {
-                // Pre-handling an event with relevant transactions is real network activity even on nodes
-                // that never see local ingest — refresh the grace baseline so they don't quiesce prematurely.
+                // Pre-handling a relevant transaction counts as transaction activity for the grace period,
+                // including on nodes that don't see local ingest.
                 recordActivity.run();
                 pipelineTransactionCount.addAndGet(relevant);
             }
@@ -220,11 +218,10 @@ public class QuiescenceController {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
             return;
         }
-        // Do NOT refresh the activity baseline here. Empty blocks still seal at the configured
-        // blockPeriod regardless of whether real user work is flowing, so treating block sealing as
-        // activity would make the network never quiesce. The activity baseline is refreshed by
-        // {@link #onPreHandle} when a relevant transaction is observed (gossip-received user activity)
-        // and by {@link TxPipelineTracker} on local ingest — both are real user-driven signals.
+        // Block sealing is intentionally NOT recorded as activity here: a block is produced every
+        // blockPeriod regardless of user traffic, so doing so would keep the grace period perpetually
+        // refreshed and prevent the network from ever quiescing. Activity is tracked only on ingest
+        // and on pre-handle of relevant transactions.
         updateTransactionCount(-blockTracker.getRelevantTransactionCount());
         nextTct.accumulateAndGet(blockTracker.getMaxConsensusTime(), QuiescenceController::tctUpdate);
     }
@@ -267,10 +264,9 @@ public class QuiescenceController {
             return;
         }
         if (platformStatus == PlatformStatus.ACTIVE) {
-            // Reset the grace-period baseline. Otherwise the timer counts from TxPipelineTracker
-            // construction (very early in JVM startup) and can already be expired by the time the
-            // platform reaches ACTIVE — causing peer nodes that don't see local ingest to quiesce
-            // immediately on ACTIVE and breaking quiescence symmetry across the network.
+            // Anchor the grace period to the point at which the node became an active participant in
+            // the network. Without this, the activity clock would carry over the wall-clock time spent
+            // in pre-ACTIVE phases and the grace period could already be expired at ACTIVE.
             recordActivity.run();
         } else if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
             pipelineTransactionCount.set(0);
@@ -300,11 +296,9 @@ public class QuiescenceController {
         if (pendingTransactionCount.getAsLong() > 0) {
             return QuiescenceCommand.BREAK_QUIESCENCE;
         }
-        // Both counts are 0 at this moment. Apply the grace period using the most recent observed
-        // transaction activity — not the moment the controller first noticed counts were zero. This way
-        // brief pre-flight spikes between block-sign boundaries still count as activity even if the
-        // controller's poll missed them. Once gracePeriod elapses since the last activity, report
-        // QUIESCE; otherwise stay DONT_QUIESCE so the platform keeps producing events.
+        // Both counts are zero. Report QUIESCE only after the configured grace period has elapsed
+        // since the most recent observed activity; otherwise report DONT_QUIESCE so the platform
+        // continues to produce events.
         if (Duration.between(lastActivityAt.get(), time.instant()).compareTo(config.gracePeriod()) < 0) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
