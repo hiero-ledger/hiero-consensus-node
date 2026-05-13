@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
@@ -10,6 +8,8 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,6 +26,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -71,10 +73,11 @@ class CompactionInterruptTest {
      */
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(tmpFileDir);
         final String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
@@ -120,7 +123,7 @@ class CompactionInterruptTest {
         final String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, null, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();

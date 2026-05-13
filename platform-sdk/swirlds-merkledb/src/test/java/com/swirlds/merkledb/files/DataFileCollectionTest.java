@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.merkledb.test.fixtures.files.DataFileCollectionTestUtils.checkData;
 import static com.swirlds.merkledb.test.fixtures.files.DataFileCollectionTestUtils.getVariableSizeDataForI;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.test.fixtures.logging.MockAppender;
+import com.swirlds.logging.test.fixtures.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.ImmutableIndexedObjectListUsingArray;
@@ -327,7 +327,7 @@ class DataFileCollectionTest {
     @EnumSource(FilesTestType.class)
     void merge(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
-        final DataFileCompactor fileCompactor = createFileCompactor("merge", fileCollection, testType);
+        final DataFileCompactor fileCompactor = createFileCompactor(fileCollection, testType);
         final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
         final AtomicBoolean mergeComplete = new AtomicBoolean(false);
         final int NUM_OF_KEYS = 1000;
@@ -487,7 +487,7 @@ class DataFileCollectionTest {
     @EnumSource(FilesTestType.class)
     void merge2(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
-        final DataFileCompactor fileCompactor = createFileCompactor("merge2", fileCollection, testType);
+        final DataFileCompactor fileCompactor = createFileCompactor(fileCollection, testType);
         final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
         final AtomicBoolean mergeComplete = new AtomicBoolean(false);
         // start compaction paused so that we can test pausing
@@ -597,9 +597,8 @@ class DataFileCollectionTest {
         }
     }
 
-    private static DataFileCompactor createFileCompactor(
-            String storeName, DataFileCollection fileCollection, FilesTestType testType) {
-        return new DataFileCompactor(storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
+    private static DataFileCompactor createFileCompactor(DataFileCollection fileCollection, FilesTestType testType) {
+        return new DataFileCompactor(fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
     }
 
     @Order(203)
@@ -648,8 +647,8 @@ class DataFileCollectionTest {
         fileCollection.close();
         // reopen
         final DataFileCollection fileCollection2 = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
-        final DataFileCompactor fileCompactor = new DataFileCompactor(
-                storeName, fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
+        final DataFileCompactor fileCompactor =
+                new DataFileCompactor(fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
         fileCollectionMap.put(testType, fileCollection2);
         // check 10 files were opened and data is correct
         assertSame(10, fileCollection2.getAllCompletedFiles().size(), "Should be 10 files");
@@ -720,7 +719,7 @@ class DataFileCollectionTest {
         final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         final DataFileCompactor compactor =
-                new DataFileCompactor(storeName, fileCollection, storedOffsets, null, null, null, null);
+                new DataFileCompactor(fileCollection, storedOffsets, null, null, null, null);
         populateDataFileCollection(FilesTestType.fixed, fileCollection, storedOffsets);
 
         final Thread thread = new Thread(() -> {

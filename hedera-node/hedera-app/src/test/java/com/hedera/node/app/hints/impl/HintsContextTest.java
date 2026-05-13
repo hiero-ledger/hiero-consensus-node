@@ -138,7 +138,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
@@ -175,7 +175,7 @@ class HintsContextTest {
 
         subject.setConstruction(construction);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         // Exactly half (5 out of 10 total weight): should NOT complete, need strictly > 1/2
@@ -253,7 +253,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
@@ -275,7 +275,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 

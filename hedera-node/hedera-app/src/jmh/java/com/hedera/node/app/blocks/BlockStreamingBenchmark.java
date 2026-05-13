@@ -5,9 +5,12 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNode;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
@@ -39,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import jdk.jfr.Recording;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -219,6 +223,7 @@ public class BlockStreamingBenchmark {
     private ScheduledExecutorService scheduler;
     private ExecutorService pipelineExecutor;
     private ScheduledExecutorService metricsScheduler;
+    private BlockNodeConfigService bnConfigService;
 
     // --- Metrics ---
     private long benchmarkStartTime;
@@ -349,6 +354,9 @@ public class BlockStreamingBenchmark {
         bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         bufferService.start();
 
+        bnConfigService = new BlockNodeConfigService(configProvider);
+        bnConfigService.start();
+
         final NetworkInfo networkInfo = new NetworkInfo() {
             private final NodeInfo selfNode = new NodeInfo() {
                 @Override
@@ -417,8 +425,12 @@ public class BlockStreamingBenchmark {
         };
 
         connectionManager = new BlockNodeConnectionManager(
-                configProvider, bufferService, blockStreamMetrics, networkInfo, () -> pipelineExecutor);
-        bufferService.setBlockNodeConnectionManager(connectionManager);
+                configProvider,
+                bufferService,
+                blockStreamMetrics,
+                networkInfo,
+                () -> pipelineExecutor,
+                bnConfigService);
         connectionManager.start();
 
         // 5. Connection Setup (CONNECT TO PROXY PORT) with parametrized HTTP/2 and gRPC
@@ -452,11 +464,10 @@ public class BlockStreamingBenchmark {
 
         final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, new AtomicInteger(), new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 blockStreamMetrics,
-                scheduler,
                 pipelineExecutor,
                 0L,
                 new BlockNodeClientFactory(),

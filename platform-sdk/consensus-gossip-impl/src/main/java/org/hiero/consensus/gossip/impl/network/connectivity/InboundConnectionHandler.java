@@ -16,7 +16,7 @@ import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;

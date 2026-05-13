@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -67,9 +67,9 @@ public class MaxRoundCreatedTest {
         final Path rosterPath = testDataDirectory.resolve(ROSTER_FILE);
         final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
 
-        final PlatformContext context = createDefaultPlatformContext();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final TestIntake intake = new TestIntake(context, roster);
+        final TestIntake intake = new TestIntake(configuration, roster);
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;

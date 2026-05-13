@@ -355,7 +355,6 @@ public final class VirtualHasher {
             final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             leaf.writeToForHashing(wmd);
             final byte[] hash = wmd.digest();
-            listener.onLeafHashed(leaf);
             out.setHash(path, hash);
             return true;
         }

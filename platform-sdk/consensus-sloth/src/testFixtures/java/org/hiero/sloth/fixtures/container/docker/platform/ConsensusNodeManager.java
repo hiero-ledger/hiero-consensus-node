@@ -13,8 +13,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -34,7 +32,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -76,11 +77,11 @@ public class ConsensusNodeManager {
     /**
      * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters.
      *
-     * @param selfId the unique identifier for this node
+     * @param selfId         the unique identifier for this node
      * @param platformConfig the configuration for the platform
-     * @param activeRoster the roster of nodes in the network
-     * @param version the semantic version of the platform
-     * @param keysAndCerts the keys and certificates for this node
+     * @param activeRoster   the roster of nodes in the network
+     * @param version        the semantic version of the platform
+     * @param keysAndCerts   the keys and certificates for this node
      */
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
@@ -98,7 +99,9 @@ public class ConsensusNodeManager {
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
+        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
@@ -107,7 +110,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
         final VirtualMapStateLifecycleManager stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         slothApp = new SlothApp(platformConfig, version);
 
@@ -145,7 +148,8 @@ public class ConsensusNodeManager {
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionCallback);
+                .withExecutionLayer(executionCallback)
+                .withTransactionOffsetNanos(SlothApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();

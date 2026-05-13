@@ -6,7 +6,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnap
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
@@ -23,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
