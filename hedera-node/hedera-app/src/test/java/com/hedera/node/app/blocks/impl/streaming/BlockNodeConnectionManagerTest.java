@@ -280,7 +280,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final StreamingConnectionStatistics connStats = mock(StreamingConnectionStatistics.class);
         // stalled connections are based on the heartbeat timestamp, so set the last heartbeat to far in the past
         // to trigger a stall detection
-        when(connStats.lastHeartbeatMillis()).thenReturn(now.minusSeconds(1).toEpochMilli());
+        when(connStats.lastHeartbeatMillis()).thenReturn(now.minusSeconds(10).toEpochMilli());
         when(activeConnection.connectionStatistics()).thenReturn(connStats);
 
         final boolean isStalled = invoke_isActiveConnectionStalled(now, activeConnection);
@@ -1608,7 +1608,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final StreamingConnectionStatistics existingConnStats = mock(StreamingConnectionStatistics.class);
         when(existingActiveConnection.connectionStatistics()).thenReturn(existingConnStats);
         when(existingConnStats.lastHeartbeatMillis())
-                .thenReturn(Instant.now().minusSeconds(2).toEpochMilli());
+                .thenReturn(Instant.now().minusSeconds(10).toEpochMilli());
         when(existingActiveConnection.autoResetTimestamp())
                 .thenReturn(Instant.now().plusSeconds(90));
         final BlockNode existingActiveNode = mock(BlockNode.class);
