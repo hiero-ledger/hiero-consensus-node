@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -202,6 +203,23 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for block stream shutdown
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.
+     *
+     * @return a future that completes when there are no pending block proofs
+     */
+    @NonNull
+    CompletableFuture<Void> pendingBlockProofsFuture();
+
+    /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
 
     /**
      * Tracks that the given event hash has appeared in the current block.
