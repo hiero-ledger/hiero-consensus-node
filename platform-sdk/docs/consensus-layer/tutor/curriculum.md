@@ -54,7 +54,7 @@ entries:
       - architecture/topics/reconnect.md
       - architecture/topics/signed-state-management.md
       - architecture/topics/event-intake.md
-    status: not_started
+    status: drafted
 
   - id: pass1-03-coordinated-network-upgrade
     index: 3
@@ -67,7 +67,7 @@ entries:
       - architecture/topics/restart-and-pces.md
       - architecture/topics/event-creator.md
       - architecture/topics/gossip.md
-    status: not_started
+    status: drafted
 
   - id: pass1-04-event-creation-under-stress
     index: 4
@@ -79,7 +79,7 @@ entries:
       - architecture/topics/reasons-not-to-gossip.md
       - architecture/topics/event-creator.md
       - architecture/topics/gossip.md
-    status: not_started
+    status: drafted
 
   # ---- Pass 2 / Cluster 0 — Wiring Framework Foundation -----------------------
   - id: c0-01-task-schedulers
@@ -89,7 +89,7 @@ entries:
     title: Task schedulers and threading policies
     source_topics:
       - architecture/topics/wiring-framework.md
-    status: not_started
+    status: drafted
 
   - id: c0-02-wires-and-bindings
     index: 6
@@ -98,7 +98,7 @@ entries:
     title: Input wires, output wires, and bindings
     source_topics:
       - architecture/topics/wiring-framework.md
-    status: not_started
+    status: drafted
 
   - id: c0-03-soldering-and-transformers
     index: 7
