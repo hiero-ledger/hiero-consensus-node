@@ -21,12 +21,9 @@ public enum FilesTestType {
     variable;
 
     public Bytes createVirtualLongKey(final int i) {
-        switch (this) {
-            case fixed:
-            default:
-                return ExampleLongKey.longToKey(i);
-            case variable:
-                return ExampleVariableKey.longToKey(i);
-        }
+        return switch (this) {
+            case variable -> ExampleVariableKey.longToKey(i);
+            default -> ExampleLongKey.longToKey(i);
+        };
     }
 }
