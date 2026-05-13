@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import static java.util.concurrent.CompletableFuture.completedFuture;
+
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -10,6 +12,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
@@ -187,6 +190,25 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Returns a future that completes when this manager has no open wrapped record block writers.
+     *
+     * @return a future that completes when no WRB writers are open
+     */
+    @NonNull
+    default CompletableFuture<Void> noOpenWrbWritersFuture() {
+        return completedFuture(null);
+    }
+
+    /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
 
     /**
      * Get the consensus time of the latest handled transaction, or EPOCH if no transactions have been handled yet
