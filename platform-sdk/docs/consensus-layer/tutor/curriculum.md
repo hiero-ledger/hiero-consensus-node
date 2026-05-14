@@ -44,7 +44,7 @@ entries:
       - gossip.md
       - health-monitor-and-backpressure.md
       - reconnect.md
-    status: not_started
+    status: drafted
 
   - id: pass1-03-coordinated-upgrade
     index: 3
@@ -55,7 +55,7 @@ entries:
       - freeze-and-upgrade.md
       - signed-state-management.md
       - restart-and-pces.md
-    status: not_started
+    status: drafted
 
   - id: pass1-04-event-creation-under-stress
     index: 4
@@ -66,7 +66,7 @@ entries:
       - event-creator.md
       - health-monitor-and-backpressure.md
       - gossip.md
-    status: not_started
+    status: drafted
 
   # ─── Pass 2 — Cluster 0: Wiring Framework Foundation ────────────────────
   - id: c0-01-components-and-schedulers
