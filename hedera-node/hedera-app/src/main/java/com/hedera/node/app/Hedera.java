@@ -12,6 +12,8 @@ import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransacti
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
+import static com.hedera.node.config.types.BlockStreamWriterMode.FILE_AND_GRPC;
+import static com.hedera.node.config.types.BlockStreamWriterMode.GRPC;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -1525,7 +1527,7 @@ public final class Hedera
             }
         }
         if (isLatestFreezeRound(round, state)) {
-            awaitFreezeRoundBlockProofs(round);
+            awaitFreezeRoundBlockProofsAndAcks(round);
         }
         return sealClosedBoundary;
     }
@@ -1536,51 +1538,79 @@ public final class Hedera
         return platformStateStore.getLatestFreezeRound() == round.getRoundNum();
     }
 
-    private void awaitFreezeRoundBlockProofs(@NonNull final Round round) {
-        final var nowFrozenWriteTimeout = configProvider
-                .getConfiguration()
-                .getConfigData(HederaConfig.class)
-                .nowFrozenWriteTimeout();
+    private void awaitFreezeRoundBlockProofsAndAcks(@NonNull final Round round) {
+        final var config = configProvider.getConfiguration();
+        final var nowFrozenWriteTimeout =
+                config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         try {
             final var blockStreamFuture =
                     requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
             final var wrbWritersFuture =
                     requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
+            final var signingFuture = CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture);
+            final var freezeStateReadyFuture = waitsForBlockNodeAcknowledgements(blockStreamConfig)
+                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round))
+                    : signingFuture;
             logger.info(
-                    "Freeze round {} sealed; waiting up to {} for pending block proofs and WRB writers "
+                    "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
+                            + "and block node acknowledgements if enabled "
                             + "before returning the freeze state to the platform; "
-                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}",
+                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}",
                     round.getRoundNum(),
                     nowFrozenWriteTimeout,
                     blockStreamFuture.isDone(),
-                    wrbWritersFuture.isDone());
-            CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture)
-                    .get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
+                    wrbWritersFuture.isDone(),
+                    waitsForBlockNodeAcknowledgements(blockStreamConfig));
+            freezeStateReadyFuture.get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
         } catch (final TimeoutException e) {
             logger.warn(
-                    "Timed out waiting for pending block proofs and WRB writers after sealing freeze round {}; "
+                    "Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                            + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum());
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(
-                    "Interrupted while waiting for pending block proofs and WRB writers after sealing freeze round {}; "
+                    "Interrupted while waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                            + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e);
         } catch (final ExecutionException e) {
             logger.warn(
-                    "Pending block proof or WRB writer future completed exceptionally after sealing freeze round {}; "
+                    "Pending block proof, WRB writer, or block node acknowledgement future completed exceptionally "
+                            + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e.getCause());
         } catch (final RuntimeException e) {
             logger.warn(
-                    "Unable to get pending block proof or WRB writer future after sealing freeze round {}; "
+                    "Unable to get pending block proof, WRB writer, or block node acknowledgement future "
+                            + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e);
         }
+    }
+
+    private boolean waitsForBlockNodeAcknowledgements(@NonNull final BlockStreamConfig blockStreamConfig) {
+        requireNonNull(blockStreamConfig);
+        final var writerMode = blockStreamConfig.writerMode();
+        return writerMode == GRPC || writerMode == FILE_AND_GRPC;
+    }
+
+    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
+        requireNonNull(round);
+        final var blockBufferService = daggerApp.blockBufferService();
+        final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
+        logger.info(
+                "Freeze round {} block signing completed; waiting for block node acknowledgement through block {}; "
+                        + "highestAckedBlock={}",
+                round.getRoundNum(),
+                lastProducedBlock,
+                blockBufferService.getHighestAckedBlockNumber());
+        return requireNonNull(blockBufferService.acknowledgedThroughFuture(lastProducedBlock));
     }
 
     /**
