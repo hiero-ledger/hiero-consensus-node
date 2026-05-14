@@ -572,6 +572,19 @@ public class SimulatedBlockNodeServer {
                         } else if (request.hasEndOfBlock()) {
                             final var blockNumber = request.endOfBlockOrThrow().blockNumber();
 
+                            // Only accept EndOfBlock from the stream that won the BlockHeader race
+                            final Pipeline<? super PublishStreamResponse> owningStream =
+                                    streamingBlocks.get(blockNumber);
+                            if (owningStream != replies) {
+                                log.warn(
+                                        "Received EndOfBlock for block {} from stream {} on port {}, but block is owned by stream {}. Ignoring.",
+                                        blockNumber,
+                                        replies.hashCode(),
+                                        port,
+                                        owningStream != null ? owningStream.hashCode() : "none");
+                                return;
+                            }
+
                             // Mark block as fully received
                             blocksWithHeadersOnly.remove(blockNumber);
                             endedBlocks.add(blockNumber);

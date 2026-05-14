@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
@@ -105,9 +105,9 @@ public class BlockContentsValidator implements BlockStreamValidator {
                     if (!foundRecordFile) {
                         Assertions.fail("WRB BlockFooter found before RecordFileItem at index " + i);
                     }
-                    if (!item.blockFooter().startOfBlockStateRootHash().equals(Bytes.EMPTY)) {
-                        Assertions.fail(
-                                "WRB BlockFooter at index " + i + " has non-empty start_of_block_state_root_hash");
+                    if (!item.blockFooter().startOfBlockStateRootHash().equals(HASH_OF_ZERO)) {
+                        Assertions.fail("WRB BlockFooter at index " + i
+                                + " has start_of_block_state_root_hash != HASH_OF_ZERO");
                     }
                     foundFooter = true;
                 }
