@@ -118,18 +118,15 @@ Build the JMH uber JAR from the repository root:
 ```
 
 Then run it from this module directory so `settings.txt` and relative output
-paths are resolved correctly:
+paths are resolved correctly. Pass a JMH include pattern to choose the
+benchmark:
 
 ```shell
 cd platform-sdk/swirlds-benchmarks
-java -jar build/libs/*-jmh.jar ReconnectBench
-```
-
-Pass a JMH include pattern to run a specific benchmark method:
-
-```shell
 java -jar build/libs/*-jmh.jar CryptoBench.transferSerial
 java -jar build/libs/*-jmh.jar CryptoBench.transferParallel
+java -jar build/libs/*-jmh.jar VirtualMapReadBench.read
+java -jar build/libs/*-jmh.jar ReconnectBench
 ```
 
 The JMH JAR uses JMH CLI behavior. By default this is closer to the Gradle
