@@ -63,7 +63,7 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
     }
 

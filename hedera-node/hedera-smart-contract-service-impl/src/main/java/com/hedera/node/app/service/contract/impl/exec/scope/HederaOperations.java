@@ -26,15 +26,6 @@ import org.hyperledger.besu.datatypes.Address;
  */
 public interface HederaOperations {
     /**
-     * An event that occurs when charging gas.
-     * @param action the action that occurred
-     * @param accountId the account that was charged or refunded
-     * @param amount the amount of gas charged or refunded
-     * @param withNonceIncrement whether the account's nonce was incremented
-     */
-    record GasChargingEvent(GasChargingAction action, AccountID accountId, long amount, boolean withNonceIncrement) {}
-
-    /**
      * The types of events that occur when charging gas.
      */
     enum GasChargingAction {
@@ -47,6 +38,15 @@ public interface HederaOperations {
          */
         REFUND,
     }
+
+    /**
+     * An event that occurs when charging gas.
+     * @param action the action that occurred
+     * @param accountId the account that was charged or refunded
+     * @param amount the amount of gas charged or refunded
+     * @param withNonceIncrement whether the account's nonce was incremented
+     */
+    record GasChargingEvent(GasChargingAction action, AccountID accountId, long amount, boolean withNonceIncrement) {}
 
     /**
      * A contract id to indicate that a given ContractId has a mismatch with the config.

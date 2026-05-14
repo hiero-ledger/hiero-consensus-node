@@ -12,39 +12,35 @@ import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class LongListValidRangeTest {
+class LongListValidRangeTest extends AbstractFileManagerAwareTest {
 
     public static final int MAX_LONGS = 1000;
 
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
-
-    @BeforeAll
-    static void setupFileSystemManager() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
-
     private AbstractLongList<?> list;
+
+    @AfterEach
+    public void cleanUp() {
+        if (list != null) {
+            list.close();
+            if (list instanceof LongListDisk) {
+                ((LongListDisk) list).resetTransferBuffer();
+            }
+        }
+    }
 
     @Tag(TestComponentTags.VMAP)
     @ParameterizedTest
@@ -785,15 +781,5 @@ class LongListValidRangeTest {
 
     private long maxValidIndex() {
         return list.getMaxValidIndex();
-    }
-
-    @AfterEach
-    public void cleanUp() {
-        if (list != null) {
-            list.close();
-            if (list instanceof LongListDisk) {
-                ((LongListDisk) list).resetTransferBuffer();
-            }
-        }
     }
 }

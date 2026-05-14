@@ -13,11 +13,8 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
@@ -48,7 +45,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.hiero.base.utility.CommonUtils.hex;
-import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
@@ -91,7 +87,6 @@ public class CryptoCreateSimpleFeesTest {
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
     private static final String PAYER_KEY = "payerKey";
-    private static final String HOOK_CONTRACT = "TruePreHook";
     private static final String VALID_ALIAS_ED25519_KEY = "ValidAliasEd25519Key";
     private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
     private static final String NEW_KEY = "newPayerKey";
@@ -100,9 +95,7 @@ public class CryptoCreateSimpleFeesTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
     }
 
     @Nested
@@ -224,88 +217,6 @@ public class CryptoCreateSimpleFeesTest {
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 2L,
-                                    PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(cryptoCreatetxn, PAYER));
-        }
-
-        @HapiTest
-        @DisplayName("CryptoCreate - with hook creation details - full charging without extras")
-        Stream<DynamicTest> cryptoCreateWithIncludedSigAndHook() {
-            return hapiTest(
-                    uploadInitCode(HOOK_CONTRACT),
-                    contractCreate(HOOK_CONTRACT).gas(5_000_000L),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("testAccount")
-                            .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT))
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .via(cryptoCreatetxn),
-                    validateChargedUsdWithinWithTxnSize(
-                            cryptoCreatetxn,
-                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                    SIGNATURES, 1L,
-                                    HOOK_UPDATES, 1L,
-                                    PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(cryptoCreatetxn, PAYER));
-        }
-
-        @HapiTest
-        @DisplayName("CryptoCreate - with included hook, signature and key - full charging without extras")
-        Stream<DynamicTest> cryptoCreateWithIncludedHookSigAndKey() {
-            return hapiTest(
-                    uploadInitCode(HOOK_CONTRACT),
-                    contractCreate(HOOK_CONTRACT).gas(5_000_000L),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    newKeyNamed(ADMIN_KEY),
-                    cryptoCreate("testAccount")
-                            .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT))
-                            .key(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .via(cryptoCreatetxn),
-                    validateChargedUsdWithinWithTxnSize(
-                            cryptoCreatetxn,
-                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                    SIGNATURES, 1L,
-                                    KEYS, 1L,
-                                    HOOK_UPDATES, 1L,
-                                    PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(cryptoCreatetxn, PAYER));
-        }
-
-        @HapiTest
-        @DisplayName("CryptoCreate - with extra hooks, signatures and keys - full charging without extras")
-        Stream<DynamicTest> cryptoCreateWithExtraHookSigAndKey() {
-            // Define a threshold submit key that requires two simple keys signatures
-            KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-
-            // Create a valid signature with both simple keys signing
-            SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-            return hapiTest(
-                    uploadInitCode(HOOK_CONTRACT),
-                    contractCreate(HOOK_CONTRACT).gas(5_000_000L),
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER)
-                            .key(PAYER_KEY)
-                            .sigControl(forKey(PAYER_KEY, validSig))
-                            .balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("testAccount")
-                            .memo("Test")
-                            .key(PAYER_KEY)
-                            .sigControl(forKey(PAYER_KEY, validSig))
-                            .withHooks(accountAllowanceHook(2L, HOOK_CONTRACT), accountAllowanceHook(3L, HOOK_CONTRACT))
-                            .payingWith(PAYER)
-                            .signedBy(PAYER_KEY)
-                            .via(cryptoCreatetxn),
-                    validateChargedUsdWithinWithTxnSize(
-                            cryptoCreatetxn,
-                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    KEYS, 2L,
-                                    HOOK_UPDATES, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(cryptoCreatetxn, PAYER));

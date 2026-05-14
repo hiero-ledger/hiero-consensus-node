@@ -25,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Orchestrates the hinTS algorithms for,
@@ -58,6 +59,20 @@ public interface HintsService extends Service {
     String NAME = "HintsService";
 
     /**
+     * The result of requesting a hinTS signature.
+     *
+     * @param signing the in-progress signing attempt
+     * @param submissionFuture a future that completes when this node has submitted its partial signature
+     */
+    record SigningResult(
+            @NonNull BlockHashSigning signing, @NonNull CompletableFuture<Void> submissionFuture) {
+        public SigningResult {
+            requireNonNull(signing);
+            requireNonNull(submissionFuture);
+        }
+    }
+
+    /**
      * Since the roster service has to decide to adopt the candidate roster
      * at an upgrade boundary based on availability of hinTS preprocessed
      * keys, the hinTS service must be migrated before the roster service
@@ -88,7 +103,7 @@ public interface HintsService extends Service {
      * Signs the given block hash.
      */
     @NonNull
-    BlockHashSigning sign(@NonNull Bytes blockHash);
+    SigningResult sign(@NonNull Bytes blockHash);
 
     /**
      * Returns the TSS node-transaction submission helper.

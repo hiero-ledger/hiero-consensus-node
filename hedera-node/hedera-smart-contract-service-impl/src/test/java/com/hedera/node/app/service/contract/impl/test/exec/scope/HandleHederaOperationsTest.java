@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
@@ -68,6 +69,7 @@ import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Assertions;
@@ -254,6 +256,31 @@ class HandleHederaOperationsTest {
     void valueInTinybarsDelegates() {
         given(tinybarValues.asTinybars(1L)).willReturn(2L);
         assertEquals(2L, subject.valueInTinybars(1L));
+    }
+
+    @Test
+    void collectAndRefundGasFeesUseTheContextAndReplay() {
+        subject.collectGasFee(RELAYER_ID, 69L, false);
+        subject.collectGasFee(NON_SYSTEM_ACCOUNT_ID, 123L, true);
+        subject.refundGasFee(RELAYER_ID, 12L);
+        subject.refundGasFee(NON_SYSTEM_ACCOUNT_ID, 42L);
+
+        verify(context).tryToCharge(RELAYER_ID, 69L);
+        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
+        verify(context).refundBestEffort(RELAYER_ID, 12L);
+        verify(context).refundBestEffort(NON_SYSTEM_ACCOUNT_ID, 42L);
+
+        assertEquals(
+                List.of(
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.CHARGE, RELAYER_ID, 69L, false),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.CHARGE, NON_SYSTEM_ACCOUNT_ID, 123L, true),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.REFUND, RELAYER_ID, 12L, false),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.REFUND, NON_SYSTEM_ACCOUNT_ID, 42L, false)),
+                subject.gasChargingEvents());
     }
 
     @Test

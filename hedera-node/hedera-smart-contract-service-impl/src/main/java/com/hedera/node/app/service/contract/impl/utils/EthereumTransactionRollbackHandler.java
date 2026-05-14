@@ -17,48 +17,47 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class EthereumTransactionRollbackHandler implements HandleException.OnRollback {
+public final class EthereumTransactionRollbackHandler implements HandleException.OnRollback {
+
     private final CallOutcome outcome;
-    private final RootProxyWorldUpdater rootProxyWorldUpdater;
     private final List<HederaOperations.GasChargingEvent> gasChargingEvents;
-    private final HandleContext handleContext;
+    private final RootProxyWorldUpdater rootProxyWorldUpdater;
 
     public EthereumTransactionRollbackHandler(
-            @NonNull final CallOutcome outcome,
-            @NonNull final RootProxyWorldUpdater rootProxyWorldUpdater,
-            @NonNull final List<HederaOperations.GasChargingEvent> gasChargingEvents,
-            @NonNull final HandleContext handleContext) {
+            @NonNull CallOutcome outcome,
+            @NonNull List<HederaOperations.GasChargingEvent> gasChargingEvents,
+            @NonNull RootProxyWorldUpdater rootProxyWorldUpdater) {
         this.outcome = outcome;
-        this.rootProxyWorldUpdater = rootProxyWorldUpdater;
         this.gasChargingEvents = gasChargingEvents;
-        this.handleContext = handleContext;
+        this.rootProxyWorldUpdater = rootProxyWorldUpdater;
     }
 
     @Override
-    public void replay(
-            @NonNull final FeeCharging.Context feeChargingContext,
-            @NonNull final HandleException.ChildDispatch dispatch) {
+    public void replay(@NonNull FeeCharging.Context feeChargingContext, @NonNull HandleContext handleContext) {
         // Replay fee charges
-        replayGasChargingIn(feeChargingContext);
+        replayGasChargingIn(feeChargingContext, handleContext);
 
         // Replay code delegations
         replayCodeDelegations();
     }
 
-    private void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
+    private void replayGasChargingIn(
+            @NonNull final FeeCharging.Context feeChargingContext, HandleContext handleContext) {
+        final var tokenServiceApi = handleContext.storeFactory().serviceApi(TokenServiceApi.class);
         final Map<AccountID, Long> netCharges = new LinkedHashMap<>();
         for (final var event : gasChargingEvents) {
             if (event.action() == HandleHederaOperations.GasChargingAction.CHARGE) {
                 netCharges.merge(event.accountId(), event.amount(), Long::sum);
                 if (event.withNonceIncrement()) {
-                    final var tokenServiceApi = handleContext.storeFactory().serviceApi(TokenServiceApi.class);
                     tokenServiceApi.incrementSenderNonce(event.accountId());
                 }
             } else {
                 netCharges.merge(event.accountId(), -event.amount(), Long::sum);
             }
         }
-        netCharges.forEach((payerId, amount) -> feeChargingContext.charge(payerId, new Fees(0, amount, 0), null));
+        netCharges.forEach((payerId, amount) -> {
+            feeChargingContext.charge(payerId, new Fees(0, amount, 0), null);
+        });
     }
 
     private void replayCodeDelegations() {

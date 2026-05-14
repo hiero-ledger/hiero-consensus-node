@@ -122,7 +122,7 @@ public class TestIntake {
         };
 
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, localFreezeCheck);
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, localFreezeCheck, 0L);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

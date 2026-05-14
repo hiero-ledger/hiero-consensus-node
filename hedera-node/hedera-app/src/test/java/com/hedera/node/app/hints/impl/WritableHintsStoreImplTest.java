@@ -308,7 +308,7 @@ class WritableHintsStoreImplTest {
                 HintsConstruction.newBuilder().constructionId(123L).build(),
                 HintsConstruction.newBuilder().constructionId(456L).build());
         final var verificationKey = Bytes.wrap("VK");
-        final var keys = new PreprocessedKeys(Bytes.EMPTY, verificationKey);
+        final var keys = new PreprocessedKeys(Bytes.wrap(new byte[49]), verificationKey);
         final var nodePartyIds = Map.of(1L, 2, 3L, 6);
         final var nodeWeights = Map.of(1L, 100L, 3L, 300L);
         assertNull(subject.getActiveVerificationKey());
