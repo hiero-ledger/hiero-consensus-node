@@ -114,12 +114,12 @@ public class BlockStreamManagerWrapper {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 NoOpDependencies.createBenchmarkBoundaryStateChangeListener(configProvider),
-                new NoOpDependencies.NoOpPlatform(),
                 quiescenceController,
                 NoOpDependencies.createNoOpInitialStateHash(),
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
+                NoOpDependencies.createBenchmarkQuiescenceCommands(),
                 new NoOpDependencies.NoOpMetrics());
 
         manager.init(state, BlockStreamManager.HASH_OF_ZERO);

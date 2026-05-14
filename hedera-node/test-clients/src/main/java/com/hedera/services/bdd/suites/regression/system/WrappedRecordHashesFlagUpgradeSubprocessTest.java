@@ -71,7 +71,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
 
         return hapiTest(
                 // Produce a new record block and ensure nothing was written with default settings
-                waitUntilNextBlock(),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
                 sleepFor(DISK_IO_WAIT_MS),
                 doingContextual(spec -> assertNoWrappedHashesWritten(spec.getNetworkNodes().stream()
@@ -81,7 +81,7 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 // Now restart with the feature enabled (bootstrap override)
                 upgradeToNextConfigVersion(enableAtRestart),
                 // Produce a new record block and ensure the file exists and is parseable on every node
-                waitUntilNextBlock(),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 sleepFor(DISK_IO_WAIT_MS),

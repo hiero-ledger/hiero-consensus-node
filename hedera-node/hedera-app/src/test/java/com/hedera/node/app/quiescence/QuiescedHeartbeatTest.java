@@ -48,17 +48,19 @@ class QuiescedHeartbeatTest {
     @Mock
     private TctProbe probe;
 
+    private QuiescenceCommands commands;
     private QuiescedHeartbeat subject;
 
     @BeforeEach
     void setUp() {
-        subject = new QuiescedHeartbeat(platform, controller, scheduler);
+        commands = new QuiescenceCommands(platform);
+        subject = new QuiescedHeartbeat(commands, controller, scheduler);
     }
 
     @Test
     void publicConstructorCreatesInstanceSuccessfully() {
         // When/Then
-        assertDoesNotThrow(() -> new QuiescedHeartbeat(controller, platform));
+        assertDoesNotThrow(() -> new QuiescedHeartbeat(controller, commands));
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.config.data.QuiescenceConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
@@ -33,6 +35,8 @@ public class QuiescenceController {
     private final QuiescenceConfig config;
     private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
+    private final Supplier<Instant> lastActivityAt;
+    private final Runnable recordActivity;
 
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
@@ -51,14 +55,23 @@ public class QuiescenceController {
      * @param time                    the time source
      * @param pendingTransactionCount a supplier that provides the number of transactions submitted to the node but not
      *                                yet included put into an event
+     * @param lastActivityAt          supplier of the wall-clock instant of the most recent observed transaction
+     *                                activity; used by the grace period evaluation
+     * @param recordActivity          callback invoked by the controller when it observes transaction activity that
+     *                                originated outside of ingest (e.g. a pre-handled event); allows the activity
+     *                                clock to be updated through a single source
      */
     public QuiescenceController(
             @NonNull final QuiescenceConfig config,
             @NonNull final InstantSource time,
-            @NonNull final LongSupplier pendingTransactionCount) {
+            @NonNull final LongSupplier pendingTransactionCount,
+            @NonNull final Supplier<Instant> lastActivityAt,
+            @NonNull final Runnable recordActivity) {
         this.config = requireNonNull(config);
         this.time = requireNonNull(time);
         this.pendingTransactionCount = requireNonNull(pendingTransactionCount);
+        this.lastActivityAt = requireNonNull(lastActivityAt);
+        this.recordActivity = requireNonNull(recordActivity);
         nextTct = new AtomicReference<>();
         pipelineTransactionCount = new AtomicLong(0);
         blockTrackers = new ConcurrentHashMap<>();
@@ -76,7 +89,13 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
+            final long relevant = QuiescenceUtils.countRelevantTransactions(transactions.iterator());
+            if (relevant > 0) {
+                // Pre-handling a relevant transaction counts as transaction activity for the grace period,
+                // including on nodes that don't see local ingest.
+                recordActivity.run();
+                pipelineTransactionCount.addAndGet(relevant);
+            }
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
@@ -199,6 +218,10 @@ public class QuiescenceController {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
             return;
         }
+        // Block sealing is intentionally NOT recorded as activity here: a block is produced every
+        // blockPeriod regardless of user traffic, so doing so would keep the grace period perpetually
+        // refreshed and prevent the network from ever quiescing. Activity is tracked only on ingest
+        // and on pre-handle of relevant transactions.
         updateTransactionCount(-blockTracker.getRelevantTransactionCount());
         nextTct.accumulateAndGet(blockTracker.getMaxConsensusTime(), QuiescenceController::tctUpdate);
     }
@@ -240,9 +263,15 @@ public class QuiescenceController {
         if (isDisabled()) {
             return;
         }
-        if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
+        if (platformStatus == PlatformStatus.ACTIVE) {
+            // Anchor the grace period to the point at which the node became an active participant in
+            // the network. Without this, the activity clock would carry over the wall-clock time spent
+            // in pre-ACTIVE phases and the grace period could already be expired at ACTIVE.
+            recordActivity.run();
+        } else if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
             pipelineTransactionCount.set(0);
             blockTrackers.clear();
+            recordActivity.run();
         }
     }
 
@@ -259,11 +288,19 @@ public class QuiescenceController {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         final Instant tct = nextTct.get();
-        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.instant())) {
+        if (tct != null
+                && !Instant.EPOCH.equals(tct)
+                && tct.minus(config.tctDuration()).isBefore(time.instant())) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pendingTransactionCount.getAsLong() > 0) {
             return QuiescenceCommand.BREAK_QUIESCENCE;
+        }
+        // Both counts are zero. Report QUIESCE only after the configured grace period has elapsed
+        // since the most recent observed activity; otherwise report DONT_QUIESCE so the platform
+        // continues to produce events.
+        if (Duration.between(lastActivityAt.get(), time.instant()).compareTo(config.gracePeriod()) < 0) {
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         return QuiescenceCommand.QUIESCE;
     }

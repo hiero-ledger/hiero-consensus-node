@@ -4,6 +4,7 @@ package com.hedera.node.app.records;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
@@ -75,6 +76,7 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier) {
@@ -88,7 +90,7 @@ public abstract class BlockRecordInjectionModule {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                quiescenceCommands,
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
                 blockHashSigner,

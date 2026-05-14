@@ -14,7 +14,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
@@ -38,6 +38,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -55,7 +56,6 @@ import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,7 +68,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.inject.Singleton;
@@ -77,7 +76,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 
@@ -116,10 +114,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
+    private final QuiescenceCommands quiescenceCommands;
     private final ConfigProvider configProvider;
-    private final Platform platform;
 
-    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
     private final StreamMode streamMode;
     private final int maxSideCarSizeInBytes;
     private final int recordFileVersion;
@@ -210,15 +207,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger) {
-        this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.streamFileProducer = requireNonNull(streamFileProducer);
         this.configProvider = requireNonNull(configProvider);
         this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
@@ -622,11 +619,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param state the state to use
      */
     public void maybeQuiesce(@NonNull final State state) {
-        final var lastCommand = lastQuiescenceCommand.get();
         final var commandNow = quiescenceController.getQuiescenceStatus();
-        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-            logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-            platform.quiescenceCommand(commandNow);
+        // BREAK_QUIESCENCE only needs to be dispatched when the platform is currently quiesced. If the
+        // last command sent was anything other than QUIESCE the platform is already producing events
+        // and a fresh BREAK_QUIESCENCE would only cause an unnecessary self-only break event.
+        final var isTransientBreak = commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
+        if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {
+            logger.info("Updated quiescence command to {}", commandNow);
             if (commandNow == QUIESCE) {
                 final var config = configProvider.getConfiguration();
                 final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);

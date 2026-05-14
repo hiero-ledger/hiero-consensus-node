@@ -22,6 +22,7 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
@@ -51,6 +52,7 @@ import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
@@ -69,7 +71,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -96,7 +97,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -107,7 +107,6 @@ import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -133,9 +132,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
-    private final Platform platform;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
+    private final QuiescenceCommands quiescenceCommands;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -149,7 +148,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new ConcurrentHashMap<>();
-    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
     // Cutover only: carries over the final original record hash until `startBlock()` is called for the first time. This
@@ -236,15 +234,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ExecutorService executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
-            @NonNull final Platform platform,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
-        this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
@@ -253,6 +250,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -747,12 +745,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     attempt.chainOfTrustProof());
                         }
                         if (quiescenceEnabled) {
-                            final var lastCommand = lastQuiescenceCommand.get();
                             final var commandNow = quiescenceController.getQuiescenceStatus();
-                            if (commandNow != lastCommand
-                                    && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                                log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                                platform.quiescenceCommand(commandNow);
+                            // BREAK_QUIESCENCE only needs to be dispatched when the platform is currently
+                            // quiesced. If the last command sent was anything other than QUIESCE the
+                            // platform is already producing events and a fresh BREAK_QUIESCENCE would only
+                            // cause an unnecessary self-only break event.
+                            final var isTransientBreak =
+                                    commandNow == BREAK_QUIESCENCE && quiescenceCommands.lastSent() != QUIESCE;
+                            if (!isTransientBreak && quiescenceCommands.sendIfChanged(commandNow)) {
+                                log.info("Updated quiescence command to {}", commandNow);
                                 if (commandNow == QUIESCE) {
                                     final var config = configProvider.getConfiguration();
                                     final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);

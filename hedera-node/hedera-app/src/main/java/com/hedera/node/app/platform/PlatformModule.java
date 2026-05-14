@@ -55,7 +55,9 @@ public interface PlatformModule {
         return new QuiescenceController(
                 configProvider.configuration().getConfigData(QuiescenceConfig.class),
                 instantSource,
-                txPipelineTracker::estimateTxPipelineCount);
+                txPipelineTracker::estimateTxPipelineCount,
+                txPipelineTracker::lastActivityAt,
+                txPipelineTracker::recordActivity);
     }
 
     @Binds

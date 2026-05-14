@@ -24,6 +24,7 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -153,7 +154,7 @@ class BlockOpeningTest {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                new QuiescenceCommands(platform),
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,

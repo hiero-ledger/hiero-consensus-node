@@ -16,13 +16,10 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.quiescence.QuiescedHeartbeat;
-import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import java.time.Instant;
-import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -119,12 +116,10 @@ class SealRoundRecordClosureTest extends AppTestBase {
         final var producer = Mockito.mock(BlockRecordStreamProducer.class);
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
         when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
-        final var controller = new QuiescenceController(
-                new com.hedera.node.config.data.QuiescenceConfig(false, java.time.Duration.ofSeconds(5)),
-                InstantSource.system(),
-                () -> 0);
-        final var platform = app.platform();
-        final var heartbeat = new QuiescedHeartbeat(controller, platform);
+        final var quiescence = new QuiescenceTestBase(app.platform());
+        final var controller = quiescence.getController();
+        final var quiescenceCommands = quiescence.getCommands();
+        final var heartbeat = quiescence.getHeartbeat();
         final Supplier<BlockItemWriter> wrbSupplier = () -> Mockito.mock(BlockItemWriter.class);
 
         final var manager = new BlockRecordManagerImpl(
@@ -133,7 +128,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 producer,
                 controller,
                 heartbeat,
-                platform,
+                quiescenceCommands,
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
                 blockHashSigner,
