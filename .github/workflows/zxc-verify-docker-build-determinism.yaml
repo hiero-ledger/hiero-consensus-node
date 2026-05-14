@@ -450,11 +450,11 @@ jobs:
 
       - name: Set Failure Mode
         id: set-failure-mode
-        uses: ./.github/actions/aggregate-failure-mode
-        with:
-          job-results: |
+        env:
+          JOB_RESULTS: |
             ${{ needs.generate-baseline.result }}
             ${{ needs.verify-artifacts.result }}
-          job-failure-modes: |
-            ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
-            ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
+          JOB_FAILURE_MODES: |
+            ${{ needs.generate-baseline.outputs.failure-mode }}
+            ${{ needs.verify-artifacts.outputs.failure-mode }}
+        run: node .github/scripts/aggregate-failure-mode.js
