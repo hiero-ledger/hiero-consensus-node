@@ -76,7 +76,7 @@ entries:
     title: "Components, schedulers, and queues"
     source_topics:
       - wiring-framework.md
-    status: not_started
+    status: drafted
 
   - id: c0-02-wires-and-soldering
     index: 6
