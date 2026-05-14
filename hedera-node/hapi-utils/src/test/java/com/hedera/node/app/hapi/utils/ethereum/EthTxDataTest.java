@@ -838,6 +838,8 @@ class EthTxDataTest {
                         new byte[0],
                         null,
                         null,
+                        null,
+                        null,
                         0,
                         new byte[0],
                         new byte[0],
