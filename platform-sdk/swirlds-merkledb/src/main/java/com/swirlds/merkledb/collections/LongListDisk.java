@@ -5,7 +5,6 @@ import static java.lang.Math.toIntExact;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +20,10 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
@@ -58,6 +59,8 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     private Path tempDir;
 
+    private final FileSystemManager fileSystemManager;
+
     /** A temp byte buffer for transferring data between file channels */
     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
 
@@ -65,6 +68,12 @@ public class LongListDisk extends AbstractLongList<Long> {
      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
      */
     private final Deque<Long> freeChunks = new ConcurrentLinkedDeque<>();
+
+    /**
+     * The number of chunks in the temp file. Increased when a new chunk is created and
+     * appended to the file.
+     */
+    private final AtomicInteger numAllocatedChunks;
 
     /**
      * Protects readers and writers from observing a chunk file-offset
@@ -97,7 +106,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         TRANSFER_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
         // it's initialized as 8 bytes (Long.BYTES) but likely it's going to be resized later
         TEMP_LONG_BUFFER_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.nativeOrder()));
+                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
@@ -106,11 +115,17 @@ public class LongListDisk extends AbstractLongList<Long> {
      *
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager File system manager to use for resolving temp files
      */
-    public LongListDisk(final long capacity, final Configuration configuration) {
+    public LongListDisk(
+            final long capacity,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        this.fileSystemManager = fileSystemManager;
         super(capacity, configuration);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
+        numAllocatedChunks = new AtomicInteger(0);
     }
 
     /**
@@ -121,15 +136,19 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before
      *                           minimal index in the list
+     * @param fileSystemManager the file system manager to use for resolving temp files
      */
     public LongListDisk(
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration) {
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager) {
+        this.fileSystemManager = fileSystemManager;
         super(longsPerChunk, capacity, reservedBufferSize);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
+        numAllocatedChunks = new AtomicInteger(0);
     }
 
     /**
@@ -142,11 +161,20 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListDisk(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListDisk(
+            @NonNull final Path file,
+            final long capacity,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
+        this.fileSystemManager = fileSystemManager;
+        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
+        // which is called from super()
+        numAllocatedChunks = new AtomicInteger(0);
         super(file, capacity, configuration);
         if (tempFile == null) {
             throw new IllegalStateException("The temp file is not initialized");
@@ -165,6 +193,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
@@ -173,8 +202,13 @@ public class LongListDisk extends AbstractLongList<Long> {
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration)
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
+        this.fileSystemManager = fileSystemManager;
+        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
+        // which is called from super()
+        numAllocatedChunks = new AtomicInteger(0);
         super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
@@ -188,7 +222,7 @@ public class LongListDisk extends AbstractLongList<Long> {
             throw new IllegalStateException("The temp file has been already initialized");
         }
         try {
-            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration);
+            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration, fileSystemManager);
             currentFileChannel = FileChannel.open(
                     tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (IOException e) {
@@ -201,7 +235,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     protected void readBodyFromFileChannelOnInit(
             final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
             throws IOException {
-        tempFile = createTempFile(sourceFileName, configuration);
+        tempFile = createTempFile(sourceFileName, configuration, fileSystemManager);
 
         currentFileChannel = FileChannel.open(
                 tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
@@ -228,6 +262,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final long chunk = ((long) (chunkIndex - firstChunkIndex) * memoryChunkSize);
             setChunk(chunkIndex, chunk);
         }
+
+        numAllocatedChunks.set(lastChunkIndex - firstChunkIndex + 1);
     }
 
     /** {@inheritDoc} */
@@ -245,7 +281,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     private ByteBuffer initOrGetTransferBuffer() {
         ByteBuffer buffer = TRANSFER_BUFFER_THREAD_LOCAL.get();
         if ((buffer == null) || (buffer.capacity() < memoryChunkSize)) {
-            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.nativeOrder());
+            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
             TRANSFER_BUFFER_THREAD_LOCAL.set(buffer);
         } else {
             // clean up the buffer
@@ -255,12 +291,15 @@ public class LongListDisk extends AbstractLongList<Long> {
         return buffer;
     }
 
-    Path createTempFile(final String sourceFileName, final @NonNull Configuration configuration) throws IOException {
+    Path createTempFile(
+            final String sourceFileName,
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
+            throws IOException {
         requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
-        // final Path directory = FileSystemManager.create(configuration).resolveNewTemp(STORE_POSTFIX);
-        tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(STORE_POSTFIX, configuration);
+        tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }
@@ -334,7 +373,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     @Override
     protected synchronized boolean putIfEqual(
-            final Long chunk, final int subIndex, final long oldValue, long newValue) {
+            @NonNull final Long chunk, final int subIndex, final long oldValue, long newValue) {
         chunkRecycleLock.readLock().lock();
         try {
             final ByteBuffer buf = TEMP_LONG_BUFFER_THREAD_LOCAL.get();
@@ -397,7 +436,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      * {@inheritDoc}
      */
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
+    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
         final int totalNumOfChunks = calculateNumberOfChunks(size());
         final long currentMinValidIndex = minValidIndex.get();
@@ -493,7 +532,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             freeChunks.clear();
             Files.delete(tempFile);
             // The directory must be empty at this point
-            Files.delete(tempDir);
+            if (tempDir != null && Files.exists(tempDir)) {
+                Files.delete(tempDir);
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         } finally {
@@ -555,14 +596,9 @@ public class LongListDisk extends AbstractLongList<Long> {
     /** {@inheritDoc} */
     @Override
     protected Long createChunk() {
-        Long chunkOffset = freeChunks.poll();
-        if (chunkOffset == null) {
-            long maxOffset = -1;
-            for (int i = 0; i < chunkList.length(); i++) {
-                Long currentOffset = chunkList.get(i);
-                maxOffset = Math.max(maxOffset, currentOffset == null ? -1 : currentOffset);
-            }
-            final long chunk = maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+        Long chunk = freeChunks.poll();
+        if (chunk == null) {
+            chunk = (long) numAllocatedChunks.getAndIncrement() * memoryChunkSize;
             try {
                 // Append the full chunk to the end of the backing file
                 final ByteBuffer tmp = initOrGetTransferBuffer();
@@ -571,10 +607,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return chunk;
-        } else {
-            return chunkOffset;
         }
+        return chunk;
     }
 
     // exposed for test purposes only - DO NOT USE IN PROD CODE

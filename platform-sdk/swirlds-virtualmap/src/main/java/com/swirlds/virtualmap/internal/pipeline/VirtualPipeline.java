@@ -41,8 +41,8 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * 	<li>all copies must be <strong>flushed</strong> or <strong>merged</strong> prior to eviction from memory</li>
  * 	<li>a copy can only be <strong>flushed</strong> or <strong>merged</strong>, not both</li>
  * 	<li>no <strong>flushes</strong> or <strong>merges</strong> are processed during copy detachment</li>
- * 	<li>pipelines can be terminated even when not all copies are destroyed or detached (e.g. during reconnect
- * 		or node shutdown). A terminated pipeline is not required to <strong>flush</strong> or <strong>merge</strong>
+ * 	<li>pipelines can be terminated even when not all copies are destroyed or detached (e.g. during node shutdown).
+ * 	    A terminated pipeline is not required to <strong>flush</strong> or <strong>merge</strong>
  * 		copies before those copies are collected by the java garbage collector.</li>
  * </ul>
  *
@@ -251,14 +251,6 @@ public class VirtualPipeline {
             throw new IllegalStateException("Only mutable copies may be registered");
         }
 
-        // During reconnect, an existing virtual root node may be inserted to a new virtual map node.
-        // When it happens, the root node is initialized with {@link VirtualMap#postInit()} and
-        // requested to register in the same pipeline multiple times
-        if (isAlreadyRegistered(copy)) {
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Virtual root copy is already registered in the pipeline");
-            return;
-        }
-
         logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Register copy {}", copy.getFastCopyVersion());
 
         undestroyedCopies.getAndIncrement();
@@ -310,7 +302,7 @@ public class VirtualPipeline {
             throw new IllegalStateException("copies destroyed too many times");
         } else if (remainingCopies == 0) {
             // Let pipeline shutdown gracefully, e.g. complete any flushes in progress
-            shutdown(false);
+            shutdownAfterFinalWork();
         } else {
             scheduleWork();
         }
@@ -530,6 +522,29 @@ public class VirtualPipeline {
     }
 
     /**
+     * Run one final lifecycle pass and then gracefully shut down the pipeline.
+     *
+     * <p>This is needed when the final copy is destroyed. Destroying the final copy can make older
+     * copies eligible for flush or merge, so shutting down immediately may abandon work that has just
+     * become possible.
+     */
+    private synchronized void shutdownAfterFinalWork() {
+        alive = false;
+        if (!executorService.isShutdown()) {
+            executorService.submit(() -> {
+                try {
+                    hashFlushMerge();
+                } catch (final Throwable e) { // NOSONAR: Must log since this is on the lifecycle thread.
+                    logger.error(EXCEPTION.getMarker(), "exception during final virtual pipeline work", e);
+                } finally {
+                    fireOnShutdown(false);
+                }
+            });
+            executorService.shutdown();
+        }
+    }
+
+    /**
      * Waits for any pending flushes or merges to complete and then pauses the pipeline while the
      * given supplier provides a value, and then resumes pipeline operation. Fatal errors happen
      * if the background thread is interrupted.
@@ -627,20 +642,5 @@ public class VirtualPipeline {
 
         sb.append("There is no problem if this has happened during a freeze.\n");
         logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "{}", sb);
-    }
-
-    /**
-     * Checks if the copy is already registered in this pipeline.
-     *
-     * There is a similar method in VirtualMap, but it only checks the VirtualPipeline
-     * but not if it actually contains the copy.
-     *
-     * @param copy
-     * 		Virtual root copy to check
-     * @return
-     *        True, if this pipeline already has the copy registered, false otherwise
-     */
-    private boolean isAlreadyRegistered(final VirtualRoot copy) {
-        return !copies.testAll(c -> !copy.equals(c));
     }
 }

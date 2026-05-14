@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -171,11 +171,12 @@ public class TipsetEventCreator implements EventCreator {
 
         if (selfEvent) {
             if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
+                    || (this.lastSelfEvent.hasSequenceNumber()
+                            && this.lastSelfEvent.getSequenceNumber() < event.getSequenceNumber())) {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart (via PCES)
                 // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen value assigned by the orphan buffer.
+                // will have an sequence number value assigned by the orphan buffer.
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
                 tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());

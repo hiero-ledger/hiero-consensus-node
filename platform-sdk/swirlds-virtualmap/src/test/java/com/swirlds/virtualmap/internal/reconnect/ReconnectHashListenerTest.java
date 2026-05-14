@@ -26,7 +26,6 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,7 +36,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -96,6 +94,9 @@ class ReconnectHashListenerTest {
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;
         final int last = 2 * size - 2;
+
+        flusher.init(first, last);
+
         final ReconnectHashListener listener = new ReconnectHashListener(flusher, new DataSourceHashChunkPreloader(ds));
         final VirtualHasher hasher = new VirtualHasher(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
@@ -110,6 +111,8 @@ class ReconnectHashListenerTest {
                 first,
                 last,
                 listener);
+
+        flusher.finish();
 
         // Now validate that everything showed up the data source in ordered chunks
         final TreeSet<VirtualHashChunk> allFlushedChunks =
@@ -130,29 +133,11 @@ class ReconnectHashListenerTest {
             chunkId++;
         }
 
-        final TreeSet<VirtualLeafBytes> allLeafRecords =
-                new TreeSet<>(Comparator.comparingLong(VirtualLeafBytes::path));
-
-        for (List<VirtualLeafBytes> leafRecords : ds.leafRecords) {
-            allLeafRecords.addAll(leafRecords);
-        }
-
-        assertEquals(size, allLeafRecords.size(), "Some leaf records were not written!");
-        long expected = first;
-        for (VirtualLeafBytes rec : allLeafRecords) {
-            final long path = rec.path();
-            assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
-            expected++;
-        }
         hasher.shutdown();
     }
 
     private VirtualLeafBytes leaf(long path) {
         return new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue(path).toBytes());
-    }
-
-    private Hash hash(long path) {
-        return CRYPTO.digestSync(("" + path).getBytes(StandardCharsets.UTF_8));
     }
 
     private static final class VirtualDataSourceSpy implements VirtualDataSource {

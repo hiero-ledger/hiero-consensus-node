@@ -15,7 +15,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import org.hiero.consensus.exceptions.ResourceNotFoundException;
+import org.hiero.base.io.ResourceNotFoundException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

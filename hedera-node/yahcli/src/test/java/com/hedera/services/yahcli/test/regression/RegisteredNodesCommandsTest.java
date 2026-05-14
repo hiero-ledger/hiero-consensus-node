@@ -237,6 +237,35 @@ public class RegisteredNodesCommandsTest {
     // -------------------------------------------------------------------------
 
     /**
+     * Creates a registered node with a single block node endpoint that advertises
+     * multiple APIs via the comma-separated format. This exercises the repeated
+     * {@code endpoint_api} field on a single {@code BlockNodeEndpoint}.
+     */
+    @HapiTest
+    final Stream<DynamicTest> createWithBlockNodeMultiApiEndpoint() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_block_multi_api.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> {
+                    allRunFor(
+                            spec,
+                            yahcliRegisteredNodes(
+                                            "create",
+                                            "-k",
+                                            asYcDefaultNetworkKey(adminKeyFile),
+                                            "--blockNodeEndpoint",
+                                            "127.0.0.1:8080:STATUS,PUBLISH,SUBSCRIBE_STREAM",
+                                            "-d",
+                                            "Block node with multiple APIs on one endpoint")
+                                    .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
+                    assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
+                }));
+    }
+
+    /**
      * Creates a registered node exposing multiple block node APIs on separate ports.
      * This mirrors a real block node that separates its STATUS, PUBLISH, and
      * SUBSCRIBE_STREAM endpoints for operational reasons (e.g. different ACLs per port).
@@ -297,6 +326,32 @@ public class RegisteredNodesCommandsTest {
                                     .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)));
                     assertTrue(createdId.get() > 0, "Expected a positive registered node ID");
                 }));
+    }
+
+    /**
+     * Attempts to create a registered node with duplicate APIs (STATUS,STATUS) on a single
+     * block node endpoint. The network rejects this with INVALID_REGISTERED_ENDPOINT.
+     */
+    @HapiTest
+    final Stream<DynamicTest> createWithDuplicateBlockNodeApisFails() {
+        final var adminKeyFile = "rn_dup_apis.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS,STATUS",
+                                        "-d",
+                                        "Should fail with duplicate APIs")
+                                .expectFail()
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("FAILED"), "Expected failure for duplicate APIs")))));
     }
 
     /**

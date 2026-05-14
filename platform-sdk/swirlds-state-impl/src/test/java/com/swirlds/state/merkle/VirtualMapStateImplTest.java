@@ -780,7 +780,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final long expected = virtualMapState
                     .getRoot()
                     .getRecords()
-                    .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
+                    .findKeyPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
 
             final long actual = virtualMapState.getSingletonPath(COUNTRY_STATE_ID);
             assertThat(actual).isEqualTo(expected);
@@ -805,7 +805,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final long initialPath = virtualMapState
                     .getRoot()
                     .getRecords()
-                    .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
+                    .findKeyPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
             assertThat(initialPath).isEqualTo(1);
 
             addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
@@ -828,7 +828,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         @DisplayName("getKvPath returns path for existing keyValue key")
         void kvPath_found() {
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
-            final long expected = (virtualMapState.getRoot()).getRecords().findPath(kvKey);
+            final long expected = (virtualMapState.getRoot()).getRecords().findKeyPath(kvKey);
 
             final long actualForBytes = virtualMapState.getKvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
             final long actualForObj = virtualMapState.getKvPath(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
@@ -859,7 +859,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             virtualMap.remove(firstIdxKey);
 
             final var thirdIdxKey = StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3);
-            final var expectedPath = virtualMap.getRecords().findPath(thirdIdxKey);
+            final var expectedPath = virtualMap.getRecords().findKeyPath(thirdIdxKey);
 
             // Found case
             final long actualPathForBytes =
@@ -938,7 +938,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             final VirtualMap vm = virtualMapState.getRoot();
 
             final VirtualLeafBytes leaf = vm.getRecords()
-                    .findLeafRecord(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
+                    .findLeaf(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
             assertNotNull(leaf);
 
             // Get Merkle proof and verify state item content
@@ -1013,7 +1013,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             // Build expected state item content from the actual leaf record
             final VirtualMap vm = virtualMapState.getRoot();
             final VirtualLeafBytes leaf =
-                    vm.getRecords().findLeafRecord(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
+                    vm.getRecords().findLeaf(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
             assertNotNull(leaf);
 
             // Get Merkle proof and verify state item content
@@ -1069,7 +1069,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             // Build expected state item content from the actual leaf record
             final VirtualMap vm = virtualMapState.getRoot();
             final VirtualLeafBytes leaf =
-                    vm.getRecords().findLeafRecord(StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3));
+                    vm.getRecords().findLeaf(StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3));
             assertNotNull(leaf);
 
             // Get Merkle proof and verify state item content
@@ -1429,5 +1429,81 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         // Then
         assertThat(virtualMapState.getQueueState(STEAM_STATE_ID)).isNull();
         assertThat(virtualMapState.peekQueueHead(STEAM_STATE_ID)).isNull();
+    }
+
+    @Test
+    @DisplayName("pushQueue/popQueue produce identical hashes to State API queue operations")
+    void testBinaryQueueApiMatchesStateApi() {
+        // --- State API path ---
+        setupSteamQueue();
+        virtualMapState.initializeState(steamMetadata);
+        final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+        final WritableQueueState<ProtoBytes> queue = writable.getQueue(STEAM_STATE_ID);
+        queue.add(ART);
+        queue.add(BIOLOGY);
+        ((CommittableWritableStates) writable).commit();
+
+        final VirtualMapStateImpl stateApiCopy = virtualMapState.copy();
+        final Hash stateApiHash = virtualMapState.getHash();
+
+        // --- BinaryState API path ---
+        // Start from a fresh state
+        stateApiCopy.release();
+        final VirtualMapStateImpl freshState = createTestState();
+        setupSteamQueue();
+        freshState.initializeState(steamMetadata);
+
+        freshState.pushQueue(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
+        freshState.pushQueue(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
+
+        final var binaryApiCopy = freshState.copy();
+        final Hash binaryApiHash = freshState.getHash();
+
+        // --- Assert identical hashes ---
+        assertThat(binaryApiHash).isEqualTo(stateApiHash);
+
+        binaryApiCopy.release();
+        freshState.release();
+    }
+
+    @Test
+    @DisplayName("popQueue produces identical hash to State API queue poll")
+    void testBinaryPopQueueMatchesStateApi() {
+        // --- State API path: push via State API, then pop via State API ---
+        setupSteamQueue();
+        virtualMapState.initializeState(steamMetadata);
+        var writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+        writable.getQueue(STEAM_STATE_ID).add(ART);
+        writable.getQueue(STEAM_STATE_ID).add(BIOLOGY);
+        ((CommittableWritableStates) writable).commit();
+
+        writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+        writable.getQueue(STEAM_STATE_ID).poll();
+        ((CommittableWritableStates) writable).commit();
+
+        final var stateApiCopy = virtualMapState.copy();
+        final Hash stateApiHash = virtualMapState.getHash();
+        stateApiCopy.release();
+
+        // --- BinaryState API path: push via State API, then pop via BinaryState ---
+        virtualMapState.release();
+        final var freshState = createTestState();
+        setupSteamQueue();
+        freshState.initializeState(steamMetadata);
+        var freshWritable = freshState.getWritableStates(FIRST_SERVICE);
+        freshWritable.getQueue(STEAM_STATE_ID).add(ART);
+        freshWritable.getQueue(STEAM_STATE_ID).add(BIOLOGY);
+        ((CommittableWritableStates) freshWritable).commit();
+
+        freshState.popQueue(STEAM_STATE_ID);
+
+        final var binaryApiCopy = freshState.copy();
+        final Hash binaryApiHash = freshState.getHash();
+        binaryApiCopy.release();
+
+        // --- Assert identical hashes ---
+        assertThat(binaryApiHash).isEqualTo(stateApiHash);
+
+        freshState.release();
     }
 }

@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -105,21 +105,10 @@ jobs:
           path: "**/build/test-results/testIntegration/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Integration)
-        id: detect-flaky-integration-tests
-        if: ${{ !cancelled() }}
-        run: |
-          has_flaky="false"
-          if find . -path "*/build/test-results/testIntegration/TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Otter Integration Tests Turtle Logs
         id: upload-otter-turtle-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
         with:
           name: Otter Integration Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -128,7 +117,7 @@ jobs:
       - name: Upload Otter Integration Tests Container Logs
         id: upload-otter-container-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
         with:
           name: Otter Integration Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -145,7 +134,7 @@ jobs:
             "${{ steps.upload-otter-turtle-integration-logs.outcome || 'skipped' }}"
             "${{ steps.upload-otter-container-integration-logs.outcome || 'skipped' }}"
           )
-          general_statuses=(
+          test_statuses=(
             "${{ steps.gradle-integration-tests.outcome || 'skipped' }}"
           )
 
@@ -159,8 +148,8 @@ jobs:
             return 1
           }
 
-          if has_failure "${general_statuses[@]}"; then
-            failure_mode="general"
+          if has_failure "${test_statuses[@]}"; then
+            failure_mode="test"
           fi
 
           if has_failure "${workflow_statuses[@]}"; then

@@ -177,45 +177,6 @@ public class CustomSelfDestructOperation extends AbstractOperation {
         return resultFor(costWithBeneficiary, null);
     }
 
-    public static OperationResult executeOldSelfDestruct(
-            MessageFrame frame, Address beneAdr, boolean isWarm, GasCalculator gasCalc) {
-        // Because of weird EIP150/158 reasons we care about a null account, so we can't merge this.
-        final Account beneficiaryNullable = frame.getWorldUpdater().get(beneAdr);
-        final Address originatorAddress = frame.getRecipientAddress();
-        final MutableAccount originatorAccount = frame.getWorldUpdater().getAccount(originatorAddress);
-        final Wei originatorBalance = originatorAccount.getBalance();
-
-        final long cost = gasCalc.selfDestructOperationGasCost(beneficiaryNullable, originatorBalance)
-                + (isWarm ? 0L : gasCalc.getColdAccountAccessCost());
-
-        // With the cost we can test for two early WithdrawalRequests: static or not enough gas.
-        if (frame.isStatic()) return new OperationResult(cost, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
-        if (frame.getRemainingGas() < cost) return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
-
-        // We passed preliminary checks, get mutable accounts.
-        final MutableAccount beneficiaryAccount = frame.getWorldUpdater().getOrCreate(beneAdr);
-
-        // Do the "sweep," all modes send all originator balance to the beneficiary account.
-        originatorAccount.decrementBalance(originatorBalance);
-        beneficiaryAccount.incrementBalance(originatorBalance);
-
-        // If we are actually destroying the originator (pre-Cancun or same-tx-create) we need to
-        // explicitly zero out the account balance (destroying ether/value if the originator is the
-        // beneficiary) as well as tag it for later self-destruct cleanup.
-        if (frame.wasCreatedInTransaction(originatorAccount.getAddress())) {
-            frame.addSelfDestruct(originatorAccount.getAddress());
-            originatorAccount.setBalance(Wei.ZERO);
-        }
-
-        // Add refund in message frame.
-        frame.addRefund(beneAdr, originatorBalance);
-
-        // Set frame to CODE_SUCCESS so that the frame performs a normal halt.
-        frame.setState(MessageFrame.State.CODE_SUCCESS);
-
-        return new OperationResult(cost, null);
-    }
-
     protected @NonNull Optional<ExceptionalHaltReason> validateHederaRestrictionsOnBeneficiary(
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         requireNonNull(deleted);

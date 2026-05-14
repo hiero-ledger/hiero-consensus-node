@@ -126,4 +126,14 @@ public class HintsSubmissions extends TssSubmissions {
                 },
                 onFailure);
     }
+
+    /**
+     * Attempts to submit an RSA signature using the node's platform signing key.
+     *
+     * @param message the message to sign
+     * @return a future that completes when the signature has been submitted
+     */
+    public CompletableFuture<Void> submitRsaSignature(@NonNull final Bytes message) {
+        return submitRsaSignature(message, onFailure);
+    }
 }

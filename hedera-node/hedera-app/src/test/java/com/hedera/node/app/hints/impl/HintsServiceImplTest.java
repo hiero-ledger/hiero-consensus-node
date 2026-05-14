@@ -26,6 +26,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -192,17 +193,19 @@ class HintsServiceImplTest {
     @Test
     void signCreatesSigningSubmitsPartialSignatureAndRemovesFromMapOnCompletion() {
         final var blockHash = Bytes.wrap("block-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, HintsContext.Signing>();
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
         given(context.newSigning(eq(blockHash), any(Runnable.class))).willReturn(signing);
 
         final var returned = subject.sign(blockHash);
 
-        assertSame(signing, returned);
+        assertSame(signing, returned.signing());
+        assertSame(submissionFuture, returned.submissionFuture());
         assertSame(signing, signings.get(blockHash));
         final var onCompletion = ArgumentCaptor.forClass(Runnable.class);
         verify(context).newSigning(eq(blockHash), onCompletion.capture());
@@ -216,17 +219,19 @@ class HintsServiceImplTest {
     @Test
     void signReusesExistingSigningForSameBlockHash() {
         final var blockHash = Bytes.wrap("same-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, HintsContext.Signing>();
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
         signings.put(blockHash, signing);
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
 
         final var returned = subject.sign(blockHash);
 
-        assertSame(signing, returned);
+        assertSame(signing, returned.signing());
+        assertSame(submissionFuture, returned.submissionFuture());
         verify(context, never()).newSigning(any(), any(Runnable.class));
         verify(submissions).submitPartialSignature(blockHash);
     }
@@ -384,10 +389,11 @@ class HintsServiceImplTest {
         subject.registerSchemas(schemaRegistry);
 
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        verify(schemaRegistry, times(2)).register(captor.capture());
+        verify(schemaRegistry, times(3)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertThat(schemas.getFirst()).isInstanceOf(V059HintsSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V060HintsSchema.class);
+        assertThat(schemas.get(1)).isInstanceOf(V060HintsSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V073HintsSchema.class);
     }
 
     @Test

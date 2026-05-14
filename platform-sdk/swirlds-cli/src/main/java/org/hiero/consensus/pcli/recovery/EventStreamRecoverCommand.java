@@ -21,6 +21,9 @@ import picocli.CommandLine;
 @SubcommandOf(EventStreamCommand.class)
 public final class EventStreamRecoverCommand extends AbstractCommand {
 
+    /** This is the value used in production by the Hedera App */
+    private static final long DEFAULT_TRANSACTION_OFFSET_NANOS = 104L;
+
     private Path outputPath = Path.of("./out");
     private Path bootstrapSignedState;
     private NodeId selfId;
@@ -29,6 +32,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     private Path eventStreamDirectory;
     private Path configurationPath;
     private boolean loadSigningKeys;
+    private long transactionOffsetNanos = DEFAULT_TRANSACTION_OFFSET_NANOS;
 
     private EventStreamRecoverCommand() {}
 
@@ -95,6 +99,15 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
         this.loadSigningKeys = loadSigningKeys;
     }
 
+    @CommandLine.Option(
+            names = {"-t", "--transaction-offset-nanos"},
+            defaultValue = "0",
+            description = "Nanoseconds to add to the first transaction's timestamp in each event. "
+                    + "Should match the value computed by the execution layer from its configuration. Default = 0")
+    private void setTransactionOffsetNanos(final long transactionOffsetNanos) {
+        this.transactionOffsetNanos = transactionOffsetNanos;
+    }
+
     @Override
     public Integer call() throws Exception {
         final Configuration configuration =
@@ -110,7 +123,8 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
                 finalRound,
                 outputPath,
                 selfId,
-                loadSigningKeys);
+                loadSigningKeys,
+                transactionOffsetNanos);
         return 0;
     }
 }

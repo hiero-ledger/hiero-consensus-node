@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "080: [FLOW] Auto Unapprove PR"
+on:
+  pull_request:
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-unapprove:
+    name: Auto Unapprove PR
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize Job
+        uses: PandasWhoCode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-node: "true"
+          node-version: "20"
+
+      - name: Dismiss Reviews from Code Owners and Teams
+        uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
+        with:
+          github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
+          pr-number: ${{ github.event.pull_request.number }}
+          dry-run: "false"
+          code-owners-file: ".github/CODEOWNERS"
+          target-branch: ${{ github.event.pull_request.base.ref }}
+          team-start-with: "@hiero-ledger/"

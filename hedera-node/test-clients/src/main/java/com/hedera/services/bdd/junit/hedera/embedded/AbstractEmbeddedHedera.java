@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.FILE_SYSTEM_MANAGER;
 import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -21,6 +22,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -74,6 +76,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
             new PlatformStatusChangeNotification(ACTIVE);
     protected static final PlatformStatusChangeNotification FREEZE_COMPLETE_NOTIFICATION =
             new PlatformStatusChangeNotification(FREEZE_COMPLETE);
+    // 100 reserved system txn nanos + 3 max preceding records + 1
+    protected static final int TXN_OFFSET_NANOS = 104;
 
     protected final Map<AccountID, NodeId> nodeIds;
     protected final Map<NodeId, com.hedera.hapi.node.base.AccountID> accountIds;
@@ -114,8 +118,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected FakeHistoryService historyService;
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.BlockHashSignerFactory}
-     * lambda we give the {@link Hedera} constructor will always set this (the fake's delegate will ultimately need
-     * needs to be constructed from the Hedera instance's {@code HintsService} and {@code HistoryService}).
+     * lambda we give the {@link Hedera} constructor will always set this.
      */
     protected LapsingBlockHashSigner blockHashSigner;
 
@@ -157,6 +160,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
 
     @Override
     public void start() {
+        hedera.setTxnOffsetNanos(TXN_OFFSET_NANOS);
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), trigger, version);
@@ -280,11 +284,13 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 new FakeServiceMigrator(),
                 this::now,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
+                        this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),
                 (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
-                (hints, history, configProvider) ->
-                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
+                (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
+                        new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),
                 PLATFORM_CONFIG,
+                FILE_SYSTEM_MANAGER,
                 metrics,
                 new FakeTime());
         version = hedera.getSemanticVersion();

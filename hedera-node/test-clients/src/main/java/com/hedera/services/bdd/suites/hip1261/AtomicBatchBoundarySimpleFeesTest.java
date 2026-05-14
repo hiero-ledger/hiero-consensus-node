@@ -45,7 +45,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
-import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -744,7 +744,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint1",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 1L,
+                                    TOKEN_MINT_NFT, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }
@@ -785,7 +785,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint5",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 5L,
+                                    TOKEN_MINT_NFT, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }
@@ -830,7 +830,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint10",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 10L,
+                                    TOKEN_MINT_NFT, 10L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }

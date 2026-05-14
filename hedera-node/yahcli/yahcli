@@ -1,2 +1,4 @@
 #! /bin/sh
-java -jar yahcli.jar "${@}"
+# Silence protobuf's UnsafeUtil sun.misc.Unsafe deprecation warnings on JDK 25.
+# The netty System.loadLibrary warning is handled via the JAR's Enable-Native-Access manifest.
+java --sun-misc-unsafe-memory-access=allow -jar yahcli.jar "${@}"

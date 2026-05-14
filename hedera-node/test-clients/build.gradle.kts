@@ -8,6 +8,50 @@ plugins {
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
+// Detect available resources and scale JVM settings accordingly
+val availableCpus = Runtime.getRuntime().availableProcessors()
+val totalMemoryGib: Double =
+    try {
+        val osName = System.getProperty("os.name", "").lowercase()
+        if (osName.contains("linux")) {
+            // Try cgroup limit first (container-aware), fall back to /proc/meminfo
+            val cgroupV2 = File("/sys/fs/cgroup/memory.max")
+            val cgroupV1 = File("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+            val cgroupBytes: Long? =
+                when {
+                    cgroupV2.exists() -> cgroupV2.readText().trim().toLongOrNull()
+                    cgroupV1.exists() -> cgroupV1.readText().trim().toLongOrNull()
+                    else -> null
+                }
+            if (cgroupBytes != null && cgroupBytes < Long.MAX_VALUE / 2) {
+                cgroupBytes / 1024.0 / 1024.0 / 1024.0
+            } else {
+                val memLine =
+                    File("/proc/meminfo").readLines().first { line -> line.startsWith("MemTotal") }
+                memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
+            }
+        } else {
+            // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
+            // This is the Gradle daemon's max heap, not physical RAM, but provides a
+            // reasonable lower bound for scaling test settings
+            Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
+        }
+    } catch (_: Exception) {
+        16.0
+    }
+// Use all available processors but cap at 8 to avoid excessive thread contention
+val testProcessorCount = availableCpus.coerceAtMost(8)
+// Parallelism is set per-task based on actual node count (see testSubprocessConcurrent below)
+// Reserve ~half of total memory for the test client JVM, leave the rest for forked node JVMs and OS
+val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
+val testMaxHeap = "${testClientHeapGib}g"
+// Pass remaining memory pool to ProcessUtils, which divides by actual node count at runtime
+val nodePoolMib = ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
+
+logger.lifecycle(
+    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+)
+
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
@@ -57,9 +101,9 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val miscTags =
@@ -139,23 +183,23 @@ val prCheckStartPorts =
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        "hapiTestCrypto" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
         "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestCrypto" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestWrapsDownload" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=da83f3ae5eaa8575f5bedf583de2826ccfa5bff80bd6f58a54b0bf7e934e98919b5bcdaa074b3ae248f161317b87a22a",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestMiscSerial" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
@@ -172,18 +216,18 @@ val prCheckPropOverrides =
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestMiscRecordsSerial" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestSimpleFees" to
-            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
-        "hapiTestNDReconnect" to
-            "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
+val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
@@ -199,10 +243,11 @@ val prCheckNetSizeOverrides =
         "hapiTestSimpleFees" to "3",
         "hapiTestSimpleFeesSerial" to "3",
         "hapiTestTokenSerial" to "3",
-        "hapiTestSmartContract" to "4",
+        "hapiTestSmartContract" to "3",
         "hapiTestSmartContractSerial" to "3",
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
+        "hapiTestStateThrottling" to "3",
     )
 
 tasks {
@@ -231,6 +276,13 @@ tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -275,6 +327,15 @@ tasks.register<Test>("testSubprocess") {
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    // Gather platform-level overrides (settings.txt) into a single comma-separated list
+    val platformOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPlatformOverrides[it] }
+            .joinToString(separator = ",")
+    if (platformOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.platform.overrides", platformOverrides)
     }
 
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
@@ -335,12 +396,14 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
     // Fix testcontainers module system access to commons libraries
     // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
     jvmArgs(
-        "-XX:ActiveProcessorCount=6",
+        "-XX:ActiveProcessorCount=$testProcessorCount",
         "--add-reads=org.testcontainers=org.apache.commons.lang3",
         "--add-reads=org.testcontainers=org.apache.commons.compress",
         "--add-reads=org.testcontainers=org.apache.commons.io",
@@ -353,6 +416,13 @@ tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -399,6 +469,15 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    // Gather platform-level overrides (settings.txt) into a single comma-separated list
+    val platformOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPlatformOverrides[it] }
+            .joinToString(separator = ",")
+    if (platformOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.platform.overrides", platformOverrides)
     }
 
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
@@ -453,17 +532,29 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with limited parallelism to balance speed and stability
+    // Use fixed strategy with parallelism based on node count: 3 nodes → 3 threads, 4 nodes → 2
+    // threads
+    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 3 else 2
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
+    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "$testParallelism")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=$testProcessorCount",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
@@ -471,6 +562,13 @@ tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { remoteCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -529,9 +627,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
     maxParallelForks = 1
 }
 
@@ -567,6 +665,13 @@ tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prEmbeddedCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -607,9 +712,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
@@ -628,6 +733,13 @@ tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prRepeatableCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -653,14 +765,25 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
+
+    // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
+    project.properties
+        .filter { (k, _) -> k.startsWith("sysProp.") }
+        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
-tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
+tasks.shadowJar {
+    archiveFileName.set("SuiteRunner.jar")
+    // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+    // restricted-method warning for callers in the unnamed module of this JAR
+    // when launched via `java -jar`.
+    manifest { attributes("Enable-Native-Access" to "ALL-UNNAMED") }
+}
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
@@ -670,5 +793,12 @@ val rcdiffJar =
         archiveFileName = "rcdiff.jar"
         configurations = listOf(project.configurations["rcdiffRuntimeClasspath"])
 
-        manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
+        manifest {
+            attributes(
+                "Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper",
+                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+                // restricted-method warning for callers in the unnamed module of this JAR.
+                "Enable-Native-Access" to "ALL-UNNAMED",
+            )
+        }
     }

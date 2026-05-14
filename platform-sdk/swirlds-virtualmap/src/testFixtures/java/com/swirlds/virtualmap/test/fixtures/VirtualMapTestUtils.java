@@ -4,8 +4,6 @@ package com.swirlds.virtualmap.test.fixtures;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -30,6 +28,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
@@ -41,8 +40,7 @@ public final class VirtualMapTestUtils {
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .withConfigDataType(ReconnectConfig.class)
             .build();
 
@@ -149,8 +147,8 @@ public final class VirtualMapTestUtils {
 
         for (long i = originalMapMetadata.getFirstLeafPath(); i <= originalMapMetadata.getLastLeafPath(); i++) {
             assertEquals(
-                    originalMap.getRecords().findLeafRecord(i),
-                    deserializedMap.getRecords().findLeafRecord(i),
+                    originalMap.getRecords().findLeaf(i),
+                    deserializedMap.getRecords().findLeaf(i),
                     "leaf records should match");
         }
 

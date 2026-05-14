@@ -14,10 +14,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node2
       nodeId: 1
@@ -25,10 +25,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node3
       nodeId: 2
@@ -36,10 +36,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node4
       nodeId: 3
@@ -47,10 +47,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node5
       nodeId: 4
@@ -58,10 +58,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node6
       nodeId: 5
@@ -69,10 +69,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node7
       nodeId: 6
@@ -80,10 +80,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
 defaults:
   sidecars:
@@ -122,14 +122,14 @@ defaults:
   root:
     resources:
       requests:
-        cpu: 22
+        cpu: 39
         memory: 256Gi
       limits:
-        cpu: 22
+        cpu: 39
         memory: 256Gi
     extraEnv:
       - name: JAVA_OPTS
-        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=64g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=64g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow -Dio.netty.tryReflectionSetAccessible=true"
       - name: JAVA_HEAP_MIN
         value: "32g"
       - name: JAVA_HEAP_MAX

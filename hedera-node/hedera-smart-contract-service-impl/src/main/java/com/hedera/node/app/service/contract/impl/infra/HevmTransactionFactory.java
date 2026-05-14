@@ -143,13 +143,16 @@ public class HevmTransactionFactory {
      * @throws IllegalArgumentException if the {@link TransactionBody} is not a contract operation
      */
     public HederaEvmTransaction fromHapiTransaction(@NonNull final TransactionBody body, @NonNull AccountID payerId) {
-        return switch (body.data().kind()) {
-            case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
-            case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow());
-            case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
-            case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
-            default -> throw new IllegalArgumentException("Not a contract operation");
-        };
+        final var hederaEvmTxn =
+                switch (body.data().kind()) {
+                    case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
+                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow());
+                    case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
+                    case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
+                    default -> throw new IllegalArgumentException("Not a contract operation");
+                };
+        assertValidGasAndAmount(hederaEvmTxn);
+        return hederaEvmTxn;
     }
 
     private HederaEvmTransaction fromHapiCreate(
@@ -330,13 +333,6 @@ public class HevmTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
-        final var minGasLimit = Math.max(
-                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
-                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
-        validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
-        validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
-        validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
-
         final var contract = accountStore.getContractById(body.contractIDOrThrow());
         if (contract != null) {
             final var contractNum = contract.accountIdOrThrow().accountNumOrThrow();
@@ -408,6 +404,15 @@ public class HevmTransactionFactory {
                 new ExpiryMeta(
                         NA, autoRenewPeriod, body.hasAutoRenewAccountId() ? body.autoRenewAccountIdOrThrow() : null),
                 HederaFunctionality.CONTRACT_CREATE);
+    }
+
+    private void assertValidGasAndAmount(@NonNull final HederaEvmTransaction hederaEvmTxn) {
+        final var minGasLimit = Math.max(
+                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
+                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
+        validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
+        validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
+        validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
 
     private Bytes initcodeFor(@NonNull final ContractCreateTransactionBody body) {

@@ -48,8 +48,9 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      -Xmx80g, and familyThrottlePercent is 5.0, the threshold will be set to 4Gb. If both familyThrottlePercent
  *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
  *      ignored
- * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before
- *      it fails with an exception.
+ * @param valueParseMaxSizeBytes
+ *      Maximum allowed size for parsing a delimited virtual-map value payload.
+ * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
  */
 // spotless:off
 @ConfigData("virtualMap")
@@ -65,6 +66,7 @@ public record VirtualMapConfig(
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
+        @Min(1) @ConfigProperty(defaultValue = "37748736") int valueParseMaxSizeBytes,
         @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs) {
 
     // spotless:on

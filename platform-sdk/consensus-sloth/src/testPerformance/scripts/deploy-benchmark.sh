@@ -129,9 +129,9 @@ if [[ -n "$GRADLE_PROCS" ]]; then
     ISSUES="${ISSUES}GRADLE_RUNNING\n${GRADLE_PROCS}\n"
 fi
 
-# Check for other active interactive users (exclude our own session)
-CURRENT_TTY=$(tty 2>/dev/null | sed 's|/dev/||' || echo "notty")
-ACTIVE_USERS=$(who | grep -v "$CURRENT_TTY" || true)
+# Check for other active interactive users (exclude our own user)
+CURRENT_USER=$(whoami)
+ACTIVE_USERS=$(who | grep -v "$CURRENT_USER" || true)
 if [[ -n "$ACTIVE_USERS" ]]; then
     ISSUES="${ISSUES}ACTIVE_USERS\n${ACTIVE_USERS}\n"
 fi
