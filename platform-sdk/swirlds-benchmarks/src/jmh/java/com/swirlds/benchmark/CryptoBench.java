@@ -281,24 +281,17 @@ public class CryptoBench extends VirtualMapEditBench {
 
         Transaction txn;
         Cache cache;
-        long skey, rkey;
-        long amount;
-        long timestamp;
         SyncTask out;
 
-        AsyncTask(ForkJoinPool pool, Cache cache, long skey, long rkey, long amount, long timestamp, SyncTask out) {
+        AsyncTask(ForkJoinPool pool, Cache cache, Transaction txn, SyncTask out) {
             super(pool, 1);
             this.cache = cache;
-            this.skey = skey;
-            this.rkey = rkey;
-            this.amount = amount;
-            this.timestamp = timestamp;
+            this.txn = txn;
             this.out = out;
         }
 
         @Override
         protected boolean onExecute() {
-            Transaction txn = new Transaction(skey, rkey, amount, timestamp);
             txn.execAsync(cache);
             out.send(txn);
             return true;
@@ -562,18 +555,19 @@ public class CryptoBench extends VirtualMapEditBench {
             currentFlushTask.send();
 
             for (int j = 0; j < numRecords; ++j) {
-                final long keyId1 = keys[j * KEYS_PER_RECORD];
-                final long keyId2 = keys[j * KEYS_PER_RECORD + 1];
+                final long sender = keys[j * KEYS_PER_RECORD];
+                final long receiver = keys[j * KEYS_PER_RECORD + 1];
                 final long amount = Utils.randomLong(MAX_AMOUNT);
+                final Transaction txn = new Transaction(sender, receiver, amount, j);
 
                 if (verify) {
-                    verificationMap[Math.toIntExact(keyId1)] -= amount;
-                    verificationMap[Math.toIntExact(keyId2)] += amount;
+                    verificationMap[Math.toIntExact(sender)] -= amount;
+                    verificationMap[Math.toIntExact(receiver)] += amount;
                     verificationMap[FIXED_KEY_ID1] += 1;
                     verificationMap[FIXED_KEY_ID2] += 1;
                 }
 
-                new AsyncTask(pool, mainCache, keyId1, keyId2, amount, j, currentSyncTask).send();
+                new AsyncTask(pool, mainCache, txn, currentSyncTask).send();
                 FlushTask nextFlushTask = new FlushTask(priority, virtualMap);
                 currentFlushTask.send(nextFlushTask);
                 finalTask = currentFlushTask;
