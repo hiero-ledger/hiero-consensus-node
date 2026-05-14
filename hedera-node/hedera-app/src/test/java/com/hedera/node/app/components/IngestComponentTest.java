@@ -18,6 +18,7 @@ import com.hedera.node.app.DaggerHederaInjectionComponent;
 import com.hedera.node.app.HederaInjectionComponent;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -167,6 +168,7 @@ class IngestComponentTest {
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .initialStateHash(new InitialStateHash(completedFuture(Bytes.EMPTY), 0))
+                .effectiveStartupBlockStreamInfo(EffectiveStartupBlockStreamInfo.NONE)
                 .networkInfo(networkInfo)
                 .selfNodeAccountIdManager(selfNodeAccountIdManagerImpl)
                 .startupNetworks(startupNetworks)

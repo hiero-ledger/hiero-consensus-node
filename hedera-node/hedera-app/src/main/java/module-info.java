@@ -31,6 +31,7 @@ module com.hedera.node.app {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
+    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive dagger;
     requires transitive io.grpc.stub;
@@ -59,7 +60,6 @@ module com.hedera.node.app {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
