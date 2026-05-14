@@ -7,6 +7,21 @@
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
+	<PropertyGroup>
+		<Authors>Xyclone Designs</Authors>
+		<Copyright>Copyright © $(Authors) $([System.DateTime]::Now.ToString('yyyy'))</Copyright>
+		<Description>Unofficial SDK Consensus Node for the Hedera Hashgraph network</Description>
+		<GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+		<IncludeSymbols>False</IncludeSymbols>
+		<PackageId>Hedera.Hashgraph.Proto</PackageId>
+		<PackageOutputPath>../../sdk-package</PackageOutputPath>
+		<PackageReleaseNotes>Unofficial and to be used for internal purposes</PackageReleaseNotes>
+		<PackageTags>hiero;ledger;consensus;node;c#;hedera;hashgraph;sdk</PackageTags>
+		<RepositoryUrl>https://github.com/xyclone-designs/hedera-sdk-csharp</RepositoryUrl>
+		<Title>$(AssemblyName)</Title>
+		<Version>0.0.0</Version>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Google.Protobuf" Version="3.34.1" />
 		<PackageReference Include="Grpc" Version="2.46.6" />
