@@ -25,13 +25,11 @@ public final class CpuCountConverter implements CommandLine.ITypeConverter<Integ
                 }
                 // Compute conservative thread count: floor of (available * pct/100), but at least 1 and at most
                 // available
-                int computed = (int) Math.floor(available * (pct / 100.0));
+                int computed = (int) Math.floor(available * pct / 100.0);
                 if (computed < 1) {
                     computed = 1;
                 }
-                if (computed > available) {
-                    computed = available;
-                }
+
                 return computed;
             }
 
