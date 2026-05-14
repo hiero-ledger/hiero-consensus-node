@@ -30,6 +30,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EthTxDataTest {
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
@@ -754,5 +755,92 @@ class EthTxDataTest {
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotNull(subject);
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
+    }
+
+    @ParameterizedTest(name = "v={0}")
+    @ValueSource(ints = {0, 1, 26, 29, 34})
+    // Legacy `v` byte values that are neither EIP-155 protected (v >= 35, derived from
+    // v = chainId*2 + 35|36) nor pre-EIP-155 unprotected (v == 27 or 28) — i.e. v in
+    // {0..26} ∪ {29..34} — used to leave chainId() as null, which could NPE downstream.
+    // After the fix populateEthTxData derives a phantom chainId that doesn't match any
+    // real Hedera network, so matchesChainId returns false and HevmTransactionFactory
+    // rejects with WRONG_CHAIN_ID instead of NPE'ing.
+    void testChainIdCanNotBeNullForLegacyV(final int vInt) {
+        // RLP canonical encoding of zero is the empty byte string
+        final byte[] v = (vInt == 0) ? new byte[0] : new byte[] {(byte) vInt};
+        EthTxData legacyTxData = EthTxData.populateEthTxData(legacyRawTxWithV(v));
+        assertChainIdInEthTxDataDoesNotMatchHedera(legacyTxData);
+    }
+
+    @Test
+    // When `v` exceeds a signed long (bitLength >= Long.SIZE), deriveChainId falls back to
+    // BigInteger arithmetic. Exercises the defensive else branch — malformed RLP with an
+    // oversized `v` must not NPE and must not pass chainId validation.
+    void oversizedVUsesBigIntegerFallbackAndDoesNotMatchHedera() {
+        // 9 bytes of 0xFF → bitLength = 72, exceeding Long.SIZE; forces the BigInteger fallback.
+        final byte[] v = new byte[] {
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF
+        };
+        EthTxData legacyTxData = EthTxData.populateEthTxData(legacyRawTxWithV(v));
+        assertChainIdInEthTxDataDoesNotMatchHedera(legacyTxData);
+    }
+
+    // Builds a 9-element legacy ethereum tx RLP with a fixed fixture, varying only the `v` byte field.
+    private static byte[] legacyRawTxWithV(final byte[] v) {
+        final byte[] nonce = Integers.toBytes(1);
+        final byte[] gasPrice = new byte[] {0x2f};
+        final byte[] gasLimit = Integers.toBytes(98_304L);
+        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] value = new byte[0];
+        final byte[] callData = new byte[] {0x76, 0x53};
+        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        return RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s));
+    }
+
+    // Asserts the parsed legacy tx has a phantom chainId that doesn't match any Hedera network
+    // (HIP-26: 295 mainnet, 296 testnet, 297 previewnet) — i.e. matchesChainId returns false,
+    // which means HevmTransactionFactory rejects it as WRONG_CHAIN_ID rather than NPE'ing.
+    private static void assertChainIdInEthTxDataDoesNotMatchHedera(final EthTxData subject) {
+        assertNotNull(subject);
+        assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, subject.type());
+        for (final long hederaChainId : new long[] {295L, 296L, 297L}) {
+            assertFalse(
+                    subject.matchesChainId(Integers.toBytes(hederaChainId)),
+                    "phantom chainId unexpectedly matched Hedera chainId " + hederaChainId);
+        }
+    }
+
+    @Test
+    // The compact constructor enforces the parser invariant: chainId must never be null.
+    void constructorRejectsNullChainId() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new EthTxData(
+                        null,
+                        EthTransactionType.LEGACY_ETHEREUM,
+                        null, // chainId must not be null
+                        1L,
+                        new byte[0],
+                        null,
+                        null,
+                        1L,
+                        new byte[0],
+                        BigInteger.ZERO,
+                        new byte[0],
+                        null,
+                        null,
+                        0,
+                        new byte[0],
+                        new byte[0],
+                        new byte[0]));
     }
 }
