@@ -1597,11 +1597,19 @@ public final class Hedera
     private boolean waitsForBlockNodeAcknowledgements(@NonNull final BlockStreamConfig blockStreamConfig) {
         requireNonNull(blockStreamConfig);
         final var writerMode = blockStreamConfig.writerMode();
-        return writerMode == GRPC || writerMode == FILE_AND_GRPC;
+        return (writerMode == GRPC || writerMode == FILE_AND_GRPC)
+                && daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection();
     }
 
     private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
         requireNonNull(round);
+        if (!daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection()) {
+            logger.info(
+                    "Freeze round {} block signing completed; skipping block node acknowledgement wait because "
+                            + "there is no active block node streaming connection",
+                    round.getRoundNum());
+            return completedFuture(null);
+        }
         final var blockBufferService = daggerApp.blockBufferService();
         final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
         logger.info(

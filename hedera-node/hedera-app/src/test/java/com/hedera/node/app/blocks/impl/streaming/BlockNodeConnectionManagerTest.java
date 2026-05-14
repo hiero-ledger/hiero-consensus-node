@@ -1804,6 +1804,34 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void hasActiveStreamingConnectionIsFalseWhenManagerInactive() {
+        activeConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isFalse();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
+    void hasActiveStreamingConnectionIsFalseWhenNoActiveConnection() {
+        isConnectionManagerActive().set(true);
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isFalse();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
+    void hasActiveStreamingConnectionIsTrueWhenManagerActiveWithConnection() {
+        isConnectionManagerActive().set(true);
+        activeConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isTrue();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
     void testShutdown_alreadyShutdown() {
         isConnectionManagerActive().set(false);
 
