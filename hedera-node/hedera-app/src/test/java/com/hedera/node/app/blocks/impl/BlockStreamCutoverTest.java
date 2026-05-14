@@ -9,6 +9,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -22,12 +23,17 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class BlockStreamCutoverTest {
     private static final Bytes WRAPPED_HASH = Bytes.wrap(new byte[HASH_SIZE]);
@@ -35,6 +41,9 @@ class BlockStreamCutoverTest {
     private static final Bytes HASH_B = Bytes.fromHex("bb".repeat(HASH_SIZE));
     private static final Bytes HASH_C = Bytes.fromHex("cc".repeat(HASH_SIZE));
     private static final Bytes HASH_D = Bytes.fromHex("dd".repeat(HASH_SIZE));
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void computesCutoverBlockStreamInfoFromFinalRecordStreamState() {
@@ -159,6 +168,48 @@ class BlockStreamCutoverTest {
         assertEquals(persistedBlockStreamInfo, effectiveInfo.blockStreamInfo());
     }
 
+    @Test
+    void deletesPreviewBlockFiles() throws IOException {
+        final var blockDir = tempDir.resolve("blocks");
+        Files.createDirectories(blockDir);
+        final var subdir = blockDir.resolve("000000000000042");
+        Files.createDirectories(subdir);
+        Files.createFile(subdir.resolve("block-42.blk.gz"));
+        Files.createFile(subdir.resolve("block-42.mf"));
+        Files.createFile(subdir.resolve("pending.pnd.gz"));
+        Files.createFile(subdir.resolve("proof.pnd.json"));
+        Files.createFile(subdir.resolve("readme.txt"));
+
+        BlockStreamCutover.deletePreviewBlockFiles(configWithBlockDir(blockDir));
+
+        assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
+        assertFalse(Files.exists(subdir.resolve("block-42.mf")));
+        assertFalse(Files.exists(subdir.resolve("pending.pnd.gz")));
+        assertFalse(Files.exists(subdir.resolve("proof.pnd.json")));
+        assertTrue(Files.exists(subdir.resolve("readme.txt")));
+    }
+
+    @Test
+    void toleratesMissingBlockDirectory() {
+        assertDoesNotThrow(() ->
+                BlockStreamCutover.deletePreviewBlockFiles(configWithBlockDir(tempDir.resolve("nonexistent-blocks"))));
+    }
+
+    @Test
+    void ignoresFilesTooDeeplyNested() throws IOException {
+        final var blockDir = tempDir.resolve("deep-blocks");
+        Files.createDirectories(blockDir);
+        final var subdir = blockDir.resolve("000000000000001");
+        Files.createDirectories(subdir);
+        final var deepDir = subdir.resolve("nested");
+        Files.createDirectories(deepDir);
+        Files.createFile(deepDir.resolve("block-deep.blk.gz"));
+
+        BlockStreamCutover.deletePreviewBlockFiles(configWithBlockDir(blockDir));
+
+        assertTrue(Files.exists(deepDir.resolve("block-deep.blk.gz")));
+    }
+
     private static BlockInfo validBlockInfo() {
         final var twoHashes = new byte[HASH_SIZE * 2];
         return BlockInfo.newBuilder()
@@ -177,6 +228,12 @@ class BlockStreamCutoverTest {
 
     private static RunningHashes validRunningHashes() {
         return new RunningHashes(HASH_A, HASH_B, HASH_C, HASH_D);
+    }
+
+    private static com.swirlds.config.api.Configuration configWithBlockDir(final Path blockDir) {
+        return HederaTestConfigBuilder.create()
+                .withValue("blockStream.blockFileDir", blockDir.toString())
+                .getOrCreateConfig();
     }
 
     private static State stateWith(

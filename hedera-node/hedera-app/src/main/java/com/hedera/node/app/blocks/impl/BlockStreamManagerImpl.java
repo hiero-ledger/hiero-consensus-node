@@ -323,16 +323,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
         final var previewingCutover = effectiveStartupBlockStreamInfo.previewingCutover();
+        final var config = configProvider.getConfiguration();
+        final var loadingCutoverData = previewingCutover
+                || loadCutoverData(config.getConfigData(BlockStreamConfig.class).enableCutover(), state);
 
         // Cutover case
-        if (previewingCutover
-                || loadCutoverData(
-                        configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockStreamConfig.class)
-                                .enableCutover(),
-                        state)) {
+        if (loadingCutoverData) {
             log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
+            if (previewingCutover) {
+                BlockStreamCutover.deletePreviewBlockFiles(config);
+            }
 
             // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
             // trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid an off-by-one

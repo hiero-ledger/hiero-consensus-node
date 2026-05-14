@@ -29,6 +29,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -133,6 +134,19 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public void loadProofContext(@NonNull final ReadableStates readableStates) {
+        requireNonNull(readableStates);
+        final var activeConstruction = readableStates
+                .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                .get();
+        if (activeConstruction != null && activeConstruction.hasTargetProof()) {
+            historyProof = activeConstruction.targetProofOrThrow();
+        } else {
+            historyProof = null;
+        }
+    }
+
+    @Override
     public boolean isReady() {
         // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
         return historyProof != null && historyProof.hasChainOfTrustProof();
@@ -153,8 +167,8 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V071HistorySchema(this));
-        registry.register(new V0730HistorySchema(this));
+        registry.register(new V071HistorySchema());
+        registry.register(new V0730HistorySchema());
     }
 
     @Override
@@ -200,9 +214,7 @@ public class HistoryServiceImpl implements HistoryService {
                 nextConstructionState.put(HistoryProofConstruction.DEFAULT);
                 changed = true;
             }
-            if (activeConstruction != null && activeConstruction.hasTargetProof()) {
-                setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-            }
+            loadProofContext(writableStates);
         }
 
         final var hashState = writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);

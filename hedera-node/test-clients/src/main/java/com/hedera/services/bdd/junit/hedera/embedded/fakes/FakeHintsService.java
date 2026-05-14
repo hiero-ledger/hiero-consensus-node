@@ -20,6 +20,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -60,6 +61,11 @@ public class FakeHintsService implements HintsService {
     @Override
     public boolean isReady() {
         return delegate.isReady();
+    }
+
+    @Override
+    public void loadSigningContext(@NonNull final ReadableStates readableStates) {
+        delegate.loadSigningContext(readableStates);
     }
 
     @Override

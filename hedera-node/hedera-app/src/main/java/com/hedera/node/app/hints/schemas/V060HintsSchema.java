@@ -2,21 +2,15 @@
 package com.hedera.node.app.hints.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.hints.CRSState;
-import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.impl.HintsContext;
-import com.hedera.node.config.data.TssConfig;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,11 +30,8 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.HINTSSERVICE_I_CRS_PUBLICATIONS.protoOrdinal();
     public static final String CRS_PUBLICATIONS_STATE_LABEL = computeLabel(HintsService.NAME, CRS_PUBLICATIONS_KEY);
 
-    private final HintsContext signingContext;
-
-    public V060HintsSchema(@NonNull final HintsContext signingContext) {
+    public V060HintsSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.signingContext = requireNonNull(signingContext);
     }
 
     @Override
@@ -52,17 +43,5 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
                         CRS_PUBLICATIONS_KEY,
                         NodeId.PROTOBUF,
                         CrsPublicationTransactionBody.PROTOBUF));
-    }
-
-    @Override
-    public void restart(@NonNull final MigrationContext ctx) {
-        if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).hintsEnabled()) {
-            final var activeConstruction = ctx.newStates()
-                    .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                    .get();
-            if (requireNonNull(activeConstruction).hasHintsScheme()) {
-                signingContext.setConstruction(activeConstruction);
-            }
-        }
     }
 }

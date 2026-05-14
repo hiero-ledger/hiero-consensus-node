@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
@@ -16,15 +17,23 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Utilities for deriving block stream state from the last record stream state during block stream cutover.
  */
 public final class BlockStreamCutover {
+    private static final Logger log = LogManager.getLogger(BlockStreamCutover.class);
+
     private BlockStreamCutover() {
         throw new UnsupportedOperationException("Utility class");
     }
@@ -93,6 +102,30 @@ public final class BlockStreamCutover {
     }
 
     /**
+     * Deletes block stream preview files before the first real post-cutover block is opened.
+     *
+     * @param config the active configuration
+     */
+    public static void deletePreviewBlockFiles(@NonNull final Configuration config) {
+        requireNonNull(config);
+        final var blockDirPath = blockDirFor(config);
+        log.info("Cutover deleting all preview block files from {}", blockDirPath);
+        try (var paths = Files.walk(blockDirPath, 2)) {
+            paths.filter(Files::isRegularFile)
+                    .filter(BlockStreamCutover::isPreviewBlockFile)
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            log.warn("Failed to delete preview block file: {}", path, e);
+                        }
+                    });
+        } catch (IOException e) {
+            log.warn("Failed to remove preview block files", e);
+        }
+    }
+
+    /**
      * Returns the record block hashes to copy into {@link BlockStreamInfo#trailingBlockHashes()}.
      */
     public static @NonNull Bytes trailingBlockHashesFrom(@NonNull final BlockInfo blockInfo) {
@@ -118,6 +151,14 @@ public final class BlockStreamCutover {
         lastFourHashes =
                 appendHash(Bytes.wrap(runningHashes.nMinus1RunningHash().toByteArray()), lastFourHashes, 4);
         return appendHash(Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4);
+    }
+
+    private static boolean isPreviewBlockFile(@NonNull final Path path) {
+        final var name = path.getFileName().toString();
+        return name.endsWith(".blk.gz")
+                || name.endsWith(".mf")
+                || name.endsWith(".pnd.gz")
+                || name.endsWith(".pnd.json");
     }
 
     private static @Nullable BlockStreamInfo persistedBlockStreamInfoFrom(@NonNull final State state) {

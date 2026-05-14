@@ -37,6 +37,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.PostUpgradeContext;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
@@ -83,6 +85,12 @@ class HistoryServiceImplTest {
     private WritableStates writableStates;
 
     @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private ReadableSingletonState<HistoryProofConstruction> readableActiveConstructionState;
+
+    @Mock
     private PostUpgradeContext postUpgradeContext;
 
     @Mock
@@ -116,6 +124,38 @@ class HistoryServiceImplTest {
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build());
         assertTrue(subject.isReady());
+    }
+
+    @Test
+    void loadsProofContextFromState() {
+        withLiveSubject();
+        final var targetProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var activeConstruction =
+                HistoryProofConstruction.newBuilder().targetProof(targetProof).build();
+        given(readableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(activeConstruction);
+
+        subject.loadProofContext(readableStates);
+
+        assertTrue(subject.isReady());
+    }
+
+    @Test
+    void clearsProofContextWhenStateHasNoTargetProof() {
+        withLiveSubject();
+        subject.setLatestHistoryProof(HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build());
+        given(readableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(HistoryProofConstruction.DEFAULT);
+
+        subject.loadProofContext(readableStates);
+
+        assertFalse(subject.isReady());
     }
 
     @Test

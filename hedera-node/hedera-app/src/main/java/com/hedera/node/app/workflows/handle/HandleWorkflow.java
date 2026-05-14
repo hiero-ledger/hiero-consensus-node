@@ -366,11 +366,12 @@ public class HandleWorkflow {
                 logTssReconcileFailure(e);
             }
         }
-        final var lastUsedConsTime = blockHashSigner.isReady()
-                ? (streamMode == RECORDS
-                        ? blockRecordManager.lastUsedConsensusTime()
-                        : blockStreamManager.lastUsedConsensusTime())
-                : round.getConsensusTimestamp();
+        // Staking-period side effects must be tied to the deterministic stream item clock, not
+        // to local signer readiness; all nodes must schedule these synthetic transactions at
+        // the same consensus times.
+        final var lastUsedConsTime = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
         // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
         try {
             transactionsDispatched |=

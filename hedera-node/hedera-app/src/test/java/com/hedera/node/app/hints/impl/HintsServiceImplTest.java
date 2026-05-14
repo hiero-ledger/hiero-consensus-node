@@ -111,6 +111,12 @@ class HintsServiceImplTest {
     private WritableStates writableStates;
 
     @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private ReadableSingletonState<HintsConstruction> readableActiveConstructionState;
+
+    @Mock
     private WritableSingletonState<HintsConstruction> activeConstructionState;
 
     @Mock
@@ -171,6 +177,34 @@ class HintsServiceImplTest {
         given(component.signingContext()).willReturn(context);
 
         assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
+    }
+
+    @Test
+    void loadSigningContextSetsConstructionFromState() {
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        given(readableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(activeConstruction);
+        given(component.signingContext()).willReturn(context);
+
+        subject.loadSigningContext(readableStates);
+
+        verify(context).setConstruction(activeConstruction);
+    }
+
+    @Test
+    void loadSigningContextClearsConstructionWhenStateHasNoScheme() {
+        given(readableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
+
+        subject.loadSigningContext(readableStates);
+
+        verify(context).clearConstruction();
     }
 
     @Test
@@ -412,6 +446,7 @@ class HintsServiceImplTest {
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(activeConstructionState);
         given(activeConstructionState.get()).willReturn(null, HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(nextConstructionState);
         given(nextConstructionState.get()).willReturn(null);
@@ -441,6 +476,7 @@ class HintsServiceImplTest {
         assertTrue(subject.doPostUpgradeSetup(writableStates, postUpgradeContext));
 
         verify(activeConstructionState).put(HintsConstruction.DEFAULT);
+        verify(context).clearConstruction();
         verify(nextConstructionState).put(HintsConstruction.DEFAULT);
         verify(crsState)
                 .put(CRSState.newBuilder()
@@ -478,8 +514,6 @@ class HintsServiceImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void registersTwoSchemasWhenHintsEnabled() {
-        given(component.signingContext()).willReturn(context);
-
         subject.registerSchemas(schemaRegistry);
 
         final var captor = ArgumentCaptor.forClass(Schema.class);

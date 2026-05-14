@@ -426,6 +426,11 @@ public final class Hedera
     @Nullable
     private StartupNetworks startupNetworks;
 
+    /**
+     * Whether startup components should preview state changes that will be persisted by post-upgrade setup.
+     */
+    private boolean postUpgradeStartupStatePreviewEnabled = false;
+
     @Nullable
     private Supplier<Network> genesisNetworkSupplier;
 
@@ -758,7 +763,10 @@ public final class Hedera
         if (isBlockStreamEnabled()) {
             withListeners(state);
         }
-        if (SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) < 0) {
+        final var versionComparison = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion);
+        final var isUpgrade = versionComparison > 0;
+        postUpgradeStartupStatePreviewEnabled = trigger == InitTrigger.RESTART && isUpgrade;
+        if (versionComparison < 0) {
             logger.fatal(
                     "Fatal error, state source version {} is higher than node software version {}",
                     deserializedVersion,
@@ -1177,6 +1185,9 @@ public final class Hedera
     public @NonNull RosterHistory effectiveStartupRosterHistory(@NonNull final State state) {
         requireNonNull(state);
         final var persistedRosterHistory = RosterStateUtils.createRosterHistory(state);
+        if (!postUpgradeStartupStatePreviewEnabled) {
+            return persistedRosterHistory;
+        }
         if (!isPostUpgradeSetupPending(state)) {
             return persistedRosterHistory;
         }
@@ -1206,6 +1217,9 @@ public final class Hedera
      */
     public @NonNull EffectiveStartupBlockStreamInfo effectiveStartupBlockStreamInfo(@NonNull final State state) {
         requireNonNull(state);
+        if (!postUpgradeStartupStatePreviewEnabled) {
+            return EffectiveStartupBlockStreamInfo.NONE;
+        }
         final var config = requireNonNull(configProvider).getConfiguration();
         return BlockStreamCutover.effectiveStartupBlockStreamInfoFrom(
                 state, config.getConfigData(BlockStreamConfig.class).enableCutover());
@@ -1380,6 +1394,8 @@ public final class Hedera
             final var entry = RosterUtils.getRosterEntryOrNull(currentRoster, nodeId);
             return entry == null ? 0L : entry.weight();
         });
+        hintsService.loadSigningContext(state.getReadableStates(HintsService.NAME));
+        historyService.loadProofContext(state.getReadableStates(HistoryService.NAME));
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(),
                 trigger == GENESIS ? null : state,

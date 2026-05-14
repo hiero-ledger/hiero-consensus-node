@@ -229,6 +229,8 @@ class HandleWorkflowTest {
         lenient().when(blockRecordReadableStates.getSingleton(BLOCKS_STATE_ID)).thenReturn((ReadableSingletonState)
                 blockInfoSingleton);
         lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadableStates);
+        lenient().when(blockRecordManager.lastUsedConsensusTime()).thenReturn(NOW);
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW);
     }
 
     @Test
@@ -733,6 +735,26 @@ class HandleWorkflowTest {
     }
 
     @Test
+    void usesStreamTimeForNodeFeeAndRewardSideEffectsEvenIfSignerIsNotReady() {
+        final var roundTime = NOW.plusSeconds(60);
+        final var streamTime = NOW.plusSeconds(30);
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        givenSingleEventRoundWithNoTransactions(roundTime);
+        lenient().when(blockHashSigner.isReady()).thenReturn(false);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(streamTime);
+
+        subject.handleRound(state, round, txns -> {});
+
+        final ArgumentCaptor<Instant> nodeFeeTimeCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(nodeFeeManager).distributeFees(same(state), nodeFeeTimeCaptor.capture(), same(systemTransactions));
+        assertEquals(streamTime.plusNanos(2), nodeFeeTimeCaptor.getValue());
+        final ArgumentCaptor<Instant> nodeRewardTimeCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(nodeRewardManager)
+                .maybeRewardActiveNodes(same(state), nodeRewardTimeCaptor.capture(), same(systemTransactions));
+        assertEquals(streamTime.plusNanos(4), nodeRewardTimeCaptor.getValue());
+    }
+
+    @Test
     void streamingAllChangesFlushesPendingSingletonChangesBeforeResetting() throws Exception {
         final var pendingChange =
                 StateChange.newBuilder().stateId(BLOCKS_STATE_ID).build();
@@ -772,6 +794,18 @@ class HandleWorkflowTest {
     private void givenPositiveFreezeRound() {
         given(platformStateReadableSingletonState.get()).willReturn(platformState);
         given(platformState.latestFreezeRound()).willReturn(10L);
+    }
+
+    private void givenSingleEventRoundWithNoTransactions(@NonNull final Instant roundTime) {
+        final var creatorId = NodeId.of(0);
+        given(round.getConsensusTimestamp()).willReturn(roundTime);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getConsensusTimestamp()).willReturn(roundTime);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
     }
 
     private void invokeLogTssReconcileFailure(@NonNull final Exception e) {

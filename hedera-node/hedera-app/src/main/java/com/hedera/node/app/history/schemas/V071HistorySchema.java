@@ -14,12 +14,9 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.config.data.TssConfig;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -73,11 +70,8 @@ public class V071HistorySchema extends Schema<SemanticVersion> {
     public static final int WRAPS_MESSAGE_HISTORIES_STATE_ID =
             StateKey.KeyOneOfType.HISTORYSERVICE_I_WRAPS_MESSAGE_HISTORIES.protoOrdinal();
 
-    private final HistoryService historyService;
-
-    public V071HistorySchema(@NonNull final HistoryService historyService) {
+    public V071HistorySchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.historyService = Objects.requireNonNull(historyService);
     }
 
     @Override
@@ -101,17 +95,5 @@ public class V071HistorySchema extends Schema<SemanticVersion> {
                         WRAPS_MESSAGE_HISTORIES_KEY,
                         ConstructionNodeId.PROTOBUF,
                         WrapsMessageHistory.PROTOBUF));
-    }
-
-    @Override
-    public void restart(@NonNull final MigrationContext ctx) {
-        if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
-            final var activeConstruction = ctx.newStates()
-                    .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                    .get();
-            if (activeConstruction != null && activeConstruction.hasTargetProof()) {
-                historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-            }
-        }
     }
 }

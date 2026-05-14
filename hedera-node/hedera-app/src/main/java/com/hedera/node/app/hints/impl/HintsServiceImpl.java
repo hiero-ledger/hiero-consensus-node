@@ -30,6 +30,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -130,6 +131,19 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public void loadSigningContext(@NonNull final ReadableStates readableStates) {
+        requireNonNull(readableStates);
+        final var activeConstruction = readableStates
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .get();
+        if (activeConstruction != null && activeConstruction.hasHintsScheme()) {
+            component.signingContext().setConstruction(activeConstruction);
+        } else {
+            component.signingContext().clearConstruction();
+        }
+    }
+
+    @Override
     public void handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
@@ -216,8 +230,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
-        registry.register(new V060HintsSchema(component.signingContext()));
-        registry.register(new V073HintsSchema(component.signingContext()));
+        registry.register(new V060HintsSchema());
+        registry.register(new V073HintsSchema());
     }
 
     @Override
@@ -260,9 +274,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             activeConstruction = activeConstructionState.get();
             changed = true;
         }
-        if (activeConstruction != null && activeConstruction.hasHintsScheme()) {
-            component.signingContext().setConstruction(activeConstruction);
-        }
+        loadSigningContext(writableStates);
 
         final var nextConstructionState =
                 writableStates.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);

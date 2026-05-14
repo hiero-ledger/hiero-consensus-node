@@ -126,6 +126,18 @@ class HintsContextTest {
     }
 
     @Test
+    void clearConstructionMakesContextNotReady() {
+        subject.setConstruction(CONSTRUCTION);
+        assertTrue(subject.isReady());
+
+        subject.clearConstruction();
+
+        assertFalse(subject.isReady());
+        assertThrows(IllegalStateException.class, subject::constructionIdOrThrow);
+        assertThrows(IllegalStateException.class, subject::verificationKeyOrThrow);
+    }
+
+    @Test
     void incorporatingValidWorksAsExpected() {
         final Map<Integer, Bytes> expectedSignatures = Map.of(
                 A_NODE_PARTY_ID.partyId(), signature,
