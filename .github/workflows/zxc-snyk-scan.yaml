@@ -142,13 +142,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          workflow-outcomes: |
+        env:
+          WORKFLOW_OUTCOMES: |
             ${{ steps.prepare-runner.outcome }}
             ${{ steps.setup-snyk.outcome }}
             ${{ steps.publish-snyk-report.outcome }}
             ${{ steps.check-snyk-files.outcome }}
-          test-outcomes: |
+          TEST_OUTCOMES: |
             ${{ steps.snyk-scan.outcome }}
             ${{ steps.snyk-code.outcome }}
+        run: node .github/scripts/set-failure-mode.js

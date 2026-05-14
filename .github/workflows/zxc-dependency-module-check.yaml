@@ -86,9 +86,9 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          workflow-outcomes: |
+        env:
+          WORKFLOW_OUTCOMES: |
             ${{ steps.prepare-runner.outcome }}
-          test-outcomes: |
+          TEST_OUTCOMES: |
             ${{ steps.check-dependency-scopes.outcome }}
+        run: node .github/scripts/set-failure-mode.js
