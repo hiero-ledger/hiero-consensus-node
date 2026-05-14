@@ -42,7 +42,8 @@ public class NetworkSimulationTest {
                 creatorNetwork.getPlatformContext().getTime(),
                 creatorNetwork.getRoster(),
                 NodeId.of(creatorNetwork.getRoster().rosterEntries().getFirst().nodeId()),
-                _ -> false
+                _ -> false,
+                0L
         );
 
         final SimulationStats stats = new SimulationStats();
