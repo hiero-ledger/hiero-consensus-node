@@ -10,7 +10,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -24,8 +23,6 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetBytecodeHandler;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
@@ -38,9 +35,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeComponents;
 import java.util.Objects;
-import java.util.function.Function;
 import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -200,7 +195,6 @@ class ContractGetBytecodeHandlerTest {
                 .hasMessage(INVALID_CONTRACT_ID.protoName());
     }
 
-
     @Test
     void findResponseFailsIfNoContractAccountTest() {
         givenNoContractAccount();
@@ -272,7 +266,6 @@ class ContractGetBytecodeHandlerTest {
                         .bytecode())
                 .isEqualTo(Bytes.EMPTY);
     }
-
 
     @Test
     void findResponsePositiveTest() {
@@ -347,7 +340,6 @@ class ContractGetBytecodeHandlerTest {
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
-
     @Test
     void findResponseTokenIdAsContractId() {
         givenTokenIdAsContractId();
@@ -377,7 +369,6 @@ class ContractGetBytecodeHandlerTest {
         givenScheduleIdAsContractId();
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
-
 
     @Test
     void findResponseScheduleIdAsContractId() {

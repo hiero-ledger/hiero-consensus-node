@@ -6,9 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.verify;
 
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.QueryHeader;
@@ -27,10 +25,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.Assertions;
-import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
@@ -40,7 +35,6 @@ import java.security.InvalidKeyException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 
 class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
     @Mock
@@ -110,7 +104,6 @@ class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
             assertThat(actual).isNull();
         }
     }
-
 
     @NonNull
     private static ScheduleInfo validateResponseAndExtractInfo(

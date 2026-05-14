@@ -9,9 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertF
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -31,9 +29,6 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -210,7 +205,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
-
 
     private TransactionBody contractCallTransaction() {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);

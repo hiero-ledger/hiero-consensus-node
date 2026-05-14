@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.BDDMockito.given;
-
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntries;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
@@ -18,7 +14,6 @@ import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.fees.FeeResult;
@@ -48,7 +43,6 @@ public class HookStoreHandlerTest {
 
     @Mock
     private FeeCalculator feeCalculator;
-
 
     @Test
     void simpleFeeCalculatorSimplyScalesBaseByCount() {

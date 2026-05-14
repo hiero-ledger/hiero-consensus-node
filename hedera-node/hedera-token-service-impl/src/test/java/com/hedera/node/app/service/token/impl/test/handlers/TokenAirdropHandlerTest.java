@@ -14,8 +14,6 @@ import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AirD
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AirDropTransferType.TOKEN_AND_NFT_AIRDROP;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
