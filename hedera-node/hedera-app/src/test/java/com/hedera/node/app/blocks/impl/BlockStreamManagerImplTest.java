@@ -1463,7 +1463,6 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
         given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
-        given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
         given(round.iterator()).willReturn(List.of(mockEvent).iterator());
 
         subject.startRound(round, state);
@@ -1473,6 +1472,85 @@ class BlockStreamManagerImplTest {
         verify(aWriter).closeCompleteBlock();
         final var finalInfoState = blockStreamInfoState.get();
         // And have a block starting timestamp equal to the second event's timestamp (instead of the round's timestamp)
+        assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
+    }
+
+    @Test
+    void blockUsesNextEventTimestampWhenFirstIsNull() {
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+
+        final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
+        final var nullTimestampEvent = mock(ConsensusEvent.class);
+        given(nullTimestampEvent.getConsensusTimestamp()).willReturn(null);
+        given(mockEvent.getConsensusTimestamp()).willReturn(asInstant(CONSENSUS_THEN));
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(round.iterator())
+                .willReturn(List.of(nullTimestampEvent, mockEvent).iterator());
+
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        verify(aWriter).closeCompleteBlock();
+        final var finalInfoState = blockStreamInfoState.get();
+        assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
+    }
+
+    @Test
+    void blockUsesNextEventTimestampWhenFirstIsEpoch() {
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+
+        final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
+        final var epochEvent = mock(ConsensusEvent.class);
+        given(epochEvent.getConsensusTimestamp()).willReturn(Instant.EPOCH);
+        given(mockEvent.getConsensusTimestamp()).willReturn(asInstant(CONSENSUS_THEN));
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(round.iterator()).willReturn(List.of(epochEvent, mockEvent).iterator());
+
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        verify(aWriter).closeCompleteBlock();
+        final var finalInfoState = blockStreamInfoState.get();
         assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
     }
 
@@ -1509,7 +1587,6 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
         given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
-        given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
         given(round.iterator()).willReturn(List.of(mockEvent).iterator());
 
         subject.startRound(round, state);

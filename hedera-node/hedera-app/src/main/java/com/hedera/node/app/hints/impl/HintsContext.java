@@ -310,9 +310,10 @@ public class HintsContext {
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
-                final boolean valid = !validateSignature
-                        || library.verifyAggregate(
-                                aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
+                final boolean valid = aggregatedSignature != null
+                        && (!validateSignature
+                                || library.verifyAggregate(
+                                        aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator));
                 if (valid) {
                     future.complete(aggregatedSignature);
                     final long elapsedNanos = System.nanoTime() - startNanos;

@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -46,6 +48,8 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
@@ -70,6 +74,7 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -592,7 +597,7 @@ class HandleWorkflowTest {
             @NonNull final StreamMode mode,
             @NonNull BlockStreamWriterMode streamWriterMode,
             @NonNull final List<StateChanges.Builder> migrationStateChanges) {
-        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, Map.of());
+        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, Map.of(), 1);
     }
 
     private void givenSubjectWith(
@@ -600,6 +605,15 @@ class HandleWorkflowTest {
             @NonNull final BlockStreamWriterMode streamWriterMode,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final Map<String, String> configOverrides) {
+        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, configOverrides, 1);
+    }
+
+    private void givenSubjectWith(
+            @NonNull final StreamMode mode,
+            @NonNull final BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges,
+            @NonNull final Map<String, String> configOverrides,
+            final int txnOffsetNanos) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
                 .withValue("blockStream.writerMode", "" + streamWriterMode)
@@ -641,7 +655,8 @@ class HandleWorkflowTest {
                 blockBufferService,
                 Map.of(),
                 quiescenceController,
-                nodeFeeManager);
+                nodeFeeManager,
+                txnOffsetNanos);
     }
 
     private void givenFreezeRoundPlatformState() {
@@ -834,5 +849,129 @@ class HandleWorkflowTest {
 
     private static IllegalStateException differentTssReconcileFailure() {
         return new IllegalStateException("boom");
+    }
+
+    @Test
+    void freezeRoundSkipsWrappedHashWritesInBlocksMode() {
+        final var freezeEvent = mock(ConsensusEvent.class);
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(freezeEvent.getCreatorId()).willReturn(creatorId);
+        given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
+        given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(freezeEvent.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        givenFreezeRoundPlatformState();
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"),
+                1);
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+    }
+
+    /**
+     * The {@code nextTime} for the first scheduled transaction must equal
+     * {@code lastUsedConsensusTime + txnOffsetNanos}. This test uses {@code txnOffsetNanos = 104}
+     * (= reservedSystemTxnNanos=100 + maxPrecedingRecords=3 + 1) and confirms that
+     * {@code StakePeriodManager.setCurrentStakePeriodFor} — called at the top of the scheduling
+     * loop with {@code nextTime} — receives exactly {@code NOW.plusNanos(104)}.
+     *
+     * <p>Under the old formula, {@code nextTime = lastTime + (maxPrecedingRecords + 1) = NOW + 4},
+     * so a failure here would point to a regression to the old calculation.
+     */
+    @Test
+    void scheduledTxnNextTimeUsesTxnOffsetNanos() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        // EPOCH causes executionStart to be set to consensusNow, keeping the window simple
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        // lastTime = NOW → nextTime = NOW + txnOffsetNanos
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        // Minimal state setup for WritableEntityIdStoreImpl construction in executeAsManyScheduled.
+        // The entity-id states must implement CommittableWritableStates so the cast in
+        // doStreamingChangesInternal succeeds; getSingleton returns null (acceptable since the
+        // store's internals are never accessed — the scheduleService mock ignores the StoreFactory).
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+
+        // Iterator reports one pending txn; iter.next() returns null which triggers an NPE inside
+        // executeScheduled — caught by executeScheduledTransactions — after setCurrentStakePeriodFor
+        // has already been called with nextTime.
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+
+        // txnOffsetNanos=104; with defaults consTimeSeparationNanos=1000 and maxFollowingRecords=50:
+        // lastUsableTime = NOW + (1000 - 50 - 104) = NOW + 846, which is comfortably above nextTime.
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        subject.handleRound(state, round, txns -> {});
+
+        // Old formula: NOW + (maxPrecedingRecords + 1) = NOW + 4
+        // New formula: NOW + txnOffsetNanos = NOW + 104
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW.plusNanos(104)));
+    }
+
+    /**
+     * When {@code txnOffsetNanos} is large enough that
+     * {@code nextTime = lastUsedConsensusTime + txnOffsetNanos} exceeds
+     * {@code lastUsableTime = consensusNow + (consTimeSeparationNanos - maxFollowingRecords - txnOffsetNanos)},
+     * the scheduling loop must not execute any transactions at all.
+     *
+     * <p>Here {@code txnOffsetNanos = 951} with defaults
+     * {@code consTimeSeparationNanos=1000, maxFollowingRecords=50} gives
+     * {@code lastUsableTime = NOW - 1}, which is strictly before {@code nextTime = NOW + 951}.
+     */
+    @Test
+    void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true);
+        //        given(schedIter.purgeUntilNext()).willReturn(false);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+
+        // txnOffsetNanos=951; lastUsableTime = NOW + (1000 - 50 - 951) = NOW - 1 < nextTime = NOW + 951
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 951);
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The iterator was obtained (confirms we reached executeAsManyScheduled)
+        verify(scheduleService).executableTxns(any(), any(), any());
+        // But the loop body never entered — no scheduled txn was started
+        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
     }
 }

@@ -442,6 +442,8 @@ public final class Hedera
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
+    private int txnOffsetNanos;
+
     @FunctionalInterface
     public interface StartupNetworksFactory {
         @NonNull
@@ -1161,6 +1163,10 @@ public final class Hedera
         initialStateHashFuture = completedFuture(stateHash.getBytes());
     }
 
+    public void setTxnOffsetNanos(final int txnOffsetNanos) {
+        this.txnOffsetNanos = txnOffsetNanos;
+    }
+
     /**
      * Returns the startup networks.
      */
@@ -1441,6 +1447,7 @@ public final class Hedera
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
+                .transactionOffsetNanos(txnOffsetNanos)
                 .build();
         daggerApp.freezeMarkerPlatformStatus().update(platformStatus);
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state

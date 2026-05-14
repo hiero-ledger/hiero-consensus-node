@@ -25,6 +25,7 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -211,15 +212,19 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                         NodeSelector.allNodes(),
                         "Successfully downloaded and verified WRAPS proving key on retry \\(hash=\\S+\\)",
                         Duration.ofSeconds(5)),
-                // Verify the extracted file from the tar.gz exists at the correct path
+                // Verify the extracted v1.0.0 WRAPS artifact set exists at the correct path
                 doingContextual(spec -> {
                     for (final var node : spec.getNetworkNodes()) {
                         final var keysDir =
                                 node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
-                        final var extractedFile = keysDir.resolve("MrBleaney.txt");
-                        assertTrue(
-                                Files.exists(extractedFile), "Extracted file MrBleaney.txt should exist in " + keysDir);
-                        log.info("Verified extracted file exists at {}", extractedFile);
+                        for (final var artifact :
+                                List.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin")) {
+                            final var extractedFile = keysDir.resolve(artifact);
+                            assertTrue(
+                                    Files.exists(extractedFile),
+                                    "Extracted file " + artifact + " should exist in " + keysDir);
+                            log.info("Verified extracted file exists at {}", extractedFile);
+                        }
                     }
                 }));
     }

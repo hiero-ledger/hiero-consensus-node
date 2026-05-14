@@ -28,6 +28,8 @@ import org.hiero.base.file.FileSystemManager;
  */
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
+    public static final String FOLDER_SUFFIX = "merkledb-";
+
     /** Platform configuration */
     private final Configuration configuration;
 
@@ -62,7 +64,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     }
 
     private Path newDataSourceDir(final String label) {
-        return fileSystemManager.resolveNewTemp("merkledb-" + label);
+        return fileSystemManager.resolveNewTemp(FOLDER_SUFFIX + label);
     }
 
     private Path snapshotDataDir(final Path snapshotDir, final String label) {
@@ -94,7 +96,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     }
 
     @NonNull
-    private VirtualDataSource buildNewDataSource(
+    private MerkleDbDataSource buildNewDataSource(
             final String label, final boolean compactionEnabled, final boolean offlineUse) {
         if (initialCapacity <= 0) {
             throw new IllegalArgumentException("Initial map capacity not set");
@@ -151,7 +153,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      * this method throws an IO exception.
      */
     @NonNull
-    private VirtualDataSource restoreDataSource(
+    private MerkleDbDataSource restoreDataSource(
             final String label,
             @NonNull final Path snapshotDir,
             final boolean compactionEnabled,
