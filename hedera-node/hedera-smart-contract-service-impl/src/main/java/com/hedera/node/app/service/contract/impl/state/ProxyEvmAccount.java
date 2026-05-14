@@ -17,6 +17,9 @@ import org.hyperledger.besu.evm.Code;
  * and returning the appropriate code - either EIP-7702 delegation indicator or empty.
  */
 public class ProxyEvmAccount extends AbstractProxyEvmAccount {
+
+    private static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_DELEGATION_PREFIX_PJB = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE_DELEGATION_PREFIX.toArray());
+
     private final Account account;
 
     public ProxyEvmAccount(final Account account, @NonNull final DispatchingEvmFrameState state) {
@@ -36,6 +39,15 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
 
     private static Bytes createDelegationIndicator(Bytes delegationAddress) {
         return Bytes.concatenate(CODE_DELEGATION_PREFIX, delegationAddress);
+    }
+
+    @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return createDelegationIndicatorPJB(account.delegationAddress());
+    }
+
+    public static com.hedera.pbj.runtime.io.buffer.Bytes createDelegationIndicatorPJB(com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+        return com.hedera.pbj.runtime.io.buffer.Bytes.merge(CODE_DELEGATION_PREFIX_PJB, delegationAddress);
     }
 
     @Override

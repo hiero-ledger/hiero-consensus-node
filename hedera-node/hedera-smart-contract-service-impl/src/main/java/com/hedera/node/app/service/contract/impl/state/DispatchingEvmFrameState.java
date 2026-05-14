@@ -148,7 +148,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                     valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
                     valueOrZero(contractStateStore.getSlotValue(slotKey)));
             modifications
-                    .computeIfAbsent(slotKey.contractID(), k -> new ArrayList<>())
+                    .computeIfAbsent(slotKey.contractID(), _ -> new ArrayList<>())
                     .add(access);
             if (includeChangedKeys && access.isLogicalChange()) {
                 changedKeys.add(slotKey);
@@ -207,7 +207,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
     }
 
-    /*
+    /**
      *  Return PBJ bytes to avoid a copy
      */
     public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ(ContractID contractID) {

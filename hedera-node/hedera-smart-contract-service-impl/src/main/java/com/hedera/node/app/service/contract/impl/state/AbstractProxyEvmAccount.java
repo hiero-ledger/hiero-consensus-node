@@ -175,4 +175,9 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     public boolean isHollow() {
         return HOLLOW_ACCOUNT_KEY.equals(toNativeAccount().key());
     }
+
+    /**
+     * Get code as a PBJ Bytes instead of a Tuweni Bytes
+     */
+    public abstract com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ();
 }
