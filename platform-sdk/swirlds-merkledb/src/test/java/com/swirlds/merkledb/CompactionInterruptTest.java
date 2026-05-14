@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -26,11 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -45,17 +41,10 @@ import org.junit.jupiter.params.provider.ValueSource;
  * limited to coordinator-level state: {@code compactionEnabled}, {@code compactorsByName},
  * executor queue, and per-store {@code isCompactionRunning()} checks.
  */
-class CompactionInterruptTest {
+class CompactionInterruptTest extends AbstractMerkelDbTest {
 
     /** This needs to be big enough so that the snapshot is slow enough that we can do a merge at the same time */
     private static final int COUNT = 2_000_000;
-
-    /**
-     * Temporary directory provided by JUnit
-     */
-    @SuppressWarnings("unused")
-    @TempDir
-    Path tmpFileDir;
 
     /*
      * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of
@@ -72,15 +61,8 @@ class CompactionInterruptTest {
      * quiescent state quickly.
      */
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
-        final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
-        final FileSystemManager fileSystemManager = new TestFileSystemManager(tmpFileDir);
-        final String tableName = "mergeThenInterrupt";
-        final MerkleDbDataSource dataSource = TestType.variable_variable
-                .dataType()
-                .createDataSource(CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, false);
-        final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
-
-        try {
+        createAndApplyDataSource(COUNT, dataSource -> {
+            final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
             // Create data in batches so that files accumulate content worth compacting
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
@@ -93,9 +75,8 @@ class CompactionInterruptTest {
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
             stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
-        } finally {
-            dataSource.close();
-        }
+        });
+
         return true;
     }
 
@@ -119,45 +100,42 @@ class CompactionInterruptTest {
      * snapshot or compaction.
      */
     boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException, InterruptedException {
-        final Path storeDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImpl");
-        final String tableName = "mergeWhileSnapshotting";
-        final MerkleDbDataSource dataSource = TestType.variable_variable
-                .dataType()
-                .createDataSource(CONFIGURATION, null, storeDir, tableName, COUNT, false, false);
-        final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
+        createAndApplyDataSource(COUNT, dataSource -> {
+            final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
-        final ExecutorService exec = Executors.newCachedThreadPool();
-        try {
-            // Create data in batches so that files accumulate content worth compacting
-            createData(dataSource);
-            coordinator.enableBackgroundCompaction();
+            final ExecutorService exec = Executors.newCachedThreadPool();
+            try {
+                // Create data in batches so that files accumulate content worth compacting
+                createData(dataSource);
+                coordinator.enableBackgroundCompaction();
 
-            // Start a snapshot in the background
-            final Path snapshotDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImplSnapshot");
-            exec.submit(() -> {
-                dataSource.snapshot(snapshotDir);
-                return null;
-            });
+                // Start a snapshot in the background
+                final Path snapshotDir =
+                        fileSystemManager.resolveNewTemp("startMergeWhileSnapshottingThenInterruptImplSnapshot");
+                exec.submit(() -> {
+                    dataSource.snapshot(snapshotDir);
+                    return null;
+                });
 
-            final ThreadPoolExecutor compactingExecutor =
-                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
-            final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            final long initTaskCount = compactingExecutor.getTaskCount();
-            triggerScansAndSubmitCompaction(dataSource, coordinator);
+                final ThreadPoolExecutor compactingExecutor =
+                        (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
+                                CONFIGURATION.getConfigData(MerkleDbConfig.class));
+                final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
+                final long initTaskCount = compactingExecutor.getTaskCount();
+                triggerScansAndSubmitCompaction(dataSource, coordinator);
 
-            assertEventuallyTrue(
-                    () -> compactingExecutor.getTaskCount() >= initTaskCount + 3L,
-                    Duration.ofSeconds(2),
-                    "Unexpected number of tasks " + compactingExecutor.getTaskCount());
-            // wait a small-time for merging to start (or don't wait at all)
-            Thread.sleep(delayMs);
-            stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
-        } finally {
-            exec.shutdown();
-            assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS), "Should not timeout");
-            dataSource.close();
-        }
+                assertEventuallyTrue(
+                        () -> compactingExecutor.getTaskCount() >= initTaskCount + 3L,
+                        Duration.ofSeconds(2),
+                        "Unexpected number of tasks " + compactingExecutor.getTaskCount());
+                // wait a small-time for merging to start (or don't wait at all)
+                Thread.sleep(delayMs);
+                stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
+            } finally {
+                exec.shutdown();
+                assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS), "Should not timeout");
+            }
+        });
         return true;
     }
 
@@ -241,10 +219,5 @@ class CompactionInterruptTest {
                     Stream.empty(),
                     false);
         }
-    }
-
-    @AfterAll
-    static void tearDown() {
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

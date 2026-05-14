@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
-import static org.hyperledger.besu.crypto.Hash.keccak256;
-import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -12,8 +8,12 @@ import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
+
 /**
- * An {@link Account} whose code is an EIP-7702 delegation to the {@code 0x167} system contract, and thus can
+ * An {@link Account} whose code proxies all calls to the {@code 0x167} system contract, and thus can
  * never change its storage or nonce.
  *
  * <p>It also cannot have a non-zero balance, as dispatching a {@code transferValue()} with a token
@@ -31,7 +31,7 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
             CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS).getBytes());
     public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
 
-    public TokenEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    public TokenEvmAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         super(address, state);
     }
 

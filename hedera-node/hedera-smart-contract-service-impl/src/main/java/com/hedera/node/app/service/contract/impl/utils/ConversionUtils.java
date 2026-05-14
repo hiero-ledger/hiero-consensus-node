@@ -793,26 +793,26 @@ public class ConversionUtils {
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
-     * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
-            @NonNull final HandleContext handleContext,
-            @NonNull RootProxyWorldUpdater rootProxyWorldUpdater,
-            @NonNull final HederaOperations hederaOperations) {
+            @NonNull final HederaOperations hederaOperations,
+            @NonNull RootProxyWorldUpdater rootProxyWorldUpdater) {
         requireNonNull(outcome);
-        requireNonNull(handleContext);
         requireNonNull(hederaOperations);
         throwIfUnsuccessfulCall(
                 outcome,
                 new EthereumTransactionRollbackHandler(
-                        outcome, rootProxyWorldUpdater, hederaOperations.gasChargingEvents(), handleContext));
+                        outcome,
+                        hederaOperations.gasChargingEvents(),
+                        rootProxyWorldUpdater));
     }
 
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
         requireNonNull(outcome);
+        requireNonNull(rollbackHandler);
         if (outcome.status() != SUCCESS) {
             throw new HandleException(outcome.status(), rollbackHandler);
         }
@@ -1241,7 +1241,7 @@ public class ConversionUtils {
      *     entering the EVM); and,</li>
      *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
      * </ol>
-     * If no context is available, returns null. Otherwise, returns a {@link TxStorageUsage} with at least the read
+     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
      * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
      * @param updater the proxy world updater to extract write accesses from
      * @param accessTracker the access tracker to extract reads from

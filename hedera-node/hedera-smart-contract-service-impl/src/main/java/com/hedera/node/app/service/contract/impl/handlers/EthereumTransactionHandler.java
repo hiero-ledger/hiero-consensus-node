@@ -13,7 +13,7 @@ import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionTy
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.nonNull;
@@ -54,7 +54,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -70,9 +70,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
     /**
      * @param ethereumSignatures the ethereum signatures
-     * @param callDataHydration  the ethereum call data hydratino utility to be used for EthTxData
-     * @param provider           the provider to be used
-     * @param gasCalculator      the gas calculator to be used
+     * @param callDataHydration the ethereum call data hydratino utility to be used for EthTxData
+     * @param provider the provider to be used
+     * @param gasCalculator the gas calculator to be used
      */
     @Inject
     public EthereumTransactionHandler(
@@ -165,9 +165,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      * If the given transaction, when hydrated from the given file store with the given config, implies a valid
      * {@link EthTxSigs}, returns it. Otherwise, returns null.
      *
-     * @param op        the transaction
+     * @param op the transaction
      * @param fileStore the file store
-     * @param config    the configuration
+     * @param config the configuration
      * @return the implied Ethereum signature metadata
      */
     public @Nullable EthTxSigs maybeEthTxSigsFor(
@@ -199,13 +199,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (outcome.hasNewSenderNonce()) {
-            // TODO(Pectra): refactor this piece for atomic batches,
-            // so that it's compatible with EthereumTransactionRollbackHandler
-            // (which itself updates the nonces of authorities, including if it's the sender)
-            final var nonceCallback =
-                    context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
             final var newNonce = outcome.newSenderNonceOrThrow();
-            nonceCallback.ifPresent(cb -> cb.accept(outcome.txResult().senderId(), newNonce));
             ethStreamBuilder.newSenderNonce(newNonce);
         }
         if (ethTxData.hasToAddress()) {
@@ -217,9 +211,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
         final var rollbackHandler = new EthereumTransactionRollbackHandler(
                 outcome,
-                component.rootProxyWorldUpdater(),
                 component.hederaOperations().gasChargingEvents(),
-                context);
+                component.rootProxyWorldUpdater());
+        context.dispatchMetadata()
+                .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                .ifPresent(consumer -> consumer.accept(rollbackHandler));
         throwIfUnsuccessfulCall(outcome, rollbackHandler);
     }
 

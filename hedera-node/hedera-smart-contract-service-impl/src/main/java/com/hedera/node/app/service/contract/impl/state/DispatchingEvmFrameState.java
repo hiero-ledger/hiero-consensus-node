@@ -207,6 +207,13 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
     }
 
+    /*
+     *  Return PBJ bytes to avoid a copy
+     */
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ(ContractID contractID) {
+        return contractStateStore.getBytecode(contractID).code();
+    }
+
     /**
      * {@inheritDoc}
      */

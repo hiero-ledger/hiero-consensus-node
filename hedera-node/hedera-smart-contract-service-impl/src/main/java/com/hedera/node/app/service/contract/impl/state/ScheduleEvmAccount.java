@@ -31,7 +31,7 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
             CODE_DELEGATION_PREFIX, Address.fromHexString(HSS_EVM_ADDRESS).getBytes());
     public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
 
-    public ScheduleEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    public ScheduleEvmAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         super(address, state);
     }
 

@@ -137,7 +137,7 @@ class HintsSubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        final var explicitKeys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
+        final var explicitKeys = new PreprocessedKeys(Bytes.wrap(new byte[49]), Bytes.wrap("VK"));
 
         subject.submitHintsVote(123L, explicitKeys);
 
