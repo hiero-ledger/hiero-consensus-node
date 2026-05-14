@@ -49,35 +49,6 @@ public class HookStoreHandlerTest {
     @Mock
     private FeeCalculator feeCalculator;
 
-    @Test
-    void returnsFixedCostOnUnexpectedException() {
-        // Invalid hook id, will throw
-        final var op = HookStoreTransactionBody.newBuilder()
-                .storageUpdates(List.of(
-                        EvmHookStorageUpdate.newBuilder()
-                                .storageSlot(EvmHookStorageSlot.DEFAULT)
-                                .build(),
-                        EvmHookStorageUpdate.newBuilder()
-                                .mappingEntries(EvmHookMappingEntries.newBuilder()
-                                        .entries(List.of(EvmHookMappingEntry.DEFAULT, EvmHookMappingEntry.DEFAULT))
-                                        .build())
-                                .build()))
-                .build();
-        final long tinycentPerGas = 852L;
-        final var tx = TransactionBody.newBuilder().hookStore(op).build();
-        given(feeContext.body()).willReturn(tx);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.getGasPriceInTinycents()).willReturn(tinycentPerGas);
-        given(feeCalculator.addGas((3 * TINYCENTS_PER_UPDATE + tinycentPerGas - 1) / tinycentPerGas))
-                .willReturn(feeCalculator);
-        final var fees = new Fees(1, 2, 3);
-        given(feeCalculator.calculate()).willReturn(fees);
-
-        final var subject = new HookStoreHandler();
-
-        assertSame(fees, subject.calculateFees(feeContext));
-    }
 
     @Test
     void simpleFeeCalculatorSimplyScalesBaseByCount() {

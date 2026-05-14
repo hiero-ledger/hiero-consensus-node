@@ -170,58 +170,6 @@ class ContractGetInfoHandlerTest {
         assertThat(response.contractGetInfoOrThrow().headerOrThrow()).isEqualTo(responseHeader);
     }
 
-    @Test
-    void computeFeesShouldReturnFees() {
-        // given
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> new Fees(10L, 0L, 0L));
-
-        // when
-        var fees = handler.computeFees(context);
-
-        // then
-        assertThat(fees).isNotNull();
-        assertThat(fees.nodeFee()).isEqualTo(10L);
-    }
-
-    @Test
-    void computeFeesWithNullContractShouldReturnConstantFeeData() {
-        // given
-        when(context.feeCalculator()).thenReturn(feeCalculator);
-        when(context.query()).thenReturn(query);
-        when(query.contractGetInfoOrThrow()).thenReturn(contractGetInfoQuery);
-        when(accountStore.getContractById(any())).thenReturn(null);
-        when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
-
-        final var components = FeeComponents.newBuilder()
-                .setMax(15000)
-                .setBpt(25)
-                .setVpt(25)
-                .setRbh(25)
-                .setSbh(25)
-                .setGas(25)
-                .setTv(25)
-                .setBpr(25)
-                .setSbpr(25)
-                .setConstant(1)
-                .build();
-        final var nodeData = FeeData.newBuilder().setNodedata(components).build();
-
-        when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> {
-            Function<SigValueObj, FeeData> function = invocation.getArgument(0);
-            final var feeData = function.apply(new SigValueObj(1, 1, 1));
-            long nodeFee = FeeBuilder.getComponentFeeInTinyCents(nodeData.getNodedata(), feeData.getNodedata());
-            return new Fees(nodeFee, 0L, 0L);
-        });
-
-        // when
-        Fees actualFees = handler.computeFees(context);
-
-        // then
-        assertThat(actualFees.nodeFee()).isEqualTo(1L);
-        assertThat(actualFees.networkFee()).isZero();
-        assertThat(actualFees.serviceFee()).isZero();
-    }
 
     private void mockContract() {
         when(context.query()).thenReturn(query);

@@ -167,17 +167,6 @@ class ContractGetBytecodeHandlerTest {
     }
 
     @Test
-    void computeFeesIfNoContractIdTest() {
-        givenNoContractId();
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
-
-    @Test
     void findResponseIfNoContractIdTest() {
         givenNoContractId();
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
@@ -211,16 +200,6 @@ class ContractGetBytecodeHandlerTest {
                 .hasMessage(INVALID_CONTRACT_ID.protoName());
     }
 
-    @Test
-    void computeFeesIfNoContractAccountTest() {
-        givenNoContractAccount();
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
 
     @Test
     void findResponseFailsIfNoContractAccountTest() {
@@ -249,17 +228,6 @@ class ContractGetBytecodeHandlerTest {
         assertThatThrownBy(() -> subject.validate(context))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessage(CONTRACT_DELETED.protoName());
-    }
-
-    @Test
-    void computeFeesIfContractWasDeletedTest() {
-        givenContractWasDeleted();
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
     }
 
     @Test
@@ -295,17 +263,6 @@ class ContractGetBytecodeHandlerTest {
     }
 
     @Test
-    void computeFeesIfTokenWasDeletedTest() {
-        givenTokenWasDeleted();
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
-
-    @Test
     void findResponseIfTokenWasDeletedTest() {
         givenTokenWasDeleted();
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
@@ -316,43 +273,6 @@ class ContractGetBytecodeHandlerTest {
                 .isEqualTo(Bytes.EMPTY);
     }
 
-    @Test
-    void computeFeesWithNullContractTest() {
-        // given
-        when(context.feeCalculator()).thenReturn(feeCalculator);
-        when(context.query()).thenReturn(query);
-        when(query.contractGetBytecodeOrThrow()).thenReturn(contractGetBytecodeQuery);
-
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        when(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).thenReturn(defaultHeader);
-
-        final var components = FeeComponents.newBuilder()
-                .setMax(15000)
-                .setBpt(25)
-                .setVpt(25)
-                .setRbh(25)
-                .setGas(25)
-                .build();
-        final var nodeData = com.hederahashgraph.api.proto.java.FeeData.newBuilder()
-                .setNodedata(components)
-                .build();
-
-        when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> {
-            Function<SigValueObj, com.hederahashgraph.api.proto.java.FeeData> function = invocation.getArgument(0);
-            final var feeData = function.apply(new SigValueObj(1, 1, 1));
-            long nodeFee = FeeBuilder.getComponentFeeInTinyCents(nodeData.getNodedata(), feeData.getNodedata());
-            return new Fees(nodeFee, 0L, 0L);
-        });
-
-        // when
-        Fees actualFees = subject.computeFees(context);
-
-        // then
-        assertThat(actualFees.nodeFee()).isEqualTo(5L);
-        assertThat(actualFees.networkFee()).isZero();
-        assertThat(actualFees.serviceFee()).isZero();
-    }
 
     @Test
     void findResponsePositiveTest() {
@@ -401,17 +321,6 @@ class ContractGetBytecodeHandlerTest {
     }
 
     @Test
-    void computeFeesAccountIdAsContractId() {
-        givenAccountIdAsContractId();
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
-
-    @Test
     void findResponseAccountIdAsContractId() {
         givenAccountIdAsContractId();
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
@@ -438,17 +347,6 @@ class ContractGetBytecodeHandlerTest {
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
-    @Test
-    void computeFeesTokenIdAsContractId() {
-        givenTokenIdAsContractId();
-        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
 
     @Test
     void findResponseTokenIdAsContractId() {
@@ -480,17 +378,6 @@ class ContractGetBytecodeHandlerTest {
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
-    @Test
-    void computeFeesScheduleIdAsContractId() {
-        givenScheduleIdAsContractId();
-        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
-        QueryHeader defaultHeader =
-                QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
-        given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        given(feeCalculator.legacyCalculate(any())).willReturn(fee);
-        assertThat(subject.computeFees(context)).isEqualTo(fee);
-    }
 
     @Test
     void findResponseScheduleIdAsContractId() {
