@@ -1,8 +1,9 @@
 ---
+
 title: Architecture overview
 kind: architecture-overview
 last_reviewed: TBD
----
+------------------
 
 # Architecture overview
 
@@ -22,13 +23,13 @@ out in the form of consensus rounds;
 the **Execution layer** takes those rounds, executes the transactions
 inside them, transitions state, and produces signed blocks. Each round
 that comes out of Consensus is a list of events with consensus timestamps
-plus metadata (round number, judges, roster). In general, the Consensus layer 
+plus metadata (round number, judges, roster). In general, the Consensus layer
 works with events and rounds, while the Execution layer works with transactions.
 
 The Consensus layer is delivered as a set of JPMS
-modules paired API + impl. However, there will be a single API 
+modules paired API + impl. However, there will be a single API
 module that the Execution layer interacts with. The remaining modules are
-internal Consensus layer organization designed to allow the submodule 
+internal Consensus layer organization designed to allow the submodule
 implementations to be swapped out as needed without affecting the API. There
 are additional library modules utilities, data models, and shared structures.
 The responsibility of interacting with the database itself belongs to Execution; some
