@@ -49,7 +49,6 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
-import com.hedera.node.app.state.listeners.FreezeMarkerPlatformStatus;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
 import com.hedera.node.app.workflows.FacilityInitModule;
@@ -162,8 +161,6 @@ public interface HederaInjectionComponent {
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
-
-    FreezeMarkerPlatformStatus freezeMarkerPlatformStatus();
 
     QuiescenceController quiescenceController();
 
