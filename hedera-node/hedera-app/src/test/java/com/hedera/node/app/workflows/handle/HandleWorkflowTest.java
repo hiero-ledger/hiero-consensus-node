@@ -740,8 +740,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+        verify(blockRecordManager, never()).endRound(state);
+        verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
     }
 
     /**
