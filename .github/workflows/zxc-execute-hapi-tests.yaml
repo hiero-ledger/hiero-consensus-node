@@ -976,10 +976,9 @@ jobs:
 
       - name: Set Failure Mode
         id: set-failure-mode
-        uses: ./.github/actions/aggregate-failure-mode
-        with:
-          handle-cancelled: "true"
-          job-results: |
+        env:
+          HANDLE_CANCELLED: "true"
+          JOB_RESULTS: |
             ${{ needs.hapi-tests-misc.result }}
             ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
             ${{ needs.hapi-tests-token-and-time-consuming.result }}
@@ -989,13 +988,14 @@ jobs:
             ${{ needs.hapi-tests-restart.result }}
             ${{ needs.hapi-tests-bn-comms.result }}
             ${{ needs.hapi-tests-state-throttling.result }}
-          job-failure-modes: |
-            ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}
+          JOB_FAILURE_MODES: |
+            ${{ needs.hapi-tests-misc.outputs.failure-mode }}
+            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode }}
+            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode }}
+            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode }}
+            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode }}
+            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode }}
+            ${{ needs.hapi-tests-restart.outputs.failure-mode }}
+            ${{ needs.hapi-tests-bn-comms.outputs.failure-mode }}
+            ${{ needs.hapi-tests-state-throttling.outputs.failure-mode }}
+        run: node .github/scripts/aggregate-failure-mode.js

@@ -308,13 +308,13 @@ jobs:
 
       - name: Set Failure Mode
         id: set-failure-mode
-        uses: ./.github/actions/aggregate-failure-mode
-        with:
-          job-results: |
+        env:
+          JOB_RESULTS: |
             ${{ needs.full-otter.result }}
             ${{ needs.fast-otter.result }}
             ${{ needs.chaos-otter.result }}
-          job-failure-modes: |
-            ${{ needs.full-otter.outputs.failure-mode || 'none' }}
-            ${{ needs.fast-otter.outputs.failure-mode || 'none' }}
-            ${{ needs.chaos-otter.outputs.failure-mode || 'none' }}
+          JOB_FAILURE_MODES: |
+            ${{ needs.full-otter.outputs.failure-mode }}
+            ${{ needs.fast-otter.outputs.failure-mode }}
+            ${{ needs.chaos-otter.outputs.failure-mode }}
+        run: node .github/scripts/aggregate-failure-mode.js
