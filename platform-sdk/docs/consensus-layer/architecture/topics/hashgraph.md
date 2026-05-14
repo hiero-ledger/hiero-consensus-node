@@ -8,24 +8,24 @@ last_reviewed: TBD
 
 ## Responsibilities
 
-The hashgraph topic owns the in-memory directed acyclic graph (DAG) of
+The hashgraph module owns the in-memory directed acyclic graph (DAG) of
 non-ancient events and runs the consensus algorithm that turns a
 topologically ordered stream of `PlatformEvent`s into an ordered stream
 of `ConsensusRound`s carrying judges, a consensus timestamp, the
 consensus roster for the round, and the `EventWindow` that defines the
 ancient and expired thresholds going forward.
 
-The topic does not validate, deduplicate, or topologically order events
+The module does not validate, deduplicate, or topologically order events
 — those concerns live in
 [`../topics/event-intake.md`](../topics/event-intake.md). It does not
 durably persist events — that is the Pre-Consensus Event Stream
 (see [`../topics/restart-and-pces.md`](../topics/restart-and-pces.md)).
-It does not gossip — that is `consensus-gossip`. Once a round reaches
+It does not gossip — that is `consensus-gossip` (see [`../topics/gossip.md`](../topics/gossip.md). Once a round reaches
 consensus, the round leaves the hashgraph; downstream signing, hashing,
 and signature collection live in
 [`../topics/signed-state-management.md`](../topics/signed-state-management.md).
 
-The two boundaries that frame the topic:
+The two boundaries that frame the module:
 
 - **Upstream:** event intake delivers events on
   `consensus-hashgraph/.../HashgraphModule.java#eventInputWire` (input
@@ -46,13 +46,13 @@ and output wires. It does not hold algorithm state itself.
 
 **Per-event driver.**
 [`consensus-hashgraph-impl/.../DefaultConsensusEngine.java`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)
-orchestrates one `addEvent` cycle. Its fields are the topic's working
+orchestrates one `addEvent` cycle. Its fields are the module's working
 state at runtime:
 
-- `linker: ConsensusLinker` — the DAG of non-ancient linked events.
+- `linker: ConsensusLinker` — attaches parent events to each incoming event (instead of a parent descriptor).
 - `consensus: Consensus` (impl
   [`ConsensusImpl`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java))
-  — round / witness / fame / judge state.
+  — the core consensus algorithm that calculates round / witness / fame / judge state.
 - `futureEventBuffer: FutureEventBuffer` — events whose birth round is
   still in the future.
 - `freezeRoundController: FreezeRoundController` — cuts off rounds at
@@ -72,8 +72,9 @@ state at runtime:
   plus the per-event memoized round, witness flag, judge flag,
   `DeGen`, `lastSee`, and `stronglySeeP` slots used by the algorithm.
 - `ConsensusImpl` owns `ConsensusRounds` (per-round state including the
-  current `RoundElections`), the
-  `RosterLookup`, the `lastConsensusTime`, the running `numConsensus`
+  current `RoundElections`), `lastConsensusTime` (the timestamp of the
+  most recent consensus event, used to keep consensus timestamps
+  strictly increasing across rounds), the running `numConsensus`
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
@@ -118,7 +119,7 @@ is wired against those.
 ([`consensus-model/.../ConsensusRound.java`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/ConsensusRound.java))
 carries the consensus event list (in consensus order), the
 `EventWindow` for the round (the new ancient and expired thresholds and
-the next pending round), the consensus roster, a
+the next pending round), the consensus roster used to calculate the round, a
 `ConsensusSnapshot` (round number, minimum-judge info, monotonic
 consensus number, consensus timestamp, judge IDs), and a `pcesRound`
 flag indicating whether the round was decided during PCES replay.
