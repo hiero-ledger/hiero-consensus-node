@@ -42,9 +42,7 @@ public final class EthereumTransactionRollbackHandlerTest {
                 new GasChargingEvent(REFUND, chargeAndRefundAccount, refundAmount, false));
 
         final var subject = new EthereumTransactionRollbackHandler(
-                mock(CallOutcome.class),
-                gasChargingEvents,
-                mock(RootProxyWorldUpdater.class));
+                mock(CallOutcome.class), gasChargingEvents, mock(RootProxyWorldUpdater.class));
 
         final var feeChargingContext = mock(FeeCharging.Context.class);
         final var handleContext = mock(HandleContext.class);
