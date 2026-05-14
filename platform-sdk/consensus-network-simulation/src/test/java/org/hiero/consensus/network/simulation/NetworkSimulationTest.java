@@ -24,14 +24,14 @@ public class NetworkSimulationTest {
     @Test
     void fastFourNodeNetwork(){
         final int numNodes = 4;
+        final Duration tick = Duration.of(100, ChronoUnit.MICROS);
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .withValue("event.creation.maxOtherParents", Integer.toString(4))
                 .getOrCreateConfig();
-        final NetworkLatency latency = NetworkLatency.uniformLatency(Duration.of(100, ChronoUnit.MICROS),
-                numNodes);
-        runSimulation(Duration.of(100, ChronoUnit.MICROS), numNodes, configuration, latency);
+        final NetworkLatency latency = NetworkLatency.uniformLatency(tick, numNodes);
+        runSimulation(tick, numNodes, configuration, latency);
     }
 
     private void runSimulation(final Duration tick, final int nodes, final Configuration configuration, final NetworkLatency latency) {
