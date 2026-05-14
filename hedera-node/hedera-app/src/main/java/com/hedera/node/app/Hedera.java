@@ -866,7 +866,6 @@ public final class Hedera
                 () -> HapiUtils.toString(deserializedVersion),
                 () -> HapiUtils.toString(version),
                 () -> trigger);
-        blockStreamService.resetMigratedLastBlockHash();
         startupNetworks = startupNetworksFactory.apply(configProvider);
         this.initState = state;
         final var migrationChanges = serviceMigrator.doMigrations(
@@ -1394,9 +1393,7 @@ public final class Hedera
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            final var lastBlockHash = (trigger == GENESIS)
-                    ? HASH_OF_ZERO
-                    : blockStreamService.migratedLastBlockHash().orElse(null);
+            final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
             daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;
         }
