@@ -481,7 +481,7 @@ jobs:
           merklebenchpod="merklebench"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "\
           cd /host/mnt/nodefs; \
-          if [ -d cryptobench ]; then rm -rf cryptobench; fi\
+          if [ -d cryptobench ]; then rm -rf cryptobench; fi; \
           mkdir /host/mnt/nodefs/cryptobench"
 
           # Copy run version
