@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * Determines the range of block files {@code [leftBlock, rightBlock]} that need to be downloaded
@@ -48,6 +49,8 @@ import org.apache.logging.log4j.Logger;
 public final class BlockRangeResolver {
 
     private static final Logger log = LogManager.getLogger(BlockRangeResolver.class);
+
+    private static final Marker CONSOLE = GcpPathHelper.CONSOLE;
 
     /** The state ID for the BlockStreamInfo singleton. */
     private static final int BLOCK_STREAM_INFO_STATE_ID =
@@ -135,7 +138,7 @@ public final class BlockRangeResolver {
                 leftBlock,
                 targetRound,
                 gcpBlockStreamDir);
-        System.out.printf("Resolving block range (left block: %d, target round: %d) ...%n", leftBlock, targetRound);
+        log.info(CONSOLE, "Resolving block range (left block: {}, target round: {}) ...", leftBlock, targetRound);
 
         // Step 1: Verify the left boundary block exists
         if (!GcpPathHelper.fileExists(blockFileUri(gcpBlockStreamDir, leftBlock), billingProject)) {
@@ -148,13 +151,13 @@ public final class BlockRangeResolver {
         final ExecutorService executor = Executors.newFixedThreadPool(PROBE_THREAD_POOL_SIZE);
         try {
             // Step 2: Find the extent of available blocks (last available block number)
-            System.out.printf("  Probing for last available block ...%n");
+            log.info(CONSOLE, "  Probing for last available block ...");
             final long lastAvailableBlock = findLastAvailableBlock(leftBlock, executor);
             log.info("Last available block in GCS: {}", lastAvailableBlock);
-            System.out.printf("  Last available block: %d%n", lastAvailableBlock);
+            log.info(CONSOLE, "  Last available block: {}", lastAvailableBlock);
 
             // Step 3: Find the block containing the target round via binary search
-            System.out.printf("  Searching for block containing target round %d ...%n", targetRound);
+            log.info(CONSOLE, "  Searching for block containing target round {} ...", targetRound);
             final long rightBlock = findBlockForTargetRound(leftBlock, lastAvailableBlock, targetRound, executor);
             log.info("Block containing target round {}: {}", targetRound, rightBlock);
 
@@ -164,9 +167,12 @@ public final class BlockRangeResolver {
                     range.leftBlock(),
                     range.rightBlock(),
                     range.fileCount());
-            System.out.printf(
-                    "  Block range resolved: [%d, %d] (%d files)%n",
-                    range.leftBlock(), range.rightBlock(), range.fileCount());
+            log.info(
+                    CONSOLE,
+                    "  Block range resolved: [{}, {}] ({} files)",
+                    range.leftBlock(),
+                    range.rightBlock(),
+                    range.fileCount());
 
             // Clean up probe files outside the resolved range — if left in the directory,
             // the downstream consumer will interpret them as part of the expected block range.

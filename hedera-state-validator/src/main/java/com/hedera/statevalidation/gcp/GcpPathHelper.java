@@ -15,6 +15,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
 
 /**
  * Utility for downloading files and directories from Google Cloud Storage using the {@code gcloud storage}
@@ -27,6 +29,9 @@ import org.apache.logging.log4j.Logger;
 public final class GcpPathHelper {
 
     private static final Logger log = LogManager.getLogger(GcpPathHelper.class);
+
+    /** Marker for log statements that should be routed to stdout for user-facing progress. */
+    public static final Marker CONSOLE = MarkerManager.getMarker("CONSOLE");
 
     /** Prefix that identifies a GCS URI. */
     private static final String GCS_PREFIX = "gs://";
@@ -210,9 +215,9 @@ public final class GcpPathHelper {
         // Count remote objects first to enable progress reporting
         final int totalObjects = countRemoteObjects(source, billingProject);
         if (totalObjects > 0) {
-            System.out.printf("Downloading state directory from %s (%d objects) ...%n", gcpPath, totalObjects);
+            log.info(CONSOLE, "Downloading state directory from {} ({} objects) ...", gcpPath, totalObjects);
         } else {
-            System.out.printf("Downloading state directory from %s ...%n", gcpPath);
+            log.info(CONSOLE, "Downloading state directory from {} ...", gcpPath);
         }
 
         final long start = System.currentTimeMillis();
@@ -239,7 +244,7 @@ public final class GcpPathHelper {
         }
         final long elapsed = (System.currentTimeMillis() - start) / 1000;
         log.info("State directory download complete in {} seconds: {} -> {}", elapsed, gcpPath, localDir);
-        System.out.printf("State directory download complete in %d seconds.%n", elapsed);
+        log.info(CONSOLE, "State directory download complete in {} seconds.", elapsed);
     }
 
     // ========== Bulk file download ==========
@@ -293,7 +298,7 @@ public final class GcpPathHelper {
         wrapperScript.toFile().setExecutable(true);
 
         final long start = System.currentTimeMillis();
-        System.out.printf("Downloading %d block files from %s ...%n", totalFiles, gcpBaseDir);
+        log.info(CONSOLE, "Downloading {} block files from {} ...", totalFiles, gcpBaseDir);
         try {
             final List<String> cmd = new ArrayList<>();
             cmd.add("xargs");
@@ -327,7 +332,7 @@ public final class GcpPathHelper {
                 if (missing.isEmpty()) {
                     break;
                 }
-                System.out.printf("Retry pass %d: %d missing files...%n", pass, missing.size());
+                log.info(CONSOLE, "Retry pass {}: {} missing files...", pass, missing.size());
                 log.warn("Retry pass {}/{}: {} files missing after download", pass, maxRetryPasses, missing.size());
                 retryMissingFilesBatched(base, missing, localDir, billingProject, parallelism);
             }
@@ -336,7 +341,7 @@ public final class GcpPathHelper {
             validateDownloadedFiles(localDir, BLOCK_FILE_EXTENSION);
 
             final long finalCount = countFilesInDir(localDir, BLOCK_FILE_EXTENSION);
-            System.out.printf("Block file download complete: %d files in %d seconds.%n", finalCount, elapsed);
+            log.info(CONSOLE, "Block file download complete: {} files in {} seconds.", finalCount, elapsed);
 
         } finally {
             Files.deleteIfExists(manifestFile);
@@ -375,7 +380,7 @@ public final class GcpPathHelper {
                             final long count = counter.count();
                             final int percent = (int) (count * 100 / totalFiles);
                             if (percent / 10 > lastReportedPercent / 10) {
-                                System.out.printf("  %d%% (%d/%d)%n", percent, count, totalFiles);
+                                log.info(CONSOLE, "  {}% ({}/{})", percent, count, totalFiles);
                                 lastReportedPercent = percent;
                             }
                         } catch (InterruptedException e) {

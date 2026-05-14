@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
 import picocli.CommandLine.Command;
@@ -25,6 +26,8 @@ import picocli.CommandLine.ParentCommand;
 public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
     private static final Logger log = LogManager.getLogger(ApplyBlocksCommand.class);
+
+    private static final Marker CONSOLE = GcpPathHelper.CONSOLE;
 
     @ParentCommand
     private StateOperatorCommand parent;
@@ -194,7 +197,7 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
         final long preCached = range.fileCount() - fileNames.size();
         if (preCached == range.fileCount()) {
-            System.out.printf("All %d block files already cached locally.%n", range.fileCount());
+            log.info(CONSOLE, "All {} block files already cached locally.", range.fileCount());
             log.info("All {} block files already cached in {}", range.fileCount(), tempBlockDir);
         } else {
             log.info("{} files already cached. {} files remaining to download.", preCached, fileNames.size());
