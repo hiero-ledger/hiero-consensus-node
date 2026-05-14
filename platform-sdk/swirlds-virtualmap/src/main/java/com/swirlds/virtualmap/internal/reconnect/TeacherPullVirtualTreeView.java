@@ -93,7 +93,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * @return the leaf
      */
     public VirtualLeafBytes<?> loadLeaf(final long path) {
-        return records.findLeafRecord(path);
+        return records.findLeaf(path);
     }
 
     /**

@@ -39,6 +39,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualRoot;
@@ -438,10 +439,16 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         requireNonNull(dataSource);
 
         final int hashChunkHeight = dataSource.getHashChunkHeight();
+        final int leafChunkSize = dataSource.getLeafChunkSize();
         if (cache == null) {
-            cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
+            cache = new VirtualNodeCache(
+                    virtualMapConfig,
+                    hashChunkHeight,
+                    dataSource::loadHashChunk,
+                    leafChunkSize,
+                    dataSource::loadLeafChunk);
         }
-        this.records = new RecordAccessor(this.metadata, hashChunkHeight, cache, dataSource);
+        this.records = new RecordAccessor(this.metadata, hashChunkHeight, leafChunkSize, cache, dataSource);
 
         if (statistics == null) {
             // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
@@ -495,27 +502,24 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             logger.info(STARTUP.getMarker(), "VirtualMap is empty, skipping full rehash.");
             return;
         }
-        try {
-            final Hash loadedHash = records.findHash(firstLeafPath);
-            final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
-            if (virtualLeafBytes == null || loadedHash == null) {
-                logger.error(
-                        STARTUP.getMarker(),
-                        "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
-                        firstLeafPath);
-                return;
-            }
-            final WritableMessageDigest wmd = new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
-            virtualLeafBytes.writeToForHashing(wmd);
-            final Hash recaclulatedHash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-            if (loadedHash.equals(recaclulatedHash)) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
-                return;
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+
+        final Hash loadedHash = records.findHash(firstLeafPath);
+        final VirtualLeafBytes<?> virtualLeafBytes = records.findLeaf(firstLeafPath);
+        if (virtualLeafBytes == null || loadedHash == null) {
+            logger.error(
+                    STARTUP.getMarker(),
+                    "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
+                    firstLeafPath);
+            return;
+        }
+        final WritableMessageDigest wmd = new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
+        virtualLeafBytes.writeToForHashing(wmd);
+        final Hash recaclulatedHash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        if (loadedHash.equals(recaclulatedHash)) {
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
+            return;
         }
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
@@ -549,22 +553,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final long start = System.currentTimeMillis();
         try {
             for (long i = firstLeafPath; i <= lastLeafPath; i++) {
+                final VirtualLeafBytes<?> leafBytes = records.findLeaf(i);
+                assert leafBytes != null : "Leaf record should not be null";
                 try {
-                    final VirtualLeafBytes<?> leafBytes = dataSource.loadLeafRecord(i);
-                    assert leafBytes != null : "Leaf record should not be null";
-                    try {
-                        rehashIterator.supply(leafBytes);
-                    } catch (final MerkleSynchronizationException e) {
-                        throw e;
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new MerkleSynchronizationException(
-                                "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
-                    } catch (final Exception e) {
-                        throw new MerkleSynchronizationException("Failed to handle a leaf during full rehashing", e);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    rehashIterator.supply(leafBytes);
+                } catch (final MerkleSynchronizationException e) {
+                    throw e;
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new MerkleSynchronizationException(
+                            "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
+                } catch (final Exception e) {
+                    throw new MerkleSynchronizationException("Failed to handle a leaf during full rehashing", e);
                 }
                 if (i % onePercent == 0) {
                     logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", (i - firstLeafPath) / onePercent + 1);
@@ -619,6 +619,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     @Override
     protected void destroyNode() {
+        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "FLR v{} count={} time={}", getFastCopyVersion(), c, t);
         if (pipeline != null) {
             pipeline.destroyCopy(this);
         } else {
@@ -636,9 +637,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * 		The key. Cannot be null.
      * @return True if there is a leaf corresponding to this key.
      */
-    public boolean containsKey(final Bytes key) {
+    public boolean containsKey(@NonNull final Bytes key) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        final long path = records.findPath(key);
+        final long path = records.findKeyPath(key);
         statistics.countReadEntities();
         return path != INVALID_PATH;
     }
@@ -646,13 +647,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /**
      * Gets the value associated with the given key.
      *
-     * @param key
-     * 		The key. This must not be null.
-     * @return The value. The value may be null, or will be read only.
+     * @param key The key. This must not be null.
+     * @return The value. The value may be null or will be read-only.
      */
     public <V> V get(@NonNull final Bytes key, final Codec<V> valueCodec) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        final VirtualLeafBytes<V> rec = records.findLeafRecord(key);
+        final VirtualLeafBytes<V> rec = records.findLeaf(key);
         statistics.countReadEntities();
         return rec == null ? null : rec.value(valueCodec);
     }
@@ -660,15 +660,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /**
      * Gets the value associated with the given key as raw bytes.
      *
-     * @param key
-     * 		The key. This must not be null.
+     * @param key The key. This must not be null.
      * @return The value bytes. The value may be null.
      */
     @Nullable
-    @SuppressWarnings("rawtypes")
     public Bytes getBytes(@NonNull final Bytes key) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        final VirtualLeafBytes rec = records.findLeafRecord(key);
+        final VirtualLeafBytes<?> rec = records.findLeaf(key);
         statistics.countReadEntities();
         return rec == null ? null : rec.valueBytes();
     }
@@ -706,7 +704,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findPath(key);
+            final long path = records.findKeyPath(key);
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -715,9 +713,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
-            // the data source, and the path above can be used as the old path
-            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
+            // Check the leaf is in the cache, so we can reuse its old path. If not, the leaf is
+            // in the data source, and the path above can be used as the old path
+            final VirtualLeafBytes<V> existing = cache.lookupLeaf(path);
             final VirtualLeafBytes<V> updated;
             if (existing != null) {
                 updated = valueCodec != null
@@ -733,7 +731,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         ? new VirtualLeafBytes<>(path, false, key, value, valueCodec)
                         : new VirtualLeafBytes<>(path, false, key, valueBytes);
             }
-            cache.putLeaf(updated);
+            final VirtualLeafBytes<?> old = cache.putLeaf(updated);
+            assert old.path() == path;
+            assert old.keyBytes().equals(key);
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
@@ -744,9 +744,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * Removes the key/value pair denoted by the given key from the map. Has no effect
      * if the key didn't exist.
      *
-     * @param key The key to remove, must not be null.
+     * @param key The key to remove. Must not be null.
      * @param valueCodec Value codec to decode the removed value.
-     * @return The removed value. May return null if there was no value to remove or if the value was null.
+     * @return The removed value. May return null if there was no value to remove or if the
+     *      value was null.
      */
     public <V> V remove(@NonNull final Bytes key, @NonNull final Codec<V> valueCodec) {
         requireNonNull(valueCodec);
@@ -768,8 +769,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /**
      * Removes the key/value pair denoted by the given key from the map. Has no effect
      * if the key didn't exist.
-     * @param key The key to remove, must not be null
-     * @return The removed value represented as {@link Bytes}. May return null if there was no value to remove or if the value was null.
+     *
+     * @param key The key to remove. Must not be null
+     * @return The removed value represented as {@link Bytes}. May return null if there
+     *      was no value to remove or if the value was null.
      */
     public Bytes remove(@NonNull final Bytes key) {
         throwIfImmutable();
@@ -777,28 +780,26 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             // Verify whether the current leaf exists. If not, we can just return null.
-            VirtualLeafBytes<?> leafToDelete = records.findLeafRecord(key);
-            if (leafToDelete == null) {
+            final long path = records.findKeyPath(key);
+            if (path == INVALID_PATH) {
                 return null;
             }
 
             // Mark the leaf as being deleted.
-            cache.deleteLeaf(leafToDelete);
+            final VirtualLeafBytes<?> oldLeaf = cache.deleteLeaf(path);
+            assert oldLeaf != null;
             statistics.countRemovedEntities();
 
             // We're going to need these
             final long lastLeafPath = metadata.getLastLeafPath();
             final long firstLeafPath = metadata.getFirstLeafPath();
-            final long leafToDeletePath = leafToDelete.path();
 
             // If the leaf was not the last leaf, then move the last leaf to take this spot
-            if (leafToDeletePath != lastLeafPath) {
-                final VirtualLeafBytes<?> lastLeaf = records.findLeafRecord(lastLeafPath);
+            ;
+            if (path != lastLeafPath) {
+                final VirtualLeafBytes<?> lastLeaf = cache.getLeafAndClearPath(lastLeafPath);
                 assert lastLeaf != null;
-                cache.clearLeafPath(lastLeafPath);
-                cache.putLeaf(lastLeaf.withPath(leafToDeletePath));
-                // NOTE: at this point, if leafToDelete was in the cache at some "path" index, it isn't anymore!
-                // The lastLeaf has taken its place in the path index.
+                cache.putLeaf(lastLeaf.withPath(path));
             }
 
             // If the parent of the last leaf is root, then we can simply do some bookkeeping.
@@ -818,14 +819,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     // path 2. However, rehashing is only triggered, if there is at least one dirty leaf,
                     // while leaf 1 is not marked as such: neither its contents nor its path are changed.
                     // To fix it, mark it as dirty explicitly
-                    final VirtualLeafBytes<?> leaf = records.findLeafRecord(1);
+                    final VirtualLeafBytes<?> leaf = records.findLeaf(1);
                     cache.putLeaf(leaf);
                 }
             } else {
                 final long lastLeafSibling = getSiblingPath(lastLeafPath);
-                final VirtualLeafBytes<?> sibling = records.findLeafRecord(lastLeafSibling);
+                final VirtualLeafBytes<?> sibling = cache.getLeafAndClearPath(lastLeafSibling);
                 assert sibling != null;
-                cache.clearLeafPath(lastLeafSibling);
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths
@@ -837,7 +837,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             }
 
             // Get the value and return it, if requested
-            return leafToDelete.valueBytes();
+            return oldLeaf.valueBytes();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
         }
@@ -1008,7 +1008,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         flushed.set(true);
         flushLatch.countDown();
         statistics.recordFlush(end - start);
-        logger.debug(
+        logger.info(
                 VIRTUAL_MERKLE_STATS.getMarker(),
                 "Flushed {} v{} in {} ms",
                 LABEL,
@@ -1019,7 +1019,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private void flush(VirtualNodeCache cacheToFlush, VirtualMapMetadata stateToUse, VirtualDataSource ds) {
         try {
             // Get the leaves that were changed and sort them by path so that lower paths come first
-            final Stream<VirtualLeafBytes> dirtyLeaves =
+            final Stream<VirtualLeafChunk> dirtyLeaves =
                     cacheToFlush.dirtyLeavesForFlush(stateToUse.getFirstLeafPath(), stateToUse.getLastLeafPath());
             // Get the deleted leaves
             final Stream<VirtualLeafBytes> deletedLeaves = cacheToFlush.deletedLeaves();
@@ -1127,6 +1127,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @param value Hash value to set
      */
     private void setHashPrivate(@Nullable final Hash value) {
+        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Set hash {}: {}", getFastCopyVersion(), value);
         hash.set(value);
     }
 
@@ -1224,7 +1225,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
             final VirtualNodeCache cacheSnapshot = cache.snapshot();
             final int hashChunkHeight = dataSource.getHashChunkHeight();
-            return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+            final int leafChunkSize = dataSource.getLeafChunkSize();
+            return new RecordAccessor(metadata.copy(), hashChunkHeight, leafChunkSize, cacheSnapshot, dataSourceCopy);
         });
     }
 
@@ -1478,10 +1480,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *  @param key The key of the leaf to warm, must not be null
      */
     public void warm(@NonNull final Bytes key) {
-        records.findLeafRecord(key);
+        requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
+        records.findLeaf(key);
+//        records.findKeyPath(key);
     }
 
     // ----------------------
+
+    int c = 0;
+    long t = 0;
 
     /**
      * Adds a new leaf with the given key and value. The precondition to calling this
@@ -1531,10 +1538,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
             // The firstLeafPath points to the old leaf that we want to replace.
             // Get the old leaf.
-            final VirtualLeafBytes<?> oldLeaf = records.findLeafRecord(firstLeafPath);
-            requireNonNull(oldLeaf);
-            cache.clearLeafPath(firstLeafPath);
-            cache.putLeaf(oldLeaf.withPath(getLeftChildPath(firstLeafPath)));
+            long start = System.currentTimeMillis();
+            final VirtualLeafBytes<?> oldFirstLeaf = cache.getLeafAndClearPath(firstLeafPath);
+            c++;
+            t += System.currentTimeMillis() - start;
+            requireNonNull(oldFirstLeaf);
+            cache.putLeaf(oldFirstLeaf.withPath(getLeftChildPath(firstLeafPath)));
 
             // Create a new internal node that is in the position of the old leaf and attach it to the parent
             // on the left side. Put the new item on the right side of the new parent.
@@ -1550,7 +1559,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final VirtualLeafBytes<V> newLeaf = valueCodec != null
                 ? new VirtualLeafBytes<>(leafPath, key, value, valueCodec)
                 : new VirtualLeafBytes<>(leafPath, key, valueBytes);
-        cache.putLeaf(newLeaf);
+        final VirtualLeafBytes<?> oldLeaf = cache.putLeaf(newLeaf);
+        assert oldLeaf == null;
     }
 
     @Override

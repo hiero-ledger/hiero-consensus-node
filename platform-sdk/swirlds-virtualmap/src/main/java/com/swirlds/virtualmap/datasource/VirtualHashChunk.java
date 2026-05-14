@@ -39,7 +39,7 @@ import org.hiero.base.crypto.Hash;
  * the leaf rank may be incomplete, i.e. contain fewer hashes than the full size. The number of hashes
  * in {@link #hashData} is always the full chunk size.
  */
-public class VirtualHashChunk {
+public final class VirtualHashChunk {
 
     // Chunk path field
     public static final FieldDefinition FIELD_HASHCHUNK_PATH =

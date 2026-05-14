@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
@@ -159,7 +160,7 @@ class ReconnectHashListenerTest {
         private final VirtualDataSource delegate;
 
         private final List<List<VirtualHashChunk>> internalRecords = new ArrayList<>();
-        private final List<List<VirtualLeafBytes>> leafRecords = new ArrayList<>();
+        private final List<List<VirtualLeafChunk>> leafRecords = new ArrayList<>();
 
         VirtualDataSourceSpy(VirtualDataSource delegate) {
             this.delegate = delegate;
@@ -174,27 +175,22 @@ class ReconnectHashListenerTest {
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                @NonNull final Stream<VirtualHashChunk> hashes,
+                @NonNull final Stream<VirtualLeafChunk> leaves,
+                @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
                 final boolean isReconnectContext)
                 throws IOException {
-            final var ir = hashChunksToUpdate.toList();
+            final var ir = hashes.toList();
             this.internalRecords.add(ir);
-            final var lr = leafRecordsToAddOrUpdate.toList();
+            final var lr = leaves.toList();
             this.leafRecords.add(lr);
             delegate.saveRecords(
-                    firstLeafPath, lastLeafPath, ir.stream(), lr.stream(), leafRecordsToDelete, isReconnectContext);
+                    firstLeafPath, lastLeafPath, ir.stream(), lr.stream(), deletedLeaves, isReconnectContext);
         }
 
         @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
-            return delegate.loadLeafRecord(key);
-        }
-
-        @Override
-        public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
-            return delegate.loadLeafRecord(path);
+        public VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException {
+            return delegate.loadLeafChunk(leafChunkId);
         }
 
         @Override
@@ -203,9 +199,9 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public VirtualHashChunk loadHashChunk(final long chunkId) {
+        public VirtualHashChunk loadHashChunk(final long hashChunkId) {
             try {
-                return delegate.loadHashChunk(chunkId);
+                return delegate.loadHashChunk(hashChunkId);
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -245,6 +241,11 @@ class ReconnectHashListenerTest {
         @Override
         public int getHashChunkHeight() {
             return delegate.getHashChunkHeight();
+        }
+
+        @Override
+        public int getLeafChunkSize() {
+            return delegate.getLeafChunkSize();
         }
 
         @Override

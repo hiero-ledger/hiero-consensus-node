@@ -16,6 +16,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -141,17 +142,17 @@ public class CloseFlushTest {
                 public void saveRecords(
                         final long firstLeafPath,
                         final long lastLeafPath,
-                        @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-                        @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                        @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                        @NonNull final Stream<VirtualHashChunk> hashes,
+                        @NonNull final Stream<VirtualLeafChunk> leaves,
+                        @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
                         final boolean isReconnectContext) {
                     try {
                         delegate.saveRecords(
                                 firstLeafPath,
                                 lastLeafPath,
-                                hashChunksToUpdate,
-                                leafRecordsToAddOrUpdate,
-                                leafRecordsToDelete,
+                                hashes,
+                                leaves,
+                                deletedLeaves,
                                 isReconnectContext);
                     } catch (final Exception e) {
                         exceptionSink.set(e);
@@ -159,13 +160,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
-                    return delegate.loadLeafRecord(key);
-                }
-
-                @Override
-                public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
-                    return delegate.loadLeafRecord(path);
+                public VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException {
+                    return delegate.loadLeafChunk(leafChunkId);
                 }
 
                 @Override
@@ -174,8 +170,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
-                    return delegate.loadHashChunk(chunkId);
+                public VirtualHashChunk loadHashChunk(final long hashChunkId) throws IOException {
+                    return delegate.loadHashChunk(hashChunkId);
                 }
 
                 @Override
@@ -206,6 +202,11 @@ public class CloseFlushTest {
                 @Override
                 public int getHashChunkHeight() {
                     return delegate.getHashChunkHeight();
+                }
+
+                @Override
+                public int getLeafChunkSize() {
+                    return delegate.getLeafChunkSize();
                 }
 
                 @Override

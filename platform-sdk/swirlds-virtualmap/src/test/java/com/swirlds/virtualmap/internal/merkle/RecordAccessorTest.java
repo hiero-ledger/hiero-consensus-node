@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
@@ -169,17 +170,6 @@ public class RecordAccessorTest {
     }
 
     @Test
-    @DisplayName("findLeafRecord by key of record with broken data source throws")
-    void findLeafRecordByKeyOnDiskWhenBrokenThrows() {
-        dataSource.throwExceptionOnLoadLeafRecordByKey = true;
-        final Bytes key = TestKey.longToKey(UNCHANGED_LEAF_PATH);
-        assertThrows(
-                UncheckedIOException.class,
-                () -> records.findLeafRecord(key),
-                "Should have thrown UncheckedIOException");
-    }
-
-    @Test
     @DisplayName("findLeafRecord by key of deleted record returns null")
     void findLeafRecordByKeyWhenDeletedIsNull() {
         assertNull(records.findLeafRecord(TestKey.longToKey(DELETED_LEAF_PATH)), "Deleted records should be null");
@@ -223,7 +213,7 @@ public class RecordAccessorTest {
     @Test
     @DisplayName("findLeafRecord by path of record with broken data source throws")
     void findLeafRecordByPathOnDiskWhenBrokenThrows() {
-        dataSource.throwExceptionOnLoadLeafRecordByPath = true;
+        dataSource.throwExceptionOnLoadLeafChunk = true;
         assertThrows(
                 UncheckedIOException.class,
                 () -> records.findLeafRecord(UNCHANGED_LEAF_PATH),
@@ -273,24 +263,15 @@ public class RecordAccessorTest {
     private static final class BreakableDataSource implements VirtualDataSource {
 
         private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);
-        boolean throwExceptionOnLoadLeafRecordByKey = false;
-        boolean throwExceptionOnLoadLeafRecordByPath = false;
+        boolean throwExceptionOnLoadLeafChunk = false;
         boolean throwExceptionOnLoadHashChunk = false;
 
         @Override
-        public VirtualLeafBytes<?> loadLeafRecord(final Bytes key) throws IOException {
-            if (throwExceptionOnLoadLeafRecordByKey) {
-                throw new IOException("Thrown by loadLeafRecord by key");
-            }
-            return delegate.loadLeafRecord(key);
-        }
-
-        @Override
-        public VirtualLeafBytes<?> loadLeafRecord(final long path) throws IOException {
-            if (throwExceptionOnLoadLeafRecordByPath) {
+        public VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException {
+            if (throwExceptionOnLoadLeafChunk) {
                 throw new IOException("Thrown by loadLeafRecord by path");
             }
-            return delegate.loadLeafRecord(path);
+            return delegate.loadLeafChunk(leafChunkId);
         }
 
         @Override
@@ -299,28 +280,28 @@ public class RecordAccessorTest {
         }
 
         @Override
-        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+        public VirtualHashChunk loadHashChunk(final long hashChunkId) throws IOException {
             if (throwExceptionOnLoadHashChunk) {
                 throw new IOException("Thrown by loadHashChunk");
             }
-            return delegate.loadHashChunk(chunkId);
+            return delegate.loadHashChunk(hashChunkId);
         }
 
         @Override
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                @NonNull final Stream<VirtualHashChunk> hashes,
+                @NonNull final Stream<VirtualLeafChunk> leaves,
+                @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
                 final boolean isReconnectContext)
                 throws IOException {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    hashChunksToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
+                    hashes,
+                    leaves,
+                    deletedLeaves,
                     isReconnectContext);
         }
 
@@ -363,6 +344,11 @@ public class RecordAccessorTest {
         @Override
         public int getHashChunkHeight() {
             return delegate.getHashChunkHeight();
+        }
+
+        @Override
+        public int getLeafChunkSize() {
+            return delegate.getLeafChunkSize();
         }
 
         @Override

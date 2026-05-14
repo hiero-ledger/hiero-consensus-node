@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,7 +29,10 @@ import org.hiero.base.crypto.Hash;
 public final class RecordAccessor {
 
     private final VirtualMapMetadata state;
+
     private final int hashChunkHeight;
+    private final int leafChunkSize;
+
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
 
@@ -39,6 +43,8 @@ public final class RecordAccessor {
      * 		The state. Cannot be null.
      * @param hashChunkHeight
      *      Hash chunk height
+     * @param leafChunkSize
+     *      Leaf chunk size
      * @param cache
      * 		The cache. Cannot be null.
      * @param dataSource
@@ -47,13 +53,17 @@ public final class RecordAccessor {
     public RecordAccessor(
             @NonNull final VirtualMapMetadata state,
             final int hashChunkHeight,
+            final int leafChunkSize,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
         this.hashChunkHeight = hashChunkHeight;
+        this.leafChunkSize = leafChunkSize;
         this.cache = Objects.requireNonNull(cache);
         this.dataSource = dataSource;
     }
+
+    // --- Hashes
 
     public int getHashChunkHeight() {
         return this.hashChunkHeight;
@@ -131,43 +141,46 @@ public final class RecordAccessor {
         }
     }
 
-    /**
-     * Locates and returns a leaf node based on the given key. If the leaf
-     * node already exists in memory, then the same instance is returned each time.
-     * If the node is not in memory, then a new instance is returned. To save
-     * it in memory, set <code>cache</code> to true. If the key cannot be found in
-     * the data source, then null is returned.
-     *
-     * @param key The key. Must not be null.
-     * @return The leaf, or null if there is not one.
-     * @throws UncheckedIOException
-     * 		If we fail to access the data store, then a catastrophic error occurred and
-     * 		an UncheckedIOException is thrown.
-     */
-    @Nullable
-    public VirtualLeafBytes findLeafRecord(final @NonNull Bytes key) {
-        VirtualLeafBytes rec = cache.lookupLeafByKey(key);
-        if (rec == null) {
-            try {
-                rec = dataSource.loadLeafRecord(key);
-                if (rec != null) {
-                    assert rec.keyBytes().equals(key)
-                            : "The key we found from the DB does not match the one we were looking for! key=" + key;
-                }
-            } catch (final IOException ex) {
-                throw new UncheckedIOException("Failed to read a leaf record from the data source by key", ex);
-            }
-        }
+    // --- Leaves
 
-        return rec == VirtualNodeCache.DELETED_LEAF_RECORD ? null : rec;
+    /**
+     * Finds the path of the given key.
+     * @param key The key. Must not be null.
+     * @return The path or {@link Path#INVALID_PATH} if the key is not found.
+     */
+    public long findKeyPath(final @NonNull Bytes key) {
+        long path = cache.findKeyPath(key);
+        if (path != Path.UNKNOWN_PATH) {
+            return path;
+        }
+        try {
+            path = dataSource.findKey(key);
+            // No UNKNOWN_PATH from the data source
+            assert (path == Path.INVALID_PATH) || (path > Path.ROOT_PATH);
+            return path;
+        } catch (final IOException ex) {
+            throw new UncheckedIOException("Failed to find key in the data source", ex);
+        }
+    }
+
+    public <V> VirtualLeafBytes<V> findLeaf(final @NonNull Bytes key) {
+        long path = findKeyPath(key);
+        if (path == Path.INVALID_PATH) {
+            return null;
+        }
+        return findLeaf(path);
     }
 
     /**
+     * TODO
      * Locates and returns a leaf node based on the path. If the leaf
      * node already exists in memory, then the same instance is returned each time.
      * If the node is not in memory, then a new instance is returned. To save
      * it in memory, set <code>cache</code> to true. If the leaf cannot be found in
      * the data source, then null is returned.
+     *
+     * <p>This method may be called on an immutable virtual map copy, or from
+     * VirtualMap's add() or remove() methods.
      *
      * @param path
      * 		The path
@@ -177,46 +190,46 @@ public final class RecordAccessor {
      * 		an UncheckedIOException is thrown.
      */
     @Nullable
-    public VirtualLeafBytes findLeafRecord(final long path) {
-        assert path != INVALID_PATH;
-        assert path != ROOT_PATH;
+    // TODO: revisit all usages of findLeaf(path)
+    public <V> VirtualLeafBytes<V> findLeaf(final long path) {
+        assert path != Path.UNKNOWN_PATH;
+        assert path != Path.INVALID_PATH;
+        assert path != Path.ROOT_PATH;
 
         if (path < state.getFirstLeafPath() || path > state.getLastLeafPath()) {
             return null;
         }
 
-        VirtualLeafBytes rec = cache.lookupLeafByPath(path);
-        if (rec == null) {
-            try {
-                rec = dataSource.loadLeafRecord(path);
-                if (rec != null) {
-                    assert rec.path() == path
-                            : "The path we found from the DB does not match the one we were looking for! path=" + path;
-                }
-            } catch (final IOException ex) {
-                throw new UncheckedIOException("Failed to read a leaf record from the data source by path", ex);
-            }
+        // Check the cache
+        final VirtualLeafBytes<V> leafInCache = cache.lookupLeaf(path);
+        if (leafInCache != null) {
+            return leafInCache;
         }
 
-        return rec == VirtualNodeCache.DELETED_LEAF_RECORD ? null : rec;
-    }
-
-    /**
-     * Finds the path of the given key.
-     * @param key The key. Must not be null.
-     * @return The path or INVALID_PATH if the key is not found.
-     */
-    public long findPath(final @NonNull Bytes key) {
-        final VirtualLeafBytes rec = cache.lookupLeafByKey(key);
-        if (rec != null) {
-            return rec.path();
-        }
+        // Load from the data source
         try {
-            return dataSource.findKey(key);
+            return findLeafInDataSource(path);
         } catch (final IOException ex) {
-            throw new UncheckedIOException("Failed to find key in the data source", ex);
+            throw new UncheckedIOException("Failed to read a leaf chunk from the data source", ex);
         }
     }
+
+    private <V> VirtualLeafBytes<V> findLeafInDataSource(final long path) throws IOException {
+        final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
+        final VirtualLeafChunk leafChunk = dataSource.loadLeafChunk(leafChunkId);
+        if (leafChunk == null) {
+            // The path is valid. The leaf isn't in the cache, so it must be in
+            // the data source
+            throw new IllegalStateException("Failed to find a leaf at path = " + path);
+        }
+        assert leafChunk.containsPath(path)
+                : "The chunk we found from the DB does not match the one we were looking for";
+        final VirtualLeafBytes<V> leaf = leafChunk.getLeaf(path);
+        assert leaf != null;
+        return leaf;
+    }
+
+    // --- Misc
 
     /**
      * Closes this record accessor and releases all its resources.

@@ -6,6 +6,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -21,6 +22,9 @@ public class InMemoryDataSource implements VirtualDataSource {
     // This doesn't have to match VirtualMapConfig#hashChunkHeight
     private static final int DEFAULT_HASH_CHUNK_HEIGHT = 3;
 
+    // This doesn't have to match VirtualMapConfig#leafChunkSize
+    private static final int DEFAULT_LEAF_CHUNK_SIZE = 10;
+
     private static final String NEGATIVE_CHUNKID_MESSAGE = "chunk ID is less than 0";
     private static final String NEGATIVE_PATH_MESSAGE = "path is less than 0";
 
@@ -28,8 +32,9 @@ public class InMemoryDataSource implements VirtualDataSource {
 
     // Hash chunks by ID
     private final ConcurrentHashMap<Long, VirtualHashChunk> hashChunks = new ConcurrentHashMap<>();
-    // Leaf records by path
-    private final ConcurrentHashMap<Long, VirtualLeafBytes> leafRecords = new ConcurrentHashMap<>();
+    // Leaf chunks by ID
+    private final ConcurrentHashMap<Long, VirtualLeafChunk> leafChunks = new ConcurrentHashMap<>();
+    // Leaf paths by key
     private final ConcurrentHashMap<Bytes, Long> keyToPathMap = new ConcurrentHashMap<>();
 
     private volatile long firstLeafPath = -1;
@@ -56,7 +61,7 @@ public class InMemoryDataSource implements VirtualDataSource {
         this.firstLeafPath = copy.firstLeafPath;
         this.lastLeafPath = copy.lastLeafPath;
         this.hashChunks.putAll(copy.hashChunks);
-        this.leafRecords.putAll(copy.leafRecords);
+        this.leafChunks.putAll(copy.leafChunks);
         this.keyToPathMap.putAll(copy.keyToPathMap);
     }
 
@@ -67,7 +72,7 @@ public class InMemoryDataSource implements VirtualDataSource {
     public void close(final boolean keepData) {
         if (!keepData) {
             hashChunks.clear();
-            leafRecords.clear();
+            leafChunks.clear();
             keyToPathMap.clear();
         }
         closed = true;
@@ -81,9 +86,9 @@ public class InMemoryDataSource implements VirtualDataSource {
     public void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+            @NonNull final Stream<VirtualHashChunk> hashes,
+            @NonNull final Stream<VirtualLeafChunk> leaves,
+            @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
             final boolean isReconnectContext)
             throws IOException {
         if (failureOnSave) {
@@ -105,67 +110,36 @@ public class InMemoryDataSource implements VirtualDataSource {
                     + ", firstLeafPath=" + firstLeafPath);
         }
 
-        deleteLeafRecords(leafRecordsToDelete, isReconnectContext);
-        saveInternalRecords(lastLeafPath, hashChunksToUpdate);
-        saveLeafRecords(firstLeafPath, lastLeafPath, leafRecordsToAddOrUpdate);
+        deleteLeafRecords(deletedLeaves, isReconnectContext);
+        saveInternalRecords(lastLeafPath, hashes);
+        saveLeafRecords(firstLeafPath, lastLeafPath, leaves);
         // Save the leaf paths for later validation checks and to let us know when to delete internals
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
     }
 
     /**
-     * Load the record for a leaf node by key
-     *
-     * @param key
-     * 		the key for a leaf
-     * @return the leaf's record if one was stored for the given key or null if not stored
-     * @throws IOException
-     * 		If there was a problem reading the leaf record
+     * {@inheritDoc}
      */
     @Override
-    public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
-        Objects.requireNonNull(key, "Key cannot be null");
-        final Long path = keyToPathMap.get(key);
-        if (path == null) {
-            return null;
-        }
-        assert path >= firstLeafPath && path <= lastLeafPath : "Found an illegal path in keyToPathMap!";
-        return loadLeafRecord(path);
-    }
-
-    /**
-     * Load the record for a leaf node by path
-     *
-     * @param path
-     * 		the path for a leaf
-     * @return the leaf's record if one was stored for the given path or null if not stored
-     * @throws IOException
-     * 		If there was a problem reading the leaf record
-     */
-    @Override
-    public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
-        if (path < 0) {
-            throw new IllegalArgumentException(NEGATIVE_PATH_MESSAGE);
+    public VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException {
+        if (leafChunkId < 0) {
+            throw new IllegalArgumentException(NEGATIVE_CHUNKID_MESSAGE);
         }
 
         if (failureOnLeafRecordLookup) {
             throw new IOException("Preconfigured failure on leaf record lookup");
         }
 
-        if (path < firstLeafPath) {
+        if (!VirtualLeafChunk.inRange(leafChunkId, DEFAULT_LEAF_CHUNK_SIZE, firstLeafPath, lastLeafPath)) {
             throw new IllegalArgumentException(
-                    "path[" + path + "] is less than the firstLeafPath[" + firstLeafPath + "]");
+                    "Leaf chunk " + leafChunkId + " is not in range [" + firstLeafPath + ", " + lastLeafPath + "]");
         }
 
-        if (path > lastLeafPath) {
-            throw new IllegalArgumentException(
-                    "path[" + path + "] is larger than the lastLeafPath[" + lastLeafPath + "]");
-        }
-
-        final VirtualLeafBytes rec = leafRecords.get(path);
-        assert rec != null
-                : "When looking up leaves, we should never be asked to look up a leaf that doesn't exist. path=" + path;
-        return rec;
+        final VirtualLeafChunk chunk = leafChunks.get(leafChunkId);
+        assert chunk != null
+                : "When looking up leaves, we should never be asked to look up a chunk that doesn't exist. ID=" + leafChunkId;
+        return chunk;
     }
 
     /**
@@ -185,16 +159,16 @@ public class InMemoryDataSource implements VirtualDataSource {
      * {@inheritDoc}
      */
     @Override
-    public VirtualHashChunk loadHashChunk(long chunkId) throws IOException {
+    public VirtualHashChunk loadHashChunk(long hashChunkId) throws IOException {
         if (failureOnHashChunkLookup) {
             throw new IOException("Preconfigured failure on hash lookup");
         }
 
-        if (chunkId < 0) {
+        if (hashChunkId < 0) {
             throw new IllegalArgumentException(NEGATIVE_CHUNKID_MESSAGE);
         }
 
-        final VirtualHashChunk c = hashChunks.get(chunkId);
+        final VirtualHashChunk c = hashChunks.get(hashChunkId);
         return c == null ? null : c.copy();
     }
 
@@ -247,26 +221,23 @@ public class InMemoryDataSource implements VirtualDataSource {
     }
 
     private void saveLeafRecords(
-            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualLeafBytes> leafRecords)
+            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualLeafChunk> leaves)
             throws IOException {
-        final var itr = leafRecords.iterator();
+        final var itr = leaves.iterator();
         while (itr.hasNext()) {
-            final var rec = itr.next();
-            final var path = rec.path();
-            final var key = Objects.requireNonNull(rec.keyBytes(), "Key cannot be null");
-            final var value = rec.valueBytes(); // Not sure if this can be null or not.
-
-            if (path < firstLeafPath) {
-                throw new IOException(
-                        "Leaf record for " + path + " is bogus. It cannot be < first leaf path " + firstLeafPath);
+            final var chunk = itr.next();
+            final var id = chunk.id();
+            if (!VirtualLeafChunk.inRange(id, DEFAULT_LEAF_CHUNK_SIZE, firstLeafPath, lastLeafPath)) {
+                throw new IllegalArgumentException(
+                        "Leaf chunk " + id + " is not in range [" + firstLeafPath + ", " + lastLeafPath + "]");
             }
-            if (path > lastLeafPath) {
-                throw new IOException(
-                        "Leaf record for " + path + " is bogus. It cannot be > last leaf path " + lastLeafPath);
-            }
+            this.leafChunks.put(id, chunk.copy());
 
-            this.leafRecords.put(path, new VirtualLeafBytes(path, key, value));
-            this.keyToPathMap.put(key, path);
+            final long firstChunkPath = chunk.getFirstPath();
+            for (int i = 0; i < chunk.size(); i++) {
+                final VirtualLeafBytes leaf = chunk.getLeaf(firstChunkPath + i);
+                this.keyToPathMap.put(leaf.keyBytes(), leaf.path());
+            }
         }
     }
 
@@ -283,7 +254,7 @@ public class InMemoryDataSource implements VirtualDataSource {
             }
             if (!isReconnectContext || path == oldPath) {
                 this.keyToPathMap.remove(key);
-                this.leafRecords.remove(path);
+                this.leafChunks.remove(path);
             }
         }
     }
@@ -303,16 +274,9 @@ public class InMemoryDataSource implements VirtualDataSource {
         return DEFAULT_HASH_CHUNK_HEIGHT;
     }
 
-    public void setFailureOnHashChunkLookup(boolean failureOnHashChunkLookup) {
-        this.failureOnHashChunkLookup = failureOnHashChunkLookup;
-    }
-
-    public void setFailureOnSave(boolean failureOnSave) {
-        this.failureOnSave = failureOnSave;
-    }
-
-    public void setFailureOnLeafRecordLookup(boolean failureOnLeafRecordLookup) {
-        this.failureOnLeafRecordLookup = failureOnLeafRecordLookup;
+    @Override
+    public int getLeafChunkSize() {
+        return DEFAULT_LEAF_CHUNK_SIZE;
     }
 
     @Override

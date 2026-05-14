@@ -258,7 +258,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void serializeLeaf(final SerializableDataOutputStream out, final Long leaf) throws IOException {
         checkValidLeaf(leaf, reconnectState);
-        final VirtualLeafBytes<?> leafRecord = records.findLeafRecord(leaf);
+        final VirtualLeafBytes<?> leafRecord = records.findLeaf(leaf);
         assert leafRecord != null : "Unexpected null leaf record at path=" + leaf;
         VirtualReconnectUtils.writeLeafRecord(out, leafRecord);
     }

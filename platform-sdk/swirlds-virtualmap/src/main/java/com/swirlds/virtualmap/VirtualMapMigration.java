@@ -70,7 +70,7 @@ public final class VirtualMapMigration {
                     .setThreadName("reader-" + threadCount)
                     .setInterruptableRunnable(() -> {
                         for (long path = firstLeafPath + index; path <= lastLeafPath; path += threadCount) {
-                            final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
+                            final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeaf(path);
                             queue.put(Pair.of(leafRecord.keyBytes(), leafRecord.valueBytes()));
                         }
                     })
@@ -153,7 +153,7 @@ public final class VirtualMapMigration {
                     .setInterruptableRunnable(() -> {
                         try {
                             for (long path = firstPath; path <= lastLeafPath; path += threadCount) {
-                                final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
+                                final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeaf(path);
                                 handler.accept(Pair.of(leafRecord.keyBytes(), leafRecord.valueBytes()));
                             }
                         } catch (final Throwable t) {

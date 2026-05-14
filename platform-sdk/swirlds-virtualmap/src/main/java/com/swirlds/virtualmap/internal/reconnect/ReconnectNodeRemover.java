@@ -108,7 +108,7 @@ public class ReconnectNodeRemover {
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path
             for (long path = oldFirstLeafPath; path < Math.min(newFirstLeafPath, oldLastLeafPath + 1); path++) {
-                final VirtualLeafBytes<?> oldRecord = oldRecords.findLeafRecord(path);
+                final VirtualLeafBytes<?> oldRecord = oldRecords.findLeaf(path);
                 assert oldRecord != null;
                 flusher.deleteLeaf(oldRecord);
             }
@@ -126,7 +126,7 @@ public class ReconnectNodeRemover {
      * 		the key of the new leaf node
      */
     public void newLeafNode(final long path, final Bytes newKey) {
-        final VirtualLeafBytes<?> oldRecord = oldRecords.findLeafRecord(path);
+        final VirtualLeafBytes<?> oldRecord = oldRecords.findLeaf(path);
         if ((oldRecord != null) && !newKey.equals(oldRecord.keyBytes())) {
             synchronized (this) {
                 flusher.deleteLeaf(oldRecord);
@@ -139,7 +139,7 @@ public class ReconnectNodeRemover {
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
-            final VirtualLeafBytes<?> oldExtraLeafRecord = oldRecords.findLeafRecord(p);
+            final VirtualLeafBytes<?> oldExtraLeafRecord = oldRecords.findLeaf(p);
             assert oldExtraLeafRecord != null || p < oldFirstLeafPath;
             if (oldExtraLeafRecord != null) {
                 flusher.deleteLeaf(oldExtraLeafRecord);

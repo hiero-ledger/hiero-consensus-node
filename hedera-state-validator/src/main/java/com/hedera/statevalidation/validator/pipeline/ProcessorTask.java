@@ -103,7 +103,7 @@ public class ProcessorTask implements Callable<Void> {
 
         this.vds = vds;
 
-        this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
+        this.pathToDiskLocationLeafNodes = vds.getIdToDiskLocationLeafChunks();
         this.idToDiskLocationHashChunks = vds.getIdToDiskLocationHashChunks();
         this.bucketIndexToBucketLocation = vds.getKeyToPath().getBucketIndexToBucketLocation();
 

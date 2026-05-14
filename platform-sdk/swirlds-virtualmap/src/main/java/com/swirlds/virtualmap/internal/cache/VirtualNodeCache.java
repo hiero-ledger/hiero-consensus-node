@@ -14,13 +14,14 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -35,9 +36,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
@@ -79,7 +78,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * which leaves occupied a given path, and for the internal node hashes at a given path.
  * <p>
  * To fulfill these design requirements, each "chain" of caches share three different indexes:
- * {@link #keyToDirtyLeafIndex}, {@link #pathToDirtyKeyIndex}, and {@link #idToDirtyHashChunkIndex}.
+ * {@link #idToLeafChunkIndex}, {@link #keyToPathIndex}, and {@link #idToDirtyHashChunkIndex}.
  * Each of these is a map from either the leaf key or a path (long) to a custom linked list data structure. Each element
  * in the list is a {@link Mutation} with a reference to the data item (either a {@link VirtualHashChunk}
  * or a {@link VirtualLeafBytes}, depending on the list), and a reference to the next {@link Mutation}
@@ -137,6 +136,10 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     private final AtomicReference<VirtualNodeCache> prev = new AtomicReference<>();
 
+    private final int leafChunkSize;
+
+    private final CheckedFunction<Long, VirtualLeafChunk, IOException> leafChunkLoader;
+
     /**
      * Height (number of ranks) in hash chunks. It must match chunk height at the data source level.
      */
@@ -158,17 +161,17 @@ public final class VirtualNodeCache implements FastCopyable {
      * <p>
      * <strong>ONE PER CHAIN OF CACHES</strong>.
      */
-    private final Map<Bytes, Mutation<Bytes, VirtualLeafBytes>> keyToDirtyLeafIndex;
+    private final Map<Bytes, Mutation<Bytes, Long>> keyToPathIndex;
 
     /**
-     * A shared index of paths to leaves, via {@link Mutation}s. Works the same as {@link #keyToDirtyLeafIndex}.
+     * A shared index of paths to leaves, via {@link Mutation}s. Works the same as {@link #keyToPathIndex}.
      * <p>
      * <strong>ONE PER CHAIN OF CACHES</strong>.
      */
-    private final Map<Long, Mutation<Long, Bytes>> pathToDirtyKeyIndex;
+    private final Map<Long, Mutation<Long, VirtualLeafChunk>> idToLeafChunkIndex;
 
     /**
-     * A shared index of chunk IDs to hash chunks, via {@link Mutation}s. Works the same as {@link #keyToDirtyLeafIndex}.
+     * A shared index of chunk IDs to hash chunks, via {@link Mutation}s. Works the same as {@link #keyToPathIndex}.
      *
      * <p><strong>ONE PER CHAIN OF CACHES</strong>.
      */
@@ -208,7 +211,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * <p>
      * <strong>ONE PER CACHE INSTANCE</strong>.
      */
-    private volatile ConcurrentArray<Mutation<Bytes, VirtualLeafBytes>> dirtyLeaves = new ConcurrentArray<>();
+    private volatile ConcurrentArray<Mutation<Long, VirtualLeafChunk>> dirtyLeaves = new ConcurrentArray<>();
 
     /**
      * A set of leaf path changes that occurred in this version of the cache. This is separate
@@ -218,7 +221,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * <p>
      * <strong>ONE PER CACHE INSTANCE</strong>.
      */
-    private volatile ConcurrentArray<Mutation<Long, Bytes>> dirtyLeafPaths = new ConcurrentArray<>();
+    private volatile ConcurrentArray<Mutation<Bytes, Long>> dirtyKeyPaths = new ConcurrentArray<>();
 
     /**
      * A set of all modifications to hash chunks that occurred in this version of the cache.
@@ -283,8 +286,10 @@ public final class VirtualNodeCache implements FastCopyable {
     public VirtualNodeCache(
             final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
-            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader) {
-        this(virtualMapConfig, hashChunkHeight, hashChunkLoader, 0);
+            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final int leafChunkSize,
+            final @NonNull CheckedFunction<Long, VirtualLeafChunk, IOException> leafChunkLoader) {
+        this(virtualMapConfig, hashChunkHeight, hashChunkLoader, leafChunkSize, leafChunkLoader, 0);
     }
 
     /**
@@ -300,11 +305,15 @@ public final class VirtualNodeCache implements FastCopyable {
             final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final int leafChunkSize,
+            final @NonNull CheckedFunction<Long, VirtualLeafChunk, IOException> leafChunkLoader,
             final long fastCopyVersion) {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
-        this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
-        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
+        this.leafChunkSize = leafChunkSize;
+        this.leafChunkLoader = requireNonNull(leafChunkLoader);
+        this.idToLeafChunkIndex = new ConcurrentHashMap<>();
+        this.keyToPathIndex = new ConcurrentHashMap<>();
         this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
         this.releaseLock = new ReentrantLock();
         this.lastReleased = new AtomicLong(-1L);
@@ -324,7 +333,7 @@ public final class VirtualNodeCache implements FastCopyable {
                             .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
                             .setComponent("virtual-map")
                             .setThreadName("cache-cleaner")
-                            .setExceptionHandler((t, ex) -> logger.error(
+                            .setExceptionHandler((_, ex) -> logger.error(
                                     EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
                             .buildFactory());
             pool.allowCoreThreadTimeOut(true);
@@ -349,9 +358,11 @@ public final class VirtualNodeCache implements FastCopyable {
 
         this.hashChunkHeight = source.hashChunkHeight;
         this.hashChunkLoader = source.hashChunkLoader;
+        this.leafChunkSize = source.leafChunkSize;
+        this.leafChunkLoader = source.leafChunkLoader;
         // Get a reference to the shared data structures
-        this.keyToDirtyLeafIndex = source.keyToDirtyLeafIndex;
-        this.pathToDirtyKeyIndex = source.pathToDirtyKeyIndex;
+        this.idToLeafChunkIndex = source.idToLeafChunkIndex;
+        this.keyToPathIndex = source.keyToPathIndex;
         this.idToDirtyHashChunkIndex = source.idToDirtyHashChunkIndex;
         this.releaseLock = source.releaseLock;
         this.lastReleased = source.lastReleased;
@@ -375,12 +386,16 @@ public final class VirtualNodeCache implements FastCopyable {
             final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final int leafChunkSize,
+            final @NonNull CheckedFunction<Long, VirtualLeafChunk, IOException> leafChunkLoader,
             final long fastCopyVersion,
             final @NonNull Executor cleaningPool) {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
-        this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
-        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
+        this.leafChunkSize = leafChunkSize;
+        this.leafChunkLoader = requireNonNull(leafChunkLoader);
+        this.idToLeafChunkIndex = new ConcurrentHashMap<>();
+        this.keyToPathIndex = new ConcurrentHashMap<>();
         this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
         this.releaseLock = new ReentrantLock();
         this.lastReleased = new AtomicLong(-1L);
@@ -466,15 +481,15 @@ public final class VirtualNodeCache implements FastCopyable {
 
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
-        purge(dirtyLeaves, keyToDirtyLeafIndex);
-        purge(dirtyLeafPaths, pathToDirtyKeyIndex);
+        purge(dirtyLeaves, idToLeafChunkIndex);
+        purge(dirtyKeyPaths, keyToPathIndex);
         purge(dirtyHashChunks, idToDirtyHashChunkIndex);
 
         estimatedLeavesSizeInBytes.set(0);
         estimatedHashesSizeInBytes.set(0);
 
         dirtyLeaves = null;
-        dirtyLeafPaths = null;
+        dirtyKeyPaths = null;
         dirtyHashChunks = null;
 
         if (logger.isTraceEnabled()) {
@@ -524,7 +539,7 @@ public final class VirtualNodeCache implements FastCopyable {
             // dirty leaves or dirty hashes, the stream must be sorted (which we had to do anyway) and
             // deduplicated. But it makes for a _VERY FAST_ merge operation.
             p.dirtyLeaves.merge(dirtyLeaves);
-            p.dirtyLeafPaths.merge(dirtyLeafPaths);
+            p.dirtyKeyPaths.merge(dirtyKeyPaths);
             p.dirtyHashChunks.merge(dirtyHashChunks);
             // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
@@ -557,11 +572,16 @@ public final class VirtualNodeCache implements FastCopyable {
         hashesAreImmutable.set(true);
         dirtyLeaves.seal();
         dirtyHashChunks.seal();
-        dirtyLeafPaths.seal();
+        dirtyKeyPaths.seal();
         // Update estimated size to include concurrent arrays storage overhead
         estimatedHashesSizeInBytes.addAndGet(dirtyHashChunks.estimatedStorageMemoryOverhead());
         estimatedLeavesSizeInBytes.addAndGet(
-                dirtyLeaves.estimatedStorageMemoryOverhead() + dirtyLeafPaths.estimatedStorageMemoryOverhead());
+                dirtyLeaves.estimatedStorageMemoryOverhead() + dirtyKeyPaths.estimatedStorageMemoryOverhead());
+//        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Cache seal v{} leaves={} size={}", getFastCopyVersion(), dirtyLeaves.size(), estimatedLeavesSizeInBytes.get());
+        if (total != 0) {
+            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Cache seal v{} hits/total: {}", getFastCopyVersion(),
+                    (double) hits / total);
+        }
     }
 
     // --------------------------------------------------------------------------------------------
@@ -570,6 +590,114 @@ public final class VirtualNodeCache implements FastCopyable {
     // The mutation APIs can **ONLY** be called on the handleTransaction thread and only on the
     // most recent copy. The query APIs can be called from any thread.
     // --------------------------------------------------------------------------------------------
+
+    // UNKNOWN_PATH, if not in the cache
+    // INVALID_PATH, if in the cache and deleted
+    // key path otherwise
+    public long findKeyPath(@NonNull final Bytes key) {
+        if (released.get()) {
+            return Path.UNKNOWN_PATH;
+        }
+        final Mutation<Bytes, Long> mutation = lookup(keyToPathIndex.get(key));
+        return mutation != null ? mutation.value : Path.UNKNOWN_PATH;
+    }
+
+    public void updateKeyPath(@NonNull final Bytes key, final long path) {
+        throwIfLeafImmutable();
+        requireNonNull(key);
+
+        final long version = fastCopyVersion.get();
+        keyToPathIndex.compute(key, (_, mutation) -> {
+            if ((mutation == null) || (mutation.version != version)) {
+                mutation = new Mutation<>(mutation, key, path, version);
+                dirtyKeyPaths.add(mutation);
+            } else {
+                mutation.value = path;
+            }
+            return mutation;
+        });
+    }
+
+    public void clearKeyPath(@NonNull final Bytes key) {
+        updateKeyPath(key, Path.INVALID_PATH);
+    }
+
+    /**
+     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code path}.
+     * If the leaf record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD}
+     * is returned. If there is no mutation record at all, null is returned, indicating a cache miss,
+     * and that the caller should consult on-disk storage.
+     * <p>
+     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
+     * be called concurrently for the same path! It is NOT fully threadsafe!
+     *
+     * @param path
+     * 		The path to use to lookup.
+     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous
+     * 		copy in the chain), or null if there is not one.
+     * @throws ReferenceCountException
+     * 		if the cache has already been released
+     */
+    public <V> VirtualLeafBytes<V> lookupLeaf(final long path) {
+        assertValidLeafPath(path);
+
+        // The only way to be released is to be in a condition where the data source has
+        // the data that was once in this cache but was merged and is therefore now released.
+        // So we can return null and know the caller can find the data in the data source.
+        if (released.get()) {
+            return null;
+        }
+
+        // Get the newest mutation that equals this fastCopyVersion. Note that the mutations
+        // in pathToDirtyKeyIndex contain the *path* as the key, and a leaf record *key* as
+        // the value. Thus, we look up a mutation first in the pathToDirtyKeyIndex, get the
+        // leaf key, and then lookup based on that key
+        final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
+        final Mutation<Long, VirtualLeafChunk> mutation = lookup(idToLeafChunkIndex.get(leafChunkId));
+        // If the mutation is null, the path is unknown, so return null
+        if (mutation == null) {
+            return null;
+        }
+
+        final VirtualLeafBytes<V> leaf = mutation.value.getLeaf(path);
+        // TODO
+//        assert leaf != null : "Leaf should not be deleted";
+        return leaf;
+    }
+
+    private VirtualLeafChunk loadLeafChunk(final long leafChunkId) {
+        try {
+            return leafChunkLoader.apply(leafChunkId);
+        } catch (final IOException e) {
+            logger.error(VIRTUAL_MERKLE_STATS.getMarker(), "Failed to load leaf chunk id=" + leafChunkId, e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private VirtualLeafChunk ensureLeafChunk(final long leafChunkId) {
+        assert leafChunkId >= 0;
+
+        return idToLeafChunkIndex.compute(leafChunkId, (_, mutation) -> {
+            final long version = fastCopyVersion.get();
+            if (mutation == null) {
+                VirtualLeafChunk leafChunk = loadLeafChunk(leafChunkId);
+                if (leafChunk == null) {
+                    leafChunk = new VirtualLeafChunk(leafChunkId, leafChunkSize);
+                }
+                mutation = new Mutation<>(mutation, leafChunkId, leafChunk, version);
+//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Added new v={} id={}", getFastCopyVersion(), leafChunkId);
+                dirtyLeaves.add(mutation);
+                estimatedLeavesSizeInBytes.addAndGet(leafChunk.getEstimatedSizeInBytes());
+            } else if (mutation.version != version) {
+                final VirtualLeafChunk leafChunk = mutation.value.copy();
+                mutation = new Mutation<>(mutation, leafChunkId, leafChunk, version);
+//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Added copy v={} id={}", getFastCopyVersion(), leafChunkId);
+                dirtyLeaves.add(mutation);
+                estimatedLeavesSizeInBytes.addAndGet(leafChunk.getEstimatedSizeInBytes());
+            }
+            return mutation;
+        }).value;
+    }
 
     /**
      * Puts a leaf into the cache. Called whenever there is a <strong>new</strong> leaf or
@@ -595,22 +723,47 @@ public final class VirtualNodeCache implements FastCopyable {
      * @throws MutabilityException
      * 		if the cache is immutable for leaf changes
      */
-    public void putLeaf(@NonNull final VirtualLeafBytes leaf) {
+    public VirtualLeafBytes<?> putLeaf(@NonNull final VirtualLeafBytes leaf) {
         throwIfLeafImmutable();
         requireNonNull(leaf);
 
-        // The key must never be empty. Only DELETED_LEAF_RECORD should have an empty key.
-        // The VirtualMap forbids null keys, so we should never see an empty key here.
         final Bytes key = leaf.keyBytes();
         assert key != Bytes.EMPTY : "Keys cannot be empty";
         assert key.length() > 0 : "Keys cannot be empty";
 
-        // Update the path index to point to this node at this path
-        updateKeyAtPath(key, leaf.path());
+        // Update the leaf
+        final long leafChunkId = VirtualLeafChunk.pathToChunkId(leaf.path(), leafChunkSize);
+        final VirtualLeafChunk leafChunk = ensureLeafChunk(leafChunkId);
+        final VirtualLeafBytes<?> oldLeaf = leafChunk.setLeaf(leaf);
+        estimatedLeavesSizeInBytes.addAndGet(leaf.getSizeInBytes());
+        if (oldLeaf != null) {
+            estimatedLeavesSizeInBytes.addAndGet(-oldLeaf.getSizeInBytes());
+        }
 
-        // Get the first data element (mutation) in the list based on the key,
-        // and then create or update the associated mutation.
-        keyToDirtyLeafIndex.compute(key, (k, mutations) -> mutate(leaf, mutations));
+        // Update the key path
+        updateKeyPath(key, leaf.path());
+
+        return oldLeaf;
+    }
+
+    int total = 0;
+    int hits = 0;
+
+    public VirtualLeafBytes<?> getLeafAndClearPath(final long path) {
+        throwIfLeafImmutable();
+        assertValidLeafPath(path);
+
+        final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
+        total++;
+        Mutation<Long, VirtualLeafChunk> mutation = idToLeafChunkIndex.get(leafChunkId);
+        if ((mutation != null) && (mutation.version == fastCopyVersion.get())) {
+            hits++;
+        }
+        final VirtualLeafChunk leafChunk = ensureLeafChunk(leafChunkId);
+        final VirtualLeafBytes oldLeaf = leafChunk.clearLeaf(path);
+        assert oldLeaf != null;
+        estimatedLeavesSizeInBytes.addAndGet(-oldLeaf.getSizeInBytes());
+        return oldLeaf;
     }
 
     /**
@@ -621,133 +774,25 @@ public final class VirtualNodeCache implements FastCopyable {
      * <p>This method should only be called from the <strong>HANDLE TRANSACTION THREAD</strong>.
      * It is NOT threadsafe!
      *
-     * @param leaf
-     * 		the leaf to delete. Must not be null.
-     * @throws NullPointerException
-     * 		if the leaf argument is null
+     * @param path
+     * 		the leaf path to delete
      * @throws MutabilityException
      * 		if the cache is immutable for leaf changes
      */
-    public void deleteLeaf(@NonNull final VirtualLeafBytes leaf) {
+    public VirtualLeafBytes deleteLeaf(final long path) {
         throwIfLeafImmutable();
-        requireNonNull(leaf);
+        assertValidLeafPath(path);
 
-        // This leaf is no longer at this leaf path. So clear it.
-        clearLeafPath(leaf.path());
-
-        // Find or create the mutation and mark it as deleted
-        final Bytes key = leaf.keyBytes();
-        assert key != Bytes.EMPTY : "Keys cannot be empty";
-        assert key.length() > 0 : "Keys cannot be empty";
-        keyToDirtyLeafIndex.compute(key, (k, mutations) -> {
-            mutations = mutate(leaf, mutations);
-            mutations.setDeleted(true);
-            assert pathToDirtyKeyIndex.get(leaf.path()).isDeleted() : "It should be deleted too";
-            return mutations;
-        });
-    }
-
-    /**
-     * A leaf that used to be at this {@code path} is no longer there. This should really only
-     * be called if there is no longer any leaf at this path. This happens when we add leaves
-     * and the leaf at firstLeafPath is moved and replaced by an internal node, or when a leaf
-     * is deleted and the lastLeafPath is moved or removed.
-     *
-     * <p>This method should only be called from the <strong>HANDLE TRANSACTION THREAD</strong>.
-     * It is NOT threadsafe!
-     *
-     * @param path
-     * 		The path to clear. After this call, there is no longer a leaf at this path.
-     * @throws MutabilityException
-     * 		if the cache is immutable for leaf changes
-     */
-    public void clearLeafPath(final long path) {
-        throwIfLeafImmutable();
-        // Note: this marks the mutations as deleted, in addition to clearing the value of the mutation
-        updateKeyAtPath(null, path);
-    }
-
-    /**
-     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code key}.
-     * For example, suppose {@code cache2} has a leaf record for the key "A", but we have {@code cache4}.
-     * By calling this method on {@code cache4}, it will find the record in {@code cache2}.
-     * If the leaf record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD}
-     * is returned. If there is no mutation record at all, null is returned, indicating a cache miss,
-     * and that the caller should consult on-disk storage.
-     * <p>
-     * This method may be called concurrently from multiple threads.
-     *
-     * @param key
-     * 		The key to use to lookup. Cannot be null.
-     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous
-     * 		copy in the chain), or null if there is not one.
-     * @throws NullPointerException
-     * 		if the key is null
-     * @throws ReferenceCountException
-     * 		if the cache has already been released
-     */
-    public VirtualLeafBytes lookupLeafByKey(final Bytes key) {
-        requireNonNull(key);
-
-        // The only way to be released is to be in a condition where the data source has
-        // the data that was once in this cache but was merged and is therefore now released.
-        // So we can return null and know the caller can find the data in the data source.
-        if (released.get()) {
-            return null;
+        // Update the leaf
+        final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
+        final VirtualLeafChunk leafChunk = ensureLeafChunk(leafChunkId);
+        final VirtualLeafBytes oldLeaf = leafChunk.clearLeaf(path);
+        if (oldLeaf != null) {
+            // Clear the key path
+            clearKeyPath(oldLeaf.keyBytes());
+            estimatedLeavesSizeInBytes.addAndGet(-oldLeaf.getSizeInBytes());
         }
-
-        // Get the newest mutation that is less or equal to this fastCopyVersion. If forModify and
-        // the mutation does not exactly equal this fastCopyVersion, then create a mutation.
-        final Mutation<Bytes, VirtualLeafBytes> mutation = lookup(keyToDirtyLeafIndex.get(key));
-
-        // Always return null if there is no mutation regardless of forModify
-        if (mutation == null) {
-            return null;
-        }
-
-        // If the mutation was deleted, return our marker instance, regardless of forModify
-        if (mutation.isDeleted()) {
-            return DELETED_LEAF_RECORD;
-        }
-
-        return mutation.value;
-    }
-
-    /**
-     * Looks for a leaf record in this cache instance, and all older ones, based on the given {@code path}.
-     * If the leaf record exists, it is returned. If the leaf was deleted, {@link #DELETED_LEAF_RECORD}
-     * is returned. If there is no mutation record at all, null is returned, indicating a cache miss,
-     * and that the caller should consult on-disk storage.
-     * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same path! It is NOT fully threadsafe!
-     *
-     * @param path
-     * 		The path to use to lookup.
-     * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous
-     * 		copy in the chain), or null if there is not one.
-     * @throws ReferenceCountException
-     * 		if the cache has already been released
-     */
-    public VirtualLeafBytes lookupLeafByPath(final long path) {
-        // The only way to be released is to be in a condition where the data source has
-        // the data that was once in this cache but was merged and is therefore now released.
-        // So we can return null and know the caller can find the data in the data source.
-        if (released.get()) {
-            return null;
-        }
-
-        // Get the newest mutation that equals this fastCopyVersion. Note that the mutations
-        // in pathToDirtyKeyIndex contain the *path* as the key, and a leaf record *key* as
-        // the value. Thus, we look up a mutation first in the pathToDirtyKeyIndex, get the
-        // leaf key, and then lookup based on that key
-        final Mutation<Long, Bytes> mutation = lookup(pathToDirtyKeyIndex.get(path));
-        // If the mutation is null, the path is unknown, so return null
-        if (mutation == null) {
-            return null;
-        }
-
-        return mutation.isDeleted() ? DELETED_LEAF_RECORD : lookupLeafByKey(mutation.value);
+        return oldLeaf;
     }
 
     /**
@@ -765,10 +810,26 @@ public final class VirtualNodeCache implements FastCopyable {
         if (mergedCopy.get()) {
             throw new IllegalStateException("Cannot get dirty leaves for hashing on a merged cache copy");
         }
+        if (!dirtyLeaves.isImmutable()) {
+            throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
+        }
         // This method is called on a cache copy, which is not a result of merging older
         // copies. There is no need to filter mutations here
-        final Stream<VirtualLeafBytes> result = dirtyLeaves(firstLeafPath, lastLeafPath, false);
-        return result.sorted(Comparator.comparingLong(VirtualLeafBytes::path));
+        return dirtyLeaves.stream()
+                .filter(mutation -> {
+                    final long chunkFirstPath = mutation.value.getFirstPath();
+                    final long chunkLastPath = mutation.value.getLastPath();
+                    return chunkLastPath >= firstLeafPath && chunkFirstPath <= lastLeafPath;
+                })
+                .map(mutation -> mutation.value)
+                .sorted(Comparator.comparingLong(VirtualLeafChunk::id))
+                .flatMap(chunk -> {
+                    final long chunkFirstPath = chunk.getFirstPath();
+                    return Stream
+                            .iterate(chunkFirstPath, i -> i < chunkFirstPath + leafChunkSize, p -> p + 1)
+                            .filter(chunk::isDirtyLeaf)
+                            .map(chunk::getLeaf);
+                });
     }
 
     /**
@@ -782,56 +843,18 @@ public final class VirtualNodeCache implements FastCopyable {
      * @return
      *      A stream of dirty leaves for flushes
      */
-    public Stream<VirtualLeafBytes> dirtyLeavesForFlush(final long firstLeafPath, final long lastLeafPath) {
-        return dirtyLeaves(firstLeafPath, lastLeafPath, true);
-    }
-
-    /**
-     * Gets a stream of dirty leaves <strong>from this cache instance</strong>. Deleted leaves are not included
-     * in this stream.
-     *
-     * <p>
-     * This method is called for two purposes. First, to get dirty leaves to hash a single virtual map copy. The
-     * resulting stream is expected to be sorted. No duplicate entries are expected in this case, as within a
-     * single version there may not be duplicates. Second, to get dirty leaves to flush them to disk. In this
-     * case, the stream doesn't need to be sorted, but there may be duplicated entries from different versions.
-     *
-     * <p>
-     * This method may be called concurrently from multiple threads (although in practice, this should never happen).
-     *
-     * @param firstLeafPath
-     * 		The first leaf path to receive in the results. It is possible, through merging of multiple rounds,
-     * 		for the data to have leaf data that is outside the expected range for the {@link VirtualMap} of
-     * 		this cache. We need to provide the leaf boundaries to compensate for this.
-     * @param lastLeafPath
-     * 		The last leaf path to receive in the results. It is possible, through merging of multiple rounds,
-     * 		for the data to have leaf data that is outside the expected range for the {@link VirtualMap} of
-     * 		this cache. We need to provide the leaf boundaries to compensate for this.
-     * 	@param dedupe
-     *      Indicates if the duplicated entries should be removed from the stream
-     * @return A non-null stream of dirty leaves. May be empty. Will not contain duplicate records
-     * @throws MutabilityException if called on a cache that still allows dirty leaves to be added
-     */
-    private Stream<VirtualLeafBytes> dirtyLeaves(
-            final long firstLeafPath, final long lastLeafPath, final boolean dedupe) {
+    public Stream<VirtualLeafChunk> dirtyLeavesForFlush(final long firstLeafPath, final long lastLeafPath) {
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
-        if (dedupe) {
-            // Mark obsolete mutations to filter later
-            filterMutations(dirtyLeaves);
-        }
+        // Mark obsolete mutations to filter later
+        filterMutations(dirtyLeaves);
         return dirtyLeaves.stream()
-                .filter(mutation -> {
-                    final long path = mutation.value.path();
-                    return path >= firstLeafPath && path <= lastLeafPath;
-                })
-                .filter(mutation -> {
-                    assert dedupe || mutation.notFiltered();
-                    return mutation.notFiltered();
-                })
-                .filter(mutation -> !mutation.isDeleted())
-                .map(mutation -> mutation.value);
+                .filter(mutation -> mutation.value.inRange(firstLeafPath, lastLeafPath))
+                .filter(Mutation::notFiltered)
+//                .filter(mutation -> !mutation.isDeleted())
+                .map(mutation -> mutation.value)
+                .sorted(Comparator.comparingLong(VirtualLeafChunk::id));
     }
 
     /**
@@ -847,24 +870,12 @@ public final class VirtualNodeCache implements FastCopyable {
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
-
-        final Map<Bytes, VirtualLeafBytes> leaves = new ConcurrentHashMap<>();
-        final StandardFuture<Void> result = dirtyLeaves.parallelTraverse(cleaningPool, (i, element) -> {
-            if (element.isDeleted()) {
-                final Bytes key = element.key;
-                final Mutation<Bytes, VirtualLeafBytes> mutation = lookup(keyToDirtyLeafIndex.get(key));
-                if (mutation != null && mutation.isDeleted()) {
-                    leaves.putIfAbsent(key, element.value);
-                }
-            }
-        });
-        try {
-            result.getAndRethrow();
-        } catch (final InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new PlatformException("VirtualNodeCache.deletedLeaves() interrupted", ex, EXCEPTION);
-        }
-        return leaves.values().stream();
+        // Mark obsolete mutations to filter later
+        filterMutations(dirtyKeyPaths);
+        return dirtyKeyPaths.stream()
+                .filter(Mutation::notFiltered)
+                .filter(mutation -> mutation.value == Path.INVALID_PATH)
+                .map(mutation -> new VirtualLeafBytes(Path.INVALID_PATH, mutation.key, null));
     }
 
     // --------------------------------------------------------------------------------------------
@@ -886,7 +897,7 @@ public final class VirtualNodeCache implements FastCopyable {
         throwIfInternalsImmutable();
 
         final long hashChunkId = chunk.getChunkId();
-        idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
+        idToDirtyHashChunkIndex.compute(hashChunkId, (_, mutation) -> {
             if ((mutation == null) || (mutation.version != fastCopyVersion.get())) {
                 mutation = new Mutation<>(mutation, hashChunkId, chunk, fastCopyVersion.get());
                 dirtyHashChunks.add(mutation);
@@ -963,12 +974,12 @@ public final class VirtualNodeCache implements FastCopyable {
     public VirtualNodeCache snapshot() {
         synchronized (lastReleased) {
             final VirtualNodeCache newSnapshot = new VirtualNodeCache(
-                    virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
+                    virtualMapConfig, hashChunkHeight, hashChunkLoader, leafChunkSize, leafChunkLoader, fastCopyVersion.get(), cleaningPool);
             setMapSnapshotAndArray(
                     this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
             setMapSnapshotAndArray(
-                    this.pathToDirtyKeyIndex, newSnapshot.pathToDirtyKeyIndex, newSnapshot.dirtyLeafPaths);
-            setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
+                    this.idToLeafChunkIndex, newSnapshot.idToLeafChunkIndex, newSnapshot.dirtyLeaves);
+            setMapSnapshotAndArray(this.keyToPathIndex, newSnapshot.keyToPathIndex, newSnapshot.dirtyKeyPaths);
             newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
             newSnapshot.seal();
             return newSnapshot;
@@ -1044,40 +1055,6 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Updates the mutation for {@code value} at the given {@code path}.
-     * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same record! It is NOT fully threadsafe!
-     *
-     * @param value
-     * 		The value to store in the mutation. If null, then we interpret this to mean the path was deleted.
-     * 		The value is a leaf key, or an internal record.
-     * @param path
-     * 		The path to update
-     * @throws NullPointerException
-     * 		if {@code dirtyPaths} is null.
-     */
-    private void updateKeyAtPath(final Bytes value, final long path) {
-        pathToDirtyKeyIndex.compute(path, (key, mutation) -> {
-            if (mutation == null || mutation.version != fastCopyVersion.get()) {
-                // It must be that there is *NO* mutation in the dirtyPaths for this cache version.
-                // I don't have an easy way to assert it programmatically, but by inspection, it must be true.
-                // Create a mutation for this version pointing to the next oldest mutation (if any).
-                mutation = new Mutation<>(mutation, path, value, fastCopyVersion.get());
-                mutation.setDeleted(value == null);
-                // Hold a reference to this newest mutation in this cache
-                dirtyLeafPaths.add(mutation);
-            } else if (mutation.value != value) {
-                assert mutation.notFiltered();
-                // This mutation already exists in this version. Simply update its value and deleted status
-                mutation.value = value;
-                mutation.setDeleted(value == null);
-            }
-            return mutation;
-        });
-    }
-
-    /**
      * Preload a hash chunk for the given path. This method is used by virtual hasher to
      * load partially clean/dirty chunks before updating any hashes in them. Completely
      * dirty chunks are not preloaded.
@@ -1094,7 +1071,7 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     public VirtualHashChunk preloadHashChunk(final long path) {
         final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
-        return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
+        return idToDirtyHashChunkIndex.compute(hashChunkId, (_, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
                     while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
                         nextMutation = nextMutation.next;
@@ -1153,47 +1130,6 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Record a mutation for the given leaf. If the specified mutation is null, or is of a different version
-     * than this cache, then a new mutation will be created and added to the mutation list.
-     *
-     * @param leaf
-     * 		The leaf record. This cannot be null.
-     * @param mutation
-     * 		The list of mutations for this leaf. This can be null.
-     * @return The mutation for this leaf.
-     */
-    private Mutation<Bytes, VirtualLeafBytes> mutate(
-            @NonNull final VirtualLeafBytes leaf, @Nullable Mutation<Bytes, VirtualLeafBytes> mutation) {
-        long sizeDelta = 0;
-        // We only create a new mutation if one of the following is true:
-        //  - There is no mutation in the cache (mutation == null)
-        //  - There is a mutation but not for this version of the cache
-        if (mutation == null || mutation.version != fastCopyVersion.get()) {
-            // Only the latest copy can change leaf data, and it cannot ever be merged into while changing,
-            // So it should be true that this cache does not have this leaf in dirtyLeaves.
-
-            // Create a new mutation
-            final Mutation<Bytes, VirtualLeafBytes> newerMutation =
-                    new Mutation<>(mutation, leaf.keyBytes(), leaf, fastCopyVersion.get());
-            dirtyLeaves.add(newerMutation);
-            mutation = newerMutation;
-            sizeDelta += leaf.getSizeInBytes();
-        } else if (mutation.value != leaf) {
-            // A different value (leaf) has arrived, but the mutation already exists for this version.
-            // So we can just update the value
-            assert mutation.value.keyBytes().equals(leaf.keyBytes());
-            sizeDelta -= mutation.value.getSizeInBytes();
-            mutation.value = leaf;
-            mutation.setDeleted(false);
-            sizeDelta += mutation.value.getSizeInBytes();
-        } else {
-            mutation.setDeleted(false);
-        }
-        estimatedLeavesSizeInBytes.addAndGet(sizeDelta);
-        return mutation;
-    }
-
-    /**
      * Called by one of the purge threads to purge entries from the index that no longer have a referent
      * for the mutation list. This can be called concurrently.
      *
@@ -1207,14 +1143,14 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		The value type referenced by the mutation list
      */
     private <K, V> void purge(final ConcurrentArray<Mutation<K, V>> array, final Map<K, Mutation<K, V>> index) {
-        array.parallelTraverse(cleaningPool, (i, element) -> {
+        array.parallelTraverse(cleaningPool, (_, element) -> {
             // If a cache copy is released after flush, some mutations may be already marked as
             // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
             // filtered, it means there is a newer mutation for the same key in the same cache
             // copy. When this newer mutation is purged, it also takes care of the filtered
             // mutation, so there is no need to handle filtered mutations explicitly
             if (element.notFiltered()) {
-                index.compute(element.key, (key, mutation) -> {
+                index.compute(element.key, (_, mutation) -> {
                     if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
@@ -1250,7 +1186,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		The value type referenced by the mutation list
      */
     private <K, V> void filterMutations(final ConcurrentArray<Mutation<K, V>> array) {
-        final BiConsumer<Integer, Mutation<K, V>> action = (i, mutation) -> {
+        final BiConsumer<Integer, Mutation<K, V>> action = (_, mutation) -> {
             // local variable is required because mutation.next can be changed by another thread to null
             // see https://github.com/hashgraph/hedera-services/issues/7046 for the context
             final Mutation<K, V> nextMutation = mutation.next;
@@ -1330,6 +1266,12 @@ public final class VirtualNodeCache implements FastCopyable {
         }
     }
 
+    private void assertValidLeafPath(final long path) {
+        assert path != Path.UNKNOWN_PATH;
+        assert path != Path.INVALID_PATH;
+        assert path != Path.ROOT_PATH;
+    }
+
     /**
      * A mutation. Mutations are linked together within the mutation list. Each mutation
      * has a pointer to the next oldest mutation in the list.
@@ -1343,8 +1285,6 @@ public final class VirtualNodeCache implements FastCopyable {
         private volatile V value;
         private volatile byte flags = 0;
 
-        // A bit in the flags field, which indicates whether this mutation is for a deleted op
-        private static final int FLAG_BIT_DELETED = 0;
         // A bit in the flags field, which indicates whether this mutation should not be included
         // into resulting stream of dirty hashes / leaves
         private static final int FLAG_BIT_FILTERED = 1;
@@ -1367,14 +1307,6 @@ public final class VirtualNodeCache implements FastCopyable {
             } else {
                 flags &= ~(1 << bit);
             }
-        }
-
-        boolean isDeleted() {
-            return getFlag(flags, FLAG_BIT_DELETED);
-        }
-
-        void setDeleted(final boolean deleted) {
-            setFlag(FLAG_BIT_DELETED, deleted);
         }
 
         boolean notFiltered() {
@@ -1400,10 +1332,10 @@ public final class VirtualNodeCache implements FastCopyable {
         builder.append("===================================\n");
         builder.append(toDebugStringChain()).append("\n");
         //noinspection unchecked
-        builder.append(toDebugStringIndex("keyToDirtyLeafIndex", (Map<Object, Mutation>) (Object) keyToDirtyLeafIndex))
+        builder.append(toDebugStringIndex("idToLeafChunkIndex", (Map<Object, Mutation>) (Object) idToLeafChunkIndex))
                 .append("\n");
         //noinspection unchecked
-        builder.append(toDebugStringIndex("pathToDirtyLeafIndex", (Map<Object, Mutation>) (Object) pathToDirtyKeyIndex))
+        builder.append(toDebugStringIndex("keyToPathIndex", (Map<Object, Mutation>) (Object) keyToPathIndex))
                 .append("\n");
         //noinspection unchecked
         builder.append(toDebugStringIndex(
@@ -1412,7 +1344,7 @@ public final class VirtualNodeCache implements FastCopyable {
         //noinspection unchecked
         builder.append(toDebugStringArray("dirtyLeaves", (ConcurrentArray<Mutation>) (Object) dirtyLeaves));
         //noinspection unchecked
-        builder.append(toDebugStringArray("dirtyLeafPaths", (ConcurrentArray<Mutation>) (Object) dirtyLeafPaths));
+        builder.append(toDebugStringArray("dirtyKeyPaths", (ConcurrentArray<Mutation>) (Object) dirtyKeyPaths));
         //noinspection unchecked
         builder.append(toDebugStringArray("dirtyHashChunks", (ConcurrentArray<Mutation>) (Object) dirtyHashChunks));
         return builder.toString();
@@ -1453,7 +1385,6 @@ public final class VirtualNodeCache implements FastCopyable {
                         .append(",")
                         .append(mutation.value)
                         .append(",")
-                        .append(mutation.isDeleted() ? "D," : "")
                         .append("V")
                         .append(mutation.version)
                         .append(mutation.version == this.fastCopyVersion.get() ? "*" : "")
@@ -1479,7 +1410,6 @@ public final class VirtualNodeCache implements FastCopyable {
                     .append(",")
                     .append(mutation.value)
                     .append(",")
-                    .append(mutation.isDeleted() ? "D," : "")
                     .append("V")
                     .append(mutation.version)
                     .append(mutation.version == this.fastCopyVersion.get() ? "*" : "")

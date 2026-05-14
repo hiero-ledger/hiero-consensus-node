@@ -21,6 +21,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      Hash chunk height. The height is used to store hashes on disk in chunks rather than individually.
  *      This config is also used by virtual hasher to create hashing tasks, so they are mostly aligned
  *      with hash chunks on disk.
+ * @param leafChunkSize
+ *      TODO
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
  * @param reconnectFlushInterval
@@ -46,7 +48,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      -Xmx80g, and familyThrottlePercent is 5.0, the threshold will be set to 4Gb. If both familyThrottlePercent
  *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
  *      ignored
- * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
+ * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before
+ *      it fails with an exception.
  */
 // spotless:off
 @ConfigData("virtualMap")
@@ -54,6 +57,7 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
+        @Min(2) @Max(1024) @ConfigProperty(defaultValue = "8") int leafChunkSize,
         @ConfigProperty(defaultValue = PULL_TOP_TO_BOTTOM) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,

@@ -29,6 +29,14 @@ public final class Path {
     public static final long INVALID_PATH = -1L; // All 1's!
 
     /**
+     * Used to indicate that no path information is available. For example, if a node cache
+     * doesn't contain recent mutations for a key, to find the key in virtual node cache
+     * returns this unknown path. This is different from {@link #INVALID_PATH}, which indicates
+     * that the key has been deleted.
+     */
+    public static final long UNKNOWN_PATH = -2L;
+
+    /**
      * The maximum "rank" in the tree. The "rank" is the level. A rank of 0 is for the root,
      * the first rank (rank 1) contains the left and right children of root, and so on. Since
      * the path is a long, and all longs are signed the max rank is 62. With some effort we may

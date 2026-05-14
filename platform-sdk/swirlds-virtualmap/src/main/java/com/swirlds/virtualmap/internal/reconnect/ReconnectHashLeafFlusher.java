@@ -6,13 +6,16 @@ import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
@@ -55,6 +58,7 @@ public class ReconnectHashLeafFlusher {
     private final AtomicBoolean flushInProgress = new AtomicBoolean(false);
 
     private final int hashChunkHeight;
+    private final int leafChunkSize;
 
     private final int flushInterval;
 
@@ -66,6 +70,7 @@ public class ReconnectHashLeafFlusher {
             @NonNull final VirtualMapStatistics statistics) {
         this.dataSource = Objects.requireNonNull(dataSource);
         this.hashChunkHeight = this.dataSource.getHashChunkHeight();
+        this.leafChunkSize = this.dataSource.getLeafChunkSize();
         this.flushInterval = flushInterval;
         this.statistics = Objects.requireNonNull(statistics);
     }
@@ -173,6 +178,24 @@ public class ReconnectHashLeafFlusher {
                     hashChunksToFlush.size(),
                     leavesToFlush.size(),
                     leavesToDelete.size());
+            // prepare leaf chunks
+            final Map<Long, VirtualLeafChunk> leafChunks = new HashMap<>();
+            for (final VirtualLeafBytes<?> leaf : leavesToFlush) {
+                final long path = leaf.path();
+                final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
+                final VirtualLeafChunk leafChunk = leafChunks.computeIfAbsent(leafChunkId, _ -> {
+                    try {
+                        VirtualLeafChunk c = dataSource.loadLeafChunk(leafChunkId);
+                        if (c == null) {
+                            c = new VirtualLeafChunk(leafChunkId, leafChunkSize);
+                        }
+                        return c;
+                    } catch (final IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+                leafChunk.setLeaf(leaf);
+            }
             // flush it down
             final long start = System.currentTimeMillis();
             try {
@@ -180,7 +203,7 @@ public class ReconnectHashLeafFlusher {
                         firstLeafPath,
                         lastLeafPath,
                         hashChunksToFlush.stream(),
-                        leavesToFlush.stream(),
+                        leafChunks.values().stream(),
                         leavesToDelete.stream(),
                         true);
                 final long end = System.currentTimeMillis();

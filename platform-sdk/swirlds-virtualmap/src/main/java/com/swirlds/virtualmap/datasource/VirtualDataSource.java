@@ -62,11 +62,11 @@ public interface VirtualDataSource {
      *      the tree path for first leaf
      * @param lastLeafPath
      *      the tree path for last leaf
-     * @param hashChunksToUpdate
+     * @param hashes
      * 		stream of dirty hash chunks to update
-     * @param leafRecordsToAddOrUpdate
+     * @param leaves
      * 		stream of new and updated leaf node bytes
-     * @param leafRecordsToDelete
+     * @param deletedLeaves
      * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
      * 		populated, all other data can be null
      * @param isReconnectContext if the save is in the context of a reconnect
@@ -75,32 +75,21 @@ public interface VirtualDataSource {
     void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+            @NonNull final Stream<VirtualHashChunk> hashes,
+            @NonNull final Stream<VirtualLeafChunk> leaves,
+            @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
             final boolean isReconnectContext)
             throws IOException;
 
     /**
-     * Load virtual record bytes for a leaf node by key.
+     * Load a virtual node leaf chunk with the given ID.
      *
-     * @param keyBytes the key bytes for a leaf
-     * @return the leaf's record if one was stored for the given key or null if not stored
-     * @throws IOException if there was a problem reading the leaf record
-     */
-    @Nullable
-    VirtualLeafBytes loadLeafRecord(final Bytes keyBytes) throws IOException;
-
-    /**
-     * Load virtual record bytes for a leaf node by path. If the path is outside the current
-     * data source's leaf path range, this method returns {@code null}.
-     *
-     * @param path the path for a leaf
+     * @param leafChunkId The leaf chunk ID
      * @return the leaf's record if one was stored for the given path or null if not stored
      * @throws IOException if there was a problem reading the leaf record
      */
     @Nullable
-    VirtualLeafBytes loadLeafRecord(final long path) throws IOException;
+    VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException;
 
     /**
      * Find the path of the given key.
@@ -114,12 +103,12 @@ public interface VirtualDataSource {
     /**
      * Load a virtual node hash chunk with the given ID.
      *
-     * @param chunkId The chunk ID
+     * @param hashChunkId The hash chunk ID
      * @return The hash chunk, or {@code null} if no chunk was stored for the given ID
      * @throws IOException If there was a problem loading the hash chunk from data source
      */
     @Nullable
-    VirtualHashChunk loadHashChunk(final long chunkId) throws IOException;
+    VirtualHashChunk loadHashChunk(final long hashChunkId) throws IOException;
 
     /**
      * Write a snapshot of the current state of the database at this moment in time. This will need to be called between
@@ -179,4 +168,6 @@ public interface VirtualDataSource {
      * is returned.
      */
     int getHashChunkHeight();
+
+    int getLeafChunkSize();
 }

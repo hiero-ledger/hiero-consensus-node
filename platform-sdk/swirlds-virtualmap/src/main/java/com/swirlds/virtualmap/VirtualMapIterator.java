@@ -120,7 +120,7 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
 
         while (nextPath <= lastPath) {
             final long path = nextPath++;
-            final VirtualLeafBytes<?> leaf = map.getRecords().findLeafRecord(path);
+            final VirtualLeafBytes<?> leaf = map.getRecords().findLeaf(path);
             assert leaf != null;
             if (filter == null || filter.test(leaf, path)) {
                 nextNode = leaf;

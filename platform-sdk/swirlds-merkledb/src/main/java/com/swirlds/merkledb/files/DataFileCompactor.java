@@ -199,7 +199,7 @@ public class DataFileCompactor {
         final int filesCount = filesToCompact.size();
         final long start = System.currentTimeMillis();
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.info(
+        logger.debug(
                 MERKLE_DB.getMarker(),
                 "[{}] Starting compaction to level {} of {} files of size {} Mb ",
                 storeName,
@@ -364,12 +364,12 @@ public class DataFileCompactor {
                 // Clear compaction start time
                 currentCompactionStartTime.set(null);
                 if (allDataItemsProcessed) {
-                    logger.info(
+                    logger.debug(
                             MERKLE_DB.getMarker(), "All files to compact have been processed, they will be deleted");
                     // Close the readers and delete compacted files
                     dataFileCollection.deleteFiles(filesToCompact);
                 } else {
-                    logger.info(
+                    logger.debug(
                             MERKLE_DB.getMarker(),
                             "Some files to compact haven't been processed, they will be compacted later");
                 }
@@ -401,7 +401,7 @@ public class DataFileCompactor {
         final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
         final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
         currentReader.set(newFileReader);
-        logger.info(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
+        logger.debug(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
     /**
@@ -421,7 +421,7 @@ public class DataFileCompactor {
         final DataFileReader reader = currentReader.get();
         if (writer.getMetadata().getItemsCount() == 0) {
             // Nothing was written — discard the empty file
-            logger.info(
+            logger.debug(
                     MERKLE_DB.getMarker(),
                     "[{}] Discarding empty compaction file, fileNum={}",
                     storeName,
@@ -431,7 +431,7 @@ public class DataFileCompactor {
         } else {
             reader.updateMetadata(writer.getMetadata());
             reader.setFileCompleted();
-            logger.info(
+            logger.debug(
                     MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
         }
         currentReader.set(null);

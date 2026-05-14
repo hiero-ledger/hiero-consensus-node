@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.datasource.VirtualLeafChunk;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -185,16 +186,16 @@ public abstract class VirtualMapReconnectTestBase {
         public void saveRecords(
                 long firstLeafPath,
                 long lastLeafPath,
-                @NonNull Stream<VirtualHashChunk> hashChunksToUpdate,
-                @NonNull Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull Stream<VirtualLeafBytes> leafRecordsToDelete,
+                @NonNull Stream<VirtualHashChunk> hashes,
+                @NonNull Stream<VirtualLeafChunk> leaves,
+                @NonNull Stream<VirtualLeafBytes> deletedLeaves,
                 boolean isReconnectContext)
                 throws IOException {
-            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.collect(Collectors.toList());
+            final List<VirtualLeafChunk> leavesList = leaves.collect(Collectors.toList());
 
             if (builder.numTimesBroken < builder.numTimesToBreak) {
                 if (builder.numCalls <= builder.numCallsBeforeThrow) {
-                    builder.numCalls += leaves.size();
+                    builder.numCalls += leavesList.size();
                     if (builder.numCalls > builder.numCallsBeforeThrow) {
                         builder.numTimesBroken++;
                         delegate.close();
@@ -206,9 +207,9 @@ public abstract class VirtualMapReconnectTestBase {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    hashChunksToUpdate,
-                    leaves.stream(),
-                    leafRecordsToDelete,
+                    hashes,
+                    leavesList.stream(),
+                    deletedLeaves,
                     isReconnectContext);
         }
 
@@ -218,13 +219,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
-            return delegate.loadLeafRecord(key);
-        }
-
-        @Override
-        public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
-            return delegate.loadLeafRecord(path);
+        public VirtualLeafChunk loadLeafChunk(final long leafChunkId) throws IOException {
+            return delegate.loadLeafChunk(leafChunkId);
         }
 
         @Override
@@ -233,8 +229,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
-            return delegate.loadHashChunk(chunkId);
+        public VirtualHashChunk loadHashChunk(final long hashChunkId) throws IOException {
+            return delegate.loadHashChunk(hashChunkId);
         }
 
         @Override
@@ -265,6 +261,11 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public int getHashChunkHeight() {
             return delegate.getHashChunkHeight();
+        }
+
+        @Override
+        public int getLeafChunkSize() {
+            return delegate.getLeafChunkSize();
         }
 
         @Override

@@ -698,7 +698,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * {@inheritDoc}}
      */
     public long getSingletonPath(final int stateId) {
-        return virtualMap.getRecords().findPath(getStateKeyForSingleton(stateId));
+        return virtualMap.getRecords().findKeyPath(getStateKeyForSingleton(stateId));
     }
 
     /**
@@ -715,7 +715,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
         for (long i = queueState.head(); i < queueState.tail(); i++) {
             final Bytes stateKey = StateUtils.getStateKeyForQueue(stateId, i);
-            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(stateKey);
+            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeaf(stateKey);
             if (leafRecord == null) {
                 continue;
             }
@@ -733,7 +733,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
      */
     @Override
     public long getKvPath(final int stateId, @NonNull final Bytes key) {
-        return virtualMap.getRecords().findPath(kvKey(stateId, key));
+        return virtualMap.getRecords().findKeyPath(kvKey(stateId, key));
     }
 
     /**
@@ -752,7 +752,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
             throw new IllegalStateException("Cannot get Merkle proof for unhashed virtual map");
         }
 
-        VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
+        VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeaf(path);
         if (leafRecord == null) {
             return null;
         }
@@ -816,7 +816,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
                 if (stateDefinition.singleton()) {
                     final Bytes singletonKey = StateKeyUtils.singletonKey(stateId);
-                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(singletonKey);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeaf(singletonKey);
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
                         final JSONObject singletonJson = new JSONObject();
@@ -828,7 +828,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     }
                 } else if (stateDefinition.queue()) {
                     final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateId);
-                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(queueStateKey);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeaf(queueStateKey);
 
                     if (leafBytes != null) {
                         final StateValue.StateValueCodec<QueueState> queueStateCodec = new StateValue.StateValueCodec<>(
