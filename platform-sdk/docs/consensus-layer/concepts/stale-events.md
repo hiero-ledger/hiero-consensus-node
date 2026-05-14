@@ -1,8 +1,9 @@
 ---
+
 title: Stale events
 kind: concept
 last_reviewed: TBD
----
+------------------
 
 # Stale events
 

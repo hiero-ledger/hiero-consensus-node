@@ -1,8 +1,9 @@
 ---
+
 title: Event lifecycle
 kind: concept
 last_reviewed: TBD
----
+------------------
 
 # Event lifecycle
 
@@ -23,30 +24,38 @@ passes through as time advances:
 ## Mechanics
 
 ```
-[admitted] --(ancient threshold)--> [ancient] --(expired threshold)--> [expired]
+[non-ancient] --(ancient threshold)--> [ancient, non-expired] --(expired threshold)--> [expired]
 ```
 
 Both thresholds are birth-round values carried on `EventWindow`. The
 expired threshold is more permissive (further in the past) than the
 ancient threshold, so an event becomes ancient first and expired
-later. The interval between the two is the operational window during
-which a node retains an event for catch-up purposes after it has
-stopped influencing the node's own consensus computation.
+later. In the interval between the two, the event no longer
+influences this node's own consensus computation, but the node still
+retains it so it can serve the event to peers that are
+slightly behind and need it.
 
 The two thresholds are consulted at distinct sites. The ancient
 threshold gates what enters and stays in the hashgraph DAG and is
 honoured by intake stages (deduplication, signature validation) and
-by the linker. The expired threshold gates retention in stores that
-sit outside the hashgraph — the consensus-rounds buffer and the
-gossip shadowgraph — which use it to evict events that no peer can
-still need.
+by the linker. The expired threshold is produced inside the
+hashgraph by `ConsensusRounds`, which keeps a `roundsExpired`-bounded
+ring of per-round metadata (`MinimumJudgeInfo`) and reports the
+oldest still-tracked round's minimum-judge birth round as the
+expired threshold; that value is then consumed at event-retention
+sites outside the hashgraph — notably the gossip shadowgraph — to
+evict events that no peer can still need. A peer that has fallen far
+enough behind to require an expired event can no longer catch up via
+gossip and must instead recover by performing a reconnect (see
+[`../architecture/topics/reconnect.md`](../architecture/topics/reconnect.md)).
 
 ## Example
 
 A node has just decided round 100. Suppose `ancientThreshold = 90`
 and `expiredThreshold = 80`.
 
-- Birth round 95: **admitted**. Still in the hashgraph window; still
+- Birth round 95: **admitted**. Still in the non-ancient window
+  (the set of events relevant to the consensus algorithm); still
   contributes to fame voting on undecided witnesses.
 - Birth round 85: **ancient**. Removed from the hashgraph; still
   retained by the gossip shadowgraph, which can serve it to a peer
@@ -65,13 +74,19 @@ The ancient threshold is honoured by the hashgraph linker
 ([`ConsensusLinker.linkEvent`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/linking/ConsensusLinker.java))
 and by intake stages such as
 [`StandardEventDeduplicator.shiftWindow`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java).
-The expired threshold is honoured at retention sites:
-[`ConsensusRounds.getExpiredThreshold`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java)
-(line 243) and the gossip
-[`Shadowgraph`](../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/Shadowgraph.java),
-which uses it to maintain its `oldestUnexpiredIndicator` pointer
-(line 121) and to drive event eviction during sync reservations
-(line 168).
+The expired threshold is honoured at retention sites.
+[`ConsensusRounds`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java)
+keeps a `minimumJudgeStorage` ring buffer of per-round
+`MinimumJudgeInfo`; `getExpiredThreshold` (line 243) reports the
+oldest still-tracked round's minimum-judge birth round, and the ring
+is trimmed each time an election is decided —
+`currentElectionDecided` calls
+`minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired())`
+(line 147) to drop newly-expired round metadata. The gossip
+[`Shadowgraph`](../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/Shadowgraph.java)
+consumes the same threshold to maintain its `oldestUnexpiredIndicator`
+pointer (line 121) and to drive event eviction during sync
+reservations (line 168).
 
 Earlier code named the two thresholds `minGenNonAncient` and
 `minGenNonExpired` and computed them against event generations;
