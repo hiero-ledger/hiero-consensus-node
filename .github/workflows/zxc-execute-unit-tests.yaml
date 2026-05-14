@@ -140,4 +140,4 @@ jobs:
             ${{ steps.upload-test-reports.outcome }}
           TEST_OUTCOMES: |
             ${{ steps.gradle-test.outcome }}
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh

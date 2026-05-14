@@ -90,4 +90,4 @@ jobs:
             ${{ steps.prepare-runner.outcome }}
           TEST_OUTCOMES: |
             ${{ steps.check-dependency-scopes.outcome }}
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh
