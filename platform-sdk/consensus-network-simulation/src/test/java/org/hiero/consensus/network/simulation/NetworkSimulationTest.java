@@ -28,7 +28,7 @@ public class NetworkSimulationTest {
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
-                .withValue("event.creation.maxOtherParents", Integer.toString(4))
+                .withValue(EventCreationConfig_.MAX_OTHER_PARENTS, 4)
                 .getOrCreateConfig();
         final NetworkLatency latency = NetworkLatency.uniformLatency(tick, numNodes);
         runSimulation(tick, numNodes, configuration, latency);

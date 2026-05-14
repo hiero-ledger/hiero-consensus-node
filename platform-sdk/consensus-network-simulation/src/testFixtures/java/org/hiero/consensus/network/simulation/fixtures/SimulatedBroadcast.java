@@ -76,6 +76,7 @@ public class SimulatedBroadcast {
             eventToDeliver.setSenderId(sender);
             eventToDeliver.setTimeReceived(deliveryTime);
             eventToDeliver.setNGen(event.getNGen());
+            eventToDeliver.setSequenceNumber(event.getSequenceNumber());
             final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, deliveryTime);
             eventsInTransit.get(receiver).add(eventInTransit);
         }
