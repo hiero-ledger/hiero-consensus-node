@@ -97,4 +97,11 @@ public abstract class AbstractMutableEvmAccount implements HederaEvmAccount {
     public int getCodeSize() {
         return getCode().size();
     }
+
+    /**
+     *  The default getCode clones the code bytes; this one avoids the copy
+     */
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        throw new UnsupportedOperationException("must override");
+    }
 }

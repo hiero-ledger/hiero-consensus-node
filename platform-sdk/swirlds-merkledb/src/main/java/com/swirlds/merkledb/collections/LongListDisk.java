@@ -222,7 +222,7 @@ public class LongListDisk extends AbstractLongList<Long> {
             throw new IllegalStateException("The temp file has been already initialized");
         }
         try {
-            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration);
+            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration, fileSystemManager);
             currentFileChannel = FileChannel.open(
                     tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (IOException e) {
@@ -235,7 +235,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     protected void readBodyFromFileChannelOnInit(
             final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
             throws IOException {
-        tempFile = createTempFile(sourceFileName, configuration);
+        tempFile = createTempFile(sourceFileName, configuration, fileSystemManager);
 
         currentFileChannel = FileChannel.open(
                 tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
@@ -291,11 +291,15 @@ public class LongListDisk extends AbstractLongList<Long> {
         return buffer;
     }
 
-    Path createTempFile(final String sourceFileName, final @NonNull Configuration configuration) throws IOException {
+    Path createTempFile(
+            final String sourceFileName,
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
+            throws IOException {
         requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
-        final Path tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
+        tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }

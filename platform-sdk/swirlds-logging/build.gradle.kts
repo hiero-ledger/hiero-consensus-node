@@ -35,7 +35,6 @@ timingSensitiveModuleInfo {
     requires("jakarta.inject")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
-    runtimeOnly("com.swirlds.common.test.fixtures")
 
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }

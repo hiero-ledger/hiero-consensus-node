@@ -64,7 +64,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
-                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true)) {
+                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true, 0L)) {
 
             final List<CesEvent> deserializedEvents = new ArrayList<>();
 
@@ -111,7 +111,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         try (final IOIterator<StreamedRound> iterator =
-                new EventStreamRoundIterator(mock(Roster.class), directory, firstRoundToRead, true)) {
+                new EventStreamRoundIterator(mock(Roster.class), directory, firstRoundToRead, true, 0L)) {
 
             final List<CesEvent> deserializedEvents = new ArrayList<>();
 
@@ -157,7 +157,7 @@ class EventStreamRoundIteratorTest {
         boolean exception = false;
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
-                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true)) {
+                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true, 0L)) {
 
             final List<CesEvent> deserializedEvents = new ArrayList<>();
 
@@ -212,7 +212,7 @@ class EventStreamRoundIteratorTest {
 
         assertThrows(
                 NoSuchElementException.class,
-                () -> new EventStreamRoundIterator(mock(Roster.class), directory, 10, true),
+                () -> new EventStreamRoundIterator(mock(Roster.class), directory, 10, true, 0L),
                 "should be unable to start at requested round");
 
         FileUtils.deleteDirectory(directory);
@@ -234,7 +234,7 @@ class EventStreamRoundIteratorTest {
         truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
-                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true)) {
+                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true, 0L)) {
 
             final List<CesEvent> deserializedEvents = new ArrayList<>();
 
@@ -288,7 +288,7 @@ class EventStreamRoundIteratorTest {
         truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
-                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, false)) {
+                mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, false, 0L)) {
 
             final List<CesEvent> deserializedEvents = new ArrayList<>();
 

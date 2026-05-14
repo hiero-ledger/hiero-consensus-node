@@ -72,7 +72,7 @@ public class ConsensusImplBenchmark {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Time time = Time.getCurrent();
 
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster());
+        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
     }
 
     @Benchmark
