@@ -14,6 +14,7 @@ import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -166,6 +167,11 @@ public final class BlockRangeResolver {
             System.out.printf(
                     "  Block range resolved: [%d, %d] (%d files)%n",
                     range.leftBlock(), range.rightBlock(), range.fileCount());
+
+            // Clean up probe files outside the resolved range — if left in the directory,
+            // the downstream consumer will interpret them as part of the expected block range.
+            cleanUpProbeFiles(range);
+
             return range;
         } finally {
             executor.shutdownNow();
@@ -220,7 +226,7 @@ public final class BlockRangeResolver {
 
         // If all probes exist (unlikely), the last available block is at least leftBlock + 2^MAX
         if (firstMiss == -1) {
-            log.warn(
+            log.info(
                     "All exponential probes up to offset {} exist. Last available block is at least {}.",
                     1L << MAX_EXPONENTIAL_POWER,
                     lastHit);
@@ -425,6 +431,40 @@ public final class BlockRangeResolver {
             return maxRound;
         } catch (Exception e) {
             throw new IOException("Failed to parse block file: " + localFile, e);
+        }
+    }
+
+    /**
+     * Removes any {@code .blk.gz} files from the local probe directory whose block number falls
+     * outside the resolved range. These are artifacts from the binary search probing phase.
+     */
+    private void cleanUpProbeFiles(@NonNull final BlockRange range) {
+        try (var stream = Files.list(localProbeDir)) {
+            int removed = 0;
+            for (final Path file : stream.toList()) {
+                final String name = file.getFileName().toString();
+                if (!name.endsWith(".blk.gz")) {
+                    continue;
+                }
+                try {
+                    final long blockNum = Long.parseLong(name.substring(0, name.indexOf('.')));
+                    if (blockNum < range.leftBlock() || blockNum > range.rightBlock()) {
+                        Files.delete(file);
+                        removed++;
+                    }
+                } catch (NumberFormatException e) {
+                    // Not a standard block file name — leave it alone
+                }
+            }
+            if (removed > 0) {
+                log.info(
+                        "Removed {} probe files outside resolved range [{}, {}]",
+                        removed,
+                        range.leftBlock(),
+                        range.rightBlock());
+            }
+        } catch (IOException e) {
+            log.warn("Failed to clean up probe files in {}", localProbeDir, e);
         }
     }
 

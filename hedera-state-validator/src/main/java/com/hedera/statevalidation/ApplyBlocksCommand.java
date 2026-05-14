@@ -8,7 +8,6 @@ import com.hedera.statevalidation.gcp.BlockRangeResolver;
 import com.hedera.statevalidation.gcp.GcpPathHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.BinaryState;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -180,11 +179,6 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
                 range.rightBlock(),
                 range.fileCount());
 
-        // Clean up probe files outside the resolved range — if left in the directory,
-        // the downstream validator will interpret them as part of the expected block range
-        // and report gaps for the un-downloaded blocks between the range and the probes.
-        cleanUpProbeFiles(tempBlockDir, range.leftBlock(), range.rightBlock());
-
         // Build the list of file names to download
         final List<String> fileNames = new ArrayList<>();
         for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
@@ -226,34 +220,5 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
         log.info("All {} block files ready in {}", range.fileCount(), tempBlockDir);
         return tempBlockDir;
-    }
-
-    /**
-     * Removes any {@code .blk.gz} files from the directory whose block number falls outside
-     * the resolved range. These are artifacts from the binary search probing phase.
-     */
-    private static void cleanUpProbeFiles(@NonNull final Path dir, final long leftBlock, final long rightBlock)
-            throws IOException {
-        int removed = 0;
-        try (var stream = Files.list(dir)) {
-            for (final Path file : stream.toList()) {
-                final String name = file.getFileName().toString();
-                if (!name.endsWith(".blk.gz")) {
-                    continue;
-                }
-                try {
-                    final long blockNum = Long.parseLong(name.substring(0, name.indexOf('.')));
-                    if (blockNum < leftBlock || blockNum > rightBlock) {
-                        Files.delete(file);
-                        removed++;
-                    }
-                } catch (NumberFormatException e) {
-                    // Not a standard block file name — leave it alone
-                }
-            }
-        }
-        if (removed > 0) {
-            log.info("Removed {} probe files outside resolved range [{}, {}]", removed, leftBlock, rightBlock);
-        }
     }
 }
