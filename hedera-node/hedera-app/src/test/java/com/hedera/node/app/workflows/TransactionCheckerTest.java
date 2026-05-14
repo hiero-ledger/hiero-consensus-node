@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -43,6 +44,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -58,6 +60,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -275,6 +278,91 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> checker.check(transaction, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
+        }
+
+        @Test
+        @DisplayName("Malformed protobuf does not emit WARN logs")
+        void malformedProtobufDoesNotWarn() {
+            final var logCaptor = new LogCaptor(LogManager.getLogger(TransactionChecker.class));
+            try {
+                assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(100)))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(INVALID_TRANSACTION));
+                assertTrue(logCaptor.warnLogs().isEmpty(), "Malformed ingest input must not emit WARN logs");
+            } finally {
+                logCaptor.stopCapture();
+            }
+        }
+
+        @Test
+        @DisplayName("Truncated protobuf increments the BufferUnderflow parse error counter")
+        void parseErrorBufferUnderflowCounterIncrements() {
+            // A single valid field-1 tag byte with no following length varint causes
+            // BufferUnderflowException when the codec tries to read the message length.
+            final var truncatedBytes = Bytes.wrap(new byte[] {0x0A}); // field 1, wire type 2
+            assertThatThrownBy(() -> checker.parseAndCheck(truncatedBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with oversized field declaration increments the structural parse error counter")
+        void parseErrorStructuralCounterIncrements() {
+            // Disable governance and jumbo so maxIngestParseSize() == MAX_TX_SIZE (6144).
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE)
+                            .getOrCreateConfig(),
+                    1);
+            checker = new TransactionChecker(props, metrics);
+
+            // field 5 (signedTransactionBytes, tag=0x2A) followed by varint(100000) as the
+            // declared byte-field length. 100000 > 6144 triggers a direct ParseException with
+            // no cause from ProtoParserTools.readBytes. Total buffer is 4 bytes, well under
+            // the 6144 limit, so TRANSACTION_OVERSIZE is never thrown.
+            final var craftedBytes = Bytes.wrap(new byte[] {0x2A, (byte) 0xA0, (byte) 0x8D, 0x06});
+            assertThatThrownBy(() -> checker.parseAndCheck(craftedBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with unknown fields increments the unknown field parse error counter")
+        void parseErrorUnknownFieldCounterIncrements() {
+            // appendUnknownField appends a field number not defined in the Transaction proto
+            inputBuffer = Bytes.wrap(appendUnknownField(asByteArray(tx)));
+            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with invalid field number and wire type increments the other parse error counter")
+        void parseErrorOtherCounterIncrements() {
+            // field=0 and wire type=7 are both invalid; the codec throws a plain IOException (not
+            // UnknownFieldException or BufferUnderflowException), which is wrapped as the ParseException
+            // cause and hits the default branch.
+            assertThatThrownBy(() -> checker.parseAndCheck(Bytes.wrap(invalidProtobuf())))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
         }
 
         /**

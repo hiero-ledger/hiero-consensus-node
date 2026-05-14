@@ -3,12 +3,14 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.restoreDataSource;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,14 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -36,30 +36,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.junit.jupiter.api.BeforeAll;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class MerkleDbDataSourceSnapshotMergeTest {
+class MerkleDbDataSourceSnapshotMergeTest extends AbstractFileManagerAwareTest {
 
     private static final int COUNT = 20_000;
     private static final int COUNT2 = 30_000;
-
-    private static FileSystemManager fileSystemManager;
-
-    @TempDir
-    static Path tempDir;
-
-    @BeforeAll
-    static void setup() throws ConstructableRegistryException {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
 
     /*
      * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will
@@ -80,23 +66,14 @@ class MerkleDbDataSourceSnapshotMergeTest {
         future.get(10, TimeUnit.MINUTES);
         executorService.shutdown();
         // check we did not leak direct memory now that the thread is shut down so thread locals should be released.
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES) + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
         // check db count
-        assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
+        assertAllDatabasesClosed();
     }
 
     void createMergeSnapshotReadBackImpl(final TestType testType, final boolean preferDiskBasedIndexes)
             throws IOException, InterruptedException {
-        final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
-        final String tableName = "mergeSnapshotReadBack";
-        final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(
-                        CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
+        final MerkleDbDataSource dataSource = createDataSource(fileSystemManager, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches
@@ -104,7 +81,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             // check all data
             checkData(COUNT, testType, dataSource);
             // create snapshot and test creating a second snapshot in another thread causes exception
-            final Path snapshotDir = Files.createTempDirectory("createMergeSnapshotReadBackImplSnapshot");
+            final Path snapshotDir = fileSystemManager.resolveNewTemp();
             final CountDownLatch countDownLatch = new CountDownLatch(3);
             exec.submit(() -> {
                 // do a good snapshot
@@ -157,7 +134,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             checkData(COUNT2, testType, dataSource);
             // load snapshot and check data
             final MerkleDbDataSource snapshotDataSource =
-                    testType.dataType().getDataSource(fileSystemManager, snapshotDir, tableName, false);
+                    restoreDataSource(fileSystemManager, snapshotDir, dataSource.getTableName(), false);
             checkData(COUNT, testType, snapshotDataSource);
             // validate all data in the snapshot
             final DataSourceValidator dataSourceValidator = new DataSourceValidator(snapshotDataSource);
@@ -242,7 +219,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
         } finally {
             // cleanup
             dataSource.close();
-            deleteDirectoryAndContents(storeDir);
             exec.shutdown();
         }
     }
