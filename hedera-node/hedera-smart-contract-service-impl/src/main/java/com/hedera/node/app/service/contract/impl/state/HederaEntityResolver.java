@@ -28,11 +28,13 @@ public final class HederaEntityResolver {
     }
 
     private final HederaNativeOperations nativeOperations;
-    private final EntityIdFactory entityIdFactory;
 
     public HederaEntityResolver(HederaNativeOperations nativeOperations) {
         this.nativeOperations = requireNonNull(nativeOperations);
-        this.entityIdFactory = nativeOperations.entityIdFactory();
+    }
+
+    private EntityIdFactory entityIdFactory() {
+        return this.nativeOperations.entityIdFactory();
     }
 
     public @Nullable HederaEntity resolveEvmAddressToHederaEntity(@NonNull Address address) {
@@ -42,7 +44,7 @@ public final class HederaEntityResolver {
         }
 
         // #1: try resolve as account
-        final var account = nativeOperations.getAccount(entityIdFactory.newAccountId(number));
+        final var account = nativeOperations.getAccount(entityIdFactory().newAccountId(number));
         if (account != null) {
             if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
                 return null;
@@ -51,13 +53,13 @@ public final class HederaEntityResolver {
         }
 
         // #2: try resolve as token
-        final var token = nativeOperations.getToken(entityIdFactory.newTokenId(number));
+        final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
         if (token != null) {
             return new HederaEntity.TokenEntity(token);
         }
 
         // #3: try resolve as schedule
-        final var schedule = nativeOperations.getSchedule(entityIdFactory.newScheduleId(number));
+        final var schedule = nativeOperations.getSchedule(entityIdFactory().newScheduleId(number));
         if (schedule != null) {
             return new HederaEntity.ScheduleEntity(schedule);
         }
