@@ -453,9 +453,6 @@ public class SimulatedBlockNodeServer {
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
-                                // Store all block items for later retrieval by StreamValidationOp
-                                storeBlockItem(item, currentBlockNumber);
-
                                 if (item.hasBlockHeader()) {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
@@ -475,8 +472,6 @@ public class SimulatedBlockNodeServer {
                                         return;
                                     }
 
-                                    // Set the current block number being processed by THIS stream instance
-                                    currentBlockNumber = blockNumber;
                                     log.info(
                                             "Received BlockHeader for block {} on port {} from stream {}",
                                             blockNumber,
@@ -525,10 +520,11 @@ public class SimulatedBlockNodeServer {
                                     }
 
                                     // If block doesn't exist and no one else is streaming it, mark it as
-                                    // header-received
-                                    // and associate this stream with it.
+                                    // header-received and associate this stream with it.
+                                    currentBlockNumber = blockNumber;
                                     blocksWithHeadersOnly.add(blockNumber);
                                     streamingBlocks.put(blockNumber, replies);
+                                    storeBlockItem(item, currentBlockNumber);
                                     log.info(
                                             "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}.",
                                             blockNumber,
@@ -565,9 +561,29 @@ public class SimulatedBlockNodeServer {
                                                         : "none");
                                     }
                                 }
+
+                                // Store non-header items only if this stream is authorized for the current block
+                                if (!item.hasBlockHeader()
+                                        && currentBlockNumber != null
+                                        && streamingBlocks.get(currentBlockNumber) == replies) {
+                                    storeBlockItem(item, currentBlockNumber);
+                                }
                             } // End of loop through BlockItems
                         } else if (request.hasEndOfBlock()) {
                             final var blockNumber = request.endOfBlockOrThrow().blockNumber();
+
+                            // Only accept EndOfBlock from the stream that won the BlockHeader race
+                            final Pipeline<? super PublishStreamResponse> owningStream =
+                                    streamingBlocks.get(blockNumber);
+                            if (owningStream != replies) {
+                                log.warn(
+                                        "Received EndOfBlock for block {} from stream {} on port {}, but block is owned by stream {}. Ignoring.",
+                                        blockNumber,
+                                        replies.hashCode(),
+                                        port,
+                                        owningStream != null ? owningStream.hashCode() : "none");
+                                return;
+                            }
 
                             // Mark block as fully received
                             blocksWithHeadersOnly.remove(blockNumber);
