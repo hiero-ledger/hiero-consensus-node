@@ -214,11 +214,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-misc.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-misc-records-crypto-and-serial:
     name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
@@ -313,11 +313,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-misc-records-crypto-and-serial.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-token-and-time-consuming:
     name: "HAPI Tests (Token & Time Consuming)"
@@ -410,11 +410,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-token-and-time-consuming.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-simple-fees-and-nd-reconnect:
     name: "HAPI Tests (Simple Fees & ND Reconnect)"
@@ -507,11 +507,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-simple-fees-and-nd-reconnect.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-smart-contracts-and-iss:
     name: "HAPI Tests (Smart Contracts & ISS)"
@@ -603,11 +603,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-smart-contract-and-iss.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
@@ -682,11 +682,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-restart.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
@@ -759,11 +759,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-bn-communication.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
@@ -855,11 +855,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-atomic-batch.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
@@ -934,11 +934,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-hapi-state-throttling.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   set-failure-mode:
     name: "Set Failure Mode"

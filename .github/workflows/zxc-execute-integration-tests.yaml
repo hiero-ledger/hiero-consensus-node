@@ -126,13 +126,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          workflow-outcomes: |
+        env:
+          WORKFLOW_OUTCOMES: |
             ${{ steps.prepare-runner.outcome }}
             ${{ steps.publish-test-report.outcome }}
             ${{ steps.upload-test-report-artifacts.outcome }}
             ${{ steps.upload-otter-turtle-integration-logs.outcome }}
             ${{ steps.upload-otter-container-integration-logs.outcome }}
-          test-outcomes: |
+          TEST_OUTCOMES: |
             ${{ steps.gradle-integration-tests.outcome }}
+        run: node .github/scripts/set-failure-mode.js

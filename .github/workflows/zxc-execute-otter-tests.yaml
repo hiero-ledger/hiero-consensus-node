@@ -134,11 +134,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-full-otter-tests.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   fast-otter:
     name: "Fast Otter Tests"
@@ -206,11 +206,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-fast-otter-tests.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   chaos-otter:
     name: "Chaos Otter Tests"
@@ -278,11 +278,11 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/actions/set-failure-mode
-        with:
-          test-outcomes: |
+        env:
+          TEST_OUTCOMES: |
             ${{ steps.gradle-chaos-otter-tests.outcome }}
-          cancelled-is-workflow: "true"
+          CANCELLED_IS_WORKFLOW: "true"
+        run: node .github/scripts/set-failure-mode.js
 
   set-failure-mode:
     name: "Set Failure Mode"
