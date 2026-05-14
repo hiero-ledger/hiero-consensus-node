@@ -356,4 +356,4 @@ jobs:
             ${{ needs.generate-baseline.outputs.failure-mode }}
             ${{ needs.generate-matrix.outputs.failure-mode }}
             ${{ needs.verify-artifacts.outputs.failure-mode }}
-        run: node .github/scripts/aggregate-failure-mode.js
+        run: bash .github/scripts/aggregate-failure-mode.sh

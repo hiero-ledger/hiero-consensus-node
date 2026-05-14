@@ -136,4 +136,4 @@ jobs:
             ${{ steps.upload-otter-container-integration-logs.outcome }}
           TEST_OUTCOMES: |
             ${{ steps.gradle-integration-tests.outcome }}
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh

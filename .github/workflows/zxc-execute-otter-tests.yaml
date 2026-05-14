@@ -139,7 +139,7 @@ jobs:
           TEST_OUTCOMES: |
             ${{ steps.gradle-full-otter-tests.outcome }}
           CANCELLED_IS_WORKFLOW: "true"
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh
 
   fast-otter:
     name: "Fast Otter Tests"
@@ -212,7 +212,7 @@ jobs:
           TEST_OUTCOMES: |
             ${{ steps.gradle-fast-otter-tests.outcome }}
           CANCELLED_IS_WORKFLOW: "true"
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh
 
   chaos-otter:
     name: "Chaos Otter Tests"
@@ -285,7 +285,7 @@ jobs:
           TEST_OUTCOMES: |
             ${{ steps.gradle-chaos-otter-tests.outcome }}
           CANCELLED_IS_WORKFLOW: "true"
-        run: node .github/scripts/set-failure-mode.js
+        run: bash .github/scripts/set-failure-mode.sh
 
   set-failure-mode:
     name: "Set Failure Mode"
@@ -317,4 +317,4 @@ jobs:
             ${{ needs.full-otter.outputs.failure-mode }}
             ${{ needs.fast-otter.outputs.failure-mode }}
             ${{ needs.chaos-otter.outputs.failure-mode }}
-        run: node .github/scripts/aggregate-failure-mode.js
+        run: bash .github/scripts/aggregate-failure-mode.sh
