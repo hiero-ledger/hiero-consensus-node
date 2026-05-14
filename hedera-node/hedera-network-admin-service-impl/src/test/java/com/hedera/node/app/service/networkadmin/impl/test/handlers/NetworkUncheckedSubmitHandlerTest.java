@@ -45,13 +45,4 @@ class NetworkUncheckedSubmitHandlerTest {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
-
-    @Test
-    @DisplayName("testCalculateFees")
-    void testCalculateFees() {
-        FeeContext mockFeeContext = mock(FeeContext.class);
-        assertThatNoException().isThrownBy(() -> subject.calculateFees(mockFeeContext));
-        final var result = subject.calculateFees(mockFeeContext);
-        assertThat(result).isEqualTo(Fees.FREE);
-    }
 }

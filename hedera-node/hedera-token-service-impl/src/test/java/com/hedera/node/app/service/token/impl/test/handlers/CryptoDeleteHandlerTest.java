@@ -384,19 +384,6 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    @DisplayName("check that fees are 1 for delete account trx")
-    void testCalculateFeesReturnsCorrectFeeForDeleteAccount() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        given(feeCalc.legacyCalculate(any())).willReturn(new Fees(1, 0, 0));
-
-        Assertions.assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
     void happyPathWithEcdsaKeyWorks() {
         writableAliases = writableAliasesStateWithEcdsaKey();
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);

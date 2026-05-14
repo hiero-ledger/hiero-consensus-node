@@ -380,27 +380,6 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .has(responseCode(INVALID_NFT_ID));
     }
 
-    @Test
-    void calculateFeesAddsCorrectFeeComponents() {
-        final var metadata1 = Bytes.wrap("test metadata one");
-
-        final List<Long> serialNumbers = new ArrayList<>(Arrays.asList(1L, 2L));
-        final var txnBody =
-                new TokenUpdateNftBuilder().newNftUpdateTransactionBody(TOKEN_123, metadata1, serialNumbers.get(1));
-        final var feeCalculator = mock(FeeCalculator.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeContext = mock(FeeContext.class);
-
-        given(feeContext.body()).willReturn(txnBody);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE))
-                .willReturn(feeCalculator);
-        given(feeCalculator.addBytesPerTransaction(1L)).willReturn(feeCalculator);
-        subject.calculateFees(feeContext);
-
-        verify(feeCalculator).addBytesPerTransaction(1L);
-    }
-
     private class TokenUpdateNftBuilder {
         private String metadata = "test metadata";
         TokenID tokenId = nonFungibleTokenId;

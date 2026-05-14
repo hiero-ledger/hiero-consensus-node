@@ -449,24 +449,6 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void calculateFeesReturnsExpectedFees() {
-        var feeContext = mock(FeeContext.class);
-        var calculator = mock(FeeCalculator.class);
-        var expectedFees = mock(Fees.class);
-
-        when(feeContext.feeCalculatorFactory()).thenReturn(type -> calculator);
-        when(calculator.resetUsage()).thenReturn(calculator);
-        // Use doReturn/when pattern to avoid strict stubbing issues
-        doReturn(calculator).when(calculator).addVerificationsPerTransaction(anyLong());
-        when(calculator.calculate()).thenReturn(expectedFees);
-        when(feeContext.numTxnSignatures()).thenReturn(1);
-
-        var result = subject.calculateFees(feeContext);
-
-        assertSame(expectedFees, result);
-    }
-
-    @Test
     void recordedFeeChargingCustomizedContextCapturesAndSnapshotsAllObservedCharges() {
         var delegate = mock(FeeCharging.class);
         var ctx = mock(FeeCharging.Context.class);

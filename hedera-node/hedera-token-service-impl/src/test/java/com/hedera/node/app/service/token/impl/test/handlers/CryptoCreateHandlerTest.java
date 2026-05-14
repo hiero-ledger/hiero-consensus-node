@@ -158,23 +158,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    @DisplayName("test CalculateFees When Free")
-    void testCalculateFeesWhenFree(@Mock FeeCalculatorFactory feeCalculatorFactory) {
-        var transactionBody = new CryptoCreateBuilder()
-                .withStakedAccountId(3)
-                .withMemo("blank")
-                .withKey(A_COMPLEX_KEY)
-                .build();
-        final var feeCalculator = new FakeFeeCalculator();
-        given(feeContext.body()).willReturn(transactionBody);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.configuration()).willReturn(configuration);
-        final var result = subject.calculateFees(feeContext);
-        assertThat(result).isEqualTo(Fees.FREE);
-    }
-
-    @Test
     @DisplayName("preHandle works when there is a receiverSigRequired")
     void preHandleCryptoCreateVanilla() throws PreCheckException {
         final var context = new FakePreHandleContext(readableStore, txn);

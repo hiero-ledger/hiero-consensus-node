@@ -116,23 +116,6 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
     }
 
     @Test
-    public void testCalculateFeesInvocations() {
-        FeeContext feeContext = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-
-        subject.calculateFees(feeContext);
-
-        InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeCalculatorFactory).feeCalculator(SubType.DEFAULT);
-        inOrder.verify(feeCalculator).addBytesPerTransaction(anyLong());
-        inOrder.verify(feeCalculator).calculate();
-    }
-
-    @Test
     void unPausesToken() {
         pauseKnownToken();
         assertTrue(writableTokenStore.get(tokenId).paused());

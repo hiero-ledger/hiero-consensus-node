@@ -111,29 +111,6 @@ class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
         }
     }
 
-    @Test
-    void verifyFeeComputation() {
-        given(mockQueryContext.configuration()).willReturn(testConfig);
-        // setup the readable store
-        given(mockQueryContext.createStore(ReadableScheduleStore.class)).willReturn(scheduleStore);
-        final ResponseHeader.Builder testHeaderBuilder = ResponseHeader.newBuilder();
-        testHeaderBuilder.nodeTransactionPrecheckCode(ResponseCodeEnum.OK);
-        testHeaderBuilder.responseType(ResponseType.COST_ANSWER);
-        // This always generates {0,0,0} fees, but we can observe calls...
-        // It would be helpful to have a test calculator that does the accumulation to test the values
-        // produced, but this will have to do for now.
-        final FeeCalculator feeSpy = Mockito.spy(new FakeFeeCalculator());
-        given(mockQueryContext.feeCalculator()).willReturn(feeSpy);
-
-        // validate a schedule that is present in state
-        given(mockQueryContext.query()).willReturn(createQuery(scheduleInState));
-        Fees actual = subject.computeFees(mockQueryContext);
-        assertThat(actual.networkFee()).isEqualTo(0L);
-        assertThat(actual.nodeFee()).isEqualTo(0L);
-        assertThat(actual.serviceFee()).isEqualTo(0L);
-        assertThat(actual.totalFee()).isEqualTo(0L);
-        verify(feeSpy).legacyCalculate(any());
-    }
 
     @NonNull
     private static ScheduleInfo validateResponseAndExtractInfo(

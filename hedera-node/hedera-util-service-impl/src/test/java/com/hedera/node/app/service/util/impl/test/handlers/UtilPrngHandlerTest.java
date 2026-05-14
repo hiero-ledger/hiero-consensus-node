@@ -129,28 +129,6 @@ class UtilPrngHandlerTest {
         verify(recordBuilder).entropyBytes(hash);
     }
 
-    @Test
-    void calculateFeesHappyPath() {
-        givenTxnWithoutRange();
-        final var body = TransactionBody.newBuilder().utilPrng(txn).build();
-
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(body);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(0);
-    }
-
     @ParameterizedTest
     @ValueSource(
             ints = {

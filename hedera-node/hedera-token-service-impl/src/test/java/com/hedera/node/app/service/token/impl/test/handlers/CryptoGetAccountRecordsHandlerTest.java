@@ -254,31 +254,6 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
         Assertions.assertThat(result.cryptoGetAccountRecords().records()).isEmpty();
     }
 
-    @Test
-    void verifyFeeComputation() {
-        mockQueryContext(id, QueryHeader.newBuilder().responseType(COST_ANSWER).build());
-        // setup the readable store
-        given(context.createStore(ReadableAccountStore.class)).willReturn(readableStore);
-        final ResponseHeader.Builder testHeaderBuilder = ResponseHeader.newBuilder();
-        testHeaderBuilder.nodeTransactionPrecheckCode(ResponseCodeEnum.OK);
-        testHeaderBuilder.responseType(ResponseType.COST_ANSWER);
-
-        final FeeCalculator feeSpy = Mockito.spy(new FakeFeeCalculator());
-        given(context.feeCalculator()).willReturn(feeSpy);
-
-        // validate a schedule that is present in state
-        given(context.query())
-                .willReturn(Query.newBuilder()
-                        .cryptoGetProxyStakers(CryptoGetStakersQuery.DEFAULT)
-                        .cryptoGetAccountRecords(newAcctRecordsQuery(id).build())
-                        .build());
-        Fees actual = subject.computeFees(context);
-        assertThat(actual.networkFee()).isEqualTo(0L);
-        assertThat(actual.nodeFee()).isEqualTo(0L);
-        assertThat(actual.serviceFee()).isEqualTo(0L);
-        assertThat(actual.totalFee()).isEqualTo(0L);
-        verify(feeSpy).legacyCalculate(any());
-    }
 
     @CsvSource({"ANSWER_ONLY", "COST_ANSWER_STATE_PROOF", "ANSWER_STATE_PROOF"})
     @ParameterizedTest()

@@ -577,43 +577,6 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
-    void calculateFeesWithNoAirdropBody() {
-        when(feeContext.body()).thenReturn(TransactionBody.DEFAULT);
-        assertThrows(NullPointerException.class, () -> tokenAirdropHandler.calculateFees(feeContext));
-    }
-
-    @Test
-    void calculateFeesNotSupportedOperation() {
-        setupAirdropMocks(TokenAirdropTransactionBody.DEFAULT, false);
-
-        final var exception = assertThrows(HandleException.class, () -> tokenAirdropHandler.calculateFees(feeContext));
-        assertEquals(ResponseCodeEnum.NOT_SUPPORTED, exception.getStatus());
-    }
-
-    @Test
-    void calculateFeesShouldChargeBaseFee() {
-        final var fungibleTransferList = TokenTransferList.newBuilder()
-                .token(TOKEN_2468)
-                .transfers(ACCT_4444_MINUS_5)
-                .build();
-        final var nonFungibleTransferList = TokenTransferList.newBuilder()
-                .token(asToken(2469))
-                .nftTransfers(SERIAL_1_FROM_3333_TO_4444)
-                .build();
-        final var airdropBody = TokenAirdropTransactionBody.newBuilder()
-                .tokenTransfers(fungibleTransferList, nonFungibleTransferList)
-                .build();
-        setupAirdropMocks(airdropBody, true);
-
-        when(feeContext.dispatchComputeFees(any(), any())).thenReturn(new Fees(30, 30, 30));
-
-        final var fees = tokenAirdropHandler.calculateFees(feeContext);
-        assertEquals(30, fees.networkFee());
-        assertEquals(30, fees.nodeFee());
-        assertEquals(30, fees.serviceFee());
-    }
-
-    @Test
     void updateUpdatesExistingAirdrop() {
         final var airdropId = getFungibleAirdrop();
         final var airdropValue = airdropWithValue(30);

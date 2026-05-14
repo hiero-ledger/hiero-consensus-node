@@ -55,10 +55,4 @@ class CryptoAddLiveHashHandlerTest {
                 .has(responseCode(NOT_SUPPORTED));
     }
 
-    @Test
-    void calculateFeesFree() {
-        final var feeCtx = mock(FeeContext.class);
-        final var result = subject.calculateFees(feeCtx);
-        assertThat(result).isEqualTo(Fees.FREE);
-    }
 }

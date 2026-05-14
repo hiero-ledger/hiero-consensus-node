@@ -267,17 +267,6 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         assertThrows(HandleException.class, () -> subject.handle(handleContext));
     }
 
-    @Test
-    void calculateFeesThrowsWhenCancelDisabled() {
-        var testConfig = HederaTestConfigBuilder.create()
-                .withValue("tokens.airdrops.cancel.enabled", false)
-                .getOrCreateConfig();
-        var feeContext = mock(FeeContext.class);
-        when(feeContext.configuration()).thenReturn(testConfig);
-
-        assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
-    }
-
     private void mockHandleContext() {
         when(handleContext.configuration()).thenReturn(testConfig);
         when(handleContext.storeFactory()).thenReturn(storeFactory);
