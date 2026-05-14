@@ -522,7 +522,7 @@ jobs:
           set +e
 
           merklebenchpod="merklebench"
-          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar ./swirlds-benchmarks-*-jmh.jar \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
           --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
