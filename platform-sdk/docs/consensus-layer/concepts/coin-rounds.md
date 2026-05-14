@@ -8,22 +8,30 @@ last_reviewed: TBD
 
 ## Definition
 
-A *coin round* is a periodic round during a fame election in which
-votes are not allowed to *decide* fame. If no super-majority is reached
-on either side, the voting witness's vote is taken from a deterministic
-pseudo-random source — specifically, a bit derived from the witness's
-own signature. Coin rounds exist to guarantee liveness: without them,
-an adversary could keep an election perpetually undecided.
+A *coin round* is a periodic round during a fame election that exists
+to break ties when ordinary counting votes have failed to reach a
+super-majority on either side for too long. In a coin round, voters
+that do not strongly see a super-majority fall back to a deterministic
+pseudo-random bit derived from their own signature, forcing the
+election out of a stalemate. Coin rounds guarantee liveness: without
+them, an adversary could keep an election perpetually undecided.
 
 ## Mechanics
 
-When fame is being voted on for a candidate witness in round *r*, every
-voting witness in a later round *r + d* casts a vote. If *d* is a
-multiple of the configured coin frequency, the vote is a *coin* vote:
-it cannot decide fame, and if no super-majority is reached among the
-strongly-seen prior-round witnesses, it falls back to the pseudo-random
-bit. Otherwise it follows the super-majority. Non-coin rounds cast
-ordinary counting votes that *can* decide fame on a super-majority.
+When fame is being voted on for a candidate witness in round *r*,
+every voting witness in a later round *r + d* casts a vote. In a
+non-coin round (*d* is not a multiple of the configured coin
+frequency), the voter casts an ordinary counting vote: it follows
+the majority of the prior-round witnesses it strongly sees, and if
+that majority is a super-majority, fame is decided on the spot. In a
+coin round (*d* is a multiple of the coin frequency), the voter
+still follows a strongly-seen super-majority if one exists; otherwise
+its vote is set to the deterministic pseudo-random bit. The coin
+vote itself does not invoke the fame-decision step — instead, it
+produces the aligned votes that let a subsequent counting round
+reach super-majority and decide. The pseudo-random bit is identical
+across all honest voters that look at the same signature, which is
+why a single coin round is enough to break a long-running tie.
 
 ## Example
 
