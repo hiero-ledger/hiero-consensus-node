@@ -6,7 +6,7 @@ Foundational definitions and canonical mental models. One file per concept (hash
 
 |                        File                        |       Concept        |                                    Summary                                    |
 |----------------------------------------------------|----------------------|-------------------------------------------------------------------------------|
-| [hashgraph-dag.md](hashgraph-dag.md)               | Hashgraph DAG        | The two-parent event DAG that the hashgraph maintains in memory.              |
+| [hashgraph-dag.md](hashgraph-dag.md)               | Hashgraph DAG        | The event DAG that the hashgraph maintains in memory.              |
 | [rounds-and-witnesses.md](rounds-and-witnesses.md) | Rounds and witnesses | Round-created, round-received, and the witness predicate.                     |
 | [strongly-seeing.md](strongly-seeing.md)           | Strongly-seeing      | Super-majority-of-weight visibility relation between events.                  |
 | [birth-round.md](birth-round.md)                   | Birth round          | The creator-stamped round that drives ancient filtering and future buffering. |

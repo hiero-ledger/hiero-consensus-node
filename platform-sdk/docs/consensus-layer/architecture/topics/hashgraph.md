@@ -139,8 +139,14 @@ buffered future events and emit several decided rounds.
 **Per-event lifecycle.** `DefaultConsensusEngine.addEvent` (lines
 ~102–194) pushes the incoming event through this pipeline:
 
-1. `freezeRoundController.isFrozen()` — short-circuits to an empty
-   output once the freeze round has emitted.
+1. `freezeRoundController.isFrozen()` — once the freeze round has
+   emitted, the event bypasses the consensus algorithm: it is run
+   through `futureEventBuffer.addEvent` and, if it is not a future
+   event, returned on the pre-consensus output (no consensus rounds,
+   no stale events). Future events still buffer and yield an empty
+   output. This lets the platform pre-handle post-freeze events (for
+   example, to collect freeze-state signatures) without emitting any
+   further rounds.
 2. `futureEventBuffer.addEvent(event)` — returns `null` if the event's
    birth round is beyond the current pending consensus round (held for
    later release) or below the buffer's discard threshold.
@@ -155,7 +161,9 @@ buffered future events and emit several decided rounds.
    [`../concepts/stale-events.md`](../concepts/stale-events.md)).
 6. `futureEventBuffer.updateEventWindow(eventWindow)` releases any
    future events whose birth round is now eligible; they are appended
-   to the work queue and the loop iterates.
+   to the work queue and each is fed back into step 3
+   (`linker.linkEvent`), looping through steps 3–6 until the queue
+   drains.
 7. After the loop, `freezeRoundController.filterAndModify` truncates
    any rounds beyond the freeze boundary.
 
@@ -219,12 +227,8 @@ events that just reached consensus by, in order:
    whitening).
 
 `ConsensusSorter` is constructed once per decided round and discarded.
-[TBD: question for engineer — `ConsensusSorter`'s class JavaDoc lists
-the order as "consensus timestamp → extended median → generation →
-whitened signature", but its `compare` method JavaDoc separately
-references "roundReceived" as the leading sort key. Round-received is
-implicit because the sorter runs per decided round; is the four-step
-order above the authoritative description today?]
+(`ConsensusSorter`'s class JavaDoc is stale and lists a different
+key order; the implementation matches the four-step order above.)
 
 **Round emission.** `roundDecided` packages the result into a
 `ConsensusRound` carrying the consensus event list, an `EventWindow`
@@ -240,25 +244,29 @@ restart or reconnect, `Consensus.waitingForInitJudges()` returns
 snapshot's judges (handled by `InitJudges`). While that flag is set,
 `DefaultConsensusEngine.addEvent` returns an empty output — the
 just-added event is not yet classified as pre-consensus, because it
-might already have been part of a previously decided round. When the
-last init judge arrives, the engine flushes any consensus events the
-just-decided rounds produced and the queued pre-consensus events into
-the output.
-[TBD: question for engineer — the `waitingForInitJudges` flag is
-checked both before and after `consensus.addEvent` in
-`DefaultConsensusEngine.addEvent`. Is the post-add check intended to
-be the only point at which we can transition out of waiting, or can a
-single `addEvent` flip the flag in either direction in practice?]
+might already have been part of a previously decided round. The
+flag is checked both before and after `consensus.addEvent`; the
+post-add check is the transition point out of waiting. When the last
+init judge arrives, the engine flushes any consensus events the
+just-decided rounds produced and the queued pre-consensus events
+into the output. Usually no rounds are decided in that same call,
+but a major roster change can produce some — in which case those
+consensus events are also reported as pre-consensus events so the
+downstream view of pre-consensus output stays complete.
 
-> **Note on the paper.** The paper computes rounds against the event's
-> non-deterministic generation (NGen); the current code uses event
-> sequence numbers for parent matching and birth round for
-> ancient-ness. Where the paper and the code use the same names
-> (witness, strongly-seeing, fame, judge), the meanings line up; where
-> they diverge in mechanics (NGen vs. birth round; the
-> `DeGen`/`cGen` family of generations used inside the implementation
-> only), the conceptual background lives in
-> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
+> **Note on the paper.** Round, witness, strongly-seeing, fame, and
+> judge mean the same thing in the paper and in the code. The notable
+> divergence is the ancient/expired horizon: the paper uses the
+> deterministic generation (max parent generation + 1) to define
+> ancient-ness, and the current code uses `birthRound` instead. The
+> implementation also carries a few quantities that do not appear in
+> the paper — `NGen` (a locally-computed, non-deterministic generation
+> used only for picking a topological order and for "higher in the
+> hashgraph" comparisons; see `NonDeterministicGeneration`) and the
+> `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> background lives in
+> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
+> and [`../concepts/birth-round.md`](../concepts/birth-round.md).
 
 ## Birth-round filtering
 

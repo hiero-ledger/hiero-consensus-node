@@ -44,10 +44,12 @@ Witness predicate: `ConsensusImpl.witness`. Per-event accessors:
 `EventImpl.getRoundReceived` (line 112). Per-round election state:
 [`RoundElections`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java).
 
-The paper computes round bumps against an event's non-deterministic
-generation (NGen); the current code drives the same logic with event
-sequence numbers and uses [`birth-round.md`](birth-round.md) for
-ancient filtering.
+Round bumps work the same way in the paper and in the code:
+an event's round is bumped when it strongly sees a super-majority of
+the previous round's witnesses. The paper and the code only diverge
+on the ancient/expired horizon — the paper uses an event's
+deterministic generation, and the code uses
+[`birth-round.md`](birth-round.md).
 
 ## Cross-references
 
