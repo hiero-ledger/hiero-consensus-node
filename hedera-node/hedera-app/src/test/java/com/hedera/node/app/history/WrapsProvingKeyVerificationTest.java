@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.validateArtifactsPathConsistency;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -35,8 +37,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import uk.org.webcompere.systemstubs.environment.EnvironmentVariables;
+import uk.org.webcompere.systemstubs.jupiter.SystemStubsExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, SystemStubsExtension.class})
 class WrapsProvingKeyVerificationTest {
 
     private static final byte[] CONTENT_A = "test-content-a-for-proving-key".getBytes();
@@ -167,7 +171,7 @@ class WrapsProvingKeyVerificationTest {
 
     @Test
     void throwsWhenEnvArtifactsPathNotUnderExtractionDir() {
-        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v1.0.0.tar.gz");
         final var wrongEnvPath = "/completely/different/path";
 
         assertThrows(IllegalStateException.class, () -> validateArtifactsPathConsistency(provingKeyPath, wrongEnvPath));
@@ -175,24 +179,36 @@ class WrapsProvingKeyVerificationTest {
 
     @Test
     void succeedsWhenEnvArtifactsPathIsUnderExtractionDir() {
-        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
-        final var correctEnvPath = "/opt/hgcapp/wraps-v0.2.0";
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v1.0.0.tar.gz");
+        final var correctEnvPath = "/opt/hgcapp/wraps-v1.0.0";
 
         assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, correctEnvPath));
     }
 
     @Test
     void doesNotThrowWhenEnvArtifactsPathIsNull() {
-        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v1.0.0.tar.gz");
 
         assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, null));
     }
 
     @Test
     void doesNotThrowWhenEnvArtifactsPathIsBlank() {
-        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v0.2.0.tar.gz");
+        final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v1.0.0.tar.gz");
 
         assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, ""));
+    }
+
+    @Test
+    void proofSupportedWithConfiguredV100ArtifactSet(final EnvironmentVariables environment) throws Exception {
+        for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
+            Files.write(tempDir.resolve(artifact), artifact.getBytes());
+        }
+        environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
+
+        assertDoesNotThrow(
+                () -> validateArtifactsPathConsistency(tempDir.resolve("wraps-v1.0.0.tar.gz"), tempDir.toString()));
+        assertTrue(WRAPSLibraryBridge.isProofSupported());
     }
 
     @SuppressWarnings("unchecked")

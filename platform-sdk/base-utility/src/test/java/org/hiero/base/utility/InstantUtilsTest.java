@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base.utility;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

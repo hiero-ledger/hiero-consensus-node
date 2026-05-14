@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.utility;
+package org.hiero.consensus.io;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
@@ -9,7 +9,6 @@ import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -32,7 +31,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.config.RecycleBinConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
