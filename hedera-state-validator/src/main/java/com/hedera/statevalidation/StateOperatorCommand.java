@@ -34,6 +34,9 @@ public class StateOperatorCommand implements Runnable {
 
     private static final Logger log = LogManager.getLogger(StateOperatorCommand.class);
 
+    /** Marker file written after a successful GCS download to distinguish complete from partial caches. */
+    private static final String DOWNLOAD_COMPLETE_MARKER = ".download-complete";
+
     @Parameters(index = "0", description = "State directory. Accepts a local path or a GCS URI (gs://...).")
     private String stateDir;
 
@@ -85,14 +88,20 @@ public class StateOperatorCommand implements Runnable {
                 // e.g. gs://bucket/prefix/4994905 → <cacheDir>/4994905/
                 final String lastComponent = GcpPathHelper.extractLastPathElement(stateDir);
                 final Path innerDir = cacheDir.resolve(lastComponent);
+                final Path marker = cacheDir.resolve(DOWNLOAD_COMPLETE_MARKER);
 
-                if (Files.isDirectory(innerDir) && hasContent(innerDir)) {
-                    // Reuse previously downloaded state
+                if (Files.isDirectory(innerDir) && Files.exists(marker)) {
+                    // Reuse previously downloaded state (marker confirms download completed)
                     resolvedStateDir = innerDir.toFile();
                     trackTempDirectory(cacheDir);
                     log.info("Reusing cached state directory: {}", resolvedStateDir.getAbsolutePath());
                     System.out.printf("Reusing cached state directory: %s%n", resolvedStateDir.getAbsolutePath());
                 } else {
+                    // Remove any partial download leftovers before re-downloading
+                    if (Files.isDirectory(cacheDir)) {
+                        log.info("Removing incomplete cache directory: {}", cacheDir);
+                        deleteRecursively(cacheDir);
+                    }
                     Files.createDirectories(cacheDir);
                     trackTempDirectory(cacheDir);
                     log.info("State directory is a GCS path. Downloading {} to {} ...", stateDir, cacheDir);
@@ -101,9 +110,11 @@ public class StateOperatorCommand implements Runnable {
                     if (Files.isDirectory(innerDir)) {
                         resolvedStateDir = innerDir.toFile();
                     } else {
-                        // Fallback in case the directory structure is different than expected
                         resolvedStateDir = cacheDir.toFile();
                     }
+
+                    // Write completion marker so subsequent runs know the download finished
+                    Files.writeString(marker, "");
                 }
                 log.info("State directory resolved to: {}", resolvedStateDir.getAbsolutePath());
             } catch (IOException e) {
@@ -197,28 +208,17 @@ public class StateOperatorCommand implements Runnable {
     }
 
     /**
-     * Derives a deterministic cache directory name from a GCS path.
-     * The last path element is always a round number.
-     * <p>Example: {@code gs://preview-testnet-backup/previewnet-node00/4994905}
-     * → {@code state-validator-cache-4994905}
+     * Derives a deterministic cache directory name from a GCS path. Includes the node name
+     * (second-to-last element) to avoid collisions when different buckets/nodes share the same
+     * round number as the last path element.
+     * <p>Example: {@code gs://bucket/previewnet-node00/4994905}
+     * → {@code state-validator-cache-previewnet-node00-4994905}
+     * <p>If the path has only one element after the bucket, "default" is used as the node name.
      */
     static String gcpPathToCacheDirName(@NonNull final String gcpPath) {
-        return "state-validator-cache-" + GcpPathHelper.extractLastPathElement(gcpPath);
-    }
-
-    /**
-     * Returns {@code true} if the directory exists and contains at least one regular file
-     * (recursively). A quick check to confirm a previous download actually produced content.
-     */
-    private static boolean hasContent(@NonNull final Path dir) {
-        if (!Files.isDirectory(dir)) {
-            return false;
-        }
-        try (var stream = Files.walk(dir)) {
-            return stream.anyMatch(Files::isRegularFile);
-        } catch (IOException e) {
-            return false;
-        }
+        final String nodeName = GcpPathHelper.extractSecondToLastPathElement(gcpPath);
+        final String round = GcpPathHelper.extractLastPathElement(gcpPath);
+        return "state-validator-cache-" + nodeName + "-" + round;
     }
 
     /**

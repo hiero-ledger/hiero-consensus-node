@@ -92,6 +92,24 @@ public final class GcpPathHelper {
         return trimmed.substring(trimmed.lastIndexOf('/') + 1);
     }
 
+    /**
+     * Extracts the second-to-last path element, or {@code "default"} if the path has fewer
+     * than two elements after the scheme. Used for node names in GCS paths.
+     * <p>Example: {@code gs://bucket/previewnet-node00/4994905} → {@code previewnet-node00}
+     */
+    @NonNull
+    public static String extractSecondToLastPathElement(@NonNull final String path) {
+        String trimmed = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        final int lastSlash = trimmed.lastIndexOf('/');
+        if (lastSlash <= 0) {
+            return "default";
+        }
+        final String parent = trimmed.substring(0, lastSlash);
+        final int secondSlash = parent.lastIndexOf('/');
+        final String element = parent.substring(secondSlash + 1);
+        return element.isEmpty() ? "default" : element;
+    }
+
     // ========== Availability check ==========
 
     /**
@@ -279,8 +297,6 @@ public final class GcpPathHelper {
         try {
             final List<String> cmd = new ArrayList<>();
             cmd.add("xargs");
-            cmd.add("-a");
-            cmd.add(manifestFile.toString());
             cmd.add("-n");
             cmd.add("500");
             cmd.add("-P");
@@ -291,7 +307,7 @@ public final class GcpPathHelper {
             final Thread progressMonitor = startProgressMonitor(
                     "gcp-download-progress", totalFiles, () -> countFilesInDir(localDir, BLOCK_FILE_EXTENSION));
 
-            final int exitCode = executeProcess(cmd, DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS, true);
+            final int exitCode = executeProcess(cmd, DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS, true, manifestFile);
 
             // Stop the progress monitor
             progressMonitor.interrupt();
@@ -509,15 +525,13 @@ public final class GcpPathHelper {
 
                 final List<String> cmd = new ArrayList<>();
                 cmd.add("xargs");
-                cmd.add("-a");
-                cmd.add(manifestFile.toString());
                 cmd.add("-n");
                 cmd.add("500");
                 cmd.add("-P");
                 cmd.add(String.valueOf(Math.max(1, parallelism)));
                 cmd.add(wrapperScript.toString());
 
-                executeProcess(cmd, DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS, true);
+                executeProcess(cmd, DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS, true, manifestFile);
             } finally {
                 Files.deleteIfExists(manifestFile);
                 Files.deleteIfExists(wrapperScript);
@@ -547,9 +561,9 @@ public final class GcpPathHelper {
         sb.append("#!/bin/sh\n");
         sb.append("gcloud storage cp");
         if (billingProject != null && !billingProject.isEmpty()) {
-            sb.append(" --billing-project=").append(billingProject);
+            sb.append(" '--billing-project=").append(billingProject).append("'");
         }
-        sb.append(" \"$@\" ").append(localDir.toAbsolutePath()).append("/\n");
+        sb.append(" \"$@\" '").append(localDir.toAbsolutePath()).append("/'\n");
         return sb.toString();
     }
 
@@ -640,21 +654,47 @@ public final class GcpPathHelper {
      */
     private static int executeProcess(
             @NonNull final List<String> cmd, final long timeoutSeconds, final boolean logOutput) {
+        return executeProcess(cmd, timeoutSeconds, logOutput, null);
+    }
+
+    /**
+     * Executes an external process and returns its exit code, optionally redirecting stdin
+     * from a file (used for portable xargs invocations instead of GNU-only {@code -a}).
+     *
+     * <p>Output is drained in a separate daemon thread so that {@code waitFor(timeout)} can
+     * enforce the timeout even if the process keeps stdout open.
+     */
+    private static int executeProcess(
+            @NonNull final List<String> cmd,
+            final long timeoutSeconds,
+            final boolean logOutput,
+            @Nullable final Path stdinFile) {
         try {
             log.debug("Executing: {}", String.join(" ", cmd));
             final ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
+            if (stdinFile != null) {
+                pb.redirectInput(stdinFile.toFile());
+            }
             final Process process = pb.start();
 
-            // Drain output to prevent blocking
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (logOutput) {
-                        log.debug("[gcloud] {}", line);
-                    }
-                }
-            }
+            // Drain output in a daemon thread so waitFor(timeout) is not blocked
+            final Thread drainThread = new Thread(
+                    () -> {
+                        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                if (logOutput) {
+                                    log.debug("[gcloud] {}", line);
+                                }
+                            }
+                        } catch (IOException e) {
+                            // Process was likely destroyed — expected on timeout
+                        }
+                    },
+                    "process-output-drain");
+            drainThread.setDaemon(true);
+            drainThread.start();
 
             final boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
@@ -662,6 +702,10 @@ public final class GcpPathHelper {
                 log.error("Process timed out after {} seconds: {}", timeoutSeconds, String.join(" ", cmd));
                 return -1;
             }
+
+            // Wait briefly for the drain thread to finish reading any remaining output
+            drainThread.join(2000);
+
             return process.exitValue();
         } catch (IOException | InterruptedException e) {
             log.error("Failed to execute process: {}", String.join(" ", cmd), e);

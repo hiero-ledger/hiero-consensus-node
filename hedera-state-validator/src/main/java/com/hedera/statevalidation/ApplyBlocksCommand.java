@@ -161,10 +161,11 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
         final BinaryState state = (BinaryState) StateUtils.getDefaultState();
         final long leftBlock = BlockRangeResolver.extractLeftBoundary(state);
 
-        // Use a deterministic directory name containing the source round (from the state path)
-        // and the target round, so identical runs reuse cached block files.
+        // Use a deterministic directory name containing the source round, target round, and
+        // a block stream identifier so different block stream sources don't collide.
         final String sourceRound = GcpPathHelper.extractLastPathElement(parent.getRawStateDir());
-        final String cacheName = "state-validator-blocks-" + sourceRound + "-to-" + targetRound;
+        final String streamId = GcpPathHelper.extractLastPathElement(gcpBlockStreamPath);
+        final String cacheName = "state-validator-blocks-" + sourceRound + "-to-" + targetRound + "-s" + streamId;
         final Path tempBlockDir = Path.of(".", cacheName);
         Files.createDirectories(tempBlockDir);
         parent.trackTempDirectory(tempBlockDir);

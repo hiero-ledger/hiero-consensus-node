@@ -359,6 +359,13 @@ public final class BlockRangeResolver {
                     newHi = Math.min(newHi, probe);
                 }
             }
+
+            // If no progress was made (all probes failed), fall back to sequential search
+            if (newLo == lo && newHi == hi) {
+                log.warn("Scatter-gather made no progress in [{}, {}]. Falling back to sequential search.", lo, hi);
+                return sequentialBinarySearchForRound(lo, hi, targetRound, roundCache);
+            }
+
             lo = newLo;
             hi = newHi;
         }
