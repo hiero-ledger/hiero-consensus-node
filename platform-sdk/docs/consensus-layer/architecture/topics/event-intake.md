@@ -335,29 +335,35 @@ through the broadcast `eventWindowInputWire()` and stored on each
 component that uses it. Three intake stages apply it; they share the
 same predicate but differ in role:
 
-|            Stage             |        Role         |                                                                                          Anchor                                                                                          |
-|------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Deduplicator                 | Door drop           | [StandardEventDeduplicator.java:97](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:97)         |
-| Signature validator          | Door drop           | [DefaultEventSignatureValidator.java:158](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java:158) |
-| Orphan buffer (entry)        | Door drop           | [DefaultOrphanBuffer.java:106](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:106)                                                      |
-| Orphan buffer (release)      | Re-check at release | [DefaultOrphanBuffer.java:220](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:220)                                                      |
-| Orphan buffer (window shift) | Eviction trigger    | [DefaultOrphanBuffer.java:132](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:132)                                                      |
+|            Stage             |              Role              |                                                                                                                                                                                Anchor                                                                                                                                                                                |
+|------------------------------|--------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deduplicator                 | Door drop and eviction trigger | [StandardEventDeduplicator.java:97](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:97), [StandardEventDeduplicator.java:132](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java:132) |
+| Signature validator          | Door drop                      | [DefaultEventSignatureValidator.java:158](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/signature/DefaultEventSignatureValidator.java:158)                                                                                                                                                                             |
+| Orphan buffer (entry)        | Door drop                      | [DefaultOrphanBuffer.java:106](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:106)                                                                                                                                                                                                                                  |
+| Orphan buffer (release)      | Re-check at release            | [DefaultOrphanBuffer.java:220](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:220)                                                                                                                                                                                                                                  |
+| Orphan buffer (window shift) | Eviction trigger               | [DefaultOrphanBuffer.java:132](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:132)                                                                                                                                                                                                                                  |
 
 The hashgraph layer applies the same filter again as a defensive gate
 at link time; that anchor lives in [hashgraph.md](./hashgraph.md).
 
 **On `intakeEventCounter`.** Each drop in the pipeline decrements
 `intakeEventCounter` — not because dropping an event is itself a
-reason to stop gossiping, but because the counter exists to track,
-per peer, how many events from a given sync are still in flight
-through the intake pipeline. Gossip uses the counter to delay starting
-the next sync with that peer until every event the peer sent in the
-last sync has either been dropped or made it all the way through to
-the shadowgraph. Once an event lands in the shadowgraph, the local
-node can advertise it to the peer (so the peer does not re-send it),
-which is what makes it safe to sync with that peer again. The
-gossip-side mechanics of this delay — and the other, distinct
-conditions that legitimately stop gossip — live in
+reason to stop gossiping, but because the counter tracks, per peer,
+how many events from a given sync are still in flight through the
+intake pipeline. Gossip uses the counter to delay starting the next
+sync with that peer until every event the peer sent in the last sync
+has either been dropped or made it all the way through to the
+shadowgraph. Once an event lands in the shadowgraph, the local node
+can advertise it to the peer (so the peer does not re-send it), which
+is what makes it safe to sync with that peer again. The counter is
+**only used for sync-received events**, not for events received by
+broadcast: broadcast-received events are tagged with a sender id of
+`-1`, and the pipeline skips counter updates for that sender, so
+broadcast traffic neither increments the counter on arrival nor
+decrements it on drop. Sync and broadcast as gossip mechanisms are
+described in detail in [gossip.md](./gossip.md); the gossip-side
+mechanics of the sync delay — and the other, distinct conditions that
+legitimately stop gossip — live in
 [reasons-not-to-gossip.md](./reasons-not-to-gossip.md).
 
 ## Durability and handoff
