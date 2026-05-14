@@ -33,7 +33,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 public class HeliswapTest {
 
     private static final int SWAPPING_ACCOUNTS_NUMBER = 10;
-    private static final int SWAPS_NUMBER = 10;
+    private static final int SWAPS_NUMBER = 1000;
 
     private static final String OWNER_ACCOUNT = "HeliswapOwner";
     private static final String SWAP_ACCOUNT = "SwapAccount";
