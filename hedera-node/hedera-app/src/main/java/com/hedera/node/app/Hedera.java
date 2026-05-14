@@ -20,6 +20,7 @@ import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
@@ -159,6 +160,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -179,6 +182,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -676,7 +680,6 @@ public final class Hedera
         final var app = requireNonNull(daggerApp);
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
-        app.freezeMarkerPlatformStatus().update(platformStatus);
         // No-op if quiescence is disabled
         app.quiescenceController().platformStatusUpdate(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
@@ -1385,7 +1388,6 @@ public final class Hedera
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .transactionOffsetNanos(txnOffsetNanos)
                 .build();
-        daggerApp.freezeMarkerPlatformStatus().update(platformStatus);
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
         logConfiguration();
@@ -1505,20 +1507,80 @@ public final class Hedera
     }
 
     private boolean sealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+        final boolean sealClosedBoundary;
         if (streamMode == RECORDS) {
-            return daggerApp
+            sealClosedBoundary = daggerApp
                     .blockRecordManager()
                     .closeCurrentRecordFileIfConsTimeElapsed(state, round.getConsensusTimestamp());
-        }
-        daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
-        if (streamMode == BOTH) {
-            final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
-            if (closesBlock) {
-                daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+        } else {
+            daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
+            if (streamMode == BOTH) {
+                final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
+                if (closesBlock) {
+                    daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+                }
+                sealClosedBoundary = daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+            } else {
+                sealClosedBoundary = daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
             }
-            return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
         }
-        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+        if (isLatestFreezeRound(round, state)) {
+            awaitFreezeRoundBlockProofs(round);
+        }
+        return sealClosedBoundary;
+    }
+
+    private boolean isLatestFreezeRound(@NonNull final Round round, @NonNull final State state) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
+        return platformStateStore.getLatestFreezeRound() == round.getRoundNum();
+    }
+
+    private void awaitFreezeRoundBlockProofs(@NonNull final Round round) {
+        final var nowFrozenWriteTimeout = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .nowFrozenWriteTimeout();
+        try {
+            final var blockStreamFuture =
+                    requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
+            final var wrbWritersFuture =
+                    requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
+            logger.info(
+                    "Freeze round {} sealed; waiting up to {} for pending block proofs and WRB writers "
+                            + "before returning the freeze state to the platform; "
+                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}",
+                    round.getRoundNum(),
+                    nowFrozenWriteTimeout,
+                    blockStreamFuture.isDone(),
+                    wrbWritersFuture.isDone());
+            CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture)
+                    .get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
+        } catch (final TimeoutException e) {
+            logger.warn(
+                    "Timed out waiting for pending block proofs and WRB writers after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn(
+                    "Interrupted while waiting for pending block proofs and WRB writers after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e);
+        } catch (final ExecutionException e) {
+            logger.warn(
+                    "Pending block proof or WRB writer future completed exceptionally after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e.getCause());
+        } catch (final RuntimeException e) {
+            logger.warn(
+                    "Unable to get pending block proof or WRB writer future after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e);
+        }
     }
 
     /**
