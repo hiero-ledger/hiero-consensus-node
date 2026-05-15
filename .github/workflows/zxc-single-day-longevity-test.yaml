@@ -446,6 +446,9 @@ jobs:
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
+
+          sed -i -e 's/37748736/131072000/g' resources/config/tss-config.yaml
+          sed -i -e 's/37748736/131072000/g' resources/block-node-tss-values.yaml
           task build:compile
           #npm run build
 
