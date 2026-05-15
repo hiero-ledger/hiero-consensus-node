@@ -16,3 +16,4 @@ tss.historyEnabled=true
 tss.wrapsEnabled=true
 
 blockStream.enableStateProofs=true
+blockStream.streamWrappedRecordBlocks=false
