@@ -1,10 +1,10 @@
 # Cluster Metrics Analysis For ReconnectBench Calibration
 
-This document is a living notebook for analyzing cluster metrics under
-`25083-improve-reconnectbench/cluster-metrics/csv` and using them to choose better local `ReconnectBench` parameters.
+This document captures the current calibration decisions, evidence, and remaining gaps for using cluster metrics under
+`25083-improve-reconnectbench/cluster-metrics/csv` to choose better local `ReconnectBench` parameters.
 
-The CSV files should be analyzed only when a specific metric is requested. Until then, this document records what data
-is needed, why it matters, and how each metric should be interpreted for local benchmark calibration.
+The detailed metric sections are still maintained incrementally. Analyze additional CSV metrics only when they are
+requested, and keep the decision matrix below synchronized with any new evidence.
 
 ## Executive Summary
 
@@ -26,9 +26,9 @@ Current confirmed cluster shape:
 - In-flight/window behavior is still not directly measured. Given sub-ms RTT, bandwidth-delay product is tiny compared
   to MiB-scale caps, so local cluster-profile runs should use a large/neutral cap unless TCP evidence says otherwise.
 - State scale is much larger than a single `50M` local profile:
-  - account-map scale: about `100M` records;
+  - account-map/service-store scale: about `100M` total records;
   - total virtual-map scale from `vmap_size_state`: about `415M-418M` records;
-  - active-node MerkleDB data-source file footprint: about `89-90 GiB`.
+  - active-node MerkleDB data-source file footprint: about `89k-90k MiB`, or roughly `87-88 GiB`.
 - Divergence in the confirmed node0/node2 reconnect appears token-association-heavy and append/growth driven:
   - starting node0/node2 virtual-map gap: about `2.21M` records;
   - active teacher-side growth during the first reconnect: about `636k` records;
@@ -37,7 +37,8 @@ Current confirmed cluster shape:
 - Storage/finalization effects are visible and should be tracked separately from traversal/network:
   - node0 has heavy `vmap_lifecycle_flushCount_state` growth during reconnect;
   - node0 state-write samples appear after the first receiver reconnect completes;
-  - this can matter if cluster wall-clock comparisons include post-reconnect persistence/finalization.
+  - `receiverReconnectDurationSeconds` includes learner-side virtual-map finalization, but not later controller/platform
+    load or state-to-disk snapshot work.
 
 Working conclusion:
 
@@ -209,85 +210,68 @@ Purpose:
 - Estimate divergence shape.
 - Identify whether cluster reconnect represents append-heavy, modify-heavy, remove-heavy, or mixed divergence.
 
-## Candidate Local Calibration Outputs
+## Calibration Decision Matrix
 
-This section summarizes current best candidates from the analyzed metrics. Treat these as calibration hypotheses, not
-final validation targets.
+These are calibration decisions, not final validation claims. `Use now` means the value is justified for a quick local
+cluster-profile diagnostic. `Diagnostic only` means useful for sensitivity testing but not evidence-backed for this
+cluster. `Blocked` means cluster evidence is required before treating the value as validated.
 
-```text
-networkLatencyMicroseconds:
-  if this benchmark parameter is one-way latency:
-    cluster-private sweep: 50, 150, 300
-  corresponding target RTTs:
-    100 us, 300 us, 600 us
-  do not use 50_000 or 100_000 for cluster calibration based on the current ping metrics
-
-networkBandwidthMegabitsPerSecond:
-  observed-throughput profiles: 200, 300
-  nominal-link profile: 1000
-
-networkInflightBytesLimit:
-  cluster-profile run: 134217728 bytes (128 MiB) or larger as a neutral cap
-  diagnostic-only caps: 13 MiB / 25 MiB, unless TCP/window evidence supports them
-
-tree size / numRecords:
-  quick local network-profile check: keep current existing saved-state size if reusing saved maps
-  account/NFT/token-association store scale: about 100M records
-  total virtual-map scale target: about 400M records, if feasible
-  observed cluster total virtual-map range: 415M-418M records
-
-numFiles:
-  no direct cluster value yet; keep existing local split unless changing total record count
-
-teacherAddProbability:
-  unresolved from current benchmark model
-  cluster evidence points to append/growth-heavy token-association divergence
-
-teacherRemoveProbability:
-  no strong evidence of remove-heavy divergence in the confirmed reconnect window
-
-teacherModifyProbability:
-  not derivable from current CSV metrics; need ReconnectMapMetrics/logs for clean/dirty shape
-
-recommended traversal matrix:
-  same saved teacher/learner state
-  pullTopToBottom -> pullParallelSync -> pullTopToBottom
-  optionally repeat with pullParallelSync -> pullTopToBottom -> pullParallelSync
-  include pullTwoPhasePessimistic only if run cost is acceptable
-
-expected bottleneck:
-  local cluster-profile check: likely traversal/storage interaction, not WAN RTT
-  cluster end-to-end recovery: reconnect sync plus learner-side flush/finalization/storage work
-
-confidence:
-  high for node0/node2 roles and 630s/621s duration
-  medium for latency profile because ping is not direct reconnect socket RTT
-  medium for state scale/divergence translation into current synthetic ReconnectBench parameters
-  low for in-flight/window behavior until TCP/window samples are captured
-```
+| Benchmark input | Status | Decision | Evidence anchor | Confidence / blocker |
+| --- | --- | --- | --- | --- |
+| `networkLatencyMicroseconds` | Use now | Current implementation applies one-way latency. Use `50`, `150`, and `300` to target roughly `100`, `300`, and `600 us` RTT. Do not use `50_000` or `100_000` for cluster calibration. | `ping_us_*` and aggregate `ping` | Medium; gossip RTT is not direct reconnect socket RTT. |
+| `networkBandwidthMegabitsPerSecond` | Use now | Sweep `150`, `200`, `300`, and `1000`. Treat `150-300` as observed-throughput diagnostics and `1000` as nominal-link. Local simulation is symmetric, while observed cluster send rates are directional and asymmetric. | `bytes_per_sec_sent_*` | Medium; observed send rates are not link capacity. Sustained directional TCP throughput is still missing. |
+| `networkInflightBytesLimit` | Use now | Use `134217728` bytes (`128 MiB`) or larger as a neutral cap for cluster-profile runs. Accept it as neutral only if local stats show negligible capacity waits and `maxInflightBytes` stays comfortably below the cap. | `ping_us_*`, `bytes_per_sec_sent_*` | Low for actual cluster window behavior; TCP/window samples are missing. |
+| Small in-flight caps | Diagnostic only | Keep `13 MiB` and `25 MiB` only for sensitivity checks. | BDP calculation in `ping_us_*` | Blocked as a cluster model until `ss -ti` or equivalent window evidence exists. |
+| State size | Use now for diagnostics | Reuse existing saved state for quick network-profile diagnostics. For new state-size profiles, target `totalRecords = numFiles * numRecords`, not `numRecords` alone. With current `numFiles=5000`, `100M` total records means `numRecords=20000`, and `400M` total records means `numRecords=80000`. | service-store size, `vmap_*`, `ds_files_*` | Medium; current benchmark is one synthetic virtual map, while cluster state has multiple service stores. |
+| Divergence shape | Partial | Static first-pass approximation: token-association-heavy append gap. For the first confirmed reconnect, `teacherAddProbability ~= 2.21M / 415.3M ~= 0.0053`, `teacherRemoveProbability=0`, and `teacherModifyProbability` remains diagnostic until clean/dirty logs exist. | service-store size, `vmap_*` | Medium; current `ReconnectBench` cannot model teacher growth while reconnect is running. |
+| Traversal matrix | Use locally, blocked for cluster validation | Local diagnostic: same saved teacher/learner state with `pullTopToBottom -> pullParallelSync -> pullTopToBottom`; optionally reverse the order and include `pullTwoPhasePessimistic` if cost is acceptable. | reconnect role/duration metrics | Cluster validation is blocked until explicit cluster traversal-mode runs exist. |
 
 ## Evidence Coverage
 
-| Required evidence | Current status | Notes |
-| --- | --- | --- |
-| Teacher/learner identity | Satisfied | node 0 receiver/learner, node 2 sender/teacher for the confirmed main window. |
-| Cluster reconnect duration | Satisfied | receiver `630s`, sender `621s`. |
-| Same-state traversal matrix on cluster | Missing | Need explicit `pullTopToBottom`, `pullParallelSync`, and optionally `pullTwoPhasePessimistic` runs. |
-| Reconnect transfer counters | Missing from CSV | Need logs or metrics with `transfersFromTeacher`, `transfersFromLearner`, clean hash/data counts, and leaf/internal breakdown. |
-| Reconnect bytes | Partial | `bytes_per_sec_sent_*` gives observed application send rates, not exact reconnect byte totals. |
-| RTT | Partial | `ping_us_*` gives gossip RPC RTT evidence; direct reconnect socket RTT is still missing. |
-| TCP/window/in-flight behavior | Missing | Need `ss -ti` or equivalent during reconnect. |
-| State size | Satisfied enough for first calibration | `vmap_size_state` gives `415M-418M`; store metrics identify `100M` account/NFT scale. |
-| Divergence shape | Partial | Strong token-association append/growth signal; modify/remove dirty shape still unknown. |
-| Runtime environment | Partial | Hardware is mainnet-like, Kubernetes/Solo cluster known; JVM/config/commit still need exact capture. |
-| Storage/finalization stage timing | Partial | Storage metrics show learner churn; logs are needed for precise stage boundaries. |
+Status legend:
 
-Next data that would most improve confidence:
+- `Satisfied`: enough evidence for current calibration use.
+- `Partial`: useful signal exists, but at least one interpretation gap remains.
+- `Missing`: no usable evidence in the current CSV/log set.
+- `Blocked`: required before claiming local/cluster validation.
+
+| Evidence | Status | Anchor | What it supports | Remaining gap |
+| --- | --- | --- | --- | --- |
+| Teacher/learner identity | Satisfied | `startsReconnectAsReceiver`, `startsReconnectAsSender`, `bytes_per_sec_sent_*` | node 0 learner, node 2 teacher | None for the first confirmed window. |
+| Reconnect duration | Satisfied | `receiverReconnectDurationSeconds`, `senderReconnectDurationSeconds` | receiver `630s`, sender `621s` | Stage breakdown still missing. |
+| Reconnect transfer counters | Missing | `ReconnectMapMetrics` class, CSV header search | No CSV-backed transfer/clean-dirty counter values | Need reconnect logs with `ReconnectMapMetrics.format()` or metrics export including `reconnect_vmap`. |
+| Reconnect bytes | Partial | `bytes_per_sec_sent_*` | observed directional application send rates | Exact reconnect byte totals are missing. |
+| RTT | Partial | `ping_us_*`, aggregate `ping` | sub-ms cluster-private latency profile | Direct reconnect socket RTT missing. |
+| Sustained directional TCP throughput | Missing | none | link-capacity validation for bandwidth setting | Need `iperf3` or equivalent node0<->node2 tests in both directions. |
+| TCP/window/in-flight behavior | Blocked | none | no validated cluster `networkInflightBytesLimit` | Need `ss -ti` or equivalent during reconnect. |
+| Service-store size/divergence | Partial | service-store size section, `vmap_*` | token-association-heavy append/growth gap | Clean/dirty modify/remove shape missing. |
+| Total virtual-map scale | Partial | `vmap_size_state` | `415M-418M` total virtual-map records | Synthetic single-map translation remains approximate. |
+| Disk/storage footprint | Partial | `ds_files_*`, `Diskspace*` | disk budget and storage-churn sanity checks | Stage timing and exact storage bottleneck attribution are missing. |
+| Same-state traversal matrix on cluster | Blocked | none | required for traversal-order validation | Need explicit cluster runs per mode. |
+| Runtime environment | Partial | operator-provided context | Kubernetes/Solo and mainnet-like hardware | Need exact commit SHA, JVM/heap args, and config. |
+
+### Quick Local Diagnostics
+
+These can be run before requesting another cluster experiment. They are intended to test whether the current local
+benchmark behaves plausibly under the best-supported cluster-profile inputs.
+
+1. Run the existing saved teacher/learner state with one-way latency profiles `50`, `150`, and `300` microseconds.
+2. Sweep `150`, `200`, `300`, and `1000` Mbps with a neutral `networkInflightBytesLimit` of at least `128 MiB`.
+3. Repeat the same-state traversal order as `top -> parallel -> top`, and optionally `parallel -> top -> parallel`.
+4. Keep `13 MiB`, `25 MiB`, `100 ms`, and `200 ms` runs labeled as sensitivity diagnostics, not cluster-calibration
+   evidence.
+
+### Cluster Validation Blockers
+
+These are required before claiming the local benchmark reproduces cluster traversal ordering.
 
 1. Cluster same-state traversal matrix with explicit reconnect mode in logs.
 2. Learner and teacher reconnect logs containing `ReconnectMapMetrics.format()` output.
-3. TCP/window samples for the node0/node2 reconnect connection.
-4. Exact commit SHA, JVM/heap args, and reconnect/virtualMap/MerkleDB/socket config used by the cluster run.
+3. Metrics export that includes `reconnect_vmap`, or confirmation that logs are the only source for transfer counters.
+4. TCP/window samples for the node0/node2 reconnect connection.
+5. Sustained directional throughput tests between node0 and node2.
+6. Exact commit SHA, JVM/heap args, and reconnect/virtualMap/MerkleDB/socket config.
+7. Stage timing logs that separate synchronization, hashing, flushing, root switch, and state write/finalization.
 
 ## Detailed Findings
 
@@ -444,6 +428,13 @@ Interpretation:
   node0/node2 reconnect.
 - The `9s` difference is plausible because the teacher and learner measure different protocol boundaries and because the
   CSV samples are aligned to metric export intervals.
+- Code boundary: `receiverReconnectDurationSeconds` measures the learner-side reconnect transfer/reconstruction interval
+  inside `ReconnectStateLearner.reconnect()`. It starts after signature receipt and ends after virtual-map learner
+  finalization and signed-state construction.
+- It does not include final reconnect handshake completion, controller validation/load, platform wiring,
+  reconnect-complete notification handling, or state-to-disk snapshot work. Treat state-write samples after the receiver
+  duration sample as a separate post-reconnect persistence stage, while virtual-map learner finalization itself is
+  already included in the receiver duration.
 - The second node0 receiver reconnect reports `353s`, but no matching sender duration has been identified from the
   currently analyzed sender metrics. Keep that reconnect unpaired until logs or additional metrics identify the teacher.
 
@@ -475,6 +466,64 @@ traversal mode: no direct value
 ```
 
 Confidence: high for metric presence, duration samples, and zero rejection signal.
+
+### Metrics: `ReconnectMapMetrics` Transfer And Clean/Dirty Counters
+
+Category: reconnect
+
+Metric source:
+
+- Code source: `ReconnectMapMetrics`.
+- Metric category: `reconnect_vmap`.
+- Expected metric names use the pattern `<counter>Total` or `<counter>_<label>_Total`, depending on whether a map label
+  is present.
+
+Counters defined by `ReconnectMapMetrics`:
+
+```text
+transfersFromTeacherTotal
+transfersFromLearnerTotal
+internalHashesTotal
+internalCleanHashesTotal
+internalDataTotal
+internalCleanDataTotal
+leafHashesTotal
+leafCleanHashesTotal
+leafDataTotal
+leafCleanDataTotal
+```
+
+CSV availability:
+
+- The current cluster CSV headers do not include `reconnect_vmap`.
+- The current cluster CSV headers do not include the raw counter names, the `*Total` metric names, or label-style
+  variants.
+- The reconnect-related CSV columns that are present are role/duration/rejection metrics:
+  - `startsReconnectAsReceiver`
+  - `startsReconnectAsSender`
+  - `endsReconnectAsReceiver`
+  - `endsReconnectAsSender`
+  - `receiverReconnectDurationSeconds`
+  - `senderReconnectDurationSeconds`
+  - `reconnectRejections_per_sec_XX`
+
+Implication for local ReconnectBench:
+
+- CSV data can support reconnect start/end/duration and rejection-rate evidence only.
+- Transfer counts, internal/leaf hash/data counts, and clean/dirty ratios remain missing from the CSV data set.
+- To fill this gap, use reconnect logs containing `ReconnectMapMetrics.format()` output or a metrics export that includes
+  `reconnect_vmap`.
+
+Recommended local parameter impact:
+
+```text
+teacherAddProbability: approximate from vmap/token-association size gap for now
+teacherRemoveProbability: no CSV evidence beyond absence of remove-heavy signal
+teacherModifyProbability: blocked on clean/dirty reconnect stats
+cluster/local validation: blocked until transfer counters or logs are available
+```
+
+Confidence: high that these counters are missing from the current CSV headers.
 
 ### Metric: `hasFallenBehind`
 
@@ -624,18 +673,30 @@ cluster timeline cut: use as trigger evidence before reconnect role counters
 Confidence: high that node0 is the self-fallen-behind node; medium for interpreting the second trigger until its
 teacher is identified.
 
-### Metrics: `accountsMaxNumber`, `accountsPercentUsed`, And `accountsUsed`
+### Metrics: Service Store Size (`accounts*`, `contracts*`, NFT, Token Association, Token, And Topic)
 
 Category: state
 
-Definition:
+This section groups service-store entity counts because their interpretation is the same:
 
-- Code source for `accountsMaxNumber`: `ConfigMetrics`, from `AccountsConfig.maxNumber()`.
-- Code source for `accountsUsed` and `accountsPercentUsed`: `StoreMetricsImpl`.
-- `accountsUsed`: current count of account entities in the accounts store.
-- `accountsPercentUsed`: `100.0 * accountsUsed / accountsMaxNumber`.
-- CSV caveat: the CSV description for `accountsUsed` says "instantaneous % used", but the value is a count. The metric
-  implementation and observed values confirm that `accountsUsed` is an entity count.
+- `*Used` metrics are current entity counts.
+- `*MaxNumber` metrics are configured upper bounds.
+- `*PercentUsed` metrics are ratios against those bounds.
+- The CSV descriptions for several `*Used` metrics say "instantaneous % used", but the metric implementations and
+  observed values confirm they are counts.
+
+Summary during the confirmed first node0/node2 reconnect window:
+
+| Store | Stable count / shape during first node0/node2 window | Calibration use |
+| --- | --- | --- |
+| Accounts | `100,000,713`, identical across active sampled nodes | Baseline `100M` service-store profile. |
+| Contracts | `7`, identical and stable | Negative evidence; no contract-specific profile needed. |
+| NFTs | `100,000,000`, identical and stable | Baseline `100M` service-store profile, not divergence driver. |
+| Token associations | node0 `101,679,929`; node2 `103,891,967 -> 104,528,182` | Main divergence signal. |
+| Tokens | `1,000`, stable | Too small to drive reconnect shape. |
+| Topics | `100,000`, stable | Small relative to total state. |
+
+#### Accounts Store
 
 Observed values during the confirmed first node0/node2 reconnect window:
 
@@ -661,32 +722,30 @@ Context from adjacent state-size metric:
 - At the start of the confirmed window, node0 reports `vmap_size_state=415,306,489`, while active non-reconnecting nodes
   are around `417,518,2xx-417,518,4xx`.
 - This means account entities are only part of the total virtual-map state visible in these metrics. If local
-  `ReconnectBench` models a single account-like virtual map, `100M` records is the better scale from this metric. If it
+  `ReconnectBench` models a single account-like virtual map, a `100M` total-record profile is the better scale from this metric. If it
   is meant to model total virtual-map load, later `vmap_size_state` and store-specific metrics matter more.
 
 Implication for local ReconnectBench:
 
 - The current local benchmark runs using about `50M` records are below the observed account-map scale.
-- A useful next state-size sweep should include at least a `100M` record profile for account-map scale.
-- Do not use `accountsMaxNumber` as `numRecords`; it is a configured upper bound, not the current state size.
+- A useful next state-size sweep should include at least a `100M` total-record profile for account-map scale.
+- Do not use `accountsMaxNumber` as `numFiles * numRecords`; it is a configured upper bound, not the current state size.
 - Do not use `accountsPercentUsed` directly for benchmark size; it is only a ratio against the configured maximum.
 
 Recommended local parameter impact:
 
 ```text
-numRecords/account-map scale: add 100,000,713-profile, probably rounded to 100M for repeatability
+totalRecords/account-map scale: add 100,000,713-profile, probably rounded to 100M for repeatability
 tree size / total virtual-map scale: unresolved until vmap_size_state and store-specific metrics are analyzed
 divergence shape: no direct value
 ```
 
-Confidence: high for account count and max-number interpretation; medium for mapping this to local `numRecords` because
+Confidence: high for account count and max-number interpretation; medium for mapping this to local `numFiles * numRecords` because
 `ReconnectBench` currently models one synthetic virtual map, while the cluster has multiple state stores.
 
-### Metrics: `contractsMaxNumber`, `contractsPercentUsed`, And `contractsUsed`
+#### Contracts Store
 
-Category: state
-
-Definition:
+Definition detail:
 
 - Code source for `contractsMaxNumber`: `ConfigMetrics`, from `ContractsConfig.maxNumber()`.
 - Code source for `contractsUsed` and `contractsPercentUsed`: `StoreMetricsImpl`.
@@ -718,19 +777,19 @@ Implication for local ReconnectBench:
 
 - This metric does not justify a contract-specific benchmark scale.
 - It is useful negative evidence: the observed large virtual-map state is not explained by smart contract entity count.
-- Do not use `contractsMaxNumber` as `numRecords`; it is a configured upper bound, not current state size.
+- Do not use `contractsMaxNumber` as `numFiles * numRecords`; it is a configured upper bound, not current state size.
 
 Recommended local parameter impact:
 
 ```text
-numRecords/contract-map scale: no dedicated profile needed from this metric
+totalRecords/contract-map scale: no dedicated profile needed from this metric
 tree size / total virtual-map scale: unresolved until vmap_size_state and store-specific metrics are analyzed
 divergence shape: no direct value
 ```
 
 Confidence: high. The values are stable and identical across all active sampled nodes in the confirmed reconnect window.
 
-### Metrics: NFT, Token Association, Token, And Topic Store Size
+#### NFT, Token Association, Token, And Topic Stores
 
 Metrics covered:
 
@@ -739,9 +798,7 @@ Metrics covered:
 - `tokensMaxNumber`, `tokensPercentUsed`, `tokensUsed`
 - `topicsMaxNumber`, `topicsPercentUsed`, `topicsUsed`
 
-Category: state
-
-Definition:
+Definition detail:
 
 - Code source for max-number metrics: `ConfigMetrics`.
 - `nftsMaxNumber`: `TokensConfig.nftsMaxAllowedMints()`.
@@ -819,6 +876,15 @@ Candidate divergence-shape signal:
   size but not to the observed node0/node2 divergence in this window.
 - Tokens and topics are small compared with accounts/NFTs/token associations and are not useful divergence drivers here.
 
+Current static `ReconnectBench` approximation:
+
+- The current benchmark cannot model teacher growth while reconnect is running. The `636k` live growth during the first
+  cluster window is cluster behavior to validate later, not a current local parameter.
+- For a static first-pass local approximation, use an append-heavy gap:
+  - `teacherAddProbability ~= 2.21M / 415.3M ~= 0.0053`
+  - `teacherRemoveProbability=0`
+  - keep `teacherModifyProbability` diagnostic until clean/dirty reconnect counters are available.
+
 Context from visible store totals:
 
 ```text
@@ -842,17 +908,20 @@ Implication for local ReconnectBench:
 - The cluster state is not just a `100M` account map. A total virtual-map scale near `415M-418M` is visible in
   `vmap_size_state`.
 - For local calibration, use at least two state-size profiles:
-  - account/NFT/token-association store scale: about `100M` records;
-  - total virtual-map scale: about `400M` records, if feasible locally.
+  - service-store scale: about `100M` total records;
+  - total virtual-map scale: about `400M` total records, if feasible locally.
 - The divergence shape should include an append-heavy token-association-style gap of roughly `2.2M-2.9M` records for
   this reconnect window, plus continued teacher-side growth during reconnect.
 
 Recommended local parameter impact:
 
 ```text
-numRecords/store-scale profile: 100M
-numRecords/total-vmap profile: 400M if feasible
+totalRecords/store-scale profile: 100M
+totalRecords/total-vmap profile: 400M if feasible
 divergence shape: token-association-heavy append/growth gap, roughly 2.2M at start and 2.85M by end
+static first-pass teacherAddProbability: about 0.0053 for a 415M-record profile
+static first-pass teacherRemoveProbability: 0
+teacherModifyProbability: unknown/diagnostic until clean-dirty reconnect counters are available
 teacher growth during reconnect: roughly 636k token associations over the 10.5 minute window
 ```
 
@@ -927,8 +996,12 @@ Interpretation:
 - Node0 stays flat until the receiver-end sample, then jumps by about `2.20M`.
 - The post-jump value, `417,509,586`, is close to node2's start-of-window size, `417,518,394`, not node2's
   end-of-window size, `418,154,650`.
-- This suggests the first reconnect gives node0 a state snapshot from near the start of that reconnect, while the
-  network continues to process about `636k` more virtual-map records during the transfer.
+- Production reconnect semantics make an accept-time teacher snapshot plausible. The teacher reserves the latest complete
+  signed state when it accepts the reconnect request, then builds a detached teacher view from that state before
+  releasing the original reservation. Changes made after that view is built are not reflected in the reconnect stream,
+  so the learner can receive a state close to the teacher's state at reconnect accept/start while active nodes continue
+  advancing during the transfer.
+- In this sample, active nodes process about `636k` more virtual-map records during the first transfer.
 - Node0 clears `hasFallenBehind` at `20:22:23 UTC`, falls behind again at `20:22:26 UTC`, and starts a second receiver
   reconnect at `20:22:38 UTC`. The `vmap_size_state` evidence explains why that second reconnect is plausible: node0
   was no longer missing the original `2.2M` records, but it was still behind current active nodes by roughly `645k`.
@@ -973,12 +1046,14 @@ Lifecycle observations:
 Implication for local ReconnectBench:
 
 - Use `vmap_size_state` for the total virtual-map scale. The relevant cluster scale is about `415M-418M` records during
-  these reconnects, not just the `100M` account/NFT/token-association store scale.
+  these reconnects, not just the `100M` service-store scale.
 - For a fixed teacher/learner local benchmark, the first node0/node2 reconnect maps most directly to a starting gap of
   about `2.21M` virtual-map records at roughly `415.3M` learner size and `417.5M` teacher size.
 - If trying to reproduce the repeated cluster behavior, model that active nodes grow while reconnect is running:
   about `636k` additional virtual-map records during the first `~10.5 min` reconnect, then about `366k` during the
   second `~6.1 min` window.
+- Current static `ReconnectBench` does not model active teacher growth during the transfer; use the starting gap for
+  first-pass local approximation and keep live-growth behavior as a cluster-validation concern.
 - Do not use `vmap_queries_*` first/last deltas as `teacherAddProbability`, `teacherRemoveProbability`, or
   `teacherModifyProbability` inputs. Use the store counts and the `vmap_size_state` gaps instead.
 - Keep lifecycle metrics separate from traversal ordering. They suggest learner-side flush/persistence work is heavy
@@ -987,8 +1062,8 @@ Implication for local ReconnectBench:
 Recommended local parameter impact:
 
 ```text
-tree size / total virtual-map scale: 415M-418M records, if feasible
-practical total-vmap profile: 400M records
+tree size / total virtual-map scale: 415M-418M totalRecords, if feasible
+practical total-vmap profile: 400M totalRecords
 first static teacher/learner gap: about 2.21M records
 teacher/live growth during first reconnect: about 636k records
 second static teacher/learner gap: about 648k records
@@ -1083,9 +1158,10 @@ Node 2 over same wall-clock interval:
 
 Interpretation:
 
-- The active nodes' MerkleDB data-source footprint is around `89-90 GiB` while the virtual map is around
-  `417M-418M` records.
-- Node0's file footprint is smaller, around `84-87 GiB`, and drops by about `3 GiB` during the first reconnect window.
+- The active nodes' MerkleDB data-source footprint is around `89k-90k MiB` (`~87-88 GiB`) while the virtual map is
+  around `417M-418M` records.
+- Node0's file footprint is smaller, around `84k-87k MiB` (`~82-85 GiB`), and drops by about `2.9 GiB` during the first
+  reconnect window.
   This does not match root filesystem usage, which increases sharply on node0 in `DiskspaceUsed`.
 - The file-size decrease while reconnect is running is likely MerkleDB flush/compaction/file replacement behavior, not
   a direct measure of state divergence. It does not explain traversal-mode selection by itself.
@@ -1100,13 +1176,14 @@ Interpretation:
 Implication for local ReconnectBench:
 
 - Use `ds_files_totalSizeMb_state` to budget local disk and sanity-check whether a local run has mainnet-like storage
-  scale. A `400M` virtual-map profile likely needs on the order of `85-90 GiB` of MerkleDB data-source files, plus
-  generous temporary/snapshot/log headroom.
+  scale. A single active `400M` virtual-map data-source shape likely needs around `89k-90k MiB` (`~87-88 GiB`) of
+  MerkleDB data-source files. Local teacher+learner snapshots and temporary files need materially more than a single
+  `90 GiB` budget.
 - If we add a future benchmark option to pre-shape MerkleDB file layout, the active-node teacher profile should be
   roughly:
-  - hashes store: `120-130` files, `24-25 GiB`;
-  - leaves store: `340-355` files, `48 GiB`;
-  - leaf-key store: `180-220` files, `16-17 GiB`;
+  - hashes store: `120-130` files, `24k-25k MiB`;
+  - leaves store: `340-355` files, about `48k MiB`;
+  - leaf-key store: `180-220` files, `16k-17k MiB`;
   - total data-source files: about `670-700`.
 - Do not use `ds_files_*` to choose `networkLatencyMicroseconds`, `networkBandwidthMegabitsPerSecond`, or
   `networkInflightBytesLimit`.
@@ -1116,8 +1193,8 @@ Implication for local ReconnectBench:
 Recommended local parameter impact:
 
 ```text
-tree/storage scale: 400M virtual-map records maps to roughly 85-90 GiB MerkleDB data-source files here
-disk headroom: materially above 90 GiB; root filesystem usage can move independently of ds_files_totalSizeMb_state
+tree/storage scale: 400M virtual-map records maps to roughly 89k-90k MiB (~87-88 GiB) per active data-source shape here
+disk headroom: materially above one data-source footprint; teacher+learner snapshots and root filesystem usage add overhead
 teacher file-shape target if needed: ~670-700 total data files across hashes/leaves/leafKeys
 network params: no direct impact
 traversal mode: no direct impact
@@ -1153,8 +1230,8 @@ Window: 2026-05-05 20:11:48-20:22:23 UTC
 
 Node 0:
   first: free=6769.06 GiB, used=327.17 GiB, total=7096.23 GiB, ds_files_totalSizeMb_state=87408 MiB
-  last:  free=6727.68 GiB, used=368.54 GiB, total=7096.23 GiB, ds_files_totalSizeMb_state=84432 MiB
-  used delta: +41.38 GiB
+  last:  free=6726.21 GiB, used=370.01 GiB, total=7096.23 GiB, ds_files_totalSizeMb_state=84432 MiB
+  used delta: +42.84 GiB
 
 Node 2:
   first: free=6694.77 GiB, used=401.46 GiB, total=7096.23 GiB, ds_files_totalSizeMb_state=89679 MiB
@@ -1170,9 +1247,10 @@ Other active sampled nodes:
 
 Interpretation:
 
-- Disk capacity is not tight in this run. Active nodes have about `7.1 TiB` total disk and multiple TiB free.
+- Disk capacity is not tight in this run. Active nodes have about `7096 GiB` (`~6.93 TiB`) total disk and multiple TiB
+  free.
 - These metrics measure root filesystem free/used space, not MerkleDB state size directly.
-- Node0's root filesystem usage increases by about `41 GiB` during the first reconnect, but
+- Node0's root filesystem usage increases by about `43 GiB` during the first reconnect, but
   `ds_files_totalSizeMb_state` decreases over the same window. That means `DiskspaceUsed` includes activity beyond the
   current MerkleDB data-source file-size metric, such as temporary files, snapshots, logs, deleted-but-open files, or
   other node/runtime filesystem activity.
@@ -1181,7 +1259,7 @@ Interpretation:
 
 Implication for local ReconnectBench:
 
-- Do not use `DiskspaceFree` or `DiskspaceUsed` to choose `numRecords`.
+- Do not use `DiskspaceFree` or `DiskspaceUsed` to choose `numFiles * numRecords`.
 - These metrics do not provide a direct local benchmark parameter.
 - They are useful only as environment sanity checks: local experiments should avoid disk-capacity pressure, but these
   values do not prove whether cluster reconnect is storage-I/O-bound.
@@ -1191,7 +1269,7 @@ Implication for local ReconnectBench:
 Recommended local parameter impact:
 
 ```text
-numRecords: no direct value
+totalRecords: no direct value
 divergence shape: no direct value
 disk capacity requirement: ensure ample free disk; cluster had multi-TiB free space
 storage bottleneck evidence: unresolved; use MerkleDB and stage timing metrics instead
@@ -1255,15 +1333,17 @@ Interpretation:
   shortly after the second receiver reconnect starts.
 - The node0 post-reconnect write samples are around `20 seconds`, while active non-reconnecting nodes are around
   `9-10 seconds`.
-- Because the write samples occur after `endsReconnectAsReceiver 0 -> 1`, they should not be folded into the first
-  reconnect duration if the cluster duration is based on reconnect receiver metrics. They may matter if the measured
-  cluster scenario is end-to-end recovery, including state persistence after reconnect.
+- Because the write samples occur after `endsReconnectAsReceiver 0 -> 1`, they should not be folded into
+  `receiverReconnectDurationSeconds`. That receiver duration already includes learner-side virtual-map finalization and
+  signed-state construction, but not later controller/platform load or state-to-disk snapshot work.
+- The write samples may matter if the measured cluster scenario is end-to-end recovery, including post-reconnect
+  persistence after reconnect.
 
 Implication for local ReconnectBench:
 
 - These metrics do not provide traversal, network, or divergence parameters directly.
 - They do suggest a possible cluster/local mismatch if local `ReconnectBench` measures only reconnect synchronization,
-  while cluster observations include post-reconnect state write/finalization time.
+  while cluster observations include post-reconnect state write/persistence time.
 - If comparing to `receiverReconnectDurationSeconds`, keep these write costs separate.
 - If comparing to node recovery wall-clock, account for an additional post-reconnect state-write stage on the learner,
   approximately `20 seconds` in this node0 sample.
@@ -1366,7 +1446,8 @@ Implication for local ReconnectBench:
   WAN sensitivity tests, but they do not match this Kubernetes/Latitude cluster sample.
 - For this cluster, the observed RTT shape is sub-millisecond: roughly `100-300 us` from fresh samples, with a conservative
   stale pair-specific upper hint around `600 us`.
-- If `networkLatencyMicroseconds` is configured as one-way latency, use approximately half the target RTT:
+- Current `ReconnectBench` applies `networkLatencyMicroseconds` as one-way delivery latency, so use approximately half
+  the target RTT:
   - target RTT `100-300 us` -> `networkLatencyMicroseconds=50-150`
   - conservative target RTT `600 us` -> `networkLatencyMicroseconds=300`
 - If the benchmark parameter is treated as full RTT in a future implementation, use `100-300` and `600` directly instead.
@@ -1381,12 +1462,12 @@ Recommended local parameter impact:
 
 ```text
 networkLatencyMicroseconds:
-  cluster-private profile: 50-150 if this is one-way latency
-  conservative cluster-private profile: 300 if this is one-way latency
+  cluster-private one-way profile: 50-150
+  conservative one-way profile: 300
   do not use 50_000 or 100_000 for cluster calibration based on these ping metrics
 
 networkBandwidthMegabitsPerSecond:
-  combine with bytes_per_sec_sent evidence; keep sweep around 200 Mbps, 300 Mbps, and 1 Gbps
+  combine with bytes_per_sec_sent evidence; keep sweep around 150 Mbps, 200 Mbps, 300 Mbps, and 1 Gbps
 
 networkInflightBytesLimit:
   use a large/neutral cap for cluster-profile runs, for example 128 MiB or larger
@@ -1455,8 +1536,11 @@ Implication for local ReconnectBench:
 - This metric provides an observed throughput scale, not the maximum available cluster bandwidth.
 - The observed learner-to-teacher direction, node 0 to node 2, averages about `233 Mbps` and peaks around `270 Mbps`.
 - The observed teacher-to-learner direction, node 2 to node 0, averages about `108 Mbps` and peaks around `192 Mbps`.
+- The local network simulation uses symmetric bandwidth, while the observed cluster rates are asymmetric. A `300 Mbps`
+  profile mostly covers learner-to-teacher peak/sensitivity, while `150-200 Mbps` better brackets teacher-to-learner
+  observed throughput.
 - For local calibration, this suggests testing below the nominal `1 Gbps` profile as well as at `1 Gbps`. A useful
-  first sweep is approximately `200 Mbps`, `300 Mbps`, and `1 Gbps`.
+  first sweep is approximately `150 Mbps`, `200 Mbps`, `300 Mbps`, and `1 Gbps`.
 - Combined with the `ping_us_*` evidence, the current cluster-profile in-flight cap should be large/neutral. At sub-ms
   RTT, the calculated BDP is far below even a `13 MiB` cap, so smaller caps are diagnostic sensitivity tests rather than
   evidence-backed cluster parameters unless TCP/window samples show otherwise.
@@ -1464,7 +1548,7 @@ Implication for local ReconnectBench:
 Recommended local parameter impact:
 
 ```text
-networkBandwidthMegabitsPerSecond: add 200-300 Mbps observed-throughput profiles, keep 1 Gbps as nominal-link profile
+networkBandwidthMegabitsPerSecond: add 150-300 Mbps observed-throughput profiles, keep 1 Gbps as nominal-link profile
 networkLatencyMicroseconds: combine with ping evidence; use sub-ms RTT profiles for cluster calibration
 networkInflightBytesLimit: use large/neutral cap for cluster-profile runs until TCP/window evidence exists
 ```
