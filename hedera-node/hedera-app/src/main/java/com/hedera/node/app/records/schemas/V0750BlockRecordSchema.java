@@ -102,6 +102,10 @@ public class V0750BlockRecordSchema extends Schema<SemanticVersion> {
         if (!ctx.isGenesis()) {
             final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
             final var existingBlockInfo = blockInfoSingleton.get();
+            if (existingBlockInfo == null) {
+                log.info("Skipping BlockInfo migration because BlockInfo singleton does not exist");
+                return;
+            }
             log.info("Migrating BlockInfo singleton with lastBlockNumber " + (existingBlockInfo.lastBlockNumber() + 1)
                     + " and firstConsTimeOfCurrentBlock to EPOCH");
             blockInfoSingleton.put(existingBlockInfo
