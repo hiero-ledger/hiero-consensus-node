@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.suites.HapiSuite;
 import java.time.Instant;
 import java.util.Arrays;
@@ -40,6 +41,7 @@ public class SimpleFreezeOnly extends HapiSuite {
         return true;
     }
 
+    @HapiTest
     final Stream<DynamicTest> simpleFreezeWithTimestamp() {
         return defaultHapiSpec("SimpleFreezeWithTimeStamp")
                 .given(freezeOnly().payingWith(GENESIS).startingAt(Instant.now().plusSeconds(10)))

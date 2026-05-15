@@ -20,10 +20,16 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -58,6 +64,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public enum InfoType {
         ROSTER,
         NODE_DETAILS,
+        TSS,
     }
 
     /**
@@ -177,12 +184,43 @@ public class DiskStartupNetworks implements StartupNetworks {
      */
     public static void writeNetworkInfo(
             @NonNull final State state, @NonNull final Path path, @NonNull final Set<InfoType> infoTypes) {
+        writeNetworkInfo(state, path, withoutTss(infoTypes), null, -1L);
+    }
+
+    /**
+     * Writes a JSON representation of the {@link Network} information in the given state to a given path.
+     *
+     * @param state the state to write network information from.
+     * @param path the path to write the JSON network information to.
+     * @param infoTypes the types of network information to include
+     * @param config the configuration to use when including local TSS key material
+     * @param selfNodeId the node id whose local private key material should be updated in the JSON file
+     */
+    public static void writeNetworkInfo(
+            @NonNull final State state,
+            @NonNull final Path path,
+            @NonNull final Set<InfoType> infoTypes,
+            @Nullable final Configuration config,
+            final long selfNodeId) {
         requireNonNull(state);
+        requireNonNull(path);
+        requireNonNull(infoTypes);
+        networkInfoFrom(state, infoTypes).ifPresent(network -> {
+            if (infoTypes.contains(InfoType.TSS)) {
+                tryToExportWithTssMetadata(state, network, path, config, selfNodeId);
+            } else {
+                tryToExport(network, path);
+            }
+        });
+    }
+
+    private static Optional<Network> networkInfoFrom(
+            @NonNull final State state, @NonNull final Set<InfoType> infoTypes) {
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
         final long round = roundOf(state);
-        Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).ifPresent(activeRoster -> {
+        return Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).map(activeRoster -> {
             final var network = Network.newBuilder();
             final List<NodeMetadata> nodeMetadata = new ArrayList<>();
             activeRoster.rosterEntries().forEach(entry -> {
@@ -192,8 +230,16 @@ public class DiskStartupNetworks implements StartupNetworks {
                         infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
             });
             network.nodeMetadata(nodeMetadata);
-            tryToExport(network.build(), path);
+            return network.build();
         });
+    }
+
+    private static EnumSet<InfoType> withoutTss(@NonNull final Set<InfoType> infoTypes) {
+        requireNonNull(infoTypes);
+        final EnumSet<InfoType> effectiveInfoTypes =
+                infoTypes.isEmpty() ? EnumSet.noneOf(InfoType.class) : EnumSet.copyOf(infoTypes);
+        effectiveInfoTypes.remove(InfoType.TSS);
+        return effectiveInfoTypes;
     }
 
     /**
@@ -202,11 +248,63 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @param path the path to export the network to
      */
     public static void tryToExport(@NonNull final Network network, @NonNull final Path path) {
-        try (final var fout = Files.newOutputStream(path)) {
-            Network.JSON.write(network, new WritableStreamingData(fout));
+        requireNonNull(network);
+        requireNonNull(path);
+        try {
+            final var absolutePath = path.toAbsolutePath();
+            Files.createDirectories(requireNonNull(absolutePath.getParent()));
+            final var tmpPath = Files.createTempFile(
+                    absolutePath.getParent(), absolutePath.getFileName().toString(), ".tmp");
+            try {
+                try (final var fout = Files.newOutputStream(tmpPath)) {
+                    Network.JSON.write(network, new WritableStreamingData(fout));
+                }
+                try {
+                    Files.move(
+                            tmpPath, absolutePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException ignore) {
+                    Files.move(tmpPath, absolutePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(tmpPath);
+            }
         } catch (IOException e) {
             log.warn("Failed to write network info", e);
         }
+    }
+
+    private static void tryToExportWithTssMetadata(
+            @NonNull final State state,
+            @NonNull final Network network,
+            @NonNull final Path path,
+            @Nullable final Configuration config,
+            final long selfNodeId) {
+        requireNonNull(state);
+        requireNonNull(network);
+        requireNonNull(path);
+        if (config == null || selfNodeId < 0) {
+            log.warn("Cannot include TSS metadata without configuration and self node id");
+            tryToExport(network, path);
+            return;
+        }
+        final var absolutePath = path.toAbsolutePath();
+        final var lockPath = lockPathFor(absolutePath);
+        try {
+            Files.createDirectories(requireNonNull(lockPath.getParent()));
+            try (final var channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    final FileLock ignored = channel.lock()) {
+                final var existingNetwork = loadNetworkFrom(absolutePath).orElse(null);
+                final var enrichedNetwork =
+                        TssStartupNetworks.enrichFromState(state, network, config, selfNodeId, existingNetwork);
+                tryToExport(enrichedNetwork, absolutePath);
+            }
+        } catch (IOException e) {
+            log.warn("Failed to write network info with TSS metadata", e);
+        }
+    }
+
+    private static Path lockPathFor(@NonNull final Path path) {
+        return path.resolveSibling(path.getFileName().toString() + ".lock");
     }
 
     /**
