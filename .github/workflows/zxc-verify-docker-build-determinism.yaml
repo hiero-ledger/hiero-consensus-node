@@ -447,10 +447,14 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Prepare Job
+        id: prepare-job
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          fetch-depth: 1
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
 
       - name: Set Failure Mode
         id: set-failure-mode
