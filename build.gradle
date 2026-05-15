@@ -1,11 +1,3 @@
 // This empty file is only here to make the Snyk integration work until the following is fixed:
 // https://github.com/snyk/snyk-gradle-plugin/issues/298
 // Do not use this file to configure Gradle!
-
-// The below is a temporary workaround until frontmatter support is enabled in Spotless
-// see https://github.com/hiero-ledger/hiero-gradle-conventions/issues/474
-spotless {
-    flexmark {
-        targetExclude("platform-sdk/sdk/**", "node_modules/**", "platform-sdk/docs/consensus-layer/**")
-    }
-}
