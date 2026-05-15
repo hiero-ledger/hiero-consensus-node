@@ -124,12 +124,10 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          WORKFLOW_OUTCOMES: |
+            ${{ job.status }}
+        run: bash .github/scripts/set-failure-mode.sh
 
   generate-matrix:
     name: "Gradle: Generate OS Matrix"
@@ -187,12 +185,10 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          WORKFLOW_OUTCOMES: |
+            ${{ job.status }}
+        run: bash .github/scripts/set-failure-mode.sh
 
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
@@ -310,14 +306,16 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.compare-library-manifests.outcome || 'skipped' }}" == "failure" || "${{ steps.compare-application-manifests.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          TEST_OUTCOMES: |
+            ${{ steps.compare-library-manifests.outcome }}
+            ${{ steps.compare-application-manifests.outcome }}
+          WORKFLOW_OUTCOMES: |
+            ${{ steps.prepare-job.outcome }}
+            ${{ steps.google-auth.outcome }}
+            ${{ steps.gradle-build.outcome }}
+            ${{ steps.regen-manifest.outcome }}
+        run: bash .github/scripts/set-failure-mode.sh
 
   set-failure-mode:
     name: "Set Failure Mode"
