@@ -813,7 +813,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                         .isEqualTo(1);
                 final var rootHashBefore = blockInfoBefore.previousWrappedRecordBlockRootHash();
 
-                manager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                // Simulate freeze: close the currently-open record file (block 1)
+                manager.closeCurrentRecordFileIfOpen(state);
 
                 final var blockInfoAfterFreeze = readBlockInfo(state);
                 assertThat(blockInfoAfterFreeze.wrappedIntermediateBlockRootsLeafCount())

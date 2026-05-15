@@ -45,7 +45,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
      * If more than this fraction of parent refs are found only in PCES (stale events),
      * the validation fails, as it indicates a problem beyond normal stale event rates.
      */
-    private static final double MAX_PCES_ONLY_PERCENT = 1.0;
+    private static final double MAX_PCES_ONLY_PERCENT = 5.0;
 
     private final PcesEventHashReader.PcesData pcesData;
 

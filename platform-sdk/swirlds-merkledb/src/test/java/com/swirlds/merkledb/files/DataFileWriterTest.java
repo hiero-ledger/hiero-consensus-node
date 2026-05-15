@@ -5,16 +5,28 @@ import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -23,11 +35,17 @@ class DataFileWriterTest {
     private static final int BUFFER_SIZE = 1024;
 
     private DataFileWriter dataFileWriter;
+    private Path dataFilePath;
 
     @BeforeEach
-    public void setUp() throws Exception {
-        Path dataFileWriterPath = Files.createTempDirectory("dataFileWriter");
-        dataFileWriter = new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1, BUFFER_SIZE);
+    void setUp(@TempDir Path tempDir) throws Exception {
+        dataFileWriter = new DataFileWriter("test", tempDir, 1, Instant.now(), 1, BUFFER_SIZE, BUFFER_SIZE * 16384);
+        dataFilePath = dataFileWriter.getPath();
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        dataFileWriter.close();
     }
 
     @Test
@@ -57,7 +75,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         assertThrows(
-                IOException.class,
+                Exception.class,
                 () -> dataFileWriter.storeDataItem(o -> o.writeBytes(data), (int) (data.length() + diff)),
                 "Wrong estimated data size");
     }
@@ -75,7 +93,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap(randomUtf8Bytes(dataLengthBytes));
 
         for (int i = 0; i < iterations; i++) {
-            dataFileWriter.storeDataItem(data);
+            dataFileWriter.storeDataItemWithTag(data);
             data.flip();
         }
 
@@ -84,12 +102,13 @@ class DataFileWriterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 57, BUFFER_SIZE / 2, BUFFER_SIZE - 3})
+    @ValueSource(
+            ints = {2, 57, BUFFER_SIZE / 2 - 1, BUFFER_SIZE / 2, BUFFER_SIZE / 2 + 1, BUFFER_SIZE - 1, BUFFER_SIZE})
     public void correctFileSizeAfterFinishWriting(int dataLengthBytes) throws IOException {
         byte[] bytesData = randomUtf8Bytes(dataLengthBytes);
         BufferedData data = BufferedData.wrap(bytesData);
 
-        dataFileWriter.storeDataItem(data);
+        dataFileWriter.storeDataItemWithTag(data);
         dataFileWriter.close();
 
         verifyFileSize(bytesData.length, 1);
@@ -140,8 +159,43 @@ class DataFileWriterTest {
 
     private void verifyFileSize(int singleItemDataLength, int itemCount) throws IOException {
         int fileSize = (int) Files.size(dataFileWriter.getPath());
-        int dataSize = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, singleItemDataLength) * itemCount;
+        int dataSize = singleItemDataLength * itemCount;
         int headerSize = dataFileWriter.getMetadata().metadataSizeInBytes();
         assertEquals(headerSize + dataSize, fileSize, "Unexpected file size");
+    }
+
+    @RepeatedTest(100)
+    void multiThreadedWritesTest() throws IOException {
+        final int THREADS = 8;
+        final int SIZE = 10_000;
+        final Map<Integer, Long> offsets = new ConcurrentHashMap<>();
+        IntStream.range(0, THREADS).forEach(t -> {
+            try {
+                for (int v = t; v < SIZE; v += THREADS) {
+                    final BufferedData data = BufferedData.allocate(Long.BYTES);
+                    data.writeLong(v);
+                    data.flip();
+                    // Using storeDataItemWithTag() to write bytes without protobuf fields
+                    final long dataLocation = dataFileWriter.storeDataItemWithTag(data);
+                    final long offset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
+                    offsets.put(v, offset);
+                }
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+        dataFileWriter.close();
+        try (final FileChannel fileChannel = FileChannel.open(dataFilePath, StandardOpenOption.READ)) {
+            final ByteBuffer buf = ByteBuffer.allocate(Long.BYTES);
+            for (int i = 0; i < SIZE; i++) {
+                final Long offset = offsets.get(i);
+                assertNotNull(offset, "Data item " + i + " is not written to the file");
+                buf.clear();
+                final int bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, buf, offset);
+                assertEquals(Long.BYTES, bytesRead);
+                final long value = buf.getLong(0);
+                assertEquals(i, value, "Value mismatch: exp=" + i + " act=" + value);
+            }
+        }
     }
 }

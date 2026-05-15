@@ -4,8 +4,10 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.node.app.hints.impl.HintsControllerImpl.decodeCrsUpdate;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
@@ -51,6 +53,14 @@ class HintsLibraryImplTest {
         final var decodedCrsUpdate = decodeCrsUpdate(oldCrs.length(), newCrs);
         final var isValid = subject.verifyCrsUpdate(oldCrs, newCrs, decodedCrsUpdate.proof());
         assertTrue(isValid);
+    }
+
+    @Test
+    void malformedCrsInputsReturnNullOrFalse() {
+        final var oldCrs = subject.newCrs((short) 4);
+
+        assertNull(subject.updateCrs(oldCrs, Bytes.wrap(new byte[31])));
+        assertFalse(subject.verifyCrsUpdate(oldCrs, Bytes.wrap("malformed"), Bytes.wrap("proof")));
     }
 
     @Test
@@ -139,6 +149,18 @@ class HintsLibraryImplTest {
         final var isValid =
                 subject.verifyBls(crs, signature, Bytes.wrap(message), Bytes.wrap(keys.aggregationKey()), partyId);
         assertTrue(isValid);
+    }
+
+    @Test
+    void rejectsTooShortAggregationKeyWithoutCrashing() {
+        final var message = Bytes.wrap("Hello World");
+        final var signature = Bytes.wrap("signature");
+        final var crs = subject.newCrs((short) 8);
+        final var tinyAggregationKey = Bytes.wrap(new byte[48]);
+        final var verificationKey = Bytes.wrap("verificationKey");
+
+        assertFalse(subject.verifyBls(crs, signature, message, tinyAggregationKey, 0));
+        assertNull(subject.aggregateSignatures(crs, tinyAggregationKey, verificationKey, Map.of(0, signature)));
     }
 
     @Test
