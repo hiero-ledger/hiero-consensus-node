@@ -284,6 +284,91 @@ primary reconnect window: 2026-05-05 20:11:48-20:22:23 UTC
 
 Confidence: high.
 
+### Metrics: `receiverReconnectDurationSeconds`, `senderReconnectDurationSeconds`, And `reconnectRejections_per_sec_XX`
+
+Category: reconnect
+
+Metrics covered:
+
+- `receiverReconnectDurationSeconds`
+- `senderReconnectDurationSeconds`
+- `reconnectRejections_per_sec_XX`
+
+Definition:
+
+- Code sources: `ReconnectMetrics` and `ReconnectStatePeerProtocol`.
+- `receiverReconnectDurationSeconds`: duration of reconnect as a receiver/learner, in seconds.
+- `senderReconnectDurationSeconds`: duration of reconnect as a sender/teacher, in seconds.
+- `reconnectRejections_per_sec_XX`: number of reconnect requests rejected per second by this node from peer `XX`.
+- Duration metrics are updated when reconnect ends. In this CSV export they appear as one positive sample followed by
+  zero, so treat the positive samples as the reported reconnect durations.
+- Rejection metrics are per-second rate metrics, not cumulative counters.
+
+Presence:
+
+- `receiverReconnectDurationSeconds` and `senderReconnectDurationSeconds` are present in all seven node CSV files.
+- `reconnectRejections_per_sec_XX` exists for every non-self peer column in all seven node CSV files.
+
+Observed duration samples:
+
+```text
+receiverReconnectDurationSeconds:
+  node 0: 630s at 2026-05-05 20:22:23 UTC
+  node 0: 353s at 2026-05-05 20:28:32 UTC
+
+senderReconnectDurationSeconds:
+  node 1: 687s at 2026-05-05 18:58:33 UTC
+  node 2: 623s at 2026-05-05 17:34:24 UTC
+  node 2: 331s at 2026-05-05 17:40:18 UTC
+  node 2: 621s at 2026-05-05 20:22:15 UTC
+  node 5: 363s at 2026-05-05 19:05:00 UTC
+```
+
+Confirmed node0/node2 reconnect:
+
+```text
+node 0 receiver/learner duration: 630s at 2026-05-05 20:22:23 UTC
+node 2 sender/teacher duration:   621s at 2026-05-05 20:22:15 UTC
+```
+
+Interpretation:
+
+- The `630s` receiver duration and `621s` sender duration are the exact metric-reported durations for the confirmed
+  node0/node2 reconnect.
+- The `9s` difference is plausible because the teacher and learner measure different protocol boundaries and because the
+  CSV samples are aligned to metric export intervals.
+- The second node0 receiver reconnect reports `353s`, but no matching sender duration has been identified from the
+  currently analyzed sender metrics. Keep that reconnect unpaired until logs or additional metrics identify the teacher.
+
+Reconnect rejection findings:
+
+- All `reconnectRejections_per_sec_XX` columns are zero in all seven CSV files.
+- This means reconnect request rejection does not explain the observed node0 reconnect timing, repeated reconnect, or
+  local/cluster traversal mismatch.
+
+Implication for local ReconnectBench:
+
+- Use `630s` as the cluster wall-clock duration for the first confirmed node0/node2 receiver reconnect.
+- Use `621s` as the corresponding teacher-side duration.
+- These metrics do not provide network or traversal parameters directly, but they give the cleanest cluster duration
+  target for comparing local benchmark output.
+- Rejection metrics are not useful for local parameter tuning in this data set because they carry no nonzero signal.
+
+Recommended local parameter impact:
+
+```text
+cluster target duration:
+  first confirmed receiver reconnect: 630s
+  paired sender reconnect: 621s
+
+networkLatencyMicroseconds: no direct value
+networkBandwidthMegabitsPerSecond: no direct value
+networkInflightBytesLimit: no direct value
+traversal mode: no direct value
+```
+
+Confidence: high for metric presence, duration samples, and zero rejection signal.
+
 ### Metric: `hasFallenBehind`
 
 Category: reconnect / state trigger
@@ -1088,6 +1173,121 @@ cluster/local comparison: confirm whether cluster timing includes post-reconnect
 
 Confidence: high for metric definition and node0 timing; medium for attributing the write samples to reconnect
 finalization without matching logs.
+
+### Metric: `ping`, `ping_us_XX`, `ping_us_XXMIN`, And `secGossipRoundtrip`
+
+Category: network
+
+Definition:
+
+- Code source: `NetworkMetrics`, `RpcPingHandler`, `AverageAndMin`, and `MinStat`.
+- `ping_us_XX`: gossip RPC ping round-trip time from this node to peer node `XX`, in microseconds.
+- `ping_us_XXMIN`: minimum observed value for the same peer ping metric during the stat reset period.
+- `ping`: aggregate node-level average round-trip message time, also in microseconds.
+- `secGossipRoundtrip`: event gossip roundtrip timing in seconds. It is not a direct socket or RPC RTT metric and should
+  not be used as the local reconnect network latency input.
+
+Important interpretation details:
+
+- `ping_us_XX` measures gossip RPC ping latency, not reconnect socket transfer latency.
+- The peer-specific average is decay based (`PING_DECAY = 0.1`), so it can remain stale if no fresh ping samples arrive.
+- `ping_us_XXMIN = 9999999` is the metric ceiling/default and means there was no new minimum sample during that reset
+  interval. It should not be interpreted as a real RTT.
+
+Source files:
+
+- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats0.csv`
+- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats2.csv`
+
+Confirmed reconnect pair:
+
+- The first confirmed reconnect is node 0 as receiver/learner and node 2 as sender/teacher.
+- Relevant peer metrics are:
+  - node 0 -> node 2: `ping_us_02`, `ping_us_02MIN`
+  - node 2 -> node 0: `ping_us_00`, `ping_us_00MIN`
+
+First reconnect window, approximately `2026-05-05 20:11:48 UTC` to `2026-05-05 20:22:23 UTC`:
+
+```text
+node 0 -> node 2 ping_us_02:
+  samples=212, avg metric value=605.8 us, min=503.5 us, p50=606.3 us, p95=606.3 us, max=606.3 us
+
+node 2 -> node 0 ping_us_00:
+  samples=212, avg metric value=610.2 us, min=610.2 us, p50=610.2 us, p95=610.2 us, max=610.2 us
+
+node 0 aggregate ping:
+  samples=212, avg=211.8 us, min=180 us, p50=192 us, p95=313 us, p99=477 us, max=504 us
+
+node 2 aggregate ping:
+  samples=212, avg=242.6 us, min=205 us, p50=241 us, p95=256 us, p99=266 us, max=269 us
+```
+
+Caveat for the first reconnect window:
+
+- During most of this window, `ping_us_02MIN` and `ping_us_00MIN` are `9999999`.
+- That means the pair-specific `~606-610 us` values are mostly stale averages, not continuous fresh RTT samples during
+  reconnect transfer.
+- The aggregate `ping` values still support a low-latency cluster-private network shape, but they are not pair-specific
+  reconnect RTT measurements.
+
+Second node0 receiver reconnect / post-first-reconnect window, approximately `2026-05-05 20:22:23 UTC` to
+`2026-05-05 20:28:32 UTC`:
+
+```text
+node 0 -> node 2 ping_us_02:
+  samples=124, avg metric value=129.4 us, min=89.8 us, p50=110.2 us, p95=223.3 us, p99=355.3 us, max=503.5 us
+
+node 0 -> node 2 ping_us_02MIN, excluding sentinel 9999999:
+  samples=124, avg=79.9 us, min=51 us, p50=79 us, p95=111 us, p99=123 us, max=183 us
+
+node 2 -> node 0 ping_us_00:
+  samples=123, avg metric value=141.1 us, min=100.1 us, p50=124.9 us, p95=213.6 us, p99=297.3 us, max=459.0 us
+
+node 2 -> node 0 ping_us_00MIN, excluding sentinel 9999999:
+  samples=123, avg=88.5 us, min=48 us, p50=87 us, p95=118 us, p99=141 us, max=166 us
+
+node 0 aggregate ping:
+  samples=124, avg=117.0 us, min=105 us, p50=113 us, p95=151 us, p99=180 us, max=187 us
+
+node 2 aggregate ping:
+  samples=123, avg=210.0 us, min=169 us, p50=183 us, p95=370 us, p99=461 us, max=478 us
+```
+
+Implication for local ReconnectBench:
+
+- These metrics do not support using `100 ms` or `200 ms` RTT as the cluster-calibration profile. Those runs remain useful
+  WAN sensitivity tests, but they do not match this Kubernetes/Latitude cluster sample.
+- For this cluster, the observed RTT shape is sub-millisecond: roughly `100-300 us` from fresh samples, with a conservative
+  stale pair-specific upper hint around `600 us`.
+- If `networkLatencyMicroseconds` is configured as one-way latency, use approximately half the target RTT:
+  - target RTT `100-300 us` -> `networkLatencyMicroseconds=50-150`
+  - conservative target RTT `600 us` -> `networkLatencyMicroseconds=300`
+- If the benchmark parameter is treated as full RTT in a future implementation, use `100-300` and `600` directly instead.
+- With RTT in this range, bandwidth-delay product is tiny compared to MiB-scale in-flight caps. For example:
+  - `300 Mbps * 0.2 ms / 8 ~= 7.5 KiB`
+  - `1 Gbps * 0.6 ms / 8 ~= 75 KiB`
+- Therefore, for this cluster profile, `networkInflightBytesLimit` should normally be large/neutral. A cap in the
+  `13-25 MiB` range is far above the observed BDP and should not model a real cluster network window unless separate TCP
+  evidence proves otherwise.
+
+Recommended local parameter impact:
+
+```text
+networkLatencyMicroseconds:
+  cluster-private profile: 50-150 if this is one-way latency
+  conservative cluster-private profile: 300 if this is one-way latency
+  do not use 50_000 or 100_000 for cluster calibration based on these ping metrics
+
+networkBandwidthMegabitsPerSecond:
+  combine with bytes_per_sec_sent evidence; keep sweep around 200 Mbps, 300 Mbps, and 1 Gbps
+
+networkInflightBytesLimit:
+  use a large/neutral cap for cluster-profile runs, for example 128 MiB or larger
+  keep smaller caps only as diagnostic sensitivity tests unless TCP window samples justify them
+```
+
+Confidence: high that the cluster has very low gossip RPC ping latency; medium that this exactly represents reconnect
+socket RTT, because peer ping samples were stale during much of the first reconnect window.
 
 ### Metric: `bytes_per_sec_sent` And `bytes_per_sec_sent_XX`
 
