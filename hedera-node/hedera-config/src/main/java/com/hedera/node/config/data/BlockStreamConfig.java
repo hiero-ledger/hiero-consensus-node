@@ -69,7 +69,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks) {
 
     /**
@@ -78,6 +78,6 @@ public record BlockStreamConfig(
      * through {@code BlockBufferService}).
      */
     public boolean streamToBlockNodes() {
-        return writerMode != BlockStreamWriterMode.FILE || streamWrappedRecordBlocks;
+        return writerMode != BlockStreamWriterMode.FILE;
     }
 }
