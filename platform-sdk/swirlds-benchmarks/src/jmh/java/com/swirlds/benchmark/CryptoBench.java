@@ -39,7 +39,7 @@ public class CryptoBench extends VirtualMapEditBench {
     private static final Logger logger = LogManager.getLogger(CryptoBench.class);
 
     private static final int MAX_AMOUNT = 1000;
-    private static final int MILLISECONDS = 1000;
+    private static final int NANOSECONDS = 1_000_000_000;
     private static final int EMA_FACTOR = 100;
 
     /* Number of random keys updated in one simulated transaction */
@@ -94,7 +94,7 @@ public class CryptoBench extends VirtualMapEditBench {
     }
 
     private long average(long time) {
-        return (long) numRecords * MILLISECONDS / Math.max(time, 1);
+        return (long) numRecords * NANOSECONDS / Math.max(time, 1);
     }
 
     private void updateTPS(int iteration, long delta) {
@@ -110,12 +110,10 @@ public class CryptoBench extends VirtualMapEditBench {
     }
 
     private void totalTPS(long totalTime) {
-        long totalTxns = (long) numRecords * numFiles;
-        logger.info(
-                "Total transactions: {}, time: {} sec, TPS: {}",
-                totalTxns,
-                totalTime / MILLISECONDS,
-                totalTxns * MILLISECONDS / Math.max(totalTime, 1));
+        final long totalTxns = (long) numRecords * numFiles;
+        final long seconds = totalTime / NANOSECONDS;
+        final long tps = (long) ((double) totalTxns * NANOSECONDS / Math.max(totalTime, 1));
+        logger.info("Total transactions: {}, time: {} sec, TPS: {}", totalTxns, seconds, tps);
     }
 
     /**
@@ -127,7 +125,7 @@ public class CryptoBench extends VirtualMapEditBench {
     public void transferSerial() {
         logger.info(RUN_DELIMITER);
 
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -179,11 +177,11 @@ public class CryptoBench extends VirtualMapEditBench {
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
     }
 
     @Benchmark
@@ -206,7 +204,7 @@ public class CryptoBench extends VirtualMapEditBench {
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -274,11 +272,11 @@ public class CryptoBench extends VirtualMapEditBench {
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
         prefetchPool.close();
     }
 
@@ -374,7 +372,7 @@ public class CryptoBench extends VirtualMapEditBench {
 
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
 
-        long startTime = System.currentTimeMillis();
+        final long startTime = System.nanoTime();
         long prevTime = startTime;
         final long[] keys = new long[numRecords * KEYS_PER_RECORD];
         for (int i = 1; i <= numFiles; ++i) {
@@ -410,11 +408,11 @@ public class CryptoBench extends VirtualMapEditBench {
             virtualMap = copyMap(virtualMap);
 
             // Report TPS
-            final long curTime = System.currentTimeMillis();
+            final long curTime = System.nanoTime();
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
-        totalTPS(System.currentTimeMillis() - startTime);
+        totalTPS(System.nanoTime() - startTime);
         pool.close();
     }
 

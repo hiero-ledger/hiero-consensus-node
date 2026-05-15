@@ -78,6 +78,14 @@ public class FileSystemManager {
     }
 
     /**
+     * @return path to temporary directory used as root for all directories created by {@link #resolveNewTemp()} methods.
+     */
+    @NonNull
+    public Path getTempPath() {
+        return tempPath;
+    }
+
+    /**
      * Resolve a path relative to the {@code rootPath} of this file system manager.
      *
      * @param relativePath the path to resolve against the root directory
