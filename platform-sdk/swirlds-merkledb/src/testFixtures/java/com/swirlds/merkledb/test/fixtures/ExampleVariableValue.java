@@ -5,10 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Random;
 
 public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
@@ -25,18 +22,8 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         RANDOM.nextBytes(RANDOM_DATA);
     }
 
-    private int id;
-    private byte[] data;
-
-    public static Bytes intToValue(final int v) {
-        return intToValue(v, RANDOM_DATA, 0, 256 + (v % 768));
-    }
-
-    public static Bytes intToValue(final int v, final byte[] data, final int off, final int len) {
-        final byte[] bytes = new byte[Integer.BYTES + len];
-        ByteBuffer.wrap(bytes).putInt(v).put(data, off, len);
-        return Bytes.wrap(bytes);
-    }
+    private final int id;
+    private final byte[] data;
 
     public ExampleVariableValue() {
         this.id = 0;
@@ -47,12 +34,6 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         this.id = id;
         data = new byte[256 + (id % 768)];
         System.arraycopy(RANDOM_DATA, 0, data, 0, data.length);
-    }
-
-    public ExampleVariableValue(final int id, final byte[] data) {
-        this.id = id;
-        this.data = new byte[data.length];
-        System.arraycopy(data, 0, this.data, 0, data.length);
     }
 
     public ExampleVariableValue(final ReadableSequentialData in) {
@@ -102,7 +83,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         }
 
         @Override
-        public void write(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) throws IOException {
+        public void write(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) {
             value.writeTo(out);
         }
 

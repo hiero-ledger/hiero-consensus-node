@@ -1234,10 +1234,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     VirtualDataSource detachAsDataSourceCopy() {
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
-            VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
-
-            flush(cache.snapshot(), metadata, dataSourceCopy);
-            return dataSourceCopy;
+            try {
+                VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
+                flush(cache.snapshot(), metadata, dataSourceCopy);
+                return dataSourceCopy;
+            } finally {
+                try {
+                    // Delete the snapshot directory
+                    FileUtils.deleteDirectory(snapshotPath);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
+                }
+            }
         });
     }
 
@@ -1250,10 +1258,20 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     public RecordAccessor detach() {
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
-            final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-            final VirtualNodeCache cacheSnapshot = cache.snapshot();
-            final int hashChunkHeight = dataSource.getHashChunkHeight();
-            return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+            try {
+                final VirtualDataSource dataSourceCopy =
+                        dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
+                final VirtualNodeCache cacheSnapshot = cache.snapshot();
+                final int hashChunkHeight = dataSource.getHashChunkHeight();
+                return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
+            } finally {
+                try {
+                    // Delete the snapshot directory
+                    FileUtils.deleteDirectory(snapshotPath);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
+                }
+            }
         });
     }
 

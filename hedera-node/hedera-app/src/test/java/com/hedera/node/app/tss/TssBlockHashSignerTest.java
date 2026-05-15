@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.HintsService.SigningResult;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.history.HistoryService;
@@ -92,7 +93,8 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
-        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
 
         final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
         final var signature = attempt.signatureFuture().join();
@@ -100,6 +102,7 @@ class TssBlockHashSignerTest {
         assertSame(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
         assertNull(attempt.chainOfTrustProof());
+        assertSame(submissionFuture, attempt.submissionFuture());
     }
 
     @Test
@@ -135,7 +138,8 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
-        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
         given(historyService.getCurrentChainOfTrustProof(verificationKey)).willReturn(chainOfTrustProof);
 
         final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
@@ -144,6 +148,7 @@ class TssBlockHashSignerTest {
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
         assertSame(chainOfTrustProof, attempt.chainOfTrustProof());
+        assertSame(submissionFuture, attempt.submissionFuture());
     }
 
     @Test
@@ -186,7 +191,8 @@ class TssBlockHashSignerTest {
     void rejectsNonHintsSigningReturnedByHintsService() {
         givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
         given(hintsService.isReady()).willReturn(true);
-        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(rsaSigning);
+        given(hintsService.sign(FAKE_BLOCK_HASH))
+                .willReturn(new SigningResult(rsaSigning, CompletableFuture.completedFuture(null)));
 
         assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
     }
