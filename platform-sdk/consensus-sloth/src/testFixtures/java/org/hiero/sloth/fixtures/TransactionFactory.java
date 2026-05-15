@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.fixtures;
 
-import static com.swirlds.common.utility.InstantUtils.instantToMicros;
+import static org.hiero.base.utility.InstantUtils.instantToMicros;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;

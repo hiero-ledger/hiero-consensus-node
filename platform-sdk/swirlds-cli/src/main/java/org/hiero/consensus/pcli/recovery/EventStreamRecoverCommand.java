@@ -21,6 +21,9 @@ import picocli.CommandLine;
 @SubcommandOf(EventStreamCommand.class)
 public final class EventStreamRecoverCommand extends AbstractCommand {
 
+    /** This is the value used in production by the Hedera App */
+    private static final long DEFAULT_TRANSACTION_OFFSET_NANOS = 104L;
+
     private Path outputPath = Path.of("./out");
     private Path bootstrapSignedState;
     private NodeId selfId;
@@ -29,7 +32,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     private Path eventStreamDirectory;
     private Path configurationPath;
     private boolean loadSigningKeys;
-    private long transactionOffsetNanos;
+    private long transactionOffsetNanos = DEFAULT_TRANSACTION_OFFSET_NANOS;
 
     private EventStreamRecoverCommand() {}
 

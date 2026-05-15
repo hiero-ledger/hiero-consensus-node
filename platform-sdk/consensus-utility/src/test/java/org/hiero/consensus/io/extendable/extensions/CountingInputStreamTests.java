@@ -3,13 +3,13 @@ package org.hiero.consensus.io.extendable.extensions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.io.extendable.StreamSanityChecks;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import org.hiero.base.utility.test.fixtures.io.StreamSanityChecks;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.io.counting.ByteCounter;
 import org.hiero.consensus.io.counting.CounterType;

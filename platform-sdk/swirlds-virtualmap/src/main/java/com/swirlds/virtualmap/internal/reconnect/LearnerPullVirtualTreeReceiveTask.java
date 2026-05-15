@@ -102,7 +102,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                     final long waitStart = System.currentTimeMillis();
                     while (expectedResponses.get() != 0) {
                         Thread.sleep(0, 1);
-                        Thread.onSpinWait();
                         if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
                             throw new MerkleSynchronizationException(
                                     "Timed out waiting for view all remaining view messages to be processed");
