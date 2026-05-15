@@ -333,6 +333,15 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Prepare Job
+        id: prepare-job
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
+
       - name: Set Failure Mode
         id: set-failure-mode
         env:
