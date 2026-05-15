@@ -7,14 +7,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.blocks.schemas.V0740BlockStreamSchema;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,9 +31,6 @@ public class BlockStreamService implements Service {
 
     public static final String NAME = "BlockStreamService";
 
-    @Nullable
-    private Bytes migratedLastBlockHash;
-
     private boolean bsiSchemaOverwriteExecuted;
 
     @NonNull
@@ -48,7 +42,7 @@ public class BlockStreamService implements Service {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V0560BlockStreamSchema(this::setMigratedLastBlockHash));
+        registry.register(new V0560BlockStreamSchema());
         registry.register(new V0740BlockStreamSchema(this::markSchemaOverwriteExecuted));
     }
 
@@ -62,32 +56,11 @@ public class BlockStreamService implements Service {
     }
 
     /**
-     * Returns the last block hash as migrated from a state that used record streams, or empty
-     * if there was no such hash observed during migration.
-     * @return the last block hash
-     */
-    public Optional<Bytes> migratedLastBlockHash() {
-        return Optional.ofNullable(migratedLastBlockHash);
-    }
-
-    /**
-     * Resets the migrated last block hash to null.
-     */
-    public void resetMigratedLastBlockHash() {
-        migratedLastBlockHash = null;
-    }
-
-    /**
      * Returns whether the schema overwrite of the {@code BlockStreamInfo} object, which happens as part
      * of the block streams cutover release, was executed during the most recent schema migration.
      */
     public boolean isBsiSchemaOverwriteExecuted() {
         return bsiSchemaOverwriteExecuted;
-    }
-
-    private void setMigratedLastBlockHash(@NonNull final Bytes migratedLastBlockHash) {
-        this.migratedLastBlockHash = requireNonNull(migratedLastBlockHash);
-        log.info("Migrated last block hash '{}'", migratedLastBlockHash);
     }
 
     private void markSchemaOverwriteExecuted() {

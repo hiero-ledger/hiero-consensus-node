@@ -49,6 +49,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     private static final VarHandle blockNodesHandle;
 
     private static final MethodHandle updateConnectionIfNeededHandle;
+    private static final MethodHandle checkActiveConnectionStalledHandle;
 
     static {
         try {
@@ -62,12 +63,18 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
             final Method updateConnectionIfNeeded = cls.getDeclaredMethod("updateConnectionIfNeeded");
             updateConnectionIfNeeded.setAccessible(true);
             updateConnectionIfNeededHandle = lookup.unreflect(updateConnectionIfNeeded);
+
+            final Method checkActiveConnectionStalled = cls.getDeclaredMethod(
+                    "checkActiveConnectionStalled", Instant.class, BlockNodeStreamingConnection.class);
+            checkActiveConnectionStalled.setAccessible(true);
+            checkActiveConnectionStalledHandle = lookup.unreflect(checkActiveConnectionStalled);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     private static final long NODE_ID = 0;
+    private static final long STALLED_CONNECTION_THRESHOLD_MILLIS = 500;
 
     private BlockNodeConnectionManager connectionManager;
     private LogCaptor logCaptor;
@@ -90,7 +97,8 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         configProvider = createConfigProvider(createDefaultConfigProvider()
                 .withValue(
                         "blockNode.blockNodeConnectionFileDir",
-                        tempDir.toAbsolutePath().toString()));
+                        tempDir.toAbsolutePath().toString())
+                .withValue("blockNode.connectionStallThresholdMillis", STALLED_CONNECTION_THRESHOLD_MILLIS));
 
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
@@ -221,6 +229,44 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         assertLogOccurrence(infoLogs, "Selecting a new block node is deferred due to global cool down until", 1);
     }
 
+    @Test
+    void testCheckActiveConnectionStalled_true() throws Throwable {
+        final Instant now = Instant.now();
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final StreamingConnectionStatistics stats = mock(StreamingConnectionStatistics.class);
+        final long lastHeartbeat =
+                now.minusMillis(STALLED_CONNECTION_THRESHOLD_MILLIS + 10).toEpochMilli();
+        when(activeConnection.connectionStatistics()).thenReturn(stats);
+        when(stats.lastHeartbeatMillis()).thenReturn(lastHeartbeat);
+
+        invoke_checkActiveConnectionStalled(now, activeConnection);
+
+        final List<String> warnLogs = logCaptor.warnLogs();
+        assertThat(warnLogs).hasSize(1);
+        assertLogOccurrence(
+                warnLogs,
+                "Active connection is slow/stalled (lastHeartbeat: " + lastHeartbeat + ", threshold: "
+                        + STALLED_CONNECTION_THRESHOLD_MILLIS + "ms, observed: "
+                        + (STALLED_CONNECTION_THRESHOLD_MILLIS + 10) + "ms)",
+                1);
+    }
+
+    @Test
+    void testCheckActiveConnectionStalled_false() throws Throwable {
+        final Instant now = Instant.now();
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final StreamingConnectionStatistics stats = mock(StreamingConnectionStatistics.class);
+        final long lastHeartbeat =
+                now.minusMillis(STALLED_CONNECTION_THRESHOLD_MILLIS - 10).toEpochMilli();
+        when(activeConnection.connectionStatistics()).thenReturn(stats);
+        when(stats.lastHeartbeatMillis()).thenReturn(lastHeartbeat);
+
+        invoke_checkActiveConnectionStalled(now, activeConnection);
+
+        final List<String> warnLogs = logCaptor.warnLogs();
+        assertThat(warnLogs).isEmpty();
+    }
+
     // Utilities
 
     void assertLogOccurrence(final List<String> logLines, final String expectedMessage, final int numExpected) {
@@ -240,6 +286,11 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
         updateConnectionIfNeededHandle.invoke(connectionManager);
+    }
+
+    void invoke_checkActiveConnectionStalled(final Instant now, final BlockNodeStreamingConnection activeConnection)
+            throws Throwable {
+        checkActiveConnectionStalledHandle.invoke(connectionManager, now, activeConnection);
     }
 
     @SuppressWarnings("unchecked")
