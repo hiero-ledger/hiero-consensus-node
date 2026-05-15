@@ -2,7 +2,6 @@
 package com.swirlds.platform.config;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
@@ -42,7 +41,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                RecycleBinConfig.class,
                 StateCommonConfig.class,
                 TemporaryFileConfig.class,
                 UptimeConfig.class,

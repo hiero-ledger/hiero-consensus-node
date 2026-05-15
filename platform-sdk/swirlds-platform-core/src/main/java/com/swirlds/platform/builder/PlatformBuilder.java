@@ -417,6 +417,7 @@ public final class PlatformBuilder {
                 platformContext.getTime(),
                 selfId,
                 platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
                 platformCoordinator::flushIntakePipeline,
                 platformCoordinator::flushTransactionHandler,
