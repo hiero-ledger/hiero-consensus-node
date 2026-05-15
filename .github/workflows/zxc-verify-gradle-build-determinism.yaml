@@ -87,11 +87,21 @@ jobs:
         id: commit
         run: echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
+      - name: Compute Commit Prefix
+        id: commit-prefix
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_NAME="${BRANCH_NAME##origin/}"
+          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
+          COMMIT_PREFIX="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
+          [[ -z "${COMMIT_PREFIX}" ]] && COMMIT_PREFIX="adhoc"
+          echo "prefix=${COMMIT_PREFIX}" | tee "${GITHUB_OUTPUT}"
+
       - name: Baseline Existence Check
         id: baseline
         run: |
           BASELINE_NAME="${{ steps.commit.outputs.sha }}.tar.gz"
-          BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/gradle/baselines"
+          BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/gradle/baselines-commitish"
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
 
@@ -103,6 +113,10 @@ jobs:
           echo "path=${BASELINE_PATH}" >> "${GITHUB_OUTPUT}"
           echo "name=${BASELINE_NAME}" >> "${GITHUB_OUTPUT}"
           echo "file=${BASELINE_FILE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Gradle Update Version (Branch Commit)
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}
 
       - name: Build Artifacts
         id: gradle-build
@@ -260,9 +274,22 @@ jobs:
           gsutil cp "${{ needs.generate-baseline.outputs.file }}" .
           tar -xzf "${{ needs.generate-baseline.outputs.name }}"
 
+      - name: Compute Commit Prefix
+        id: commit-prefix
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_NAME="${BRANCH_NAME##origin/}"
+          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
+          COMMIT_PREFIX="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
+          [[ -z "${COMMIT_PREFIX}" ]] && COMMIT_PREFIX="adhoc"
+          echo "prefix=${COMMIT_PREFIX}" | tee "${GITHUB_OUTPUT}"
+
+      - name: Gradle Update Version (Branch Commit)
+        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}
+
       - name: Build Artifacts
         id: gradle-build
-        run: ./gradlew assemble --no-build-cache
+        run: ./gradlew assemble
 
       - name: Regenerate Manifest
         id: regen-manifest
