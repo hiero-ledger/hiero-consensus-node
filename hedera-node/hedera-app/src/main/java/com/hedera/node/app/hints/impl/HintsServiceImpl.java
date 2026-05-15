@@ -127,6 +127,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+        requireNonNull(construction);
+        component.signingContext().setConstruction(construction);
+        logger.info("Initialized hinTS signing context from active construction #{}", construction.constructionId());
+    }
+
+    @Override
     public void handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
@@ -156,13 +163,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(hintsStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
-        final var activeConstruction = hintsStore.getActiveConstruction();
-        if (!component.signingContext().isReady() && activeConstruction.hasHintsScheme()) {
-            component.signingContext().setConstruction(activeConstruction);
-            logger.info(
-                    "Initialized hinTS signing context from active construction #{}",
-                    activeConstruction.constructionId());
-        }
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);

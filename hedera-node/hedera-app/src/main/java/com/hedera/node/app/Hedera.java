@@ -72,6 +72,7 @@ import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -573,8 +574,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl =
-                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
+        final var rosterServiceImpl = new RosterServiceImpl(
+                this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks, this::onOverrideNetwork);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -806,6 +807,7 @@ public final class Hedera
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
             ensureWrapsProvingKey();
         }
+        initializeStartupTssRuntime(trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
@@ -843,6 +845,31 @@ public final class Hedera
     private void ensureWrapsProvingKey() {
         wrapsProvingKeyVerification.ensureProvingKey(
                 configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
+    }
+
+    /**
+     * Initializes any dev-only TSS runtime state from startup network JSON once the platform self id is available.
+     */
+    private void initializeStartupTssRuntime(@NonNull final InitTrigger trigger) {
+        requireNonNull(trigger);
+        final var config = configProvider.getConfiguration();
+        final Optional<Network> startupNetwork;
+        if (trigger == GENESIS) {
+            try {
+                startupNetwork = Optional.of(startupNetworks.genesisNetworkOrThrow(config));
+            } catch (IllegalStateException e) {
+                logger.debug("No genesis startup network available for TSS runtime bootstrap", e);
+                return;
+            }
+        } else {
+            startupNetwork = startupNetworks.lastUsedOverrideNetwork(config);
+        }
+        startupNetwork.filter(TssStartupNetworks::hasTssMetadata).ifPresent(network -> {
+            logger.warn("Initializing dev-only TSS runtime and local private keys from startup network JSON");
+            TssStartupNetworks.initializeRuntime(network, hintsService, historyService);
+            TssStartupNetworks.writePrivateKeys(
+                    network, config, requireNonNull(platform).getSelfId().id());
+        });
     }
 
     /**
@@ -1659,6 +1686,23 @@ public final class Hedera
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
                         || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
+    }
+
+    private void onOverrideNetwork(@NonNull final Network network) {
+        requireNonNull(initState);
+        requireNonNull(network);
+        if (!TssStartupNetworks.hasTssMetadata(network)) {
+            return;
+        }
+        logger.warn("Initializing dev-only TSS state from override network JSON");
+        final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        ((CommittableWritableStates) writableHintsStates).commit();
+        final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        ((CommittableWritableStates) writableHistoryStates).commit();
+        TssStartupNetworks.initializeRuntime(
+                activeHintsConstruction, activeProofConstruction, hintsService, historyService);
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {

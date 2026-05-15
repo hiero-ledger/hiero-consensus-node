@@ -116,7 +116,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -287,7 +286,7 @@ public class SystemTransactions {
         try {
             final var genesisNetwork = startupNetworks.genesisNetworkOrThrow(config);
             if (genesisNetwork != null) {
-                maybeInitializeTssFromNetwork(state, config, genesisNetwork, stateChangeStreaming);
+                maybeInitializeGenesisTssFromNetwork(state, config, genesisNetwork, stateChangeStreaming);
             }
         } catch (IllegalStateException e) {
             log.debug("No genesis startup network available for TSS bootstrap", e);
@@ -722,40 +721,31 @@ public class SystemTransactions {
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
-            maybeInitializeTssFromNetwork(state, configProvider.getConfiguration(), network.get(), null);
             log.info("Roster transplant completed, node updates dispatched");
             return true;
         }
         return false;
     }
 
-    private void maybeInitializeTssFromNetwork(
+    private void maybeInitializeGenesisTssFromNetwork(
             @NonNull final State state,
             @NonNull final Configuration config,
             @NonNull final Network network,
-            @Nullable final StateChangeStreaming stateChangeStreaming) {
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         requireNonNull(state);
         requireNonNull(config);
         requireNonNull(network);
+        requireNonNull(stateChangeStreaming);
         if (!TssStartupNetworks.hasTssMetadata(network)) {
             return;
         }
         log.warn("Initializing dev-only TSS state and local private keys from startup network JSON");
-        if (stateChangeStreaming != null) {
-            final var hintsStates = state.getWritableStates(HintsService.NAME);
-            stateChangeStreaming.doStreamingChanges(
-                    hintsStates, null, () -> TssStartupNetworks.initializeHintsState(hintsStates, network));
-            final var historyStates = state.getWritableStates(HistoryService.NAME);
-            stateChangeStreaming.doStreamingChanges(
-                    historyStates, null, () -> TssStartupNetworks.initializeHistoryState(historyStates, network));
-        } else {
-            final var hintsStates = state.getWritableStates(HintsService.NAME);
-            TssStartupNetworks.initializeHintsState(hintsStates, network);
-            ((CommittableWritableStates) hintsStates).commit();
-            final var historyStates = state.getWritableStates(HistoryService.NAME);
-            TssStartupNetworks.initializeHistoryState(historyStates, network);
-            ((CommittableWritableStates) historyStates).commit();
-        }
+        final var hintsStates = state.getWritableStates(HintsService.NAME);
+        stateChangeStreaming.doStreamingChanges(
+                hintsStates, null, () -> TssStartupNetworks.initializeHintsState(hintsStates, network));
+        final var historyStates = state.getWritableStates(HistoryService.NAME);
+        stateChangeStreaming.doStreamingChanges(
+                historyStates, null, () -> TssStartupNetworks.initializeHistoryState(historyStates, network));
         TssStartupNetworks.writePrivateKeys(
                 network, config, networkInfo.selfNodeInfo().nodeId());
     }

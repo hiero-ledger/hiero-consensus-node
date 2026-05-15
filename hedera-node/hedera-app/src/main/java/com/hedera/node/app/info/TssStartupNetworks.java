@@ -124,17 +124,21 @@ public final class TssStartupNetworks {
 
     /**
      * Initializes hinTS state from a startup network JSON file.
+     *
+     * @return the active hinTS construction loaded from the network
      */
-    public static void initializeHintsState(@NonNull final WritableStates hintsStates, @NonNull final Network network) {
+    public static HintsConstruction initializeHintsState(
+            @NonNull final WritableStates hintsStates, @NonNull final Network network) {
         requireNonNull(hintsStates);
         requireNonNull(network);
         if (!hasTssMetadata(network)) {
-            return;
+            return HintsConstruction.DEFAULT;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
+        final var activeConstruction = tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT);
         hintsStates
                 .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                .put(tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT));
+                .put(activeConstruction);
         hintsStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
@@ -153,25 +157,29 @@ public final class TssStartupNetworks {
                                 .build());
             }
         }
+        return activeConstruction;
     }
 
     /**
      * Initializes history state from a startup network JSON file.
+     *
+     * @return the active history proof construction loaded from the network
      */
-    public static void initializeHistoryState(
+    public static HistoryProofConstruction initializeHistoryState(
             @NonNull final WritableStates historyStates, @NonNull final Network network) {
         requireNonNull(historyStates);
         requireNonNull(network);
         if (!hasTssMetadata(network)) {
-            return;
+            return HistoryProofConstruction.DEFAULT;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
         if (network.ledgerId().length() > 0) {
             historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(new ProtoBytes(network.ledgerId()));
         }
+        final var activeConstruction = tssMetadata.activeProofConstructionOrElse(HistoryProofConstruction.DEFAULT);
         historyStates
                 .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                .put(tssMetadata.activeProofConstructionOrElse(HistoryProofConstruction.DEFAULT));
+                .put(activeConstruction);
         historyStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
@@ -189,6 +197,48 @@ public final class TssStartupNetworks {
                                 .key(nodeTssMetadata.schnorrPublicKey())
                                 .build());
             }
+        }
+        return activeConstruction;
+    }
+
+    /**
+     * Initializes runtime TSS service contexts from a startup network JSON file.
+     */
+    public static void initializeRuntime(
+            @NonNull final Network network,
+            @NonNull final HintsService hintsService,
+            @NonNull final HistoryService historyService) {
+        requireNonNull(network);
+        requireNonNull(hintsService);
+        requireNonNull(historyService);
+        if (!hasTssMetadata(network)) {
+            return;
+        }
+        final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
+        initializeRuntime(
+                tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT),
+                tssMetadata.activeProofConstructionOrElse(HistoryProofConstruction.DEFAULT),
+                hintsService,
+                historyService);
+    }
+
+    /**
+     * Initializes runtime TSS service contexts from active constructions already loaded from startup network JSON.
+     */
+    public static void initializeRuntime(
+            @NonNull final HintsConstruction activeHintsConstruction,
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final HintsService hintsService,
+            @NonNull final HistoryService historyService) {
+        requireNonNull(activeHintsConstruction);
+        requireNonNull(activeProofConstruction);
+        requireNonNull(hintsService);
+        requireNonNull(historyService);
+        if (activeHintsConstruction.hasHintsScheme()) {
+            hintsService.setActiveConstruction(activeHintsConstruction);
+        }
+        if (activeProofConstruction.hasTargetProof()) {
+            historyService.setLatestHistoryProof(activeProofConstruction.targetProofOrThrow());
         }
     }
 

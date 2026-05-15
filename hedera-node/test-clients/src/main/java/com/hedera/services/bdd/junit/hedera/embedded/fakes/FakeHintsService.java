@@ -120,4 +120,9 @@ public class FakeHintsService implements HintsService {
     public @Nullable HintsConstruction activeConstruction() {
         return delegate.activeConstruction();
     }
+
+    @Override
+    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+        delegate.setActiveConstruction(construction);
+    }
 }

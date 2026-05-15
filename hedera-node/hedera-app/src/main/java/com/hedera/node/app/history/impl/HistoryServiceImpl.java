@@ -85,10 +85,6 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
-        final var activeConstruction = historyStore.getActiveConstruction();
-        if (historyProof == null && activeConstruction.hasTargetProof()) {
-            setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-        }
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
