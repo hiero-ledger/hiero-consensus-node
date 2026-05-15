@@ -4,7 +4,9 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.Objects;
@@ -40,15 +42,22 @@ public class ConsensusTestNode {
     /**
      * Creates a new instance with a freshly seeded {@link EventEmitter}.
      *
-     * @param platformContext the platform context
+     * @param configuration   the configuration to use for the intake and emitter
+     * @param metrics         the metrics to use for the intake and emitter
+     * @param time            the time to use for the intake and emitter
      * @param eventEmitter    the emitter of events
      */
     public static @NonNull ConsensusTestNode genesisContext(
-            @NonNull final PlatformContext platformContext, @NonNull final EventEmitter eventEmitter) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final EventEmitter eventEmitter) {
         return new ConsensusTestNode(
                 eventEmitter,
                 new TestIntake(
-                        Objects.requireNonNull(platformContext),
+                        configuration,
+                        metrics,
+                        time,
                         eventEmitter.getGraphGenerator().getRoster()));
     }
 
@@ -85,17 +94,24 @@ public class ConsensusTestNode {
     /**
      * Create a new {@link ConsensusTestNode} that will be created by simulating a reconnect with this context
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration to use for the new node
+     * @param metrics the metrics to use for the new node
+     * @param time the time to use for the new node
      * @return a new {@link ConsensusTestNode}
      */
-    public @NonNull ConsensusTestNode reconnect(@NonNull final PlatformContext platformContext) {
+    public @NonNull ConsensusTestNode reconnect(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         // create a new context
         final EventEmitter newEmitter = eventEmitter.cleanCopy(random.nextLong());
         newEmitter.reset();
 
         final ConsensusTestNode consensusTestNode = new ConsensusTestNode(
                 newEmitter,
-                new TestIntake(platformContext, newEmitter.getGraphGenerator().getRoster()));
+                new TestIntake(
+                        configuration,
+                        metrics,
+                        time,
+                        newEmitter.getGraphGenerator().getRoster()));
         consensusTestNode.intake.loadSnapshot(
                 Objects.requireNonNull(getOutput().getConsensusRounds().peekLast())
                         .getSnapshot());

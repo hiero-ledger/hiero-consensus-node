@@ -380,7 +380,8 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
      *     within the file.
      * @throws IOException If there was a problem writing this data item to the file.
      */
-    public long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize) throws IOException {
+    public long storeDataItem(final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
+            throws IOException {
         final DataFileWriter currentDataFileForWriting = currentDataFileWriter.get();
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItemWriter + " when we never started writing.");

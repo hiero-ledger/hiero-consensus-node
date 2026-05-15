@@ -57,9 +57,6 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "500000000") @NodeProperty
         int maxReadBytesSize,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean enableStateProofs,
-
         @ConfigProperty(defaultValue = "4096") @Min(512) @NetworkProperty
         int blockFileBufferOuterSizeKb,
 
@@ -72,7 +69,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks) {
 
     /**
@@ -81,6 +78,6 @@ public record BlockStreamConfig(
      * through {@code BlockBufferService}).
      */
     public boolean streamToBlockNodes() {
-        return writerMode != BlockStreamWriterMode.FILE || streamWrappedRecordBlocks;
+        return writerMode != BlockStreamWriterMode.FILE;
     }
 }

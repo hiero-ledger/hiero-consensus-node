@@ -24,7 +24,7 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class TokenEvmAccount extends AbstractEvmEntityAccount {
 
-    public TokenEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    public TokenEvmAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         super(address, state);
     }
 
@@ -39,6 +39,11 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
     @Override
     public Bytes getCode() {
         return state.getTokenRedirectCode(address);
+    }
+
+    @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return state.getTokenRedirectCodePBJ(address);
     }
 
     @Override

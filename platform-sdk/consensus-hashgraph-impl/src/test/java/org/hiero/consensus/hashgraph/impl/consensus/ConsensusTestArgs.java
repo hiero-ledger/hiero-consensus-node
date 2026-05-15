@@ -9,8 +9,6 @@ import static org.hiero.consensus.test.fixtures.WeightGenerators.RANDOM;
 import static org.hiero.consensus.test.fixtures.WeightGenerators.RANDOM_REAL_WEIGHT;
 import static org.hiero.consensus.test.fixtures.WeightGenerators.SINGLE_NODE_STRONG_MINORITY;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import java.util.stream.Stream;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestParams;
 
@@ -22,9 +20,6 @@ public class ConsensusTestArgs {
     public static final String SINGLE_NODE_STRONG_MINORITY_DESC = "Single Node With Strong Minority Weight";
     public static final String ONE_THIRD_NODES_ZERO_WEIGHT_DESC = "One Third of Nodes Have Zero Weight";
     public static final String RANDOM_WEIGHT_DESC = "Random Weight, Real Total Weight Value";
-    /** The default platform context to use for tests. */
-    public static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
-            TestPlatformContextBuilder.create().build();
 
     static Stream<ConsensusTestParams> orderInvarianceTests() {
         return Stream.of(

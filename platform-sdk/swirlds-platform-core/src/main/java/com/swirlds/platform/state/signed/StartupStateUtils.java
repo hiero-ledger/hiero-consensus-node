@@ -10,7 +10,6 @@ import static org.hiero.consensus.state.signed.ReservedSignedState.createNullRes
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
@@ -73,8 +72,8 @@ public final class StartupStateUtils {
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                        config.getConfigData(StateCommonConfig.class))
-                .getSavedStateFiles(actualMainClassName, selfId, swirldName);
+                        platformContext.getFileSystemManager(), actualMainClassName, selfId, swirldName)
+                .getSavedStateFiles();
         logStatesFound(savedStateFiles);
 
         if (savedStateFiles.isEmpty()) {

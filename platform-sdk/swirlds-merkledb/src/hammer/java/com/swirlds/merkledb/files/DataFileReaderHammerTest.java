@@ -5,12 +5,12 @@ import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LE
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -24,9 +24,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @Disabled("This test needs to be updated to use protobuf data")
 public class DataFileReaderHammerTest {
+
+    @TempDir
+    private Path tempDir;
 
     @Test
     @DisplayName("Test DataFileReader with interrupts")
@@ -37,8 +41,8 @@ public class DataFileReaderHammerTest {
         final int readerThreads = 32;
         final int readIterations = 10_000;
 
-        final Path tempFile =
-                LegacyTemporaryFileBuilder.buildTemporaryFile("interruptedReadsHammerTest", CONFIGURATION);
+        final Path tempFile = tempDir.resolve("interruptedReadsHammerTest");
+        Files.createFile(tempFile);
         final ByteBuffer writeBuf = ByteBuffer.allocate(itemSize);
         for (int i = 0; i < itemSize; i++) {
             writeBuf.put((byte) (i % 100));

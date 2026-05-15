@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -36,6 +37,7 @@ public interface PcesModule {
      * @param time the time source
      * @param selfId the ID of this node
      * @param recycleBin the recycle bin for deleting old PCES files
+     * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
      * @param flushIntake a {@link Runnable} that triggers flushing of the intake wires
      * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
@@ -52,6 +54,7 @@ public interface PcesModule {
             @NonNull Time time,
             @NonNull NodeId selfId,
             @NonNull RecycleBin recycleBin,
+            @NonNull FileSystemManager fileSystemManager,
             long startingRound,
             @NonNull Runnable flushIntake,
             @NonNull Runnable flushTransactionHandling,
@@ -133,6 +136,7 @@ public interface PcesModule {
      *
      * @param configuration the configuration
      * @param selfId the ID of this node
+     * @param fileSystemManager the file system manager for managing file locations on disk
      * @param destinationDirectory the directory to copy files to
      * @param lowerBound the minimum birth round of events to copy, events with lower birth round are not copied
      * @param round the round of the state that is being written
@@ -140,6 +144,7 @@ public interface PcesModule {
     void copyPcesFilesRetryOnFailure(
             @NonNull Configuration configuration,
             @NonNull NodeId selfId,
+            @NonNull FileSystemManager fileSystemManager,
             @NonNull Path destinationDirectory,
             long lowerBound,
             long round);
