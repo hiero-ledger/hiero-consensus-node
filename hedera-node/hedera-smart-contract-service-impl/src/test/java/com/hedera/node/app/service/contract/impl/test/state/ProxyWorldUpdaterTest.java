@@ -284,6 +284,33 @@ class ProxyWorldUpdaterTest {
     }
 
     @Test
+    void rootCommitDoesNotInvalidateReadCaches() {
+        subject.commit();
+        verify(evmFrameState, never()).invalidateReadCaches();
+    }
+
+    @Test
+    void childCommitInvalidatesParentReadCaches() {
+        given(hederaOperations.begin()).willReturn(hederaOperations);
+        final var child = subject.updater();
+
+        child.commit();
+
+        verify(evmFrameState).invalidateReadCaches();
+    }
+
+    @Test
+    void revertedChildCommitDoesNotInvalidateParentReadCaches() {
+        given(hederaOperations.begin()).willReturn(hederaOperations);
+        final var child = subject.updater();
+
+        child.revert();
+        child.commit();
+
+        verify(evmFrameState, never()).invalidateReadCaches();
+    }
+
+    @Test
     void usesAliasIfCreate2IsSetupRecipient() {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
         given(evmFrameState.getMutableAccount(SOME_EVM_ADDRESS)).willReturn(mutableAccount);

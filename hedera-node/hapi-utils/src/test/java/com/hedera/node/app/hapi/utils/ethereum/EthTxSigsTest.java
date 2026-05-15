@@ -21,13 +21,11 @@ import static org.mockito.Mockito.when;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
-import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -308,25 +306,17 @@ class EthTxSigsTest {
         Mockito.when(codeDelegation.s()).thenReturn(s);
         Mockito.when(codeDelegation.calculateSignableMessage()).thenReturn(message);
 
-        final LibSecp256k1.secp256k1_pubkey fakePubKey = Mockito.mock(LibSecp256k1.secp256k1_pubkey.class);
-
-        try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class);
-                MockedStatic<EthSigsUtils> addrMock = Mockito.mockStatic(EthSigsUtils.class)) {
-
-            // Stub every helper used by extractAuthoritySignature to avoid native paths.
-            sigsMock.when(() -> EthTxSigs.extractSig(
-                            Mockito.anyByte(),
+        try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class)) {
+            // Stub the package-private hot-path recovery so the test does not exercise the real
+            // native secp256k1 code; the previous version of this test stubbed the now-unused
+            // extractSig / serializeIntoCompressedKeyBytes / EthSigsUtils.recoverAddressFromPubKey
+            // chain that extractAuthoritySignature no longer goes through.
+            sigsMock.when(() -> EthTxSigs.recoverSigs(
+                            Mockito.anyInt(),
                             Mockito.any(byte[].class),
                             Mockito.any(byte[].class),
                             Mockito.any(byte[].class)))
-                    .thenReturn(fakePubKey);
-
-            sigsMock.when(() ->
-                            EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
-                    .thenReturn(expectedCompressedKey);
-
-            addrMock.when(() -> EthSigsUtils.recoverAddressFromPubKey(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
-                    .thenReturn(expectedAddress);
+                    .thenReturn(new EthTxSigs(expectedCompressedKey, expectedAddress));
 
             sigsMock.when(() -> EthTxSigs.extractAuthoritySignature(codeDelegation))
                     .thenCallRealMethod();
@@ -334,6 +324,8 @@ class EthTxSigsTest {
             Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(codeDelegation);
 
             assertTrue(result.isPresent());
+            assertArrayEquals(expectedCompressedKey, result.get().publicKey());
+            assertArrayEquals(expectedAddress, result.get().address());
         }
     }
 

@@ -427,6 +427,13 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (!reverted) {
             enhancement.operations().commit();
         }
+        // Notify the parent frame that any of its cached slot reads or current-code references
+        // could now be stale, since this child frame may have committed writes through the
+        // shared underlying state. Reverts intentionally skip this step (their writes never
+        // reach the store).
+        if (!reverted && parent instanceof ProxyWorldUpdater parentUpdater) {
+            parentUpdater.evmFrameState.invalidateReadCaches();
+        }
     }
 
     /**

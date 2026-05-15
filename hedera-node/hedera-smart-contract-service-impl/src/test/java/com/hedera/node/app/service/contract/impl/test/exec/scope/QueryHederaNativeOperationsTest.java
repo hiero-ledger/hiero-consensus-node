@@ -100,6 +100,7 @@ class QueryHederaNativeOperationsTest {
     @Test
     void getAccountUsesContextReadableStore() {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(accountStore.contains(NON_SYSTEM_ACCOUNT_ID)).willReturn(true);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID));
     }

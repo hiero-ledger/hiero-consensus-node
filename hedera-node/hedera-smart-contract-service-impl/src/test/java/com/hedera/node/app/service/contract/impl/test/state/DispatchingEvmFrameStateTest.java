@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -186,6 +187,95 @@ class DispatchingEvmFrameStateTest {
         final var actualWord = subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
 
         assertEquals(expectedWord, actualWord);
+    }
+
+    @Test
+    void getStorageValueIsCachedWithinFrame() {
+        given(contractStateStore.getSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
+
+        final var firstRead = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var secondRead = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+
+        assertEquals(pbjToTuweniUInt256(A_STORAGE_VALUE), firstRead);
+        assertEquals(firstRead, secondRead);
+        verify(contractStateStore, times(1)).getSlotValue(A_SLOT_KEY);
+    }
+
+    @Test
+    void getOriginalStorageValueIsCachedWithinFrame() {
+        given(contractStateStore.getOriginalSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
+
+        final var firstRead = subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var secondRead = subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+
+        assertEquals(pbjToTuweniUInt256(A_STORAGE_VALUE), firstRead);
+        assertEquals(firstRead, secondRead);
+        verify(contractStateStore, times(1)).getOriginalSlotValue(A_SLOT_KEY);
+    }
+
+    @Test
+    void setStorageValueRefreshesLiveValueCache() {
+        final var newValue = pbjToTuweniUInt256(A_STORAGE_VALUE);
+
+        subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), newValue);
+        final var followUpRead = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+
+        assertEquals(newValue, followUpRead);
+        // setStorageValue calls getSlotValue once to fetch prev/next pointers; the
+        // follow-up SLOAD must hit the live value cache (no second getSlotValue call)
+        verify(contractStateStore, times(1)).getSlotValue(A_SLOT_KEY);
+    }
+
+    @Test
+    void invalidateReadCachesClearsLiveButPreservesOriginalAndSlotKeyCaches() {
+        given(contractStateStore.getSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
+        given(contractStateStore.getOriginalSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
+
+        subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+
+        subject.invalidateReadCaches();
+
+        // Live value cache cleared: should re-query the store
+        subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        verify(contractStateStore, times(2)).getSlotValue(A_SLOT_KEY);
+
+        // Original value cache preserved: should NOT re-query the store
+        subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        verify(contractStateStore, times(1)).getOriginalSlotValue(A_SLOT_KEY);
+    }
+
+    @Test
+    void getCodeIsCachedWithinFrame() {
+        givenWellKnownBytecode();
+
+        final var first = subject.getCode(A_CONTRACT_ID);
+        final var second = subject.getCode(A_CONTRACT_ID);
+
+        assertSame(first, second);
+        verify(contractStateStore, times(1)).getBytecode(A_CONTRACT_ID);
+    }
+
+    @Test
+    void getCodeHashIsCachedWithinFrame() {
+        givenWellKnownBytecode();
+
+        final var first = subject.getCodeHash(A_CONTRACT_ID);
+        final var second = subject.getCodeHash(A_CONTRACT_ID);
+
+        assertSame(first, second);
+        verify(contractStateStore, times(1)).getBytecode(A_CONTRACT_ID);
+    }
+
+    @Test
+    void invalidateReadCachesClearsCurrentCodeCache() {
+        givenWellKnownBytecode();
+
+        subject.getCode(A_CONTRACT_ID);
+        subject.invalidateReadCaches();
+        subject.getCode(A_CONTRACT_ID);
+
+        verify(contractStateStore, times(2)).getBytecode(A_CONTRACT_ID);
     }
 
     @Test
