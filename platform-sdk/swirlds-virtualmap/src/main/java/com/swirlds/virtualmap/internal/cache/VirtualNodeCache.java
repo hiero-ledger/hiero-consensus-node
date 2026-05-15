@@ -577,11 +577,6 @@ public final class VirtualNodeCache implements FastCopyable {
         estimatedHashesSizeInBytes.addAndGet(dirtyHashChunks.estimatedStorageMemoryOverhead());
         estimatedLeavesSizeInBytes.addAndGet(
                 dirtyLeaves.estimatedStorageMemoryOverhead() + dirtyKeyPaths.estimatedStorageMemoryOverhead());
-//        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Cache seal v{} leaves={} size={}", getFastCopyVersion(), dirtyLeaves.size(), estimatedLeavesSizeInBytes.get());
-        if (total != 0) {
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Cache seal v{} hits/total: {}", getFastCopyVersion(),
-                    (double) hits / total);
-        }
     }
 
     // --------------------------------------------------------------------------------------------
@@ -685,13 +680,11 @@ public final class VirtualNodeCache implements FastCopyable {
                     leafChunk = new VirtualLeafChunk(leafChunkId, leafChunkSize);
                 }
                 mutation = new Mutation<>(mutation, leafChunkId, leafChunk, version);
-//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Added new v={} id={}", getFastCopyVersion(), leafChunkId);
                 dirtyLeaves.add(mutation);
                 estimatedLeavesSizeInBytes.addAndGet(leafChunk.getEstimatedSizeInBytes());
             } else if (mutation.version != version) {
                 final VirtualLeafChunk leafChunk = mutation.value.copy();
                 mutation = new Mutation<>(mutation, leafChunkId, leafChunk, version);
-//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Added copy v={} id={}", getFastCopyVersion(), leafChunkId);
                 dirtyLeaves.add(mutation);
                 estimatedLeavesSizeInBytes.addAndGet(leafChunk.getEstimatedSizeInBytes());
             }
@@ -746,19 +739,11 @@ public final class VirtualNodeCache implements FastCopyable {
         return oldLeaf;
     }
 
-    int total = 0;
-    int hits = 0;
-
     public VirtualLeafBytes<?> getLeafAndClearPath(final long path) {
         throwIfLeafImmutable();
         assertValidLeafPath(path);
 
         final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
-        total++;
-        Mutation<Long, VirtualLeafChunk> mutation = idToLeafChunkIndex.get(leafChunkId);
-        if ((mutation != null) && (mutation.version == fastCopyVersion.get())) {
-            hits++;
-        }
         final VirtualLeafChunk leafChunk = ensureLeafChunk(leafChunkId);
         final VirtualLeafBytes oldLeaf = leafChunk.clearLeaf(path);
         assert oldLeaf != null;

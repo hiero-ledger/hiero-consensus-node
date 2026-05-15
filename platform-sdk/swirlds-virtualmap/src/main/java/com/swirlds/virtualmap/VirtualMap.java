@@ -612,7 +612,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     @Override
     protected void destroyNode() {
-        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "FLR v{} count={} time={}", getFastCopyVersion(), c, t);
         if (pipeline != null) {
             pipeline.destroyCopy(this);
         } else {
@@ -1352,9 +1351,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     // ----------------------
 
-    int c = 0;
-    long t = 0;
-
     /**
      * Adds a new leaf with the given key and value. The precondition to calling this
      * method is that the key DOES NOT have a corresponding leaf already either in the
@@ -1403,10 +1399,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
             // The firstLeafPath points to the old leaf that we want to replace.
             // Get the old leaf.
-            long start = System.currentTimeMillis();
             final VirtualLeafBytes<?> oldFirstLeaf = cache.getLeafAndClearPath(firstLeafPath);
-            c++;
-            t += System.currentTimeMillis() - start;
             requireNonNull(oldFirstLeaf);
             cache.putLeaf(oldFirstLeaf.withPath(getLeftChildPath(firstLeafPath)));
 
