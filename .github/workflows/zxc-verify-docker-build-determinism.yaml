@@ -205,12 +205,10 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          WORKFLOW_OUTCOMES: |
+            ${{ job.status }}
+        run: bash .github/scripts/set-failure-mode.sh
 
   verify-artifacts:
     name: "Docker: Verify Artifacts (${{ join(matrix.os, ', ') }})"
@@ -421,14 +419,18 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ job.status }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.validate-layers-amd64.outcome }}" == "failure" || "${{ steps.validate-layers-arm64.outcome }}" == "failure" || "${{ steps.validate-full-manifest-amd64.outcome }}" == "failure" || "${{ steps.validate-full-manifest-arm64.outcome }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          TEST_OUTCOMES: |
+            ${{ steps.validate-layers-amd64.outcome }}
+            ${{ steps.validate-layers-arm64.outcome }}
+            ${{ steps.validate-full-manifest-amd64.outcome }}
+            ${{ steps.validate-full-manifest-arm64.outcome }}
+          WORKFLOW_OUTCOMES: |
+            ${{ steps.prepare-job.outcome }}
+            ${{ steps.google-auth.outcome }}
+            ${{ steps.build-docker.outcome }}
+            ${{ steps.regen-manifest.outcome }}
+        run: bash .github/scripts/set-failure-mode.sh
 
   set-failure-mode:
     name: "Set Failure Mode"
