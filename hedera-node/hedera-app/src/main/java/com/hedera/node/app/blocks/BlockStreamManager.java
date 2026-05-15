@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -87,10 +88,8 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. For migration scenarios, the last
-     * block hash should be the migrated block hash from {@link BlockStreamService#migratedLastBlockHash()}.
-     * In all other cases, this value should be null, and the method should calculate it from the intermediate
-     * subtree states.
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use
      * @param lastBlockHash the hash of the last block
@@ -202,6 +201,23 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for block stream shutdown
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.
+     *
+     * @return a future that completes when there are no pending block proofs
+     */
+    @NonNull
+    CompletableFuture<Void> pendingBlockProofsFuture();
+
+    /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
 
     /**
      * Tracks that the given event hash has appeared in the current block.

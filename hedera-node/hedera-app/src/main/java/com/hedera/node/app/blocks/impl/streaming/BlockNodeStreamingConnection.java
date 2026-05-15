@@ -796,7 +796,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
         blockStreamMetrics.recordRequestLatency(durationMicros);
 
-        if (logger.isTraceEnabled() && request instanceof BlockRequest) {
+        final long durationMillis = TimeUnit.MICROSECONDS.toMillis(durationMicros);
+        final long slowThresholdMillis = bncConfig().slowRequestThresholdMillis();
+
+        if (durationMillis > slowThresholdMillis) {
+            logger.warn(
+                    "{} Slow request detected (threshold: {}ms, observed: {}ms, requestSize: {}B)",
+                    connectionContext(correlationId),
+                    slowThresholdMillis,
+                    durationMillis,
+                    request.streamRequest().protobufSize());
+        } else if (logger.isTraceEnabled() && request instanceof BlockRequest) {
             logger.trace(
                     "{} Request successfully sent (duration: {}μs)", connectionContext(correlationId), durationMicros);
         }
@@ -828,7 +838,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 }
             }
         }
-        // spotles:on
+        // spotless:on
 
         return true;
     }

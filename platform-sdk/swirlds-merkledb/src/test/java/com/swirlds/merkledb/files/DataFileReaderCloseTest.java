@@ -11,15 +11,12 @@ import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,23 +25,16 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DataFileReaderCloseTest {
 
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
     private static DataFileCollection collection;
 
     @BeforeAll
-    static void setup() throws IOException {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-        final Path dir = fileSystemManager.resolveNewTemp("readerIsOpenTest");
-        Files.createDirectories(dir);
+    static void setup(@TempDir Path tempDir) throws IOException {
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        collection = new DataFileCollection(dbConfig, dir, "store", null);
+        collection = new DataFileCollection(dbConfig, tempDir, "store", null);
     }
 
     @AfterAll
-    static void teardown() throws IOException {
+    static void tearDown() throws IOException {
         collection.close();
     }
 
@@ -66,7 +56,6 @@ class DataFileReaderCloseTest {
                                 },
                                 2 * Long.BYTES));
             }
-            //noinspection resource
             collection.endWriting();
             final AtomicBoolean readingThreadStarted = new AtomicBoolean(false);
             final AtomicReference<IOException> exceptionOccurred = new AtomicReference<>();
@@ -107,49 +96,40 @@ class DataFileReaderCloseTest {
     }
 
     @Test
-    void readWhileFinishWritingTest() throws IOException {
-        final Path tmpDir = fileSystemManager.resolveNewTemp("readWhileFinishWritingTest");
-        Files.createDirectories(tmpDir);
+    void readWhileFinishWritingTest(@TempDir Path testDir) throws IOException {
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final int COUNT = 100;
         for (int i = 0; i < COUNT; i++) {
-            Path filePath = null;
             final int fi = i;
-            try {
-                final DataFileWriter writer =
-                        new DataFileWriter("test", tmpDir, i, Instant.now(), INITIAL_COMPACTION_LEVEL);
-                filePath = writer.getPath();
-                final DataFileMetadata metadata = writer.getMetadata();
-                final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
-                index.updateValidRange(0, i);
-                index.put(
-                        0,
-                        writer.storeDataItem(
-                                o -> {
-                                    o.writeLong(fi);
-                                    o.writeLong(fi * 2 + 1);
-                                },
-                                2 * Long.BYTES));
-                final DataFileReader reader = new DataFileReader(dbConfig, filePath, metadata);
-                // Check the item in parallel to finish writing
-                IntStream.of(0, 1).parallel().forEach(t -> {
-                    try {
-                        if (t == 1) {
-                            writer.close();
-                        } else {
-                            final BufferedData itemBytes = reader.readDataItem(index.get(0));
-                            Assertions.assertEquals(fi, itemBytes.readLong());
-                            Assertions.assertEquals(fi * 2 + 1, itemBytes.readLong());
-                        }
-                    } catch (final IOException e) {
-                        throw new RuntimeException(e);
+            final DataFileWriter writer =
+                    new DataFileWriter("test", testDir, i, Instant.now(), INITIAL_COMPACTION_LEVEL);
+            Path filePath = writer.getPath();
+            final DataFileMetadata metadata = writer.getMetadata();
+            final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
+            index.updateValidRange(0, i);
+            index.put(
+                    0,
+                    writer.storeDataItem(
+                            o -> {
+                                o.writeLong(fi);
+                                o.writeLong(fi * 2 + 1);
+                            },
+                            2 * Long.BYTES));
+            final DataFileReader reader = new DataFileReader(dbConfig, filePath, metadata);
+            // Check the item in parallel to finish writing
+            IntStream.of(0, 1).parallel().forEach(t -> {
+                try {
+                    if (t == 1) {
+                        writer.close();
+                    } else {
+                        final BufferedData itemBytes = reader.readDataItem(index.get(0));
+                        Assertions.assertEquals(fi, itemBytes.readLong());
+                        Assertions.assertEquals(fi * 2 + 1, itemBytes.readLong());
                     }
-                });
-            } finally {
-                if (filePath != null) {
-                    Files.delete(filePath);
+                } catch (final IOException e) {
+                    throw new RuntimeException(e);
                 }
-            }
+            });
         }
     }
 }
