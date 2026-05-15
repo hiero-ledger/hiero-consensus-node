@@ -55,7 +55,9 @@ public class TestEventUtils {
             @NonNull final PlatformContext context,
             @NonNull final Roster roster,
             @Nullable final Map<NodeId, KeysAndCerts> keysAndCertsMap) {
-        final StandardEventEmitter eventEmitter = new EventEmitterFactory(context, random, roster).newStandardEmitter();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(
+                        context.getConfiguration(), context.getMetrics(), context.getTime(), random, roster)
+                .newStandardEmitter();
 
         Stream<PlatformEvent> stream = eventEmitter.emitEvents(numEvents).stream();
 

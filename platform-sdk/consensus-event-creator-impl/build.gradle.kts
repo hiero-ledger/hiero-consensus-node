@@ -6,8 +6,6 @@ plugins {
 }
 
 jmhModuleInfo {
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")

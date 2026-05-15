@@ -100,7 +100,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
         requireNonNull(blockHash);
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
@@ -108,11 +108,12 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
                 .newSigning(b, () -> component.signings().remove(blockHash)));
-        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+        final var submissionFuture = component.submissions().submitPartialSignature(blockHash);
+        submissionFuture.exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
         });
-        return signing;
+        return new SigningResult(signing, submissionFuture);
     }
 
     @Override

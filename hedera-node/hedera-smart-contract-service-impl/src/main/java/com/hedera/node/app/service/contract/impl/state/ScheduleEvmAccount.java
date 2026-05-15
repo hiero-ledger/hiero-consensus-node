@@ -39,7 +39,7 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
             // getScheduledTransactionInfo()
             0x88af14e3);
 
-    public ScheduleEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    public ScheduleEvmAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         super(address, state);
     }
 

@@ -8,8 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +25,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterFactory;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -40,8 +43,6 @@ import org.junit.jupiter.api.Test;
  */
 public class ConsensusEngineContractTest {
     private static final int NUMBER_OF_EVENTS_PER_TEST = 10_000;
-    private static final PlatformContext CONTEXT =
-            TestPlatformContextBuilder.create().build();
 
     /**
      * Tests that the consensus engine can restart from a snapshot and still fulfill its event contract.
@@ -60,7 +61,7 @@ public class ConsensusEngineContractTest {
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // start from genesis, validate the output
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(roster);
         addToIntake(generatedEvents, random, genesisIntake);
         validateOutputContract(genesisIntake.getOutput());
 
@@ -68,7 +69,7 @@ public class ConsensusEngineContractTest {
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
 
         // load the snapshot into a new intake and validate that the output is consistent
-        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake restartIntake = new TestIntake(roster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
 
@@ -97,7 +98,7 @@ public class ConsensusEngineContractTest {
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // first part
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(roster);
         addToIntake(generatedEvents, random, genesisIntake);
 
         validateOutputContract(genesisIntake.getOutput());
@@ -107,7 +108,7 @@ public class ConsensusEngineContractTest {
 
         // second part
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
-        final TestIntake restartIntake = new TestIntake(CONTEXT, modifiedRoster);
+        final TestIntake restartIntake = new TestIntake(modifiedRoster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
         validateOutputContract(restartIntake.getOutput());
@@ -122,12 +123,16 @@ public class ConsensusEngineContractTest {
         final int shunnedNodeIndex = 0; // the first node will be shunned
 
         // setup
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final Randotron random = Randotron.create();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withSize(random.nextInt(minNodes, maxNodes))
                 .build();
-        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        final StandardEventEmitter eventEmitter =
+                new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
         eventEmitter
                 .getGraphGenerator()
                 .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
@@ -135,7 +140,7 @@ public class ConsensusEngineContractTest {
         final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
 
         // start from genesis, validate the output
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(configuration, metrics, time, roster);
         addToIntake(generatedEvents, random, genesisIntake);
         validateOutputContract(genesisIntake.getOutput());
 
@@ -146,7 +151,7 @@ public class ConsensusEngineContractTest {
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
 
         // load the snapshot into a new intake and validate that the output is consistent
-        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake restartIntake = new TestIntake(configuration, metrics, time, roster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
 
@@ -206,7 +211,11 @@ public class ConsensusEngineContractTest {
      */
     @NonNull
     private static List<PlatformEvent> generateEvents(@NonNull final Random random, @NonNull final Roster roster) {
-        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final StandardEventEmitter eventEmitter =
+                new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
         return eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
     }
 

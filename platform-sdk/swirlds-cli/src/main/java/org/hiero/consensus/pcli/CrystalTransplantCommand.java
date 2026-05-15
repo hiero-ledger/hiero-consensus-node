@@ -5,6 +5,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestStat
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.HederaUtils.SWIRLD_NAME;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
@@ -12,7 +13,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
@@ -38,6 +38,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
@@ -231,14 +232,12 @@ public class CrystalTransplantCommand extends AbstractCommand {
             final var signedState = reservedState.get();
             final Hash newHash = signedState.getState().getHash();
 
-            final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
-            this.targetStateDir = new SignedStateFilePath(
-                            new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
-                    .getSignedStateDirectory(
-                            configuration.getValue("state.mainClassNameOverride"),
-                            selfId,
-                            SWIRLD_NAME,
-                            signedState.getRound());
+            final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+            final FileSystemManager fileSystemManager =
+                    new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+            final String mainClassName = requireNonNull(configuration.getValue("state.mainClassNameOverride"));
+            this.targetStateDir = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, SWIRLD_NAME)
+                    .getSignedStateDirectory(signedState.getRound());
 
             return new StateInformation(
                     signedState.getRound(), signedState.getRoster(), newHash, savedStateFiles.getFirst());
@@ -437,7 +436,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
     public static Roster loadRosterFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                final var network = Network.JSON.parse(new ReadableStreamingData(fin));
+                final var network = Network.JSON.parseStrict(new ReadableStreamingData(fin));
                 return RosterUtils.rosterFrom(network);
             } catch (final Exception e) {
                 System.err.printf("Failed to load %s network info from %s%n", path.toAbsolutePath(), e);

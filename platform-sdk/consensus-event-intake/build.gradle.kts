@@ -12,7 +12,7 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 jmhModuleInfo {
     requires("jmh.core")
     requires("com.hedera.node.hapi")
-    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("com.hedera.pbj.runtime")

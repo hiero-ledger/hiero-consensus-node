@@ -21,7 +21,7 @@ public record PathsConfig(
         @ConfigProperty(defaultValue = ".") Path settingsUsedDir,
         @ConfigProperty(defaultValue = "data/keys") Path keysDirPath,
         @ConfigProperty(defaultValue = "data/saved") Path savedStateDir,
-        @ConfigProperty(defaultValue = "tmp") Path tmpDir) {
+        @ConfigProperty(defaultValue = "swirlds-tmp") Path tmpDir) {
 
     /**
      * the directory where the settings used file will be created on startup if and only if settings.txt exists

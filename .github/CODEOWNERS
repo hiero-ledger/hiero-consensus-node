@@ -123,7 +123,7 @@
 /hapi/hedera-protobuf-java-api/src/main/proto/platform/state/virtual_map_state.proto @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 # HAPI Build Files
-/hapi/**/*.gradle                                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/github-maintainers
+/hapi/**/*.gradle*                                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/github-maintainers
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
