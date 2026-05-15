@@ -6,6 +6,48 @@ This document is a living notebook for analyzing cluster metrics under
 The CSV files should be analyzed only when a specific metric is requested. Until then, this document records what data
 is needed, why it matters, and how each metric should be interpreted for local benchmark calibration.
 
+## Executive Summary
+
+Current confirmed cluster shape:
+
+- Main reconnect pair: node 0 is the receiver/learner; node 2 is the sender/teacher.
+- Main reconnect window: approximately `2026-05-05 20:11:48-20:22:23 UTC`.
+- Metric-reported duration:
+  - node 0 receiver/learner: `630s`
+  - node 2 sender/teacher: `621s`
+- Reconnect request rejections are not part of this sample: all `reconnectRejections_per_sec_XX` metrics are zero.
+- Cluster RTT evidence is low-latency/private-network shaped, not WAN shaped:
+  - fresh `ping_us_*` evidence is roughly `100-300 us` RTT;
+  - stale first-window peer averages give a conservative upper hint around `600 us`;
+  - `100 ms` and `200 ms` local runs are still useful WAN sensitivity tests, but they do not match this cluster sample.
+- Observed application send rates during the confirmed reconnect are asymmetric:
+  - learner-to-teacher, node 0 -> node 2: average `29.18 MB/s` (`~233 Mbps`), max `33.75 MB/s` (`~270 Mbps`)
+  - teacher-to-learner, node 2 -> node 0: average `13.46 MB/s` (`~108 Mbps`), max `24.05 MB/s` (`~192 Mbps`)
+- In-flight/window behavior is still not directly measured. Given sub-ms RTT, bandwidth-delay product is tiny compared
+  to MiB-scale caps, so local cluster-profile runs should use a large/neutral cap unless TCP evidence says otherwise.
+- State scale is much larger than a single `50M` local profile:
+  - account-map scale: about `100M` records;
+  - total virtual-map scale from `vmap_size_state`: about `415M-418M` records;
+  - active-node MerkleDB data-source file footprint: about `89-90 GiB`.
+- Divergence in the confirmed node0/node2 reconnect appears token-association-heavy and append/growth driven:
+  - starting node0/node2 virtual-map gap: about `2.21M` records;
+  - active teacher-side growth during the first reconnect: about `636k` records;
+  - node0 receives a state close to the teacher's start-of-window state, then immediately needs a second reconnect for
+    the state that accumulated while the first reconnect was running.
+- Storage/finalization effects are visible and should be tracked separately from traversal/network:
+  - node0 has heavy `vmap_lifecycle_flushCount_state` growth during reconnect;
+  - node0 state-write samples appear after the first receiver reconnect completes;
+  - this can matter if cluster wall-clock comparisons include post-reconnect persistence/finalization.
+
+Working conclusion:
+
+- The current CSV evidence is enough to propose a better local cluster-profile sweep, but not enough to declare that the
+  local benchmark fully reproduces cluster behavior.
+- Before asking for another cluster experiment, it is reasonable to run a small local cluster-profile check using the
+  existing saved state and sub-ms latency.
+- Before treating local/cluster traversal ordering as validated, we still need cluster runs with explicit traversal mode,
+  reconnect stats/logs, and TCP/window or socket evidence.
+
 ## Current Context
 
 - Cluster shape: 7 consensus nodes running in Kubernetes via Solo.
@@ -169,23 +211,88 @@ Purpose:
 
 ## Candidate Local Calibration Outputs
 
-This section should be filled as metric evidence accumulates.
+This section summarizes current best candidates from the analyzed metrics. Treat these as calibration hypotheses, not
+final validation targets.
 
 ```text
 networkLatencyMicroseconds:
+  if this benchmark parameter is one-way latency:
+    cluster-private sweep: 50, 150, 300
+  corresponding target RTTs:
+    100 us, 300 us, 600 us
+  do not use 50_000 or 100_000 for cluster calibration based on the current ping metrics
+
 networkBandwidthMegabitsPerSecond:
+  observed-throughput profiles: 200, 300
+  nominal-link profile: 1000
+
 networkInflightBytesLimit:
+  cluster-profile run: 134217728 bytes (128 MiB) or larger as a neutral cap
+  diagnostic-only caps: 13 MiB / 25 MiB, unless TCP/window evidence supports them
+
 tree size / numRecords:
+  quick local network-profile check: keep current existing saved-state size if reusing saved maps
+  account/NFT/token-association store scale: about 100M records
+  total virtual-map scale target: about 400M records, if feasible
+  observed cluster total virtual-map range: 415M-418M records
+
 numFiles:
+  no direct cluster value yet; keep existing local split unless changing total record count
+
 teacherAddProbability:
+  unresolved from current benchmark model
+  cluster evidence points to append/growth-heavy token-association divergence
+
 teacherRemoveProbability:
+  no strong evidence of remove-heavy divergence in the confirmed reconnect window
+
 teacherModifyProbability:
+  not derivable from current CSV metrics; need ReconnectMapMetrics/logs for clean/dirty shape
+
 recommended traversal matrix:
+  same saved teacher/learner state
+  pullTopToBottom -> pullParallelSync -> pullTopToBottom
+  optionally repeat with pullParallelSync -> pullTopToBottom -> pullParallelSync
+  include pullTwoPhasePessimistic only if run cost is acceptable
+
 expected bottleneck:
+  local cluster-profile check: likely traversal/storage interaction, not WAN RTT
+  cluster end-to-end recovery: reconnect sync plus learner-side flush/finalization/storage work
+
 confidence:
+  high for node0/node2 roles and 630s/621s duration
+  medium for latency profile because ping is not direct reconnect socket RTT
+  medium for state scale/divergence translation into current synthetic ReconnectBench parameters
+  low for in-flight/window behavior until TCP/window samples are captured
 ```
 
-## Findings
+## Evidence Coverage
+
+| Required evidence | Current status | Notes |
+| --- | --- | --- |
+| Teacher/learner identity | Satisfied | node 0 receiver/learner, node 2 sender/teacher for the confirmed main window. |
+| Cluster reconnect duration | Satisfied | receiver `630s`, sender `621s`. |
+| Same-state traversal matrix on cluster | Missing | Need explicit `pullTopToBottom`, `pullParallelSync`, and optionally `pullTwoPhasePessimistic` runs. |
+| Reconnect transfer counters | Missing from CSV | Need logs or metrics with `transfersFromTeacher`, `transfersFromLearner`, clean hash/data counts, and leaf/internal breakdown. |
+| Reconnect bytes | Partial | `bytes_per_sec_sent_*` gives observed application send rates, not exact reconnect byte totals. |
+| RTT | Partial | `ping_us_*` gives gossip RPC RTT evidence; direct reconnect socket RTT is still missing. |
+| TCP/window/in-flight behavior | Missing | Need `ss -ti` or equivalent during reconnect. |
+| State size | Satisfied enough for first calibration | `vmap_size_state` gives `415M-418M`; store metrics identify `100M` account/NFT scale. |
+| Divergence shape | Partial | Strong token-association append/growth signal; modify/remove dirty shape still unknown. |
+| Runtime environment | Partial | Hardware is mainnet-like, Kubernetes/Solo cluster known; JVM/config/commit still need exact capture. |
+| Storage/finalization stage timing | Partial | Storage metrics show learner churn; logs are needed for precise stage boundaries. |
+
+Next data that would most improve confidence:
+
+1. Cluster same-state traversal matrix with explicit reconnect mode in logs.
+2. Learner and teacher reconnect logs containing `ReconnectMapMetrics.format()` output.
+3. TCP/window samples for the node0/node2 reconnect connection.
+4. Exact commit SHA, JVM/heap args, and reconnect/virtualMap/MerkleDB/socket config used by the cluster run.
+
+## Detailed Findings
+
+The detailed sections below remain metric-oriented. Use the executive summary and evidence coverage sections for current
+decisions; use these findings to audit the raw reasoning behind each conclusion.
 
 ### Metrics: `startsReconnectAsReceiver`, `startsReconnectAsSender`, `endsReconnectAsReceiver`, And `endsReconnectAsSender`
 
@@ -1349,38 +1456,19 @@ Implication for local ReconnectBench:
 - The observed learner-to-teacher direction, node 0 to node 2, averages about `233 Mbps` and peaks around `270 Mbps`.
 - The observed teacher-to-learner direction, node 2 to node 0, averages about `108 Mbps` and peaks around `192 Mbps`.
 - For local calibration, this suggests testing below the nominal `1 Gbps` profile as well as at `1 Gbps`. A useful
-  first sweep is approximately `200 Mbps`, `300 Mbps`, and `1 Gbps`, once RTT is constrained.
+  first sweep is approximately `200 Mbps`, `300 Mbps`, and `1 Gbps`.
+- Combined with the `ping_us_*` evidence, the current cluster-profile in-flight cap should be large/neutral. At sub-ms
+  RTT, the calculated BDP is far below even a `13 MiB` cap, so smaller caps are diagnostic sensitivity tests rather than
+  evidence-backed cluster parameters unless TCP/window samples show otherwise.
 
 Recommended local parameter impact:
 
 ```text
 networkBandwidthMegabitsPerSecond: add 200-300 Mbps observed-throughput profiles, keep 1 Gbps as nominal-link profile
-networkLatencyMicroseconds: no direct value from this metric
-networkInflightBytesLimit: no direct value without RTT/window evidence; derive from RTT * chosen bandwidth
+networkLatencyMicroseconds: combine with ping evidence; use sub-ms RTT profiles for cluster calibration
+networkInflightBytesLimit: use large/neutral cap for cluster-profile runs until TCP/window evidence exists
 ```
 
 Confidence: high that node0/node2 dominate network traffic during the confirmed reconnect window; high that the
 directional interpretation is node 2 -> node 0 for teacher-to-learner and node 0 -> node 2 for learner-to-teacher; low
 as a measure of true link capacity.
-
-### Provisional Visual Cross-Checks
-
-These observations come from chart screenshots/PDF visualizations, not CSV analysis. Treat them as hypotheses to
-cross-check when reconnect CSV metrics are analyzed.
-
-#### Node 0 Reconnect Role Hypothesis
-
-Visual source: `endsReconnectAsReceiver` and `endsReconnectAsSender` screenshot.
-
-Observation:
-
-- The screenshot suggested node 0 and node 2 were the relevant reconnect pair.
-
-Provisional interpretation:
-
-- CSV reconnect role metrics now confirm node 0 as receiver/learner and node 2 as sender/teacher for the main
-  `20:11-20:22 UTC` reconnect window.
-
-Follow-up checks:
-
-- Align this event with reconnect duration, data usage, and `ReconnectMapMetrics` counters.
