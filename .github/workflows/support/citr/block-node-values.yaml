@@ -48,6 +48,7 @@ blockNode:
   config:
     #BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "1000"
     JAVA_OPTS: '-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    SERVER_MAX_MESSAGE_SIZE_BYTES: "131072000"
   persistence:
     archive:
       create: false
