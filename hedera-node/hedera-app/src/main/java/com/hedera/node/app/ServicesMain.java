@@ -42,6 +42,8 @@ import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
@@ -235,6 +237,10 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
                         migrationAlreadyApplied);
 
+        final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
+        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -250,7 +256,8 @@ public class ServicesMain {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera);
+                .withStaleEventCallback(hedera)
+                .withTransactionOffsetNanos(transactionOffsetNanos);
         final var platform = platformBuilder.build();
 
         platform.start();
@@ -386,5 +393,20 @@ public class ServicesMain {
         }
         return blockInfo.votingCompletionDeadlineBlockNumber() > 0
                 && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
+    }
+
+    /**
+     * Calculates the minimum transaction offset in nanoseconds, taking into account the reserved system
+     * transaction time range and the maximum number of preceding records.
+     * @param config the configuration to use for the calculation
+     * @return the transaction offset in nanoseconds
+     */
+    @VisibleForTesting
+    public static int transactionOffsetNanos(@NonNull final Configuration config) {
+        final int reservedSystemTxnNanos =
+                config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
+        final int maxPrecedingRecords =
+                config.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
+        return reservedSystemTxnNanos + maxPrecedingRecords + 1;
     }
 }

@@ -38,7 +38,8 @@ public class TssSubmissions {
     }
 
     /**
-     * Attempts to submit a transaction to the network if it is active, retrying based on the given configuration.
+     * Attempts to submit a transaction to the network if node gossip is available, retrying based on the given
+     * configuration.
      * <p>
      * Returns a future that completes when the transaction has been submitted; or completes exceptionally
      * if the transaction could not be submitted after the configured number of retries.
@@ -51,7 +52,7 @@ public class TssSubmissions {
             @NonNull final Consumer<TransactionBody.Builder> spec,
             @NonNull final BiConsumer<TransactionBody, String> onFailure) {
         // All submissions are best-effort in the TSS protocol, but in particular we never want to try to
-        // submit anything if gossip is unavailable (e.g. because we are REPLAYING_EVENTS not ACTIVE)
+        // submit anything if node gossip is unavailable (e.g. because we are REPLAYING_EVENTS).
         if (!appContext.gossip().isAvailable()) {
             log.info("Skipping TSS submission because gossip is unavailable");
             return CompletableFuture.completedFuture(null);

@@ -64,6 +64,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,6 +90,8 @@ import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 @Singleton
 public final class BlockRecordManagerImpl implements BlockRecordManager {
     private static final Logger logger = LogManager.getLogger(BlockRecordManagerImpl.class);
+
+    private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
     private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
@@ -141,6 +144,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * and the block is closed.
      */
     private final Map<Long, BlockItemWriter> openWrbWriters = new ConcurrentHashMap<>();
+    /**
+     * Guards the future returned to callers waiting for all open WRB writers to close.
+     */
+    private final Object noOpenWrbWritersFutureLock = new Object();
+    /**
+     * A future that completes when no WRB writers are open.
+     */
+    @Nullable
+    private CompletableFuture<Void> noOpenWrbWritersFuture = null;
+    /**
+     * Guards the latest WRB signing submission future.
+     */
+    private final Object latestBlockSigningFutureLock = new Object();
+    /**
+     * The latest WRB block number for which this node has requested signing.
+     */
+    private long latestBlockSigningBlockNumber = NO_BLOCK_SIGNING_REQUESTED;
+    /**
+     * A future that completes to the latest requested WRB block number when this node submits its partial signature.
+     */
+    @NonNull
+    private CompletableFuture<Long> latestBlockSigningFuture =
+            CompletableFuture.completedFuture(NO_BLOCK_SIGNING_REQUESTED);
     /**
      * Futures for the legacy record file hashes signed by {@code BlockRecordWriter} close. Keyed by block number.
      * WRB RSA signing waits on these futures so its signature list covers exactly the legacy record file hash.
@@ -280,12 +306,92 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 logger.warn("Failed to flush pending WRB writer for block {}", entry.getKey(), e);
             }
         }
-        openWrbWriters.clear();
+        clearOpenWrbWriters();
         recordFileHashFutures.clear();
     }
 
     // =================================================================================================================
     // BlockRecordManager implementation
+
+    @Override
+    public @NonNull CompletableFuture<Void> noOpenWrbWritersFuture() {
+        synchronized (noOpenWrbWritersFutureLock) {
+            if (openWrbWriters.isEmpty()) {
+                logger.debug("noOpenWrbWritersFuture requested with no open WRB writers");
+                return CompletableFuture.completedFuture(null);
+            }
+            if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
+                noOpenWrbWritersFuture = new CompletableFuture<>();
+                logger.debug("Recreated noOpenWrbWritersFuture with open WRB writers {}", openWrbWriters.keySet());
+            }
+            logger.debug(
+                    "noOpenWrbWritersFuture requested; openWrbWriters={}, futureDone={}",
+                    openWrbWriters.keySet(),
+                    noOpenWrbWritersFuture.isDone());
+            return noOpenWrbWritersFuture;
+        }
+    }
+
+    @Override
+    public boolean allBlocksSigned() {
+        if (!streamWrbEnabled) {
+            return true;
+        }
+        final long latestBlockNumber;
+        final CompletableFuture<Long> latestSigningFuture;
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockNumber = latestBlockSigningBlockNumber;
+            latestSigningFuture = latestBlockSigningFuture;
+        }
+        try {
+            return latestSigningFuture.isDone()
+                    && latestSigningFuture.getNow(NO_BLOCK_SIGNING_REQUESTED) == latestBlockNumber;
+        } catch (final CancellationException | CompletionException e) {
+            return false;
+        }
+    }
+
+    private void addOpenWrbWriter(final long blockNumber, @NonNull final BlockItemWriter writer) {
+        requireNonNull(writer);
+        synchronized (noOpenWrbWritersFutureLock) {
+            final var wasEmpty = openWrbWriters.isEmpty();
+            openWrbWriters.put(blockNumber, writer);
+            if (wasEmpty) {
+                noOpenWrbWritersFuture = new CompletableFuture<>();
+                logger.debug("Created noOpenWrbWritersFuture after opening WRB writer for block #{}", blockNumber);
+            }
+            logger.debug("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+        }
+    }
+
+    private void removeOpenWrbWriter(final long blockNumber, @NonNull final BlockItemWriter writer) {
+        requireNonNull(writer);
+        final CompletableFuture<Void> futureToComplete;
+        synchronized (noOpenWrbWritersFutureLock) {
+            openWrbWriters.remove(blockNumber, writer);
+            logger.debug("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+            if (!openWrbWriters.isEmpty() || noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
+                return;
+            }
+            futureToComplete = noOpenWrbWritersFuture;
+        }
+        logger.debug("Completing noOpenWrbWritersFuture after closing WRB writer for block #{}", blockNumber);
+        futureToComplete.complete(null);
+    }
+
+    private void clearOpenWrbWriters() {
+        final CompletableFuture<Void> futureToComplete;
+        synchronized (noOpenWrbWritersFutureLock) {
+            openWrbWriters.clear();
+            logger.debug("Cleared all WRB writers during close");
+            if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
+                return;
+            }
+            futureToComplete = noOpenWrbWritersFuture;
+        }
+        logger.debug("Completing noOpenWrbWritersFuture after clearing WRB writers");
+        futureToComplete.complete(null);
+    }
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
@@ -303,60 +409,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(platformState);
         return platformState.freezeTime() != null
                 && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull final State state) {
-        if (!writeWrappedRecordFileBlockHashesToDisk()) {
-            return;
-        }
-        final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-        final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        appendWrappedRecordFileBlockHashesToDisk(
-                currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-    }
-
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state) {
-        try {
-            // Treat the current in-progress block as "just finished", writing its data to state or disk as appropriate
-            final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-            if (blockCreationTime == null) {
-                logger.info(
-                        "Skipping write of wrapped record-file block data for block {} because firstConsTimeOfCurrentBlock is null",
-                        currentBlockNumber);
-                return;
-            }
-
-            final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, currentBlockNumber);
-            // Update the in-memory values
-            final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                    currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-            if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
-                appendMigrationWrappedHashes(state, currentBlockNumber, wrappedRecordFileBlockHashes);
-            }
-            if (migrationRootHashVotingComplete(state)) {
-                // Persist the updated values to BlockInfo only after voting finalizes
-                lastBlockInfo = lastBlockInfo
-                        .copyBuilder()
-                        .previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash)
-                        .wrappedIntermediatePreviousBlockRootHashes(
-                                prevWrappedRecordBlockHashes.intermediateHashingState())
-                        .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
-                        .build();
-                putLastBlockInfo(state);
-                logger.info(
-                        "Persisted live wrapped record block root hash (as of block {}): {}",
-                        currentBlockNumber,
-                        previousWrappedRecordBlockRootHash);
-            }
-        } catch (final Exception e) {
-            logger.warn("Failed to persist final wrapped record-file block hashes prior to freeze", e);
-        }
     }
 
     /**
@@ -661,7 +713,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 writer.openBlock(justFinishedBlockNumber);
                 writer.writePbjItem(result.headerItem());
                 writer.writePbjItem(result.recordFileItem());
-                openWrbWriters.put(justFinishedBlockNumber, writer);
+                addOpenWrbWriter(justFinishedBlockNumber, writer);
                 signAndCloseWrbAsync(
                         justFinishedBlockNumber, blockRootHash, previousBlockRootHash, allPrevBlocksRootHash);
             } catch (final RuntimeException e) {
@@ -687,9 +739,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(allPrevBlocksRootHash);
         final var recordFileHashFuture =
                 recordFileHashFutures.computeIfAbsent(blockNumber, ignore -> new CompletableFuture<>());
-        recordFileHashFuture
+        final var signingAttemptFuture = recordFileHashFuture
                 .whenComplete((ignore, t) -> recordFileHashFutures.remove(blockNumber, recordFileHashFuture))
-                .thenCompose(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash))
+                .thenApply(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash));
+        trackLatestBlockSigningFuture(
+                blockNumber, signingAttemptFuture.thenCompose(BlockHashSigner.Attempt::submissionFuture));
+        signingAttemptFuture
+                .thenCompose(BlockHashSigner.Attempt::signatureFuture)
                 .thenAcceptAsync(serializedRosterSignatures -> finishWrappedRecordBlockWithSignatureList(
                         blockNumber,
                         blockRootHash,
@@ -703,19 +759,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 });
     }
 
-    private CompletableFuture<Bytes> requestRecordFileSignatureList(
+    private void trackLatestBlockSigningFuture(
+            final long blockNumber, @NonNull final CompletableFuture<Void> submissionFuture) {
+        requireNonNull(submissionFuture);
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockSigningBlockNumber = blockNumber;
+            latestBlockSigningFuture = submissionFuture.thenApply(ignore -> blockNumber);
+        }
+    }
+
+    private BlockHashSigner.Attempt requestRecordFileSignatureList(
             final long blockNumber, @NonNull final Bytes recordFileHash) {
         requireNonNull(recordFileHash);
         try {
-            final var attempt = blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
-            return attempt.signatureFuture();
+            return blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
         } catch (final RuntimeException e) {
             logger.warn(
                     "Failed to request RSA signature list for WRB block #{} with record file hash {}",
                     blockNumber,
                     recordFileHash,
                     e);
-            return CompletableFuture.failedFuture(e);
+            final CompletableFuture<Bytes> signatureFuture = CompletableFuture.failedFuture(e);
+            final CompletableFuture<Void> submissionFuture = CompletableFuture.failedFuture(e);
+            return new BlockHashSigner.Attempt(null, null, signatureFuture, submissionFuture);
         }
     }
 
@@ -743,7 +809,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var proofItem = signedRecordFileProofItem(blockNumber, serializedRosterSignatures);
         writer.writePbjItem(proofItem);
         writer.closeCompleteBlock();
-        openWrbWriters.remove(blockNumber, writer);
+        removeOpenWrbWriter(blockNumber, writer);
     }
 
     private BlockItem signedRecordFileProofItem(
