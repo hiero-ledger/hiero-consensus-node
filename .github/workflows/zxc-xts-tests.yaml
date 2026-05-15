@@ -162,11 +162,11 @@ jobs:
     uses: ./.github/workflows/zxc-slack-notify.yaml
     with:
       header-text: "Fake slack report: Hiero Consensus Node - Mirror Node Regression Test Report"
-      #      result: ${{ needs.mirror-node-regression.result }}
-      #      result-label: "Mirror Node Regression Panel Result"
+      result: "failure"
+      result-label: "Mirror Node Regression Panel Result"
       ref: ${{ inputs.ref }}
     secrets:
-      webhook: ${{ secrets.slack-detailed-report-webhook }}
+      webhook: ${{ secrets.slack-citr-details-token }}
 
   build:
     name: Compile and Spotless Check

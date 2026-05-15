@@ -140,3 +140,4 @@ const payload = {
 };
 
 writeFileSync('slack_payload.json', JSON.stringify(payload, null, 2));
+console.log("generated", JSON.stringify(payload, null, 2));
