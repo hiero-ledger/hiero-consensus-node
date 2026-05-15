@@ -41,7 +41,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -141,16 +143,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /**
      * Constructor for the {@link ContainerNode} class.
      *
-     * @param selfId the unique identifier for this node
-     * @param timeManager the time manager to use for this node
-     * @param keysAndCerts the keys for the node
-     * @param network the network this node is part of
-     * @param dockerImage the Docker image to use for this node
-     * @param outputDirectory the directory where the node's output will be stored
+     * @param selfId               the unique identifier for this node
+     * @param timeManager          the time manager to use for this node
+     * @param keysAndCerts         the keys for the node
+     * @param network              the network this node is part of
+     * @param dockerImage          the Docker image to use for this node
+     * @param outputDirectory      the directory where the node's output will be stored
      * @param networkConfiguration the network configuration for this node
-     * @param consensusRoundPool the shared pool for deduplicating consensus rounds
-     * @param gcLoggingEnabled {@code true} if GC logging should be enabled for the node process
-     * @param jvmArgs additional JVM arguments to pass to the node process
+     * @param consensusRoundPool   the shared pool for deduplicating consensus rounds
+     * @param gcLoggingEnabled     {@code true} if GC logging should be enabled for the node process
+     * @param jvmArgs              additional JVM arguments to pass to the node process
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -445,9 +447,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         try {
-            final Path databaseDirectory =
-                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+            final Path databaseDirectory = getDatabaseDirectory(
+                    configuration, fileSystemManager, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
             final Path localPcesDirectory = localOutputDirectory.resolve(databaseDirectory);
 
             Files.createDirectories(localPcesDirectory);

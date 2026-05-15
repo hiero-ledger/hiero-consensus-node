@@ -73,6 +73,10 @@ public class HederaEVM extends HEVM {
     // Optimized operation flags
     private final boolean enableShanghai;
 
+    private final SB _trace = null; // new SB(); // For bytecode-by-bytecode tracing
+    private final PrintStream _stdOut =
+            _trace == null ? null : new PrintStream(new FileOutputStream(FileDescriptor.out));
+
     /**
      * Instantiates a new Evm.
      *
@@ -115,16 +119,13 @@ public class HederaEVM extends HEVM {
         final long opsDurationDenominator =
                 opsDurationCounter == null ? 1 : opsDurationSchedule.multipliersDenominator();
 
-        SB trace = null; // new SB();
-        PrintStream oldSysOut = System.out;
-        if (trace != null) {
-            System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out)));
-            if (frame.getDepth() == 0) System.out.println(BonnevilleEVM.TOP_SEP);
+        if (_trace != null) {
+            if (frame.getDepth() == 0) _stdOut.println(BonnevilleEVM.TOP_SEP);
             int pc = frame.getPC();
             if (pc != 0) {
                 String str = contractStr(code[pc - 1] & 0xFF);
-                System.out.println(trace.p("RETURN ").p(str).nl());
-                trace.clear();
+                _stdOut.println(_trace.p("RETURN ").p(str).nl());
+                _trace.clear();
             }
         }
 
@@ -146,7 +147,7 @@ public class HederaEVM extends HEVM {
             if (operationTracer != null) {
                 operationTracer.tracePreExecution(frame);
             }
-            preTrace(frame, trace, pc, opcode);
+            preTrace(frame, pc, opcode);
 
             Operation.OperationResult result;
             try {
@@ -250,11 +251,11 @@ public class HederaEVM extends HEVM {
                 }
             }
 
-            if (trace != null) {
-                postTrace(frame, trace);
-                if (haltReason != null) trace.p(" ").p(haltReason.toString());
-                System.out.println(trace);
-                trace.clear();
+            if (_trace != null) {
+                postTrace(frame);
+                if (haltReason != null) _trace.p(" ").p(haltReason.toString());
+                _stdOut.println(_trace);
+                _trace.clear();
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
@@ -268,33 +269,32 @@ public class HederaEVM extends HEVM {
             }
         }
 
-        if (trace != null) {
-            System.out.println();
-            if (frame.getDepth() == 0) System.out.println(BonnevilleEVM.TOP_SEP);
+        if (_trace != null) {
+            _stdOut.println();
+            if (frame.getDepth() == 0) _stdOut.println(BonnevilleEVM.TOP_SEP);
             String contractStr = contractStr(opcode);
             if (contractStr != null)
-                System.out.println(trace.p("CONTRACT ").p(contractStr).nl());
-            System.setOut(oldSysOut);
+                _stdOut.println(_trace.p("CONTRACT ").p(contractStr).nl());
+            _stdOut.flush();
         }
     }
 
     // spotless:off
-    private void preTrace(MessageFrame frame, SB trace, int pc, int op) {
-        if (trace != null)
-            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
+    private void preTrace(MessageFrame frame, int pc, int op) {
+        if (_trace != null)
+            _trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
     }
 
-    private SB postTrace(MessageFrame frame, SB trace) {
-        trace.hex2(frame.stackSize());
+    private void postTrace(MessageFrame frame) {
+        _trace.hex2(frame.stackSize());
         // Dump TOS
         if (frame.stackSize() > 0) {
-            trace.p(" 0x");
+            _trace.p(" 0x");
             Bytes bs = frame.getStackItem(0);
             int len = bs.size();
-            for (int i = 0; i < 32 - len; i++) trace.hex1(0);
-            for (int i = 0; i < len; i++) trace.hex1(bs.get(i));
+            for (int i = 0; i < 32 - len; i++) _trace.hex1(0);
+            for (int i = 0; i < len; i++) _trace.hex1(bs.get(i));
         }
-        return trace;
     }
 
     private static String contractStr(int opcode) {
