@@ -205,7 +205,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 0,
-          "milliOpsPerSec": 20000000,
+          "milliOpsPerSec": 40000000,
           "operations": [
             "CryptoGetAccountBalance"
           ]
