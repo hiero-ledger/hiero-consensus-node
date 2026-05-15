@@ -171,9 +171,9 @@ jobs:
           chmod a+rx "${HOME}"/solo
           sudo mv "${HOME}"/solo /usr/bin/solo
 
-          git clone https://github.com/hiero-ledger/solo.git solo
+          git clone https://github.com/timo0/solo.git solo
           cd solo
-          #git checkout increase-nft-test-timeout
+          git checkout fix-memory
           task build:compile
           #npm run build
 
