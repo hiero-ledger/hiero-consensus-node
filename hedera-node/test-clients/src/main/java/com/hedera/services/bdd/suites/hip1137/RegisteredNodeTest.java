@@ -27,6 +27,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGIST
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -68,7 +69,7 @@ public class RegisteredNodeTest {
     }
 
     private static final List<RegisteredServiceEndpoint> DEFAULT_ENDPOINTS = List.of(blockNodeEndpoint(
-            "blocknode.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
+            "blocknode.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH));
 
     @HapiTest
     @DisplayName("create, update (admin key rotation), and delete")
@@ -491,6 +492,56 @@ public class RegisteredNodeTest {
                         .hasKnownStatus(SUCCESS));
     }
 
+    @HapiTest
+    @DisplayName("create with block node endpoint advertising multiple APIs")
+    final Stream<DynamicTest> createWithMultiApiBlockNodeEndpoint() {
+        final var multiApiEndpoints = List.of(blockNodeEndpoint(
+                "block.example.com",
+                8080,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.SUBSCRIBE_STREAM));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(multiApiEndpoints)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @DisplayName("create fails with block node endpoint having empty API list")
+    final Stream<DynamicTest> createWithEmptyApiListFails() {
+        final var emptyApiEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .setDomainName("block.example.com")
+                .setPort(8080)
+                .setBlockNode(
+                        RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder().build())
+                .build();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(List.of(emptyApiEndpoint))
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+    }
+
+    @HapiTest
+    @DisplayName("create fails with block node endpoint having duplicate APIs")
+    final Stream<DynamicTest> createWithDuplicateApisFails() {
+        final var duplicateApiEndpoints = List.of(blockNodeEndpoint(
+                "block.example.com",
+                8080,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(duplicateApiEndpoints)
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+    }
+
     // ─── Privileged delete ────────────────────────────────────────
 
     @HapiTest
@@ -580,6 +631,97 @@ public class RegisteredNodeTest {
                         registeredNodeId.get() + 1,
                         consensusNodeId.get(),
                         "Consensus node ID should be registered node ID + 1")));
+    }
+
+    // ─── Feature flag disabled ──────────────────────────────────────
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled"})
+    @DisplayName("create fails with NOT_SUPPORTED when registeredNodesEnabled is false")
+    final Stream<DynamicTest> createFailsWhenFeatureDisabled() {
+        return hapiTest(
+                overriding("nodes.registeredNodesEnabled", "false"),
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled"})
+    @DisplayName("update fails with NOT_SUPPORTED when registeredNodesEnabled is false")
+    final Stream<DynamicTest> updateFailsWhenFeatureDisabled() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasKnownStatus(SUCCESS),
+                overriding("nodes.registeredNodesEnabled", "false"),
+                registeredNodeUpdate(REGISTERED_NODE)
+                        .description("updated")
+                        .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled"})
+    @DisplayName("delete fails with NOT_SUPPORTED when registeredNodesEnabled is false")
+    final Stream<DynamicTest> deleteFailsWhenFeatureDisabled() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasKnownStatus(SUCCESS),
+                overriding("nodes.registeredNodesEnabled", "false"),
+                registeredNodeDelete(REGISTERED_NODE)
+                        .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled", "fees.simpleFeesEnabled"})
+    @DisplayName("create fails with NOT_SUPPORTED when registeredNodesEnabled is false and simple fees enabled")
+    final Stream<DynamicTest> createFailsWhenFeatureDisabledWithSimpleFees() {
+        return hapiTest(
+                overriding("nodes.registeredNodesEnabled", "false"),
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled", "fees.simpleFeesEnabled"})
+    @DisplayName("update fails with NOT_SUPPORTED when registeredNodesEnabled is false and simple fees enabled")
+    final Stream<DynamicTest> updateFailsWhenFeatureDisabledWithSimpleFees() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasKnownStatus(SUCCESS),
+                overriding("nodes.registeredNodesEnabled", "false"),
+                overriding("fees.simpleFeesEnabled", "true"),
+                registeredNodeUpdate(REGISTERED_NODE)
+                        .description("updated")
+                        .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.registeredNodesEnabled", "fees.simpleFeesEnabled"})
+    @DisplayName("delete fails with NOT_SUPPORTED when registeredNodesEnabled is false and simple fees enabled")
+    final Stream<DynamicTest> deleteFailsWhenFeatureDisabledWithSimpleFees() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(DEFAULT_ENDPOINTS)
+                        .hasKnownStatus(SUCCESS),
+                overriding("nodes.registeredNodesEnabled", "false"),
+                overriding("fees.simpleFeesEnabled", "true"),
+                registeredNodeDelete(REGISTERED_NODE)
+                        .signedBy(DEFAULT_PAYER, ADMIN_KEY)
+                        .hasPrecheck(NOT_SUPPORTED));
     }
 
     // ─── AtomicBatch ───────────────────────────────────────────────
@@ -724,13 +866,17 @@ public class RegisteredNodeTest {
     // ─── Endpoint factory helpers ──────────────────────────────────
 
     private static RegisteredServiceEndpoint blockNodeEndpoint(
-            final String domain, final int port, final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi api) {
+            final String domain,
+            final int port,
+            final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi... apis) {
+        final var blockNodeBuilder = RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder();
+        for (final var api : apis) {
+            blockNodeBuilder.addEndpointApi(api);
+        }
         return RegisteredServiceEndpoint.newBuilder()
                 .setDomainName(domain)
                 .setPort(port)
-                .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(api)
-                        .build())
+                .setBlockNode(blockNodeBuilder.build())
                 .build();
     }
 
@@ -740,7 +886,7 @@ public class RegisteredNodeTest {
                 .setIpAddress(ByteString.copyFrom(ip))
                 .setPort(port)
                 .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(api)
+                        .addEndpointApi(api)
                         .build())
                 .build();
     }

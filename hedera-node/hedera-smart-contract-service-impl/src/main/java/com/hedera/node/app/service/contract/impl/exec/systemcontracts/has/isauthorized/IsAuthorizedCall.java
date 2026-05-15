@@ -69,7 +69,7 @@ public class IsAuthorizedCall extends AbstractCall {
 
         SignatureMap sigMap;
         try {
-            sigMap = requireNonNull(SignatureMap.PROTOBUF.parse(wrap(signatureBlob)));
+            sigMap = requireNonNull(SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob)));
         } catch (@NonNull final ParseException | NullPointerException ex) {
             return bail.apply(INVALID_TRANSACTION_BODY);
         }

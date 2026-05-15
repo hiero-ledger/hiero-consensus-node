@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.util.FileSigningUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileUtils;
 import picocli.CommandLine;
 
 /**

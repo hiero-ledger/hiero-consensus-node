@@ -101,6 +101,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -178,11 +179,12 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsA
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartConfigOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -548,6 +550,22 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns an operation that polls the selected nodes' block node comms logs until they contain
+     * the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep polling
+     * @return the operation that polls until the target logs contain the given text
+     */
+    public static UntilLogContainsOp awaitBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration timeout) {
+        return new UntilLogContainsOp(selector, BLOCK_NODE_COMMS_LOG, text, null, () -> new SpecOperation[0])
+                .lasting(timeout)
+                .pollingEvery(Duration.ofSeconds(1));
+    }
+
+    /**
      * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
      * application logs contain the given text, or the timeout elapses.
      *
@@ -798,10 +816,6 @@ public class UtilVerbs {
         return new ContextualActionOp(action);
     }
 
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
-    }
-
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
         return new WaitForStatusOp(selector, timeout, ACTIVE);
     }
@@ -930,9 +944,10 @@ public class UtilVerbs {
         return new BuildUpgradeZipOp(path);
     }
 
-    public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
-            @NonNull final AtomicReference<byte[]> contentsRef) {
-        return new BuildDynamicJumpstartFileOp(contentsRef);
+    public static BuildDynamicJumpstartConfigOp buildDynamicJumpstartConfig(
+            @NonNull final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartConfigOp(jumpstartConfigRef, envOverrides);
     }
 
     public static GetWrappedRecordHashesOp getWrappedRecordHashes(
@@ -944,17 +959,17 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param jumpstartConfig            the jumpstart config properties
      * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
-            @NonNull final byte[] jumpstartContents,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     /**
@@ -968,6 +983,19 @@ public class UtilVerbs {
     public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
             @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
         return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
+    }
+
+    /**
+     * Asserts the wrapped record hashes file contains a contiguous run of block numbers
+     * ending exactly at {@code expectedLastBlockNum}, confirming that disk writes remained
+     * enabled alongside live hash wrapping.
+     *
+     * @param entries              entries read from the node's wrapped record hashes file
+     * @param expectedLastBlockNum the expected block number of the file's last entry
+     */
+    public static VerifyWrappedHashesCoverageOp verifyWrappedHashesCoverage(
+            @NonNull final List<WrappedRecordFileBlockHashes> entries, @NonNull final String expectedLastBlockNum) {
+        return new VerifyWrappedHashesCoverageOp(entries, expectedLastBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -1760,6 +1788,18 @@ public class UtilVerbs {
 
     public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator() {
         return ValidContractIdsAssertion::new;
+    }
+
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(

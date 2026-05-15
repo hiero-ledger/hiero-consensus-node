@@ -65,6 +65,7 @@ import com.swirlds.state.test.fixtures.TestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -73,6 +74,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -81,6 +84,8 @@ import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Most of the components in this module have rich and interesting dependencies. While we can (and at times must) mock
@@ -119,6 +124,16 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected WritableSingletonState<NodeId> highestNodeIdState;
     protected State state;
 
+    @TempDir
+    Path appTestBaseTempDir;
+
+    protected FileSystemManager fileSystemManager;
+
+    @BeforeEach
+    void setupAppTestBaseFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(appTestBaseTempDir);
+    }
+
     protected void setupStandardStates() {
         accountsState = new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
         accountsState.put(ALICE.accountID(), ALICE.account());
@@ -151,7 +166,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(nodesState)
                 .build();
 
-        final var virtualMap = VirtualMapUtils.createVirtualMap();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager);
 
         state = new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull

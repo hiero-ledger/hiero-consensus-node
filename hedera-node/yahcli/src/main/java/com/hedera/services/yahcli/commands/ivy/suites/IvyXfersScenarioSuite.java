@@ -46,8 +46,8 @@ public class IvyXfersScenarioSuite extends AbstractIvySuite {
                 .given(ensureScenarioPayer())
                 .when()
                 .then(IntStream.range(0, networkSize)
+                        // Each transfer must wait for consensus so records are available for the test assertion
                         .mapToObj(i -> cryptoTransfer(tinyBarsFromTo(SCENARIO_PAYER_NAME, FUNDING, 1L))
-                                .hasAnyStatusAtAll()
                                 .payingWith(SCENARIO_PAYER_NAME)
                                 .setNodeFrom(nodeAccounts.get())
                                 .logged())

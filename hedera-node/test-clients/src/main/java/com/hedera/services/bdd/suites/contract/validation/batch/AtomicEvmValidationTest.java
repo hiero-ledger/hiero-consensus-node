@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.validation.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -61,7 +60,6 @@ class AtomicEvmValidationTest {
 
         @HapiTest
         @DisplayName("succeeds on non-existent contract")
-        @Tag(MATS)
         Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
             return hapiTest(balanceChecker46Version

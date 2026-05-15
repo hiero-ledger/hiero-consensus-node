@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -372,6 +373,18 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
         subject.calculateFees(feeContext);
 
         verify(feeCalculator).addVerificationsPerTransaction(4);
+    }
+
+    @Test
+    @DisplayName("calculateFees throws NOT_SUPPORTED when registeredNodesEnabled is false")
+    void calculateFeesThrowsWhenDisabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.registeredNodesEnabled", false)
+                .getOrCreateConfig();
+        given(feeContext.configuration()).willReturn(config);
+
+        final var ex = assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
+        assertEquals(NOT_SUPPORTED, ex.getStatus());
     }
 
     // ─── helpers ───────────────────────────────────────────────────

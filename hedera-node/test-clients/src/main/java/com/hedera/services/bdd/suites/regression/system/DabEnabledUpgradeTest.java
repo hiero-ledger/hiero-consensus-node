@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFee
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -79,7 +80,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -87,14 +88,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.*;
 
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
@@ -374,13 +368,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
                     cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
                     // create node txn
-                    sourcing(
-                            () -> nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
-                                    .adminKey(DEFAULT_PAYER)
-                                    .description(CLASSIC_NODE_NAMES[4])
-                                    .withAvailableSubProcessPorts()
-                                    .gossipCaCertificate(VALID_CERT)
-                                    .exposingCreatedIdTo(nodeId::set)),
+                    nodeCreate("newNode", "nodeAccountId")
+                            .adminKey(DEFAULT_PAYER)
+                            .description(CLASSIC_NODE_NAMES[4])
+                            .withAvailableSubProcessPorts()
+                            .gossipCaCertificate(VALID_CERT)
+                            .exposingCreatedIdTo(nodeId::set),
                     doingContextual(spec -> {
                         allRunFor(
                                 spec,
@@ -488,29 +481,29 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
     }
 
-    private static String recordsPath(String nodeId) {
-        return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
+    private static Path recordsPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("recordStreams");
     }
 
-    private static String blocksPath(String nodeId) {
-        return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
+    private static Path blocksPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("blockStreams");
     }
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isFalse();
 
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isFalse();
         });
     }
 
     private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isTrue();
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isTrue();
         });
     }

@@ -97,6 +97,12 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void setLedgerId(@NonNull Bytes bytes);
 
     /**
+     * Sets the expected WRAPS proving key hash.
+     * @param hash the hash
+     */
+    void setWrapsProvingKeyHash(@NonNull Bytes hash);
+
+    /**
      * Hands off from the active construction to the next construction if appropriate.
      * @param fromRoster the roster to hand off from
      * @param toRoster if applicable, the roster to hand off to

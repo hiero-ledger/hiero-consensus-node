@@ -21,5 +21,6 @@ public enum ExternalPath {
     DATA_CONFIG_DIR,
     UPGRADE_ARTIFACTS_DIR,
     SAVED_STATES_DIR,
+    PCES_DIR,
     WORKING_DIR,
 }

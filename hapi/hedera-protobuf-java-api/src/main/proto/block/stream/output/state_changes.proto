@@ -500,6 +500,11 @@ enum StateIdentifier {
     STATE_ID_HIGHEST_NODE_ID = 57;
 
     /**
+     * A state identifier for the expected WRAPS proving key hash. Singleton state.
+     */
+    STATE_ID_WRAPS_PROVING_KEY_HASH = 58;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -811,18 +816,13 @@ message MapDeleteChange {
  * A key identifying a specific entry in a key-value "virtual map".
  */
 message MapChangeKey {
+    reserved 2;
+
     oneof key_choice {
         /**
          * A key for a change affecting a map keyed by an Account identifier.
          */
         proto.AccountID account_id_key = 1;
-
-        /**
-         * A change to the token relationships virtual map.<br/>
-         * This map is keyed by the pair of account identifier and
-         * token identifier.
-         */
-        proto.TokenAssociation token_relationship_key = 2;
 
         /**
          * A change to a map keyed by an EntityNumber (which is a whole number).
@@ -941,6 +941,13 @@ message MapChangeKey {
          * An EVM hook's storage slot key.
          */
         com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
+
+        /**
+         * A change to the token relationships virtual map.<br/>
+         * This map is keyed by the pair of account identifier and
+         * token identifier.
+         */
+        proto.AccountTokenAssociation token_relationship_key = 25;
     }
 }
 

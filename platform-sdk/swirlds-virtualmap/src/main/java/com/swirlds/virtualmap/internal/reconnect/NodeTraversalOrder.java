@@ -17,10 +17,13 @@ public interface NodeTraversalOrder {
      * This method is called when the first node, which is always the root node, is received from
      * the teacher along with information about virtual tree leaf path range.
      *
+     * @param oldFirstLeafPath the first leaf path in learner's virtual tree
+     * @param oldLastLeafPath the last leaf path in learner's virtual tree
      * @param firstLeafPath the first leaf path in teacher's virtual tree
      * @param lastLeafPath the last leaf path in teacher's virtual tree
      */
-    void start(final long firstLeafPath, final long lastLeafPath);
+    void start(
+            final long oldFirstLeafPath, final long oldLastLeafPath, final long firstLeafPath, final long lastLeafPath);
 
     /**
      * Returns the next internal path to send to the teacher. This method may be called in

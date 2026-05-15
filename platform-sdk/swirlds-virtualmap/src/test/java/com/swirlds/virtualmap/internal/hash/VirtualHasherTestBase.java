@@ -24,11 +24,27 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.provider.Arguments;
 
-public class VirtualHasherTestBase extends VirtualTestBase {
+class VirtualHasherTestBase extends VirtualTestBase {
 
     protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
+
+    protected VirtualHasher defaultHasher;
+
+    @BeforeEach
+    void setup() {
+        defaultHasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (defaultHasher != null) {
+            defaultHasher.shutdown();
+        }
+    }
 
     /**
      * Helper method for computing a list of {@link Arguments} of length {@code num}, each of which contains

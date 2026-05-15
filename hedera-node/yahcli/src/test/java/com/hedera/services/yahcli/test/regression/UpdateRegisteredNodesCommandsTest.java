@@ -147,6 +147,40 @@ public class UpdateRegisteredNodesCommandsTest {
     }
 
     /**
+     * Creates a registered node with a single-API block node endpoint, then updates it
+     * to a single endpoint advertising multiple APIs via the comma-separated format.
+     * Exercises the repeated {@code endpoint_api} field on update.
+     */
+    @HapiTest
+    final Stream<DynamicTest> updateEndpointWithMultiApiCommaSeparated() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_upd_multi_api_csv.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS")
+                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
+                sourcingContextual(spec -> yahcliRegisteredNodes(
+                                "update",
+                                "-n",
+                                Long.toString(createdId.get()),
+                                "-k",
+                                asYcDefaultNetworkKey(adminKeyFile),
+                                "--blockNodeEndpoint",
+                                "127.0.0.1:8080:STATUS,PUBLISH,SUBSCRIBE_STREAM")
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("registeredNode" + createdId.get() + " has been updated")))));
+    }
+
+    /**
      * Creates a registered node with a block node endpoint, then adds TLS-enabled
      * endpoints for all three service types during update. Exercises the mixed
      * endpoint type path with TLS flags.
@@ -306,6 +340,40 @@ public class UpdateRegisteredNodesCommandsTest {
     // -------------------------------------------------------------------------
     // Negative tests
     // -------------------------------------------------------------------------
+
+    /**
+     * Attempts to update a registered node's block node endpoint with duplicate APIs
+     * (PUBLISH,PUBLISH). The network rejects this with INVALID_REGISTERED_ENDPOINT.
+     */
+    @HapiTest
+    final Stream<DynamicTest> updateWithDuplicateBlockNodeApisFails() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_upd_dup_apis.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS")
+                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
+                sourcingContextual(spec -> yahcliRegisteredNodes(
+                                "update",
+                                "-n",
+                                Long.toString(createdId.get()),
+                                "-k",
+                                asYcDefaultNetworkKey(adminKeyFile),
+                                "--blockNodeEndpoint",
+                                "127.0.0.1:8080:PUBLISH,PUBLISH")
+                        .expectFail()
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("FAILED"), "Expected failure for duplicate APIs in update"))));
+    }
 
     /**
      * Attempts to update a registered node without supplying the admin key. The

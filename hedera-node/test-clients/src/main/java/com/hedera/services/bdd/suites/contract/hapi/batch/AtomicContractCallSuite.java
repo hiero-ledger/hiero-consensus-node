@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -214,13 +213,15 @@ class AtomicContractCallSuite {
     final Stream<DynamicTest> repeatedCreate2FailsWithInterpretableActionSidecars() {
         final var contract = "Create2PrecompileUser";
         final var salt = unhex(SALT);
+        final var createContract = "createContract";
         final var firstCreation = "firstCreation";
         final var secondCreation = "secondCreation";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(
+                        sidecarIdValidator(createContract, firstCreation, secondCreation)),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).via(createContract),
                 atomicBatch(contractCall(contract, "createUser", salt)
                                 .payingWith(ACCOUNT)
                                 .gas(4_000_000L)
@@ -248,15 +249,19 @@ class AtomicContractCallSuite {
         final var altbn128PairingAddress = asHeadlongAddress("0x08");
         final var htsSystemContractAddress = asHeadlongAddress("0x0167");
         final var tokenInfoFn = new Function("getTokenInfo(address)");
+        final var createContract = "createContract";
+        final var altbn128Call = "altbn128Call";
+        final var htsCall = "htsCall";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).via(createContract),
                 tokenCreate("someToken").exposingAddressTo(someTokenAddress::set),
                 // Generates CONTRACT_ACTION sidecars for a call to an EVM precompile
                 // with insufficient gas
                 contractCall(contract, "callRequested", altbn128PairingAddress, payload, BigInteger.valueOf(11_256))
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via(altbn128Call),
                 // Generates CONTRACT_ACTION sidecars for a call to an HTS
                 // system contract with insufficient gas
                 sourcing(() -> atomicBatch(contractCall(
@@ -268,6 +273,7 @@ class AtomicContractCallSuite {
                                                 .array(),
                                         BigInteger.valueOf(1))
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .via(htsCall)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
@@ -276,18 +282,20 @@ class AtomicContractCallSuite {
     @HapiTest
     final Stream<DynamicTest> hollowCreationFailsCleanly() {
         final var contract = "HollowAccountCreator";
+        final var createContract = "createContract";
+        final var callTransaction = "callTransaction";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).via(createContract),
                 atomicBatch(contractCall(contract, "testCallFoo", randomHeadlongAddress(), BigInteger.valueOf(500_000L))
                                 .sending(ONE_HBAR)
                                 .gas(2_000_000L)
-                                .via("callTransaction")
+                                .via(callTransaction)
                                 .hasKnownStatusFrom(SUCCESS, INVALID_SOLIDITY_ADDRESS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                getTxnRecord("callTransaction").andAllChildRecords());
+                getTxnRecord(callTransaction).andAllChildRecords());
     }
 
     @HapiTest
@@ -903,7 +911,6 @@ class AtomicContractCallSuite {
      */
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> erc721TokenUriAndHtsNftInfoTreatNonUtf8BytesDifferently() {
         final var contractAlternatives = "ErcAndHtsAlternatives";
         final AtomicReference<Address> nftAddr = new AtomicReference<>();
@@ -1742,7 +1749,7 @@ class AtomicContractCallSuite {
         final var ACC = "acc";
         final var RECEIVER_KEY = "receiverKey";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
                 newKeyNamed(RECEIVER_KEY),
                 cryptoCreate(ACC)
                         .balance(5 * ONE_HUNDRED_HBARS)
@@ -1750,7 +1757,10 @@ class AtomicContractCallSuite {
                         .key(RECEIVER_KEY),
                 getAccountInfo(ACC).savingSnapshot(ACC_INFO),
                 uploadInitCode(TRANSFERRING_CONTRACT),
-                contractCreate(TRANSFERRING_CONTRACT).payingWith(ACC).balance(ONE_HUNDRED_HBARS),
+                contractCreate(TRANSFERRING_CONTRACT)
+                        .payingWith(ACC)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .via("createContract"),
                 withOpContext((spec, log) -> {
                     final var acc = spec.registry().getAccountInfo(ACC_INFO).getContractAccountID();
                     final var withoutReceiverSignature = atomicBatch(contractCall(
@@ -1759,6 +1769,7 @@ class AtomicContractCallSuite {
                                             asHeadlongAddress(acc),
                                             BigInteger.valueOf(ONE_HUNDRED_HBARS / 2))
                                     .hasKnownStatus(INVALID_SIGNATURE)
+                                    .via("noSigCall")
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED);
@@ -1772,6 +1783,7 @@ class AtomicContractCallSuite {
                                     .payingWith(ACC)
                                     .signedBy(RECEIVER_KEY)
                                     .hasKnownStatus(SUCCESS)
+                                    .via("sigCall")
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR);
                     allRunFor(spec, withSignature);
@@ -2245,7 +2257,6 @@ class AtomicContractCallSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callStaticCallToLargeAddress() {
         final var txn = "txn";
         final var contract = "CallInConstructor";
@@ -2318,16 +2329,19 @@ class AtomicContractCallSuite {
     final Stream<DynamicTest> callToNonExtantLongZeroAddressUsesTargetedAddress() {
         final var contract = "LowLevelCall";
         final var nonExtantMirrorAddress = asHeadlongAddress("0xE8D4A50FFF");
+        final var createContract = "createContract";
+        final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).via(createContract),
                 atomicBatch(contractCall(
                                         contract,
                                         "callRequested",
                                         nonExtantMirrorAddress,
                                         new byte[0],
                                         BigInteger.valueOf(88_888L))
+                                .via(callTxn)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR));
     }
@@ -2336,16 +2350,19 @@ class AtomicContractCallSuite {
     final Stream<DynamicTest> callToNonExtantEvmAddressUsesTargetedAddress() {
         final var contract = "LowLevelCall";
         final var nonExtantEvmAddress = asHeadlongAddress(TxnUtils.randomUtf8Bytes(20));
+        final var createContract = "createContract";
+        final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(400_000L),
+                contractCreate(contract).gas(400_000L).via(createContract),
                 atomicBatch(contractCall(
                                         contract,
                                         "callRequested",
                                         nonExtantEvmAddress,
                                         new byte[0],
                                         BigInteger.valueOf(88_888L))
+                                .via(callTxn)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR));
     }
@@ -2371,7 +2388,6 @@ class AtomicContractCallSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> contractCreateFollowedByContractCallNoncesExternalization() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";

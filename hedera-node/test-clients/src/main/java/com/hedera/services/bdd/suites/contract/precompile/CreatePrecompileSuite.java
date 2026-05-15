@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -100,7 +99,7 @@ public class CreatePrecompileSuite {
     public static final String TOKEN_CREATE_CONTRACT = "TokenCreateContract";
     public static final String FIRST_CREATE_TXN = "firstCreateTxn";
     private static final String ACCOUNT_BALANCE = "ACCOUNT_BALANCE";
-    public static final long DEFAULT_AMOUNT_TO_SEND = 20 * ONE_HBAR;
+    public static final long DEFAULT_AMOUNT_TO_SEND = 30 * ONE_HBAR;
     public static final String ED25519KEY = "ed25519key";
     public static final String ECDSA_KEY = "ecdsa";
     public static final String EXISTING_TOKEN = "EXISTING_TOKEN";
@@ -236,7 +235,6 @@ public class CreatePrecompileSuite {
 
     // TEST-002
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> inheritsSenderAutoRenewAccountIfAnyForNftCreate() {
         final var createdNftTokenNum = new AtomicLong();
         final AtomicReference<byte[]> ed2551Key = new AtomicReference<>();
@@ -547,7 +545,6 @@ public class CreatePrecompileSuite {
 
     // TEST-006
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nonFungibleTokenCreateThenQuery() {
         final var createdTokenNum = new AtomicLong();
         return hapiTest(

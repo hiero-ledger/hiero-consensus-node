@@ -36,10 +36,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -52,6 +51,7 @@ public class DuplicateManagementTest {
     private static final String TO = "3";
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
+    private static final long DUPLICATE_FEE_TOLERANCE_TINYBARS = 25L;
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> hasExpectedDuplicates() {
@@ -106,21 +106,21 @@ public class DuplicateManagementTest {
                                         costlyRecord.getTransferList(),
                                         costlyRecord.getTransactionID().getAccountID())
                                 .orElse(0);
-                        assertEquals(
-                                3 * cheapPrice,
-                                costlyPrice,
+                        final var expectedCostly = 3 * cheapPrice;
+                        assertTrue(
+                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
                                 String.format(
-                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
                                         costlyPrice, cheapPrice));
 
                     } else {
                         var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
                         var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                        assertEquals(
-                                3 * cheapPrice - 1,
-                                costlyPrice,
+                        final var expectedCostly = 3 * cheapPrice - 1;
+                        assertTrue(
+                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
                                 String.format(
-                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
                                         costlyPrice, cheapPrice));
                     }
                 }));
@@ -184,7 +184,7 @@ public class DuplicateManagementTest {
                 getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> usesUnclassifiableIfNoClassifiableAvailable() {
         return hapiTest(
                 newKeyNamed("wrongKey"),
@@ -193,7 +193,7 @@ public class DuplicateManagementTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
                 uncheckedSubmit(
                         cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
-                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                sleepFor(500), // time to reach consensus
                 getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()

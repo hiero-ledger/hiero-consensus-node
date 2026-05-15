@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -64,7 +63,6 @@ public class RecordsSuite {
     public static final String AUTO_ACCOUNT = "autoAccount";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> bigCall() {
         final var contract = "BigBig";
         final var txName = "BigCall";
@@ -125,7 +123,6 @@ public class RecordsSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> blck003ReturnsTimestampOfTheBlock() {
         final var contract = "EmitBlockTimestamp";
         final var firstCall = "firstCall";
@@ -209,6 +206,12 @@ public class RecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 waitUntilNextBlock().withBackgroundTraffic(true),
+                // Do NOT defer status resolution on the first call: if we do, the
+                // submission op returns before the tx has reached consensus, which
+                // means the subsequent waitUntilNextBlock() can observe the next
+                // block's marker file while this tx is still pending - so the tx
+                // can end up in the SAME block as the second call below, making
+                // the assertNotEquals on block.timestamp below flake
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -217,7 +220,6 @@ public class RecordsSuite {
                         .maxFeePerGas(50L)
                         .gasLimit(1_000_000L)
                         .via(firstBlock)
-                        .deferStatusResolution()
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                 // Make sure we submit the next transaction in the next block
                 waitUntilNextBlock().withBackgroundTraffic(true),

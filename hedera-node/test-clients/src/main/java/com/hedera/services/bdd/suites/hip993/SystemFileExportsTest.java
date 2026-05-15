@@ -87,7 +87,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.security.KeyStoreException;
@@ -103,6 +102,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
@@ -411,6 +411,7 @@ public class SystemFileExportsTest {
     final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
+                getSystemFiles(preGenesisContents::set),
                 eventuallyAssertingExplicitPassWithReplay(
                         selectedItems(
                                 validatorFor(preGenesisContents),
@@ -418,7 +419,6 @@ public class SystemFileExportsTest {
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
-                getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number
                 withOpContext((spec, opLog) -> assertEquals(
@@ -627,7 +627,7 @@ public class SystemFileExportsTest {
         final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
 
         try {
-            final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
+            final var keysAndCerts = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
             return nodeIds.stream()
                     .collect(
                             toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));

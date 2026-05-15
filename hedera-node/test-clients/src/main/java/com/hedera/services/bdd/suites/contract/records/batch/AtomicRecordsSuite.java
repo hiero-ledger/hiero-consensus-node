@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.contract.records.batch;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -39,6 +38,7 @@ import com.google.common.primitives.Longs;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -64,6 +64,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of RecordsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 @HapiTestLifecycle
 @DisplayName("Records Suite")
 class AtomicRecordsSuite {
@@ -98,7 +99,6 @@ class AtomicRecordsSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> txRecordsContainValidTransfers() {
         final var contract = "ParentChildTransfer";
 
@@ -231,6 +231,12 @@ class AtomicRecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 waitUntilNextBlock().withBackgroundTraffic(true),
+                // Do NOT defer status resolution on the first call: if we do, the
+                // submission op returns before the tx has reached consensus, which
+                // means the subsequent waitUntilNextBlock() can observe the next
+                // block's marker file while this tx is still pending - so the tx
+                // can end up in the SAME block as the second call below, making
+                // the assertNotEquals on block.timestamp below flake
                 atomicBatch(ethereumCall(contract, LOG_NOW)
                                 .type(EthTxData.EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
@@ -239,7 +245,6 @@ class AtomicRecordsSuite {
                                 .maxFeePerGas(50L)
                                 .gasLimit(1_000_000L)
                                 .via(firstBlock)
-                                .deferStatusResolution()
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
@@ -306,7 +311,6 @@ class AtomicRecordsSuite {
 
     @DisplayName("Block Hash Returns The Hash Of The Latest 256 Blocks")
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    @Tag(MATS)
     final Stream<DynamicTest> blockHashReturnsTheHashOfTheLatest256Blocks() {
         final var contract = "EmitBlockTimestamp";
         return hapiTest(

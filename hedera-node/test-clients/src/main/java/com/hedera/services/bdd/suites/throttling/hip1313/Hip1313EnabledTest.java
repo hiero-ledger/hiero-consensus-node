@@ -8,10 +8,12 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
@@ -33,10 +35,15 @@ import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleIte
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.interpolatePiecewiseLinear;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.linearInterpolate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -571,6 +579,156 @@ public class Hip1313EnabledTest {
                         .andAllChildRecords()
                         .exposingAllTo(Hip1313EnabledTest::assertOnlyChildHasBoostedHighVolumeMultiplier),
                 validateChargedUsdWithChild("feeSplitTransfer", 0.0001 + (0.05 * 4), 0.01));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hvCryptoTransferAutoCreationExceedingMaxFeeFailsAtIngest() {
+        return hapiTest(
+                newKeyNamed("autoCreateAlias"),
+                cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "autoCreateAlias"))
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .fee(1L)
+                        .hasPrecheck(INSUFFICIENT_TX_FEE));
+    }
+
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/hip1313-no-hv-one-tps-create.json")
+    final Stream<DynamicTest> hvCryptoCreateWithMaxFeeTooLowDoesNotBypassThrottleAndCongestion() {
+        return hapiTest(
+                overridingThrottles("testSystemFiles/hip1313-no-hv-one-tps-create.json"),
+                cryptoCreate("congestionFiller1")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .fee(1L)
+                        .hasPrecheck(INSUFFICIENT_TX_FEE),
+                cryptoCreate("congestionFiller2")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(OK),
+                cryptoCreate("congestionFiller3")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .hasPrecheck(BUSY),
+                cryptoCreate("congestionFiller4")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .fee(1L)
+                        .hasPrecheck(BUSY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> twoIdenticalHvCreatesUnderSameConditionsGetSameMultiplier() {
+        final var firstMultiplier = new AtomicLong(-1L);
+        final var secondMultiplier = new AtomicLong(-1L);
+        return hapiTest(
+                cryptoCreate("hvCreateFirst")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("hvFirstTxn"),
+                getTxnRecord("hvFirstTxn")
+                        .exposingTo(record -> firstMultiplier.set(record.getHighVolumePricingMultiplier())),
+                cryptoCreate("hvCreateSecond")
+                        .payingWith(CIVILIAN_PAYER)
+                        .withHighVolume()
+                        .via("hvSecondTxn"),
+                getTxnRecord("hvSecondTxn")
+                        .exposingTo(record -> secondMultiplier.set(record.getHighVolumePricingMultiplier())),
+                withOpContext((spec, opLog) -> assertEquals(
+                        firstMultiplier.get(),
+                        secondMultiplier.get(),
+                        "Both HV creates under identical low-utilization conditions should have the same multiplier,"
+                                + " but first=" + firstMultiplier.get()
+                                + " and second=" + secondMultiplier.get())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchFailsWhenHvInnerTxnFails() {
+        final var hvInnerPayer = "hvInnerPayer";
+        final var hvInnerTxId = "hvInnerTxId";
+        final var standardInnerPayer = "standardInnerPayer";
+        final var standardInnerTxId = "standardInnerTxId";
+        final var batchOperator = "hvFailBatchOperator";
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(hvInnerPayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(standardInnerPayer).balance(ONE_HUNDRED_HBARS),
+                tokenCreate("noSupplyToken").treasury(hvInnerPayer).initialSupply(0L),
+                atomicBatch(
+                                cryptoCreate("testAcc")
+                                        .payingWith(standardInnerPayer)
+                                        .signedBy(standardInnerPayer)
+                                        .via(standardInnerTxId)
+                                        .batchKey(batchOperator)
+                                        .hasKnownStatus(REVERTED_SUCCESS),
+                                mintToken("noSupplyToken", 1L)
+                                        .payingWith(hvInnerPayer)
+                                        .signedBy(hvInnerPayer)
+                                        .via(hvInnerTxId)
+                                        .withHighVolume()
+                                        .batchKey(batchOperator)
+                                        .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY))
+                        .payingWith(batchOperator)
+                        .signedByPayerAnd(batchOperator)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+
+                // Verify/Double check high volume and standard txns were in fact submitted & processed as so
+                getTxnRecord(standardInnerTxId)
+                        .andAllChildRecords()
+                        .exposingAllTo(records -> {
+                            assertNoRecordMatches(
+                                    records, record -> record.getHighVolumePricingMultiplier() >= ONE_X_MULTIPLIER);
+                        })
+                        .logged(),
+                getTxnRecord(hvInnerTxId)
+                        .andAllChildRecords()
+                        .exposingAllTo(records -> {
+                            assertAnyRecordMatches(
+                                    records, record -> record.getHighVolumePricingMultiplier() >= ONE_X_MULTIPLIER);
+                        })
+                        .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> batchFailsWhenStdInnerTxnFails() {
+        final var hvInnerPayer = "hvInnerPayer";
+        final var hvInnerTxId = "hvInnerTxId";
+        final var standardInnerPayer = "standardInnerPayer";
+        final var standardInnerTxId = "standardInnerTxId";
+        final var batchOperator = "hvFailBatchOperator";
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(hvInnerPayer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(standardInnerPayer).balance(ONE_HUNDRED_HBARS),
+                tokenCreate("noSupplyToken").treasury(hvInnerPayer).initialSupply(0L),
+                atomicBatch(
+                                cryptoCreate("testAcc")
+                                        .payingWith(hvInnerPayer)
+                                        .signedBy(hvInnerPayer)
+                                        .via(hvInnerTxId)
+                                        .withHighVolume()
+                                        .batchKey(batchOperator)
+                                        .hasKnownStatus(REVERTED_SUCCESS),
+                                mintToken("noSupplyToken", 1L)
+                                        .payingWith(standardInnerPayer)
+                                        .signedBy(standardInnerPayer)
+                                        .via(standardInnerTxId)
+                                        .batchKey(batchOperator)
+                                        .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY))
+                        .payingWith(batchOperator)
+                        .signedByPayerAnd(batchOperator)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+
+                // Verify/Double check high volume and standard txns were in fact submitted & processed as so
+                getTxnRecord(standardInnerTxId).andAllChildRecords().exposingAllTo(records -> {
+                    assertNoRecordMatches(
+                            records, record -> record.getHighVolumePricingMultiplier() >= ONE_X_MULTIPLIER);
+                }),
+                getTxnRecord(hvInnerTxId).andAllChildRecords().exposingAllTo(records -> {
+                    assertAnyRecordMatches(
+                            records, record -> record.getHighVolumePricingMultiplier() >= ONE_X_MULTIPLIER);
+                }));
     }
 
     private static void assertOnlyChildHasBoostedHighVolumeMultiplier(@NonNull final List<TransactionRecord> records) {

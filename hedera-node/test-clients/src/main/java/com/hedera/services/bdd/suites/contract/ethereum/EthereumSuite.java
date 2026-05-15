@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicitEthereumTransaction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -46,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -86,7 +88,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_CHAIN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
@@ -96,6 +100,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
@@ -1324,5 +1330,54 @@ public class EthereumSuite {
                                         .substring(32)
                                         .toByteArray(),
                                 new byte[32])));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumTransactionRespectsMaxGasPerTransaction() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                overriding("contracts.throttle.throttleByGas", "false"),
+                overriding("contracts.maxGasPerTransaction", "15000000"),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(1))
+                        .type(EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasLimit(16_000_000L)
+                        .sending(1)
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
+                restoreDefault("contracts.maxGasPerTransaction"),
+                restoreDefault("contracts.throttle.throttleByGas"));
+    }
+
+    // Legacy `v` byte values that are neither EIP-155 protected (v >= 35, derived from
+    // v = chainId*2 + 35|36) nor pre-EIP-155 unprotected (v == 27 or 28) — i.e. v in
+    // {0..26} ∪ {29..34} — used to leave chainId() as null, which could NPE downstream.
+    // After the fix, those values should lead to invalid chainId as opposed to NPE.
+    @HapiTest
+    final Stream<DynamicTest> legacyEthTxDataWithNonStandardVResultsInInvalidChainNotNpe() {
+        final byte[] nonce = Integers.toBytes(1);
+        final byte[] gasPrice = new byte[] {0x2f};
+        final byte[] gasLimit = Integers.toBytes(GAS_LIMIT);
+        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] value = new byte[0];
+        final byte[] callData = new byte[] {0x76, 0x53};
+        // v = 1: not in {27, 28} and not >= 35
+        final byte[] v = new byte[] {0x01};
+        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        final ByteString rawTx =
+                ByteString.copyFrom(RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s)));
+
+        return hapiTest(
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                explicitEthereumTransaction("nonStandardV", (_, b) -> b.setEthereumData(rawTx))
+                        .payingWith(RELAYER)
+                        .hasKnownStatusFrom(INVALID_ETHEREUM_TRANSACTION, WRONG_CHAIN_ID));
     }
 }

@@ -6,9 +6,11 @@ import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -22,6 +24,9 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     private final ObjectCounter offRamp;
     private final ForkJoinPool pool;
     private final long capacity;
+
+    @Nullable
+    private final AtomicLong inflightCount;
 
     /**
      * Constructor.
@@ -37,6 +42,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will throw
      * @param insertionIsBlocking      when data is inserted into this scheduler, will it block until capacity is
      *                                 available?
+     * @param inflightCount            if non-null, tracks the number of tasks currently being executed
      */
     public ConcurrentTaskScheduler(
             @NonNull final TraceableWiringModel model,
@@ -48,7 +54,8 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final long capacity,
             final boolean flushEnabled,
             final boolean squelchingEnabled,
-            final boolean insertionIsBlocking) {
+            final boolean insertionIsBlocking,
+            @Nullable final AtomicLong inflightCount) {
 
         super(
                 model,
@@ -63,6 +70,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.capacity = capacity;
+        this.inflightCount = inflightCount;
     }
 
     /**
@@ -71,7 +79,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void put(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.onRamp();
-        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
+        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data, inflightCount).send();
     }
 
     /**
@@ -81,7 +89,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     protected boolean offer(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         final boolean accepted = onRamp.attemptOnRamp();
         if (accepted) {
-            new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
+            new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data, inflightCount).send();
         }
         return accepted;
     }
@@ -92,7 +100,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void inject(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.forceOnRamp();
-        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
+        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data, inflightCount).send();
     }
 
     /**
@@ -101,6 +109,14 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     public long getUnprocessedTaskCount() {
         return onRamp.getCount();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getInflightTaskCount() {
+        return inflightCount != null ? inflightCount.get() : 0;
     }
 
     /**

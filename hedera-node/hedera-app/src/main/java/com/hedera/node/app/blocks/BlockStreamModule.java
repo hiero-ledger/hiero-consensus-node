@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
@@ -11,6 +12,7 @@ import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -28,7 +30,6 @@ import javax.inject.Singleton;
 
 @Module
 public interface BlockStreamModule {
-
     @Provides
     @Singleton
     static BlockBufferService provideBlockBufferService(
@@ -38,14 +39,26 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
+    static BlockNodeConfigService provideBlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
+        return new BlockNodeConfigService(configProvider);
+    }
+
+    @Provides
+    @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
+            @NonNull final NetworkInfo networkInfo,
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
+            @NonNull final BlockNodeConfigService blockNodeConfigService) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
-                configProvider, blockBufferService, blockStreamMetrics, blockingIoExecutorSupplier);
-        blockBufferService.setBlockNodeConnectionManager(manager);
+                configProvider,
+                blockBufferService,
+                blockStreamMetrics,
+                networkInfo,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService);
         manager.start();
         return manager;
     }
@@ -86,6 +99,23 @@ public interface BlockStreamModule {
                 () -> new FileAndGrpcBlockItemWriter(
                         configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         };
+    }
+
+    /**
+     * Provides a dedicated supplier of {@link GrpcBlockItemWriter} instances for the wrapped record block
+     * (WRB) path used by {@code BlockRecordManagerImpl}. Unlike {@link #bindBlockItemWriterSupplier}, this
+     * supplier always returns a gRPC-capable writer regardless of {@code blockStream.writerMode}, since the
+     * WRB path must reach {@link BlockBufferService} even when the writer mode is {@code FILE}.
+     */
+    @Provides
+    @Singleton
+    @Named("wrb")
+    static Supplier<BlockItemWriter> bindWrbBlockItemWriterSupplier(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
+            @NonNull final FileSystem fileSystem,
+            @NonNull final BlockBufferService blockBufferService) {
+        return () -> new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
     }
 
     @Provides

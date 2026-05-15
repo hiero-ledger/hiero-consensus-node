@@ -19,8 +19,11 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -31,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,11 +57,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HintsLibrary library,
-            @NonNull final Duration blockPeriod) {
+            @NonNull final Duration blockPeriod,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this, rsaContext, rsaSignings);
     }
 
     @VisibleForTesting
@@ -94,18 +100,25 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
+        requireNonNull(blockHash);
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
                 .newSigning(b, () -> component.signings().remove(blockHash)));
-        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+        final var submissionFuture = component.submissions().submitPartialSignature(blockHash);
+        submissionFuture.exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
         });
-        return signing;
+        return new SigningResult(signing, submissionFuture);
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return component.submissions();
     }
 
     @Override
@@ -164,9 +177,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
             final boolean isActive,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final NetworkInfo networkInfo) {
         requireNonNull(hintsStore);
-        requireNonNull(tssConfig);
+        requireNonNull(networkInfo);
         requireNonNull(now);
         final var controller = component.controllers().getAnyInProgress();
         // On the very first round the hinTS controller won't be available yet
@@ -177,7 +190,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         var crsState = hintsStore.getCrsState();
         if (CRSState.DEFAULT.equals(crsState)) {
             // Must be a TSS cutover situation with tss.hintsEnabled = true but default state, so init here
-            crsState = initialCrsState(tssConfig.initialCrsParties());
+            crsState = initialCrsState((short) HintsService.partySizeForRosterNodeCount(
+                    networkInfo.addressBook().size()));
             hintsStore.setCrsState(crsState);
         }
         if (crsState.stage() != COMPLETED) {
@@ -200,11 +214,14 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
+        registry.register(new V073HintsSchema(library, component.signingContext()));
     }
 
     @Override
     public boolean doGenesisSetup(
-            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
         writableStates
@@ -213,10 +230,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         writableStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
-        final var tssConfig = configuration.getConfigData(TssConfig.class);
         final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
-        if (tssConfig.hintsEnabled()) {
-            final var state = initialCrsState(tssConfig.initialCrsParties());
+        if (configuration.getConfigData(TssConfig.class).hintsEnabled()) {
+            final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
             crsState.put(state);
         } else {
             crsState.put(CRSState.DEFAULT);

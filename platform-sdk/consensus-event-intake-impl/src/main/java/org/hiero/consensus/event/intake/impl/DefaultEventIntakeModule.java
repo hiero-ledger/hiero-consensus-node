@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.UnaryOperator;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -28,6 +28,7 @@ import org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureVali
 import org.hiero.consensus.event.intake.impl.signature.EventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -162,13 +163,13 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
-        final InternalEventValidator internalEventValidator =
-                new DefaultInternalEventValidator(metrics, time, intakeEventCounter, transactionLimits);
+        final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
+                new DefaultEventFieldValidator(metrics, time, transactionLimits), intakeEventCounter);
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, ConsensusCryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);

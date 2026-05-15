@@ -9,6 +9,8 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.WritableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
@@ -117,6 +119,10 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
+        newMap.put(
+                WritableBlockRecordStore.class,
+                new StoreEntry(
+                        BlockRecordService.NAME, (states, entityCounters) -> new WritableBlockRecordStore(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

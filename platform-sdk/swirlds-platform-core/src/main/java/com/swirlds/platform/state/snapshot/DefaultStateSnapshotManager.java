@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -22,6 +21,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -45,14 +45,9 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private final NodeId selfId;
 
     /**
-     * The name of the application that is currently running.
+     * The file system manager for writing signed state data
      */
-    private final String mainClassName;
-
-    /**
-     * The swirld name.
-     */
-    private final String swirldName;
+    private final FileSystemManager fileSystemManager;
 
     /**
      * Metrics provider
@@ -101,13 +96,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
+        this.fileSystemManager = platformContext.getFileSystemManager();
         this.time = platformContext.getTime();
         this.selfId = Objects.requireNonNull(selfId);
-        this.mainClassName = Objects.requireNonNull(mainClassName);
-        this.swirldName = Objects.requireNonNull(swirldName);
-        configuration = platformContext.getConfiguration();
+        this.configuration = platformContext.getConfiguration();
         this.stateLifecycleManager = stateLifecycleManager;
-        signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
+        signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
 
@@ -120,8 +114,11 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final long start = time.nanoTime();
         final StateSavingResult stateSavingResult;
 
-        // the state is reserved before it is handed to this method, and it is released when we are done
-        try (reservedSignedState) {
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory).
+        // This try-finally ensures the state is closed on early returns (e.g., already saved to disk)
+        // or if an error occurs before reaching the inner close logic.
+        try {
             final SignedState signedState = reservedSignedState.get();
             if (signedState.hasStateBeenSavedToDisk()) {
                 logger.info(
@@ -131,7 +128,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             checkSignatures(signedState);
-            final boolean success = saveStateTask(signedState, getSignedStateDir(signedState.getRound()));
+            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
             if (!success) {
                 return null;
             }
@@ -142,7 +139,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                     signedState.isFreezeState(),
                     signedState.getConsensusTimestamp(),
                     minBirthRound);
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
+
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
@@ -154,17 +156,24 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @Override
     public void dumpStateTask(@NonNull final StateDumpRequest request) {
-        // the state is reserved before it is handed to this method, and it is released when we are done
-        try (final ReservedSignedState reservedSignedState = request.reservedSignedState()) {
-            final SignedState signedState = reservedSignedState.get();
-            // states requested to be written out-of-band are always written to disk
+        final ReservedSignedState reservedSignedState = request.reservedSignedState();
+        final SignedState signedState = reservedSignedState.get();
+
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
+        // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
+        try {
             saveStateTask(
-                    reservedSignedState.get(),
-                    signedStateFilePath
-                            .getSignedStatesBaseDirectory()
+                    reservedSignedState,
+                    fileSystemManager
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
+
         request.finishedCallback().run();
     }
 
@@ -173,16 +182,38 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         return Optional.ofNullable(state.getStateToDiskReason()).orElse(UNKNOWN);
     }
 
-    private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
+    /**
+     * Writes the signed state to the specified directory via {@link SignedStateFileWriter}.
+     * <p>
+     * <b>Reservation contract:</b> This method passes the reservation to
+     * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it.
+     * For synchronous snapshots, the reservation is released after the snapshot is written.
+     * For asynchronous snapshots (periodic snapshots with async enabled), the reservation is
+     * released early to unblock the virtual pipeline flush, and the method blocks until the
+     * flush-triggered snapshot completes or times out.
+     *
+     * @param reservedSignedState the reserved state to write
+     * @param directory           the target directory for the state files
+     * @return {@code true} if the state was written successfully, {@code false} otherwise
+     */
+    private boolean saveStateTask(
+            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
+        final SignedState signedState = reservedSignedState.get();
+
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    directory,
+                    getReason(signedState),
+                    reservedSignedState,
+                    stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unable to write signed state to disk for round {} to {}.",
-                    state.getRound(),
+                    signedState.getRound(),
                     directory,
                     e);
             return false;
@@ -229,7 +260,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             final double signingWeight1Percent = (((double) signingWeight1) / ((double) totalWeight1)) * 100.0;
             final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
 
-            logger.error(EXCEPTION.getMarker(), new InsufficientSignaturesPayload(("""
+            logger.info(STATE_TO_DISK.getMarker(), new InsufficientSignaturesPayload(("""
                                     State written to disk for round %d did not have enough signatures.
                                     This log adds debug information for #11422.
                                     Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
@@ -254,7 +285,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @NonNull
     private Path getSignedStateDir(final long round) {
-        return signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
+        return signedStateFilePath.getSignedStateDirectory(round);
     }
 
     /**
@@ -263,8 +294,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
-        final List<SavedStateInfo> savedStates =
-                signedStateFilePath.getSavedStateFiles(mainClassName, selfId, swirldName);
+        final List<SavedStateInfo> savedStates = signedStateFilePath.getSavedStateFiles();
 
         // States are returned newest to oldest. So delete from the end of the list to delete the oldest states.
         int index = savedStates.size() - 1;

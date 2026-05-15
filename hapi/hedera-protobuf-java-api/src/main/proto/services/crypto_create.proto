@@ -204,4 +204,17 @@ message CryptoCreateTransactionBody {
      * Details of hooks to add immediately after creating this account.
      */
     repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 19;
+
+    /**
+     * The initial delegated contract address to set for the new account.
+     * <p>
+     * If set, the value MUST be 20 bytes long (EVM address).
+     * A value of `0x0000000000000000000000000000000000000000` will be ignored.
+     *
+     * If this field is set on the account, anytime a call is made to the account's address
+     * (either an EVM call within HSCS or a child call dispatched by CryptoTransfer)
+     * the EVM code of the contract referenced by `delegation_address` will be
+     * executed in the context of the account.
+     */
+    bytes delegation_address = 20;
 }
