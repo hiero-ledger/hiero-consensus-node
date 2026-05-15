@@ -965,7 +965,6 @@ jobs:
           checkout-token: "${{ secrets.github-token }}"
           checkout-fetch-depth: "1"
 
-
       - name: Set Failure Mode
         id: set-failure-mode
         env:
