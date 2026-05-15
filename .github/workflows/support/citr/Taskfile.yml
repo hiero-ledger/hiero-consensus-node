@@ -35,3 +35,4 @@ env:
   MIRROR_RELEASE_NAME: release_name
   BLOCK_NODE_ADD_EXTRA_FLAGS: --release-tag {{.CONSENSUS_NODE_VERSION}} --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml --priority-mapping {{.BN_MAPPING}}
   SOLO_LOG_LEVEL: debug
+  SOLO_TSS_MESSAGE-SIZE-HARD-LIMIT-BYTES: 131072000
