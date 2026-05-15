@@ -962,7 +962,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.github-token }}"
+          checkout-token: "${{ secrets.access-token }}"
           checkout-fetch-depth: "1"
 
       - name: Set Failure Mode
