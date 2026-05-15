@@ -11,9 +11,8 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THRE
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
@@ -60,6 +59,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -539,12 +539,12 @@ public class HandleHederaOperations implements HederaOperations {
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();
 
-        final var streamBuilder = context.dispatch(setupDispatch(
+        final var streamBuilder = context.dispatch(stepDispatch(
                 context.payer(),
                 body,
                 CryptoUpdateStreamBuilder.class,
-                DISPATCH_ONLY_NOOP_FEE_CHARGING,
-                HandleContext.ConsensusThrottling.ON));
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                new HandleContext.DispatchMetadata(Map.of())));
         return streamBuilder.status() == SUCCESS;
     }
 }

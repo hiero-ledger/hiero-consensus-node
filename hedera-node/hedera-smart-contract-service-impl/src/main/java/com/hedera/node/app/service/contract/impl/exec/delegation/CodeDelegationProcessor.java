@@ -173,7 +173,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, true);
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -209,7 +209,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, false);
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -288,9 +288,16 @@ public record CodeDelegationProcessor(long chainId) {
             accessedAddresses.add(accessedAddress);
         }
 
-        void addValidDelegation(byte[] authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {
+        void addValidDelegation(
+                byte[] authorityEcdsaPublicKey,
+                Address authorityAddress,
+                Address delegationTarget,
+                boolean lazyAccountCreationGasPaid) {
             validDelegations.add(new CodeDelegationResult.ValidDelegation(
-                    Bytes.wrap(authorityEcdsaPublicKey), authorityAddress, delegationTarget));
+                    Bytes.wrap(authorityEcdsaPublicKey),
+                    authorityAddress,
+                    delegationTarget,
+                    lazyAccountCreationGasPaid));
         }
 
         public CodeDelegationResult toResult() {
