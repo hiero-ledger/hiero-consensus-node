@@ -348,8 +348,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 // beyond this would require a state-sync / reconnect path that wipes CN0's local
                 // state before restart.
                 FakeNmt.shutdownWithin(byNodeId(0), LifecycleTest.SHUTDOWN_TIMEOUT),
-                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                        byNodeId(0), LifecycleTest.CURRENT_CONFIG_VERSION.get())),
+                sourcing(() ->
+                        FakeNmt.restartWithConfigVersion(byNodeId(0), LifecycleTest.CURRENT_CONFIG_VERSION.get())),
                 waitForAny(
                         byNodeId(0),
                         LifecycleTest.RESTART_TO_ACTIVE_TIMEOUT,
