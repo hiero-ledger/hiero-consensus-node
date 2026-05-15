@@ -8,12 +8,17 @@ import com.hedera.node.app.service.contract.impl.exec.processors.*;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
+import org.hyperledger.besu.evm.operation.ChainIdOperation;
+import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
@@ -23,10 +28,19 @@ public class BonnevilleEVM extends HEVM {
 
     final FeatureFlags _flags;
     final AddressChecks _adrChk;
+    final SB _trace = null; // new SB(); // For bytecode-by-bytecode tracing
+    final PrintStream _stdOut = _trace==null ? null : new PrintStream(new FileOutputStream(FileDescriptor.out));
+    final Operation[] _operations;
+
+    // ChainID from BESU, not *CustomChainID*
+    final long _chainID;
+
 
     // A singleton BonnevilleEVM is created for all threads.  In *theory* we
     // might have more than one, specialized by e.g. flags or gasCalc.  In
     // practice, I've only ever seen one per JVM.
+
+    // In practice, the One True Bonneville is shared by many threads.
     public BonnevilleEVM(
             OperationRegistry operations,
             GasCalculator gasCalc,
@@ -38,6 +52,12 @@ public class BonnevilleEVM extends HEVM {
         _flags = featureFlags;
         _adrChk = addressChecks;
         preComputeGasTables();
+
+        _operations = getOperationsUnsafe();
+        // ChainID from BESU, if no custom op overrides
+        _chainID = _operations[0x46] instanceof ChainIdOperation chain
+            ? chain.getChainId().getLong(0)
+            : 0;
     }
 
     // -----------------------------------------------------------
@@ -186,40 +206,30 @@ public class BonnevilleEVM extends HEVM {
 
     // ---------------------
 
-    // Shared free-list of BEVMs, to avoid making new with every contract.
-    // IMPORTANT: nested calls require a BEVM per call, but pooling can still
-    // reuse instances.
+    // Shared free-list of TopXTNs, to avoid making new with every contract.
 
-    private static final int MAX_FREE_PER_THREAD = 64;
-    private final ThreadLocal<ArrayDeque<BEVM>> FREE = ThreadLocal.withInitial(ArrayDeque::new);
+    private final ThreadLocal<ArrayDeque<TopXTN>> FREE = ThreadLocal.withInitial(ArrayDeque::new);
 
     @Override
     public void runToHalt(MessageFrame frame, OperationTracer tracer) {
-        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe());
-        if( code != null && frame.getCode() == null )
-            throw new TODO("Failed validation");
         if(!(tracer instanceof ActionSidecarContentTracer scTracer) )
             throw new TODO("Only for ASCTracer");
         if( !(frame.getWorldUpdater() instanceof ProxyWorldUpdater) )
             throw new TODO("Only for ProxyWorldUpdater");
+        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe());
+        if( code != null && frame.getCode() == null )
+            throw new TODO("Failed validation");
 
         // Top-level run-to-halt
-        runToHalt(null, code, frame, scTracer);
-    }
+        final ArrayDeque<TopXTN> frees = FREE.get();
+        final TopXTN free = frees.pollLast();
+        final TopXTN top = (free == null) ? new TopXTN(this) : free;
 
-    void runToHalt(BEVM parent, CodeV2 code, MessageFrame frame, ActionSidecarContentTracer tracer) {
-        final ArrayDeque<BEVM> frees = FREE.get();
-        final BEVM free = frees.pollLast();
-        final BEVM bevm = (free == null) ? new BEVM(this, getOperationsUnsafe()) : free;
+        top.run(frame, scTracer, code);
 
-        // Run the contract bytecodes
-        bevm.init(parent, code, frame, tracer).run(parent == null).reset(parent == null);
+        frees.addLast(top);
 
-        // Pop the action stack for not-pre-compiled.
-        if( bevm._hasSideCar )
-            tracer.traceNotExecuting(frame);
-
-        if( frees.size() < MAX_FREE_PER_THREAD ) frees.addLast(bevm);
+        if( _stdOut!=null ) _stdOut.flush();
     }
 
     // ---------------------

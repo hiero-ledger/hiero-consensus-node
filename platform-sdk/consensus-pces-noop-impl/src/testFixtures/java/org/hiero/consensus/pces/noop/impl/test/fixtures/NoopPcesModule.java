@@ -51,6 +51,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
+            @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
