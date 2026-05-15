@@ -18,7 +18,8 @@ import org.hyperledger.besu.evm.Code;
  */
 public class ProxyEvmAccount extends AbstractProxyEvmAccount {
 
-    private static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_DELEGATION_PREFIX_PJB = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE_DELEGATION_PREFIX.toArray());
+    private static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_DELEGATION_PREFIX_PJB =
+            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE_DELEGATION_PREFIX.toArray());
 
     private final Account account;
 
@@ -46,7 +47,8 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
         return createDelegationIndicatorPJB(account.delegationAddress());
     }
 
-    public static com.hedera.pbj.runtime.io.buffer.Bytes createDelegationIndicatorPJB(com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+    public static com.hedera.pbj.runtime.io.buffer.Bytes createDelegationIndicatorPJB(
+            com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
         return com.hedera.pbj.runtime.io.buffer.Bytes.merge(CODE_DELEGATION_PREFIX_PJB, delegationAddress);
     }
 
