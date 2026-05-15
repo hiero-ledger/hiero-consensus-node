@@ -528,7 +528,7 @@ class MerkleDBFileUtilsTest {
         }
 
         @Override
-        public long read(final ByteBuffer[] dsts, final int offset, final int length) throws IOException {
+        public long read(final ByteBuffer[] dsts, final int offset, final int length) {
             throw new NotImplementedException();
         }
 
@@ -543,7 +543,7 @@ class MerkleDBFileUtilsTest {
         }
 
         @Override
-        public long write(final ByteBuffer[] srcs, final int offset, final int length) throws IOException {
+        public long write(final ByteBuffer[] srcs, final int offset, final int length) {
             throw new NotImplementedException();
         }
 
@@ -618,7 +618,7 @@ class MerkleDBFileUtilsTest {
         }
 
         @Override
-        public MappedByteBuffer map(final MapMode mode, final long position, final long size) throws IOException {
+        public MappedByteBuffer map(final MapMode mode, final long position, final long size) {
             throw new NotImplementedException();
         }
 
