@@ -121,8 +121,8 @@ import org.apache.logging.log4j.Logger;
 public class BlockTransactionalUnitTranslator {
     private static final Logger log = LogManager.getLogger(BlockTransactionalUnitTranslator.class);
 
-    private static final Set<HederaFunctionality> RECORD_STREAM_ABSENT_FUNCTIONALITIES = EnumSet.of(
-            STATE_SIGNATURE_TRANSACTION, HINTS_PARTIAL_SIGNATURE, MIGRATION_ROOT_HASH_VOTE);
+    private static final Set<HederaFunctionality> RECORD_STREAM_ABSENT_FUNCTIONALITIES =
+            EnumSet.of(STATE_SIGNATURE_TRANSACTION, HINTS_PARTIAL_SIGNATURE, MIGRATION_ROOT_HASH_VOTE);
 
     /**
      * The base translator used to create the {@link SingleTransactionRecord}s.
