@@ -154,6 +154,20 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
+  fake-slack-post:
+    name: Fake Slack Report
+    needs:
+      - commit-info
+    if: ${{ always() }}
+    uses: ./.github/workflows/zxc-slack-notify.yaml
+    with:
+      header-text: "Fake slack report: Hiero Consensus Node - Mirror Node Regression Test Report"
+      #      result: ${{ needs.mirror-node-regression.result }}
+      #      result-label: "Mirror Node Regression Panel Result"
+      ref: ${{ inputs.ref }}
+    secrets:
+      webhook: ${{ secrets.slack-detailed-report-webhook }}
+
   build:
     name: Compile and Spotless Check
     uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
