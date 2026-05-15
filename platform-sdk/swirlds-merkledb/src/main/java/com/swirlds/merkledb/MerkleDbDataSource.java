@@ -507,6 +507,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 this.hashChunkHeight);
     }
 
+    @NonNull
+    public MerkleDbPaths getDbPaths() {
+        return dbPaths;
+    }
+
     private void rebuildHashChunks(
             final Configuration config,
             final FileSystemManager fileSystemManager,

@@ -72,6 +72,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
+            @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
@@ -106,7 +107,7 @@ public class DefaultPcesModule implements PcesModule {
 
         // Create and bind components
         try {
-            final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
+            final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
             final boolean permitGaps =
                     configuration.getConfigData(PcesConfig.class).permitGaps();
             initialPcesFiles = PcesFileReader.readFilesFromDisk(

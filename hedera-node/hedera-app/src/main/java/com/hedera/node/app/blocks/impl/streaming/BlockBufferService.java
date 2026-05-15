@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -88,6 +90,13 @@ public class BlockBufferService {
      */
     private final AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef =
             new AtomicReference<>();
+    /** Guards access to {@link #acknowledgementFutures}. */
+    private final Object acknowledgementFuturesLock = new Object();
+
+    /**
+     * Futures waiting for the acknowledgement watermark to reach a given block number.
+     */
+    private final NavigableMap<Long, List<CompletableFuture<Void>>> acknowledgementFutures = new TreeMap<>();
     /**
      * The most recent produced block number (i.e. the last block to be opened). A value of -1 indicates that no blocks
      * have been open/produced yet.
@@ -212,6 +221,8 @@ public class BlockBufferService {
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
         awaitingRecovery = false;
+        completeAcknowledgementFuturesExceptionally(
+                new IllegalStateException("Block buffer service shut down before acknowledgement completed"));
 
         logger.info("Block buffer service shutdown complete");
     }
@@ -366,6 +377,30 @@ public class BlockBufferService {
     }
 
     /**
+     * Returns a future that completes when all blocks up to and including the given block number have been acknowledged
+     * by a block node.
+     *
+     * @param blockNumber the block number to wait for
+     * @return a future that completes when the acknowledgement watermark reaches the block number
+     */
+    public @NonNull CompletableFuture<Void> acknowledgedThroughFuture(final long blockNumber) {
+        if (getHighestAckedBlockNumber() >= blockNumber) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        final var future = new CompletableFuture<Void>();
+        synchronized (acknowledgementFuturesLock) {
+            if (getHighestAckedBlockNumber() >= blockNumber) {
+                return CompletableFuture.completedFuture(null);
+            }
+            acknowledgementFutures
+                    .computeIfAbsent(blockNumber, ignore -> new ArrayList<>())
+                    .add(future);
+        }
+        return future;
+    }
+
+    /**
      * Marks all blocks up to and including the specified block as being acknowledged by any Block Node.
      *
      * @param blockNumber the block number to mark acknowledged up to and including
@@ -377,6 +412,27 @@ public class BlockBufferService {
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
         blockStreamMetrics.recordLatestBlockAcked(highestBlock);
+        completeAcknowledgementFutures(highestBlock);
+    }
+
+    private void completeAcknowledgementFutures(final long highestBlock) {
+        final List<CompletableFuture<Void>> futuresToComplete = new ArrayList<>();
+        synchronized (acknowledgementFuturesLock) {
+            final var completedFutures = acknowledgementFutures.headMap(highestBlock, true);
+            completedFutures.values().forEach(futuresToComplete::addAll);
+            completedFutures.clear();
+        }
+        futuresToComplete.forEach(future -> future.complete(null));
+    }
+
+    private void completeAcknowledgementFuturesExceptionally(@NonNull final Throwable cause) {
+        requireNonNull(cause);
+        final List<CompletableFuture<Void>> futuresToComplete = new ArrayList<>();
+        synchronized (acknowledgementFuturesLock) {
+            acknowledgementFutures.values().forEach(futuresToComplete::addAll);
+            acknowledgementFutures.clear();
+        }
+        futuresToComplete.forEach(future -> future.completeExceptionally(cause));
     }
 
     /**

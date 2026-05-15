@@ -198,12 +198,14 @@ class HintsServiceImplTest {
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
         given(context.newSigning(eq(blockHash), any(Runnable.class))).willReturn(signing);
 
         final var returned = subject.sign(blockHash);
 
-        assertSame(signing, returned);
+        assertSame(signing, returned.signing());
+        assertSame(submissionFuture, returned.submissionFuture());
         assertSame(signing, signings.get(blockHash));
         final var onCompletion = ArgumentCaptor.forClass(Runnable.class);
         verify(context).newSigning(eq(blockHash), onCompletion.capture());
@@ -223,11 +225,13 @@ class HintsServiceImplTest {
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
 
         final var returned = subject.sign(blockHash);
 
-        assertSame(signing, returned);
+        assertSame(signing, returned.signing());
+        assertSame(submissionFuture, returned.submissionFuture());
         verify(context, never()).newSigning(any(), any(Runnable.class));
         verify(submissions).submitPartialSignature(blockHash);
     }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.common;
 
-import static com.swirlds.common.test.fixtures.io.FileManipulation.writeRandomBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.base.utility.test.fixtures.file.FileManipulation.writeRandomBytes;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.pces.impl.common.PcesFile.EVENT_FILE_SEPARATOR;
 import static org.hiero.consensus.pces.impl.common.PcesFile.MAXIMUM_BIRTH_ROUND_PREFIX;

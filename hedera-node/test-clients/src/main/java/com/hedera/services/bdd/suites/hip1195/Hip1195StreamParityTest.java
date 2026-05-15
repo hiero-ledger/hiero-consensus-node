@@ -54,6 +54,7 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -77,8 +78,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
-// Hooks are enabled by default so it is safe to run this concurrently
+// This class uses class-scoped hook overrides and must not share a concurrent subprocess network.
 @HapiTestLifecycle
+@OrderedInIsolation
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";

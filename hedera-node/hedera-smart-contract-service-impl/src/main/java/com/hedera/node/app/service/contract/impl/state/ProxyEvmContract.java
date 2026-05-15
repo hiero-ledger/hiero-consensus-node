@@ -35,6 +35,11 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
     }
 
     @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return state.getCodePBJ(hederaContractId());
+    }
+
+    @Override
     public @NonNull Hash getCodeHash() {
         return state.getCodeHash(hederaContractId(), codeFactory);
     }
