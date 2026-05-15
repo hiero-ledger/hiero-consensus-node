@@ -2,15 +2,12 @@
 package com.hedera.node.app.service.entityid.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,16 +33,5 @@ public class V0730EntityIdSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.singleton(HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_KEY, NodeId.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        if (!ctx.isGenesis()) {
-            final var highestNodeIdState = ctx.newStates().getSingleton(HIGHEST_NODE_ID_STATE_ID);
-            final var entityCountsState = (EntityCounts)
-                    ctx.previousStates().getSingleton(ENTITY_COUNTS_STATE_ID).get();
-            highestNodeIdState.put(
-                    NodeId.newBuilder().id(entityCountsState.numNodes() - 1).build());
-        }
     }
 }

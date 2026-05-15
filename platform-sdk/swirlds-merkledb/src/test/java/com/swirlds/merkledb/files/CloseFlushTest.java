@@ -32,6 +32,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,11 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
     @AfterAll
     public static void cleanUp() {
         Configurator.reconfigure();
+    }
+
+    @AfterEach
+    public void afterEach() {
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
