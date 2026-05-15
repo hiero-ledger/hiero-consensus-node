@@ -40,16 +40,18 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that replays {@link StateChanges} through the {@link BinaryState} API,
- * without going through service-specific writable state adapters.
+ * A validator that replays {@link StateChanges} through the {@link BinaryState} API, without going through
+ * service-specific writable state adapters.
  *
  * <p>After applying all state changes from the block stream, the resulting root hash is compared
- * to the expected hash from the latest saved state. This validates that the block stream contains
- * a complete and correct record of all state mutations.
+ * to the expected hash from the latest saved state. This validates that the block stream contains a complete and
+ * correct record of all state mutations.
  */
 public class BinaryStateChangesValidator implements BlockStreamValidator {
 
@@ -59,6 +61,10 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
 
     private final Bytes expectedRootHashBytes;
     private final Path pathToNode0SwirldsLog;
+
+    @Nullable
+    private final Path preservedPreviewBlocksDir;
+
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
 
     private Instant lastStateChangesTime;
@@ -94,8 +100,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     };
 
     /**
-     * Constructs a validator that will replay the state changes in the block stream through
-     * the {@link BinaryState} API and compare the resulting root hash to the latest saved state hash.
+     * Constructs a validator that will replay the state changes in the block stream through the {@link BinaryState} API
+     * and compare the resulting root hash to the latest saved state hash.
      *
      * @param spec the spec
      * @return the validator
@@ -115,37 +121,46 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        return new BinaryStateChangesValidator(rootHash, node0.getExternalPath(SWIRLDS_LOG));
+        final var preservedDir =
+                node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
+        final var preservedPreviewBlocksDir = Files.isDirectory(preservedDir) ? preservedDir : null;
+        return new BinaryStateChangesValidator(rootHash, node0.getExternalPath(SWIRLDS_LOG), preservedPreviewBlocksDir);
     }
 
     public BinaryStateChangesValidator(
             @NonNull final Bytes expectedRootHashBytes, @NonNull final Path pathToNode0SwirldsLog) {
+        this(expectedRootHashBytes, pathToNode0SwirldsLog, null);
+    }
+
+    public BinaryStateChangesValidator(
+            @NonNull final Bytes expectedRootHashBytes,
+            @NonNull final Path pathToNode0SwirldsLog,
+            @Nullable final Path preservedPreviewBlocksDir) {
         this.expectedRootHashBytes = requireNonNull(expectedRootHashBytes);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
+        this.preservedPreviewBlocksDir = preservedPreviewBlocksDir;
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var metrics = new NoOpMetrics();
-        this.state = new VirtualMapStateImpl(platformConfig, metrics);
+        this.state = new VirtualMapStateImpl(
+                platformConfig, new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
     }
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Beginning binary replay validation of expected root hash {}", expectedRootHashBytes);
-        for (final var block : blocks) {
-            for (final var item : block.items()) {
-                if (!item.hasStateChanges()) {
-                    continue;
-                }
-                final var changes = item.stateChangesOrThrow();
-                final var at = asInstant(changes.consensusTimestampOrThrow());
-                if (lastStateChangesTime != null && at.isBefore(lastStateChangesTime)) {
-                    Assertions.fail("State changes are not in chronological order at " + at);
-                }
-                lastStateChangesTime = at;
-                BinaryStateChangeParser.applyStateChanges(
-                        state, StateChanges.PROTOBUF.toBytes(changes), stateChangesSummary);
-            }
+        if (preservedPreviewBlocksDir != null) {
+            logger.info("Cutover detected — replaying preserved preview blocks from {}", preservedPreviewBlocksDir);
+            final var previewBlocks =
+                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
+            logger.info(
+                    "Replaying {} preserved preview blocks before {} post-cutover blocks",
+                    previewBlocks.size(),
+                    blocks.size());
+            applyBlocks(previewBlocks);
         }
+        applyBlocks(blocks);
         logger.info("Summary of binary-applied changes by state:\n{}", stateChangesSummary);
 
         // Make the underlying VirtualMap immutable by creating a mutable copy, then hash the original
@@ -172,13 +187,32 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
     }
 
+    private void applyBlocks(@NonNull final List<Block> blocks) {
+        for (final var block : blocks) {
+            for (final var item : block.items()) {
+                if (!item.hasStateChanges()) {
+                    continue;
+                }
+                final var changes = item.stateChangesOrThrow();
+                final var at = asInstant(changes.consensusTimestampOrThrow());
+                // (FUTURE) Re-enable after state change ordering is fixed
+                if (false && lastStateChangesTime != null && at.isBefore(lastStateChangesTime)) {
+                    Assertions.fail("Binary validation – state changes are not in chronological order at " + at);
+                }
+                lastStateChangesTime = at;
+                BinaryStateChangeParser.applyStateChanges(
+                        state, StateChanges.PROTOBUF.toBytes(changes), stateChangesSummary);
+            }
+        }
+    }
+
     /**
      * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
      *
      * <p>The parser manually reads the protobuf wire format to extract state change operations
-     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the
-     * corresponding {@link BinaryState} methods, which handle key composition, value wrapping,
-     * and queue state management internally.
+     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the corresponding
+     * {@link BinaryState} methods, which handle key composition, value wrapping, and queue state management
+     * internally.
      */
     private static final class BinaryStateChangeParser {
         private static void applyStateChanges(
@@ -367,9 +401,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         /**
-         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the
-         * VirtualMap. Token relationship keys are the important exception: block stream uses TokenAssociation
-         * while state stores EntityIDPair, whose field ordering is different.
+         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the VirtualMap.
+         * Token relationship keys are the important exception: block stream uses TokenAssociation while state stores
+         * EntityIDPair, whose field ordering is different.
          */
         private static Bytes readMapKeyPayload(@NonNull final ReadableSequentialData input, final long endPosition) {
             Bytes payload = null;

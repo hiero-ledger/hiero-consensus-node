@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.util.Random;
 import org.assertj.core.api.ThrowingConsumer;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.TestInput;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class ConsensusTestRunner {
+    private final Metrics metrics = new NoOpMetrics();
+    private final Time time = Time.getCurrent();
+
     private ConsensusTestParams params;
-    private List<PlatformContext> contexts;
+    private Configuration configuration;
     private ThrowingConsumer<TestInput> test;
     private int iterations = 1;
     private int eventsToGenerate = 10_000;
@@ -24,8 +29,8 @@ public class ConsensusTestRunner {
         return this;
     }
 
-    public @NonNull ConsensusTestRunner setContexts(@NonNull final List<PlatformContext> contexts) {
-        this.contexts = contexts;
+    public @NonNull ConsensusTestRunner setConfiguration(@NonNull final Configuration configuration) {
+        this.configuration = configuration;
         return this;
     }
 
@@ -58,10 +63,8 @@ public class ConsensusTestRunner {
     private void runWithSeed(final long seed) {
         System.out.println("Running seed: " + seed);
         try {
-            for (final PlatformContext context : contexts) {
-                test.accept(
-                        new TestInput(context, params.numNodes(), params.weightGenerator(), seed, eventsToGenerate));
-            }
+            test.accept(new TestInput(
+                    configuration, metrics, time, params.numNodes(), params.weightGenerator(), seed, eventsToGenerate));
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }

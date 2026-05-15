@@ -190,7 +190,7 @@ public class WrappedRecordBlockHashMigration {
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
         final var allRecentWrappedRecordHashes =
-                WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(loadedBytes));
+                WrappedRecordFileBlockHashesLog.PROTOBUF.parseStrict(Bytes.wrap(loadedBytes));
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;
@@ -227,7 +227,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.consensusTimestampHash().equals(jumpstartTimestampHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartTimestampHash,
@@ -236,7 +236,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartOutputHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartOutputHash,

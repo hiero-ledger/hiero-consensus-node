@@ -158,7 +158,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     }
 
     private void incorporateRsaIfValid(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
-        if (rsaContext.validate(creatorId, op)) {
+        final boolean isValid = rsaContext.validate(creatorId, op);
+        if (isValid) {
             rsaSignings
                     .computeIfAbsent(
                             op.message(), b -> rsaContext.newSigning(b, () -> rsaSignings.remove(op.message())))

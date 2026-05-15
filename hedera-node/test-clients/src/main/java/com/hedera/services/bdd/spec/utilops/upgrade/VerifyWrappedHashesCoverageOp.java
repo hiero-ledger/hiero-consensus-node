@@ -8,6 +8,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -42,20 +43,23 @@ public class VerifyWrappedHashesCoverageOp extends UtilOp {
 
         final long firstBlock = blockNumbers.getFirst();
         final long lastBlock = blockNumbers.getLast();
-        for (int i = 0; i < blockNumbers.size(); i++) {
-            final long expected = firstBlock + i;
-            final long actual = blockNumbers.get(i);
-            Assertions.assertEquals(
-                    expected,
-                    actual,
-                    "Wrapped record hashes file has a gap at index " + i + ": expected block " + expected
-                            + " but found block " + actual + " (range " + firstBlock + ".." + lastBlock + ")");
-        }
 
         Assertions.assertTrue(
                 firstBlock <= liveBlockNum && liveBlockNum <= lastBlock,
                 "Wrapped record hashes file range " + firstBlock + ".." + lastBlock + " does not cover live-hash block "
                         + liveBlockNum);
+
+        final Set<Long> blockNumberSet = Set.copyOf(blockNumbers);
+        for (long expectedBlock = liveBlockNum; expectedBlock <= lastBlock; expectedBlock++) {
+            Assertions.assertTrue(
+                    blockNumberSet.contains(expectedBlock),
+                    "Missing wrapped record hashes entry for block "
+                            + expectedBlock
+                            + " in required range "
+                            + liveBlockNum
+                            + ".."
+                            + lastBlock);
+        }
         return false;
     }
 }

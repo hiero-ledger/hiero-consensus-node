@@ -57,9 +57,9 @@ echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END USER IDENT   <<<<<<<<<<<<<<<
 echo
 
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN JAVA COMMAND >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-echo "/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path \"${JAVA_MODULE_PATH}\" --module \"${JAVA_MAIN_MODULE}\" ${CONSENSUS_NODE_ARGS}"
+echo "/usr/bin/env java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path \"${JAVA_MODULE_PATH}\" --module \"${JAVA_MAIN_MODULE}\" ${CONSENSUS_NODE_ARGS}"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END JAVA COMMAND   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo
 
-/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS}
+/usr/bin/env java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS}
 printf "java exit code %s" "${?}\n"

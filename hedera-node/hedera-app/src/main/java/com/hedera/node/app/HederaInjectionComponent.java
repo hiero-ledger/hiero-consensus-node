@@ -75,6 +75,7 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -263,6 +264,9 @@ public interface HederaInjectionComponent {
         @BindsInstance
         Builder wrappedRecordBlockHashMigration(
                 com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration);
+
+        @BindsInstance
+        Builder transactionOffsetNanos(@Named("transactionOffsetNanos") int transactionOffsetNanos);
 
         HederaInjectionComponent build();
     }

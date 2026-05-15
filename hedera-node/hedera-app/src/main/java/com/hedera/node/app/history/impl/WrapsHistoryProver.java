@@ -630,13 +630,17 @@ public class WrapsHistoryProver implements HistoryProver {
                         yield null;
                     }
                     case AGGREGATE -> {
+                        final var signers = phaseMessages.get(R1).keySet();
                         final var signature = historyLibrary.runAggregationPhase(
                                 message,
                                 rawMessagesFor(R1),
                                 rawMessagesFor(R2),
                                 rawMessagesFor(R3),
                                 sourceBook,
-                                phaseMessages.get(R1).keySet());
+                                signers);
+                        if (signature == null) {
+                            yield new NoopOutput("WRAPS aggregation returned null for nodes " + signers);
+                        }
                         // Sans source proof, we are at genesis and need an aggregate signature proof right away
                         if (sourceProof == null || !tssConfig.wrapsEnabled()) {
                             final var isValid = historyLibrary.verifyAggregateSignature(
@@ -646,12 +650,10 @@ public class WrapsHistoryProver implements HistoryProver {
                                     sourceBook.weights(),
                                     signature);
                             if (!isValid) {
-                                throw new IllegalStateException("Invalid aggregate signature using nodes "
-                                        + phaseMessages.get(R1).keySet());
+                                yield new NoopOutput("Invalid aggregate signature using nodes " + signers);
                             }
                             yield new AggregatePhaseOutput(
-                                    signature,
-                                    phaseMessages.get(R1).keySet().stream().toList());
+                                    signature, signers.stream().toList());
                         } else {
                             if (!historyLibrary.wrapsProverReady()) {
                                 yield new NoopOutput("WRAPS library is not ready");
@@ -662,9 +664,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                     sourceBook.publicKeys(),
                                     sourceBook.weights(),
                                     signature);
-                            final var signers = phaseMessages.get(R1).keySet();
                             if (!isValid) {
-                                throw new IllegalStateException("Invalid aggregate signature using nodes " + signers);
+                                yield new NoopOutput("Invalid aggregate signature using nodes " + signers);
                             }
                             final long now = System.nanoTime();
                             log.info(
@@ -693,6 +694,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     signature,
                                     signers);
+                            if (proof == null) {
+                                yield new NoopOutput("Incremental WRAPS proof construction returned null");
+                            }
                             final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                             logElapsed(
                                     constructionCanceled
@@ -730,6 +734,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                 signature,
                                 signers,
                                 targetBook);
+                        if (proof == null) {
+                            yield new NoopOutput("Genesis WRAPS proof construction returned null");
+                        }
                         final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                         logElapsed("constructing genesis WRAPS proof -> " + output, now);
                         yield output;

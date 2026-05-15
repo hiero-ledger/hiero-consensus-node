@@ -164,7 +164,7 @@ echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN NODE OUTPUT >>>>>>>>>>>>>>
 ## starting the platform software if the exit code is 205 which indicates a config.txt/address book loading issue.
 ATTEMPTS=0
 while true; do
-  /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS}
+  /usr/bin/env java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS}
   EC="${?}"
   if [[ "${EC}" -eq 205 && "${ATTEMPTS}" -lt 20 ]]; then
     printf "\n\n############# Retrying system initialization - DNS or Address Book Failure (Exit Code: %s) #############\n\n" "${EC}"
