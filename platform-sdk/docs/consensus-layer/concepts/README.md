@@ -15,3 +15,4 @@ Foundational definitions and canonical mental models. One file per concept (hash
 | [voting.md](voting.md)                             | Voting               | Virtual fame voting computed from the DAG; first, counting, and coin votes.   |
 | [event-lifecycle.md](event-lifecycle.md)           | Event lifecycle      | Admitted → ancient → expired, gated by two birth-round thresholds.            |
 | [stale-events.md](stale-events.md)                 | Stale events         | Admitted events that aged out without reaching consensus.                     |
+| [branching.md](branching.md)                       | Branching            | Byzantine equivocation (forking) and how strong-seeing tolerates it.          |
