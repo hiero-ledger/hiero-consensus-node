@@ -347,7 +347,8 @@ class MerkleDbCompactionCoordinator {
                 final String taskKey = levelKey + "_" + i;
                 taskKeys.add(taskKey);
                 alreadyAssigned.addAll(groups.get(i));
-                executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
+                executor.submit(
+                        new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config, false));
             }
 
             final List<Integer> fileIndices =
@@ -628,7 +629,7 @@ class MerkleDbCompactionCoordinator {
 
             compactionTaskCounts.put(taskKey, 1);
             taskKeys.add(taskKey);
-            executor.submit(new CompactionTask(taskKey, taskKey, level, smallFiles, compactorFactory, config));
+            executor.submit(new CompactionTask(taskKey, taskKey, level, smallFiles, compactorFactory, config, true));
             logger.info(
                     MERKLE_DB.getMarker(),
                     "[{}] Submitted consolidation task for level {} ({} small files)",
@@ -697,6 +698,7 @@ class MerkleDbCompactionCoordinator {
         private final List<DataFileReader> assignedFiles;
         private final Supplier<DataFileCompactor> compactorFactory;
         private final MerkleDbConfig config;
+        private final boolean isConsolidation;
 
         /**
          * Creates a new compaction task for a pre-assigned group of files.
@@ -710,6 +712,7 @@ class MerkleDbCompactionCoordinator {
          *                         other groups at the same level)
          * @param compactorFactory creates a fresh {@link DataFileCompactor} for this task
          * @param config           MerkleDb configuration for level cap and other parameters
+         * @param isConsolidation true, if the task is for consolidation rather than garbage-based compaction.
          */
         CompactionTask(
                 @NonNull final String taskKey,
@@ -717,13 +720,15 @@ class MerkleDbCompactionCoordinator {
                 final int sourceLevel,
                 @NonNull final List<DataFileReader> assignedFiles,
                 @NonNull final Supplier<DataFileCompactor> compactorFactory,
-                @NonNull final MerkleDbConfig config) {
+                @NonNull final MerkleDbConfig config,
+                boolean isConsolidation) {
             this.taskKey = taskKey;
             this.levelKey = levelKey;
             this.sourceLevel = sourceLevel;
             this.assignedFiles = assignedFiles;
             this.compactorFactory = compactorFactory;
             this.config = config;
+            this.isConsolidation = isConsolidation;
         }
 
         @Override
@@ -748,7 +753,8 @@ class MerkleDbCompactionCoordinator {
                         // If the file is already being compacted, skip it
                         .filter(DataFileReader::setCompactionInProgress)
                         .toList();
-                if (validFiles.isEmpty()) {
+                if (validFiles.isEmpty()
+                        || (isConsolidation && validFiles.size() < config.consolidationMinFileCount())) {
                     return false;
                 }
 

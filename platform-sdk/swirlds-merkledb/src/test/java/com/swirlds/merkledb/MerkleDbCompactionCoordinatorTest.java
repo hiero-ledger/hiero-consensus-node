@@ -980,6 +980,88 @@ class MerkleDbCompactionCoordinatorTest {
         assertFalse(compactedFiles.contains(flaggedClean), "Flagged clean file must not be absorbed");
     }
 
+    @Test
+    void testConsolidationSkipsWhenFilesDropBelowMinCountAtExecution() throws InterruptedException, IOException {
+        // 12 small clean files at level 1 — enough for consolidation (minFileCount = 10).
+        // At execution time, only 3 files survive the stale-file filter, simulating the
+        // race where garbage compaction consumed the other 9 between submission and execution.
+        // The task should skip: 3 survivors < consolidationMinFileCount (10).
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> allFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 1, 100, 5 * 1024 * 1024);
+            allFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100)); // all alive → d/a = 0.0
+        }
+
+        // At execution time, only the first 3 files are still in the collection —
+        // the other 9 were consumed by a concurrent garbage compaction task
+        final List<DataFileReader> survivingFiles = List.copyOf(allFiles.subList(0, 3));
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(survivingFiles);
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
+
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        // Consolidation should be skipped — compactSingleLevel never called
+        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
+
+        // The 3 surviving files had their CAS flag set during filtering
+        for (final DataFileReader f : survivingFiles) {
+            verify(f).setCompactionInProgress();
+        }
+        // Flags must be reset since the task did not succeed
+        for (final DataFileReader f : allFiles) {
+            verify(f).resetCompactionInProgress();
+        }
+    }
+
+    @Test
+    void testConsolidationProceedsWhenEnoughFilesSurviveFiltering() throws InterruptedException, IOException {
+        // 12 small clean files at level 1. At execution time, 10 survive the stale-file
+        // filter (2 consumed by concurrent garbage compaction). 10 >= minFileCount → proceed.
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> allFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 1, 100, 5 * 1024 * 1024);
+            allFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100));
+        }
+
+        // 10 of 12 files survive
+        final List<DataFileReader> survivingFiles = List.copyOf(allFiles.subList(0, 10));
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(survivingFiles);
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
+
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            compactedFiles.addAll(invocation.getArgument(0));
+            taskDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        assertTrue(taskDone.await(2, TimeUnit.SECONDS), "Consolidation task should proceed");
+
+        assertEquals(10, compactedFiles.size(), "All 10 surviving files should be consolidated");
+    }
+
     // ========================================================================
     // Helper methods
     // ========================================================================
