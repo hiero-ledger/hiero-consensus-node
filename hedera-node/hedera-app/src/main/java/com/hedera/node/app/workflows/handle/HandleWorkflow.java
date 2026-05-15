@@ -867,7 +867,10 @@ public class HandleWorkflow {
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                if (parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                        && parentTxn.functionality() != HederaFunctionality.MIGRATION_ROOT_HASH_VOTE) {
+                    stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                }
                 logPreDispatch(parentTxn);
                 final var hollowAccountCompletionsDetails =
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
