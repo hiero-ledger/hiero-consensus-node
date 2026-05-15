@@ -451,11 +451,11 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
-          echo > resources/templates/application.properties
-          echo > resources/templates/application.env
-          echo > resources/templates/settings.txt
+          #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
+          #git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
+          #echo > resources/templates/application.properties
+          #echo > resources/templates/application.env
+          #echo > resources/templates/settings.txt
           task build:compile
           #npm run build
 
@@ -577,6 +577,11 @@ jobs:
            task solo:block:add
           done
           sleep 30
+
+      - name: Fix blocknode jsons
+        run: |
+          find ~/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
+          find ~/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
       - name: Start CNs
         run: |
