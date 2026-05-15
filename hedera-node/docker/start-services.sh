@@ -76,5 +76,7 @@ fi
   -XX:+ZGenerational \
   --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
   --add-opens java.base/java.nio=ALL-UNNAMED \
+  --enable-native-access=ALL-UNNAMED \
+  --sun-misc-unsafe-memory-access=allow \
   -Dio.netty.tryReflectionSetAccessible=true \
   com.swirlds.platform.Browser

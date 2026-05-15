@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,7 +8,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -21,17 +19,15 @@ import org.junit.jupiter.api.Test;
 class DataFileCompactorSingleLevelTest {
 
     private DataFileCollection dataFileCollection;
-    private CASableLongIndex index;
     private TestDataFileCompactor compactor;
 
     @BeforeEach
     void setUp() {
         dataFileCollection = mock(DataFileCollection.class);
-        index = mock(CASableLongIndex.class);
+        CASableLongIndex index = mock(CASableLongIndex.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of());
 
-        final MerkleDbConfig config = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        compactor = new TestDataFileCompactor(config, dataFileCollection, index);
+        compactor = new TestDataFileCompactor(dataFileCollection, index);
     }
 
     @Test
@@ -89,10 +85,7 @@ class DataFileCompactorSingleLevelTest {
         private List<DataFileReader> capturedFiles = List.of();
         private int capturedTargetLevel = -1;
 
-        private TestDataFileCompactor(
-                final MerkleDbConfig config,
-                final DataFileCollection dataFileCollection,
-                final CASableLongIndex index) {
+        private TestDataFileCompactor(final DataFileCollection dataFileCollection, final CASableLongIndex index) {
             super(dataFileCollection, index, null, null, null, null);
         }
 

@@ -3,11 +3,13 @@ package org.hiero.consensus.event.intake;
 
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +25,7 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
@@ -108,8 +111,9 @@ public class IntakeBenchmark {
 
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(SEED))
                 .withSize(numNodes)
                 .withRealKeysEnabled(true)
@@ -124,10 +128,10 @@ public class IntakeBenchmark {
         final List<PlatformEvent> uniqueEvents = generator.nextEvents(NUMBER_OF_EVENTS);
         events = shuffleBatches(injectDuplicates(uniqueEvents));
 
-        model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
+        model = WiringModelBuilder.create(metrics, time)
                 .enableJvmAnchor()
                 .withDefaultPool(threadPool)
-                .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
+                .withWiringConfig(configuration.getConfigData(WiringConfig.class))
                 .build();
         final RosterHistory rosterHistory = new RosterHistory(
                 List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
@@ -135,13 +139,13 @@ public class IntakeBenchmark {
         intake = createIntakeModule(intakeModule);
         intake.initialize(
                 model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
+                configuration,
+                metrics,
+                time,
                 rosterHistory,
                 new NoOpIntakeEventCounter(),
                 new TransactionLimits(1000, 1000),
-                new EventPipelineTracker(platformContext.getMetrics()));
+                new EventPipelineTracker(metrics));
         counter = new EventCounter(NUMBER_OF_EVENTS);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
         intake.unhashedEventsInputWire();

@@ -35,6 +35,8 @@ public interface HashgraphModule {
      * @param roster the active roster
      * @param selfId this node's ID
      * @param freezeChecker the freeze checker used to determine when a freeze is in progress
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event,
+     *                               computed by the execution layer from its configuration
      */
     void initialize(
             @NonNull WiringModel model,
@@ -44,7 +46,8 @@ public interface HashgraphModule {
             @NonNull Roster roster,
             @NonNull NodeId selfId,
             @NonNull FreezePeriodChecker freezeChecker,
-            @Nullable EventPipelineTracker eventPipelineTracker);
+            @Nullable EventPipelineTracker eventPipelineTracker,
+            long transactionOffsetNanos);
 
     /**
      * The primary input wire of the Hashgraph module. This input wire accepts events to be added to the consensus

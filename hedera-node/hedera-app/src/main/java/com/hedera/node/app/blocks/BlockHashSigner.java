@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,11 +33,25 @@ public interface BlockHashSigner {
      * @param verificationKey if not null, the verification key being used for the attempt
      * @param chainOfTrustProof if not null, the chain of trust proof for the verification key being used
      * @param signatureFuture a future that resolves to the signature
+     * @param submissionFuture a future that resolves when the node has submitted its partial signature
      */
     record Attempt(
             @Nullable Bytes verificationKey,
             @Nullable ChainOfTrustProof chainOfTrustProof,
-            CompletableFuture<Bytes> signatureFuture) {}
+            CompletableFuture<Bytes> signatureFuture,
+            CompletableFuture<Void> submissionFuture) {
+        public Attempt(
+                @Nullable final Bytes verificationKey,
+                @Nullable final ChainOfTrustProof chainOfTrustProof,
+                @NonNull final CompletableFuture<Bytes> signatureFuture) {
+            this(verificationKey, chainOfTrustProof, signatureFuture, completedFuture(null));
+        }
+
+        public Attempt {
+            requireNonNull(signatureFuture);
+            requireNonNull(submissionFuture);
+        }
+    }
 
     /**
      * Whether the signer is ready.
