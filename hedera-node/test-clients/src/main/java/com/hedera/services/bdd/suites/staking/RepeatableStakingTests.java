@@ -94,10 +94,6 @@ public class RepeatableStakingTests {
                 getTxnRecord("collection").hasPaidStakingRewards(List.of(Pair.of("forgottenStaker", 365L))));
     }
 
-    /**
-     * Validates that staking metadata stays up-to-date even when returning to a staked account
-     * after a long period of inactivity.
-     */
     @Order(2)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     Stream<DynamicTest> scheduledTransactionCrossingThresholdTriggersExpectedRewards() {
@@ -121,13 +117,17 @@ public class RepeatableStakingTests {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 doWithStartupConfig(
                         "consensus.handle.maxPrecedingRecords",
-                        value -> sleepToExactly(secondBoundary
-                                .get()
-                                // The next transaction will happen one second after the time we sleep to
-                                .minusSeconds(1)
-                                // And we adjust the nanos so the user transaction will be in this staking
-                                // period, but the triggered transaction will be in the next staking period
-                                .minusNanos(Long.parseLong(value) + 1))),
+                        maxPreceding -> doWithStartupConfig(
+                                "scheduling.reservedSystemTxnNanos",
+                                systemReservedNanos -> sleepToExactly(secondBoundary
+                                        .get()
+                                        // The next transaction will happen one second after the time we sleep to
+                                        .minusSeconds(1)
+                                        // And we adjust the nanos so the user transaction will be in this staking
+                                        // period, but the triggered transaction will be in the next staking period
+                                        .minusNanos(Long.parseLong(maxPreceding)
+                                                + 1
+                                                + Long.parseLong(systemReservedNanos))))),
                 cryptoCreate("justBeforeSecondPeriod"),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));

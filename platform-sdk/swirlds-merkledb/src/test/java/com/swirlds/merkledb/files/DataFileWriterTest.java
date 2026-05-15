@@ -22,9 +22,11 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -36,10 +38,14 @@ class DataFileWriterTest {
     private Path dataFilePath;
 
     @BeforeEach
-    public void setUp() throws Exception {
-        final Path dataFileDir = Files.createTempDirectory("dataFileWriterTest");
-        dataFileWriter = new DataFileWriter("test", dataFileDir, 1, Instant.now(), 1, BUFFER_SIZE, BUFFER_SIZE * 16384);
+    void setUp(@TempDir Path tempDir) throws Exception {
+        dataFileWriter = new DataFileWriter("test", tempDir, 1, Instant.now(), 1, BUFFER_SIZE, BUFFER_SIZE * 16384);
         dataFilePath = dataFileWriter.getPath();
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        dataFileWriter.close();
     }
 
     @Test
