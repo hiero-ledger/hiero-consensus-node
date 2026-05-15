@@ -537,56 +537,6 @@ class HandleWorkflowTest {
         assertEquals(notInBlockDescriptor, notInBlockRef.eventDescriptorOrThrow());
     }
 
-    @Test
-    void freezeRoundCallsWriteFreezeBlockWrappedRecordFileBlockHashesToStateWhenLiveWriteEnabled() {
-        final var freezeEvent = mock(ConsensusEvent.class);
-        final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
-        given(freezeEvent.getCreatorId()).willReturn(creatorId);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
-        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
-        givenFreezeRoundPlatformState();
-        givenSubjectWith(
-                RECORDS,
-                BlockStreamWriterMode.FILE,
-                emptyList(),
-                Map.of(
-                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
-                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "false"));
-
-        subject.handleRound(state, round, txns -> {});
-
-        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-    }
-
-    @Test
-    void freezeRoundCallsWriteFreezeBlockWrappedRecordFileBlockHashesToDiskWhenDiskWriteEnabled() {
-        final var freezeEvent = mock(ConsensusEvent.class);
-        final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
-        given(freezeEvent.getCreatorId()).willReturn(creatorId);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
-        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
-        givenFreezeRoundPlatformState();
-        givenSubjectWith(
-                RECORDS,
-                BlockStreamWriterMode.FILE,
-                emptyList(),
-                Map.of(
-                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "false",
-                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
-
-        subject.handleRound(state, round, txns -> {});
-
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-    }
-
     private void givenSubjectWith(
             @NonNull final StreamMode mode,
             @NonNull BlockStreamWriterMode streamWriterMode,
@@ -790,8 +740,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-        verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+        verify(blockRecordManager, never()).endRound(state);
+        verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
     }
 
     /**
