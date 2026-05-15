@@ -3,7 +3,6 @@ package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,6 +10,7 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
@@ -26,7 +26,7 @@ public interface PlatformContext {
 
     /**
      * Creates a new instance of the platform context. The instance uses a {@link NoOpMetrics} implementation for
-     * metrics and a {@link com.swirlds.common.io.utility.NoOpRecycleBin}.
+     * metrics and a {@link NoOpRecycleBin}.
      * The instance uses the static {@link Time#getCurrent()} call to get the time.
      *
      * @apiNote This method is meant for utilities and testing and not for a node's production operation

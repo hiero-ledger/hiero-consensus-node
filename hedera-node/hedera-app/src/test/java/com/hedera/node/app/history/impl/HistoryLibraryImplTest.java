@@ -34,14 +34,18 @@ class HistoryLibraryImplTest {
     private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
 
     @Test
-    void wrapsVerificationKeyIsTbd() {
+    void wrapsVerificationKeyUsesCurrentDefaultKey() {
+        assertEquals(HistoryLibraryImpl.WRAPS_VERIFICATION_KEY_LENGTH, subject.wrapsVerificationKey().length);
+        assertArrayEquals(WRAPSVerificationKey.getDefaultKey(), WRAPSVerificationKey.getCurrentKey());
         assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
     }
 
     @Test
-    void zeroSeedGeneratedPublicKeyProducesNonNullAddressBookHash() {
+    void sentinelPublicKeyProducesNonNullAddressBookHash() {
         final var libraryImpl = new HistoryLibraryImpl();
         final var availableKey = libraryImpl.newSchnorrKeyPair().publicKey();
+        assertArrayEquals(
+                HistoryLibraryImpl.WRAPS.provideSentinelPublicKey(), HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray());
         // Ensure we can still hash an address book when a node fails to gossip its Schnorr key in time
         final var hash = HistoryLibraryImpl.WRAPS.hashAddressBook(
                 new byte[][] {HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(), availableKey},
@@ -136,10 +140,15 @@ class HistoryLibraryImplTest {
     }
 
     @Test
-    void emptyPublicKeyMatchesGeneratedSchnorrKeyLength() {
+    void sentinelPublicKeyMatchesGeneratedSchnorrKeyLength() {
         final var generatedPublicKey = subject.newSchnorrKeyPair().publicKey();
 
         assertEquals(generatedPublicKey.length, HistoryLibrary.MISSING_SCHNORR_KEY.length());
+    }
+
+    @Test
+    void verifyCompressedProofReturnsFalseForMalformedInput() {
+        assertFalse(subject.verifyCompressedProof(new byte[] {1}, new byte[] {2}, new byte[] {3}));
     }
 
     @Test
