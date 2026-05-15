@@ -88,16 +88,6 @@ jobs:
         id: gradle-integration-tests
         run: ${GRADLE_EXEC} testIntegration
 
-      - name: Check If Tests Executed
-        id: check-tests-executed
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/build/test-executed/testIntegration.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Publish Integration Test Report
         id: publish-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -115,21 +105,10 @@ jobs:
           path: "**/build/test-results/testIntegration/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Integration)
-        id: detect-flaky-integration-tests
-        if: ${{ !cancelled() && steps.check-tests-executed.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if find . -path "*/build/test-results/testIntegration/TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Otter Integration Tests Turtle Logs
         id: upload-otter-turtle-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
         with:
           name: Otter Integration Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -138,7 +117,7 @@ jobs:
       - name: Upload Otter Integration Tests Container Logs
         id: upload-otter-container-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
         with:
           name: Otter Integration Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container

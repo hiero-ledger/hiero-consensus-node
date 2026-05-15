@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -22,6 +21,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +31,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Serialization Test")
-class VirtualMapSerializationTests {
+class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
@@ -41,11 +42,12 @@ class VirtualMapSerializationTests {
      * Create a new virtual map data source builder.
      */
     public static MerkleDbDataSourceBuilder constructBuilder() {
-        return constructBuilder(CONFIGURATION);
+        return constructBuilder(CONFIGURATION, fileSystemManager);
     }
 
-    public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
-        return new MerkleDbDataSourceBuilder(configuration, 10_000);
+    public static MerkleDbDataSourceBuilder constructBuilder(
+            final Configuration configuration, final FileSystemManager fileSystemManager) {
+        return new MerkleDbDataSourceBuilder(configuration, fileSystemManager, 10_000);
     }
 
     /**
@@ -117,11 +119,10 @@ class VirtualMapSerializationTests {
     /**
      * Test serialization of a map. Does not release any resources created by caller.
      */
-    @SuppressWarnings("resource")
     private void testMapSerialization(final VirtualMap map) throws IOException {
 
-        final Path savedStateDirectory =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
+        final Path savedStateDirectory = fileSystemManager.resolveNewTemp("saved-state");
+        Files.createDirectories(savedStateDirectory);
 
         // Make sure the map is hashed
         map.getHash();
@@ -134,8 +135,8 @@ class VirtualMapSerializationTests {
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
 
-        final VirtualMap deserializedMap =
-                VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
+        final VirtualMap deserializedMap = VirtualMap.loadFromDirectory(
+                savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION, fileSystemManager));
 
         assertVmsAreEqual(map, deserializedMap);
 

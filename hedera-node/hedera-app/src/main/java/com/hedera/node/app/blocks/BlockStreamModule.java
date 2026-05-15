@@ -30,7 +30,6 @@ import javax.inject.Singleton;
 
 @Module
 public interface BlockStreamModule {
-
     @Provides
     @Singleton
     static BlockBufferService provideBlockBufferService(

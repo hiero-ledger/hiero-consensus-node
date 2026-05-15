@@ -550,7 +550,7 @@ public final class ConsensusTestDefinitions {
 
         orchestrator.generateEvents(0.5);
         orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
-        orchestrator.addReconnectNode(input.platformContext());
+        orchestrator.addReconnectNode(input.configuration(), input.metrics(), input.time());
 
         orchestrator.clearOutput();
         orchestrator.generateEvents(0.5);
@@ -609,6 +609,9 @@ public final class ConsensusTestDefinitions {
 
         // generate half of the events and validate
         orchestrator.generateEvents(0.5).validateAndClear(consensusOutputValidator);
+        final Map<ConsensusTestNode, Integer> preConsensusEventCountBeforeFreeze = new HashMap<>();
+        orchestrator.forEachNode(node -> preConsensusEventCountBeforeFreeze.put(
+                node, node.getOutput().getPreConsensusEvents().size()));
         // freeze all the nodes
         orchestrator.forEachNode(node -> node.getIntake().setFreezeCheck(i -> true));
         // generate the rest of the events
@@ -623,6 +626,9 @@ public final class ConsensusTestDefinitions {
             Assertions.assertThat(lastConsensusRound.getEventWindow().newEventBirthRound())
                     .withFailMessage("The event birth round should be equal to the freeze round")
                     .isEqualTo(lastConsensusRound.getRoundNum());
+            Assertions.assertThat(n.getOutput().getPreConsensusEvents().size())
+                    .withFailMessage("Post-freeze events should still be emitted for pre-consensus handling")
+                    .isGreaterThan(preConsensusEventCountBeforeFreeze.get(n));
         });
     }
 }

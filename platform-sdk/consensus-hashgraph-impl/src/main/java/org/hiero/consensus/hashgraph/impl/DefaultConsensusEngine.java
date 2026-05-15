@@ -59,12 +59,13 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /**
      * Constructor
      *
-     * @param configuration the configuration
-     * @param metrics the metrics registry
-     * @param time the time source
-     * @param roster the current roster
-     * @param selfId the ID of the node
-     * @param freezeChecker checks if the consensus time has reached the freeze period
+     * @param configuration          the configuration
+     * @param metrics                the metrics registry
+     * @param time                   the time source
+     * @param roster                 the current roster
+     * @param selfId                 the ID of the node
+     * @param freezeChecker          checks if the consensus time has reached the freeze period
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
      */
     public DefaultConsensusEngine(
             @NonNull final Configuration configuration,
@@ -72,10 +73,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezePeriodChecker freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker,
+            final long transactionOffsetNanos) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
-        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster);
+        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
         futureEventBuffer =
@@ -103,8 +105,13 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         Objects.requireNonNull(event);
 
         if (freezeRoundController.isFrozen()) {
-            // If we are frozen, ignore all events
-            return ConsensusEngineOutput.emptyInstance();
+            // Once the freeze round has been reached, no further rounds should reach consensus. But the platform may
+            // still need post-freeze events to be pre-handled, for example to collect freeze-state signatures or other
+            // application-controlled freeze-completion work.
+            final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+            return nonFutureEvent == null
+                    ? ConsensusEngineOutput.emptyInstance()
+                    : new ConsensusEngineOutput(List.of(), List.of(nonFutureEvent), List.of());
         }
 
         final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);

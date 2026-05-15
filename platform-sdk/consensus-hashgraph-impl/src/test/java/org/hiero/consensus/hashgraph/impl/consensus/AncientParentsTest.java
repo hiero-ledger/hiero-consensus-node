@@ -3,10 +3,10 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,6 +19,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherPar
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -55,18 +56,17 @@ class AncientParentsTest {
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
                 .getOrCreateConfig();
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
 
         final List<EventSource> eventSources = Stream.generate(StandardEventSource::new)
                 .map(ses -> (EventSource) ses)
                 .limit(numNodes)
                 .toList();
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                configuration, platformContext.getMetrics(), platformContext.getTime(), seed, eventSources);
-        final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
-        final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
+        final StandardGraphGenerator generator =
+                new StandardGraphGenerator(configuration, metrics, time, seed, eventSources);
+        final TestIntake node1 = new TestIntake(configuration, metrics, time, generator.getRoster());
+        final TestIntake node2 = new TestIntake(configuration, metrics, time, generator.getRoster());
 
         // first, we generate events regularly, until we have some ancient rounds
         for (final PlatformEvent event : generator.generateEvents(FIRST_BATCH_SIZE)) {

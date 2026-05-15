@@ -9,8 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.CollectingEventEmitter;
@@ -29,9 +27,6 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("Event Emitter Tests")
 public class EventEmitterTests {
-
-    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
-            TestPlatformContextBuilder.create().build();
 
     /**
      * Assert that two lists of events are distinct but equal objects.

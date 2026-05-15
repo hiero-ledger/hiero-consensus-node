@@ -6,10 +6,8 @@ module com.swirlds.common {
     exports com.swirlds.common.context;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
-    exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle.synchronization;
     exports com.swirlds.common.merkle.synchronization.streams;
-    exports com.swirlds.common.merkle.synchronization.task;
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.notification;
@@ -19,8 +17,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.synchronization.stats;
 
     opens com.swirlds.common.utility to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common.io.utility to
             com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;

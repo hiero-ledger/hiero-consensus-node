@@ -2,17 +2,13 @@
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.AddressBookService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -47,26 +43,5 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.keyValue(
                 ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_KEY, AccountID.PROTOBUF, NodeId.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        if (!ctx.isGenesis()) {
-            final var nodeState = ctx.previousStates().get(NODES_STATE_ID);
-            final var relState = ctx.newStates().get(ACCOUNT_NODE_REL_STATE_ID);
-
-            // With Virtual MegaMap, nodeState.keys() is over **every leaf in state**.
-            // Since we can't use it to iterate nodes directly, we iterate through potential
-            // node IDs (0-99) to populate the relation map, which covers our production node count.
-            for (int i = 0; i < 100; i++) {
-                final var nodeId = EntityNumber.newBuilder().number(i).build();
-                final var node = (Node) nodeState.get(nodeId);
-                if (node != null && node.hasAccountId()) {
-                    relState.put(
-                            node.accountId(),
-                            NodeId.newBuilder().id(node.nodeId()).build());
-                }
-            }
-        }
     }
 }

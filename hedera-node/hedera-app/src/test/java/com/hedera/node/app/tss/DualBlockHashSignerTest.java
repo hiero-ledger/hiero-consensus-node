@@ -96,7 +96,8 @@ class DualBlockHashSignerTest {
     void listOfPartialSignaturesCreatesRsaSigningSubmitsSignatureAndRemovesFromMapOnCompletion() {
         given(rsaContext.isReady()).willReturn(true);
         given(rsaContext.newSigning(eq(BLOCK_HASH), any(Runnable.class))).willReturn(rsaSigning);
-        given(submissions.submitRsaSignature(BLOCK_HASH)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitRsaSignature(BLOCK_HASH)).willReturn(submissionFuture);
         given(rsaSigning.future()).willReturn(CompletableFuture.completedFuture(RSA_SIGNATURES));
 
         final var attempt = subject.sign(BLOCK_HASH, LIST_OF_PARTIAL_SIGNATURES);
@@ -104,6 +105,7 @@ class DualBlockHashSignerTest {
         assertNull(attempt.verificationKey());
         assertNull(attempt.chainOfTrustProof());
         assertSame(RSA_SIGNATURES, attempt.signatureFuture().join());
+        assertSame(submissionFuture, attempt.submissionFuture());
         assertSame(rsaSigning, rsaSignings.get(BLOCK_HASH));
         final var onCompletion = ArgumentCaptor.forClass(Runnable.class);
         verify(rsaContext).newSigning(eq(BLOCK_HASH), onCompletion.capture());
@@ -118,12 +120,14 @@ class DualBlockHashSignerTest {
     void listOfPartialSignaturesReusesExistingRsaSigning() {
         rsaSignings.put(BLOCK_HASH, rsaSigning);
         given(rsaContext.isReady()).willReturn(true);
-        given(submissions.submitRsaSignature(BLOCK_HASH)).willReturn(CompletableFuture.completedFuture(null));
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(submissions.submitRsaSignature(BLOCK_HASH)).willReturn(submissionFuture);
         given(rsaSigning.future()).willReturn(CompletableFuture.completedFuture(RSA_SIGNATURES));
 
         final var attempt = subject.sign(BLOCK_HASH, LIST_OF_PARTIAL_SIGNATURES);
 
         assertSame(RSA_SIGNATURES, attempt.signatureFuture().join());
+        assertSame(submissionFuture, attempt.submissionFuture());
         verify(rsaContext, never()).newSigning(any(), any(Runnable.class));
         verify(submissions).submitRsaSignature(BLOCK_HASH);
     }
