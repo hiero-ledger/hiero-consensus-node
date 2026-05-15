@@ -454,11 +454,6 @@ jobs:
 
           cd ..
 
-      - name: Fix blocknode jsons
-        run: |
-          find ~/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
-          find ~/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
-
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
@@ -587,6 +582,11 @@ jobs:
           task solo:block:add
 
           sleep 30
+
+      - name: Fix blocknode jsons
+        run: |
+          find ~/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
+          find ~/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
       - name: Start CNs
         run: |
