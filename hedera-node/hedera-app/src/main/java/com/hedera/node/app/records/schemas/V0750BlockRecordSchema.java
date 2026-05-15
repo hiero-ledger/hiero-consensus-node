@@ -33,7 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class V0750BlockRecordSchema extends Schema<SemanticVersion> {
     private static final Logger log = LogManager.getLogger(V0750BlockRecordSchema.class);
 
-    private static final SemanticVersion VERSION =g
+    private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(75).patch(0).build();
 
     public static final int DEADLINE_BLOCK_NUMBER_BUFFER = 10;
