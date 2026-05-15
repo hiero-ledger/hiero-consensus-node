@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.hiero.gradle.environment.EnvAccess
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -295,7 +296,7 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+    if (!EnvAccess.isCiServer(providers)) doNotTrackState("Don't skip execution of hapi test tasks")
 
     // Isolate each subtask's working directory so logs are not overwritten
     val subtaskName =
@@ -432,7 +433,7 @@ tasks.register<Test>("testSubprocess") {
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+    if (!EnvAccess.isCiServer(providers)) doNotTrackState("Don't skip execution of hapi test tasks")
 
     // Isolate each subtask's working directory so logs are not overwritten
     val subtaskName =
@@ -574,7 +575,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+    if (!EnvAccess.isCiServer(providers)) doNotTrackState("Don't skip execution of hapi test tasks")
 
     // Isolate each subtask's working directory so logs are not overwritten
     val subtaskName =
@@ -675,7 +676,7 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+    if (!EnvAccess.isCiServer(providers)) doNotTrackState("Don't skip execution of hapi test tasks")
 
     // Isolate each subtask's working directory so logs are not overwritten
     val subtaskName =
@@ -742,7 +743,7 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+    if (!EnvAccess.isCiServer(providers)) doNotTrackState("Don't skip execution of hapi test tasks")
 
     // Isolate each subtask's working directory so logs are not overwritten
     val subtaskName =
