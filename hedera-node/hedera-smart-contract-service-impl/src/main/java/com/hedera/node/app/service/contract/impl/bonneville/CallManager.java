@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import static com.hedera.hapi.streams.CallOperationType.*;
 
 import com.hedera.hapi.streams.CallOperationType;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.processors.PublicMessageProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
@@ -27,7 +28,7 @@ public abstract class CallManager {
         // Nested create contract call; so print the post-trace before the
         // nested call and reload the pre-trace state after call.
         String str = hasSalt ? "CREATE2" : "CREATE";
-        preTraceCall(bevm, trace, str);
+        preTraceCall(bevm, str);
         if( bevm._sp < (hasSalt ? 4 : 3) ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( bevm._isStatic ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         Address sender = hookSender(bevm);
@@ -37,7 +38,7 @@ public abstract class CallManager {
         int len = bevm.popInt();
         Bytes salt = hasSalt ? bevm.popBytes() : null;
 
-        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len);
+        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len, false);
 
         var senderAccount = bevm._updater.getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || bevm._frame.getDepth() >= 1024 /*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/ )
@@ -48,7 +49,13 @@ public abstract class CallManager {
         Address recv_contract =
                 hasSalt ? saltContract(sender, salt, code) : Address.contractAddress(sender, senderNonce);
         assert recv_contract != null;
-        bevm.isWarm(recv_contract); // Force contract address to be warmed up
+
+        // A bit arbitrary maybe, but if implicit creation isn't enabled, we also
+        // don't support finalizing hollow accounts as contracts, so return failed
+        if( bevm._updater.isHollowAccount(recv_contract) && !bevm._top._bonneville._flags.isImplicitCreationEnabled() )
+            return bevm.push0();
+
+        bevm._top.isWarm(recv_contract); // Force contract address to be warmed up
 
         bevm._updater.setupInternalAliasedCreate(sender, recv_contract);
 
@@ -74,7 +81,7 @@ public abstract class CallManager {
                                false, // Not static
                                0,
                                0, // No return data
-                               bevm._bonneville._create,
+                               bevm._top._bonneville._create,
                                hasSalt ? OP_CREATE2 : OP_CREATE);
     }
 
@@ -175,7 +182,7 @@ public abstract class CallManager {
     static ExceptionalHaltReason _abstractCall( BEVM bevm, SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean isStatic, CallOperationType opCall ) {
         // Nested create contract call; so print the post-trace before the
         // nested call and reload the pre-trace state after call.
-        preTraceCall(bevm, trace, str);
+        preTraceCall(bevm, str);
 
         int srcOff = bevm.popInt(); // Outgoing data passed to child
         int srcLen = bevm.popInt();
@@ -218,7 +225,7 @@ public abstract class CallManager {
 
         // There is a 2nd gas check made here, with Account possibly being warm
         // which is lower cost, so never fails...
-        gas += bevm.isWarm(contract)
+        gas += bevm._top.isWarm(contract)
             ? bevm._gasCalc.getWarmStorageReadCost()
             : bevm._gasCalc.getColdAccountAccessCost();
 
@@ -227,7 +234,7 @@ public abstract class CallManager {
         if( value.compareTo(bevm._recvAcct.getBalance()) > 0 || bevm._frame.getDepth() >= 1024 )
             return bevm.push0();
 
-        return _abstractCall2( bevm, trace, str, MessageFrame.Type.MESSAGE_CALL, gas, stipend, hasValue, recipient, contract, sender, value, bevm._mem.asBytes(srcOff, srcLen), code, isStatic, dstOff, dstLen, bevm._bonneville._call, opCall);
+        return _abstractCall2( bevm, trace, str, MessageFrame.Type.MESSAGE_CALL, gas, stipend, hasValue, recipient, contract, sender, value, bevm._mem.asBytes(srcOff, srcLen), code, isStatic, dstOff, dstLen, bevm._top._bonneville._call, opCall);
     }
 
     static ExceptionalHaltReason _abstractCall2( BEVM bevm, SB trace, String str, MessageFrame.Type type, long gas, long stipend, boolean getsValueStipend, Address recipient, Address contract, Address sender, Wei value, Bytes src, CodeV2 code, boolean isStatic, int dstOff, int dstLen, PublicMessageProcessor msg, CallOperationType opCall) {
@@ -269,33 +276,35 @@ public abstract class CallManager {
         frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
         // Action Stack setup
-        if( bevm._hasSideCar )
-            bevm._tracer.traceSuspended(frame,child,opCall);
+        TopXTN top = bevm._top;
+        ActionSidecarContentTracer tracer = top._tracer;
+        if( top._hasSideCar )
+            tracer.traceSuspended(frame,child,opCall);
 
         // Frame lifetime management
         assert child.getState() == MessageFrame.State.NOT_STARTED;
-        bevm._tracer.traceContextEnter(child);
+        tracer.traceContextEnter(child);
 
         // More frame safety checks, also pre-compiled contracts.
         // Pre-compiled contracts also pop the action stack here.
-        msg.start(child, bevm._tracer);
+        msg.start(child, tracer);
 
         if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
             // ----------------------------
             // Recursively call
-            bevm._bonneville.runToHalt(bevm, code, child, bevm._tracer);
+            top.runNestedBEVM(child, code, contract);
             // ----------------------------
         }
 
         switch( child.getState() ) {
-        case MessageFrame.State.CODE_SUCCESS:       msg.codeSuccess(child, bevm._tracer);  break; // Sets COMPLETED_SUCCESS
+        case MessageFrame.State.CODE_SUCCESS:       msg.codeSuccess(child, tracer);  break; // Sets COMPLETED_SUCCESS
         case MessageFrame.State.REVERT:             msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS:  break; // Precompiled sys contracts hit here
         case MessageFrame.State.EXCEPTIONAL_HALT:   halt = childHalted(frame, child); break;
         default: throw new TODO();
         }
 
-        bevm._tracer.traceContextExit(child);
+        tracer.traceContextExit(child);
         child.getWorldUpdater().commit();
         child.getMessageFrameStack().removeFirst(); // Pop child frame
 
@@ -311,7 +320,7 @@ public abstract class CallManager {
         bevm._gas += child.getRemainingGas(); // Recover leftover gas from the child
 
         if( trace != null )
-            System.out.println(trace.clear().p("RETURN ").p(str).nl());
+            top._bonneville._stdOut.println(trace.clear().p("RETURN ").p(str).nl());
 
         boolean success = child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
         if( type == MessageFrame.Type.CONTRACT_CREATION )
@@ -341,7 +350,7 @@ public abstract class CallManager {
     }
 
     private static boolean checkHookExec(BEVM bevm) {
-        if( bevm._hookOwner == null ) return false;
+        if( bevm._top._hookOwner == null ) return false;
 
         // isNotRedirectFromNativeEntity
         final var recipient = bevm._updater.getHederaAccount(bevm._recvAddr);
@@ -350,7 +359,7 @@ public abstract class CallManager {
 
     private static Address hookSender(BEVM bevm) {
         return bevm._recvAddr.equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
-            ? bevm._hookOwner
+            ? bevm._top._hookOwner
             : bevm._recvAddr;
     }
 
@@ -358,9 +367,11 @@ public abstract class CallManager {
         /*nothing*/
     }
 
-    private static void preTraceCall(BEVM bevm, SB trace, String str) {
+    private static void preTraceCall(BEVM bevm, String str) {
+        SB trace = bevm._top._bonneville._trace;
         if( trace == null ) return;
-        System.out.println(bevm.postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        bevm.postTrace();
+        bevm._top._bonneville._stdOut.println(trace.nl().nl().p("CONTRACT ").p(str).nl());
         trace.clear();
     }
 }

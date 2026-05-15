@@ -37,6 +37,7 @@ public interface PcesModule {
      * @param time the time source
      * @param selfId the ID of this node
      * @param recycleBin the recycle bin for deleting old PCES files
+     * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
      * @param flushIntake a {@link Runnable} that triggers flushing of the intake wires
      * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
@@ -53,6 +54,7 @@ public interface PcesModule {
             @NonNull Time time,
             @NonNull NodeId selfId,
             @NonNull RecycleBin recycleBin,
+            @NonNull FileSystemManager fileSystemManager,
             long startingRound,
             @NonNull Runnable flushIntake,
             @NonNull Runnable flushTransactionHandling,

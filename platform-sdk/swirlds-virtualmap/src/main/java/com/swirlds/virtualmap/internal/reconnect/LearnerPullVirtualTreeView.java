@@ -134,8 +134,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         final int learnerSendTasks = 16;
         final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
         for (int i = 0; i < learnerSendTasks; i++) {
-            final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
-                    reconnectConfig, workGroup, out, this, expectedResponses, tasksDone);
+            final LearnerPullVirtualTreeSendTask learnerSendTask =
+                    new LearnerPullVirtualTreeSendTask(workGroup, out, this, expectedResponses, tasksDone);
             learnerSendTask.exec();
         }
     }

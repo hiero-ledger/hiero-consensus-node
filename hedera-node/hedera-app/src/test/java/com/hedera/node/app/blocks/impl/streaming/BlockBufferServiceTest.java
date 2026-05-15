@@ -296,6 +296,85 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void acknowledgedThroughFutureCompletesImmediatelyWhenNoBlocksProduced() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(-1L);
+
+        // then
+        assertThat(future).isCompleted();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesImmediatelyWhenBlockAlreadyAcked() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+        reset(blockStreamMetrics);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER);
+
+        // then
+        assertThat(future).isCompleted();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesWhenBlockIsAcked() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
+        reset(blockStreamMetrics);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER2);
+
+        // then
+        assertThat(future).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+        assertThat(future).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER2);
+        assertThat(future).isCompleted();
+
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER);
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER2);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesWhenAckJumpsPastBlock() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
+        reset(blockStreamMetrics);
+
+        // when
+        final var firstBlockFuture = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER);
+        final var secondBlockFuture = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER2);
+
+        // then
+        assertThat(firstBlockFuture).isNotCompleted();
+        assertThat(secondBlockFuture).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER2 + 1);
+
+        assertThat(firstBlockFuture).isCompleted();
+        assertThat(secondBlockFuture).isCompleted();
+
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER2 + 1);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
     void testGetCurrentBlockNumberWhenNoNewBlockIsOpened() {
         // given
         blockBufferService = initBufferService(configProvider);

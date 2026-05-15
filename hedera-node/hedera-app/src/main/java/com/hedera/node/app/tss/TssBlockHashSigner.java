@@ -107,14 +107,19 @@ public class TssBlockHashSigner implements BlockHashSigner {
         if (tssConfig.forceMockSignatures() || hintsService == null) {
             return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
         } else {
-            if (!(hintsService.sign(blockHash) instanceof HintsContext.Signing signing)) {
+            final var signingResult = hintsService.sign(blockHash);
+            if (!(signingResult.signing() instanceof HintsContext.Signing signing)) {
                 throw new IllegalStateException("hinTS signing required for TSS block hash " + blockHash);
             }
             if (historyService == null) {
-                return new Attempt(signing.verificationKey(), null, signing.future());
+                return new Attempt(signing.verificationKey(), null, signing.future(), signingResult.submissionFuture());
             } else {
                 final var chainOfTrustProof = historyService.getCurrentChainOfTrustProof(signing.verificationKey());
-                return new Attempt(signing.verificationKey(), chainOfTrustProof, signing.future());
+                return new Attempt(
+                        signing.verificationKey(),
+                        chainOfTrustProof,
+                        signing.future(),
+                        signingResult.submissionFuture());
             }
         }
     }
