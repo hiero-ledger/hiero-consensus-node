@@ -703,6 +703,16 @@ public final class GcpPathHelper {
 
             final boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
+                // Kill all descendant processes first (gcloud, wrapper scripts spawned by xargs).
+                // Without this, destroyForcibly() only kills xargs itself, leaving orphaned gcloud
+                // processes that continue writing into the cache directory after Java has returned.
+                process.descendants().forEach(descendant -> {
+                    log.debug(
+                            "Killing descendant process: pid={}, cmd={}",
+                            descendant.pid(),
+                            descendant.info().commandLine().orElse("unknown"));
+                    descendant.destroyForcibly();
+                });
                 process.destroyForcibly();
                 log.error("Process timed out after {} seconds: {}", timeoutSeconds, String.join(" ", cmd));
                 return -1;
