@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import org.hiero.gradle.environment.EnvAccess
-
-// SPDX-License-Identifier: Apache-2.0
 pluginManagement { includeBuild("gradle/besu-native-patch") }
 
 plugins {
