@@ -340,16 +340,21 @@ public class ServicesMain {
                 InstantSource.system(),
                 selfId,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig, rsaContext, rsaSignings) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
                         rsaContext,
-                        rsaSignings),
-                (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
+                        rsaSignings,
+                        genesisNetworkSupplier),
+                (appContext, bootstrapConfig, genesisNetworkSupplier) -> new HistoryServiceImpl(
+                        metrics,
+                        ForkJoinPool.commonPool(),
+                        appContext,
+                        new HistoryLibraryImpl(),
+                        genesisNetworkSupplier),
                 DualBlockHashSigner::new,
                 configuration,
                 fileSystemManager,

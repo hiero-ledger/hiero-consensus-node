@@ -453,13 +453,17 @@ public final class Hedera
                 @NonNull AppContext appContext,
                 @NonNull Configuration bootstrapConfig,
                 @NonNull RsaContext rsaContext,
-                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
+                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
     public interface HistoryServiceFactory {
         @NonNull
-        HistoryService apply(@NonNull AppContext appContext, @NonNull Configuration bootstrapConfig);
+        HistoryService apply(
+                @NonNull AppContext appContext,
+                @NonNull Configuration bootstrapConfig,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
@@ -571,8 +575,11 @@ public final class Hedera
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         rsaContext = new RsaContext(configSupplier);
-        hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings);
-        historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
+        final Supplier<Network> genesisNetworkSupplier =
+                () -> requireNonNull(this.genesisNetworkSupplier).get();
+        hintsService =
+                hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
+        historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
                 .transactionChecker()
                 .parseSignedAndCheck(txnBytes)
@@ -815,7 +822,6 @@ public final class Hedera
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
             ensureWrapsProvingKey();
         }
-        initializeGenesisTssRuntime(trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
@@ -853,30 +859,6 @@ public final class Hedera
     private void ensureWrapsProvingKey() {
         wrapsProvingKeyVerification.ensureProvingKey(
                 configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
-    }
-
-    /**
-     * Initializes any dev-only TSS runtime state from genesis network JSON.
-     */
-    private void initializeGenesisTssRuntime(@NonNull final InitTrigger trigger) {
-        requireNonNull(trigger);
-        if (trigger != GENESIS) {
-            return;
-        }
-        final var config = configProvider.getConfiguration();
-        final Network genesisNetwork;
-        try {
-            genesisNetwork = startupNetworks.genesisNetworkOrThrow(config);
-        } catch (IllegalStateException e) {
-            logger.debug("No genesis startup network available for TSS runtime bootstrap", e);
-            return;
-        }
-        if (!TssStartupNetworks.hasTssMetadata(genesisNetwork)) {
-            return;
-        }
-        logger.warn("Initializing dev-only TSS runtime and local private keys from genesis network JSON");
-        TssStartupNetworks.initializeRuntime(genesisNetwork, hintsService, historyService);
-        TssStartupNetworks.writePrivateKeys(genesisNetwork, config, selfId.id());
     }
 
     /**

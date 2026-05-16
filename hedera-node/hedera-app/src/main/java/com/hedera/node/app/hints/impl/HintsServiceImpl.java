@@ -20,11 +20,13 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.hints.schemas.V073HintsSchema;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -34,8 +36,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,6 +53,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     private final HintsLibrary library;
 
+    private final Supplier<Network> genesisNetworkSupplier;
+
     @Nullable
     private OnHintsFinished cb;
 
@@ -60,7 +66,20 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Duration blockPeriod,
             @NonNull final RsaContext rsaContext,
             @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
+        this(metrics, executor, appContext, library, blockPeriod, rsaContext, rsaSignings, () -> null);
+    }
+
+    public HintsServiceImpl(
+            @NonNull final Metrics metrics,
+            @NonNull final Executor executor,
+            @NonNull final AppContext appContext,
+            @NonNull final HintsLibrary library,
+            @NonNull final Duration blockPeriod,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.library = requireNonNull(library);
+        this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
                 .create(library, appContext, executor, metrics, blockPeriod, this, rsaContext, rsaSignings);
@@ -68,8 +87,17 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     @VisibleForTesting
     HintsServiceImpl(@NonNull final HintsServiceComponent component, @NonNull final HintsLibrary library) {
+        this(component, library, () -> null);
+    }
+
+    @VisibleForTesting
+    HintsServiceImpl(
+            @NonNull final HintsServiceComponent component,
+            @NonNull final HintsLibrary library,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
         this.library = requireNonNull(library);
+        this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
     }
 
     @Override
@@ -231,6 +259,16 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final int networkSize) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
+        final var maybeGenesisNetwork = genesisTssNetwork();
+        if (maybeGenesisNetwork.isPresent()) {
+            logger.warn("Initializing dev-only hinTS genesis state and runtime from startup network JSON");
+            final var activeConstruction =
+                    TssStartupNetworks.initializeHintsState(writableStates, maybeGenesisNetwork.orElseThrow());
+            if (activeConstruction.hasHintsScheme()) {
+                setActiveConstruction(activeConstruction);
+            }
+            return true;
+        }
         writableStates
                 .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
@@ -245,6 +283,19 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             crsState.put(CRSState.DEFAULT);
         }
         return true;
+    }
+
+    private Optional<Network> genesisTssNetwork() {
+        try {
+            final var network = genesisNetworkSupplier.get();
+            if (network == null) {
+                return Optional.empty();
+            }
+            return TssStartupNetworks.hasTssMetadata(network) ? Optional.of(network) : Optional.empty();
+        } catch (IllegalStateException e) {
+            logger.debug("No genesis startup network available for hinTS bootstrap", e);
+            return Optional.empty();
+        }
     }
 
     @Override

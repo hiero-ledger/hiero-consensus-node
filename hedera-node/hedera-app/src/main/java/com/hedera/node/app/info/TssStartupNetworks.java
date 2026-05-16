@@ -202,27 +202,6 @@ public final class TssStartupNetworks {
     }
 
     /**
-     * Initializes runtime TSS service contexts from a startup network JSON file.
-     */
-    public static void initializeRuntime(
-            @NonNull final Network network,
-            @NonNull final HintsService hintsService,
-            @NonNull final HistoryService historyService) {
-        requireNonNull(network);
-        requireNonNull(hintsService);
-        requireNonNull(historyService);
-        if (!hasTssMetadata(network)) {
-            return;
-        }
-        final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
-        initializeRuntime(
-                tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT),
-                tssMetadata.activeProofConstructionOrElse(HistoryProofConstruction.DEFAULT),
-                hintsService,
-                historyService);
-    }
-
-    /**
      * Initializes runtime TSS service contexts from active constructions already loaded from startup network JSON.
      */
     public static void initializeRuntime(

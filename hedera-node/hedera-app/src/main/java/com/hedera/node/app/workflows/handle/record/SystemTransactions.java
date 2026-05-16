@@ -58,8 +58,6 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
@@ -110,7 +108,6 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -283,14 +280,7 @@ public class SystemTransactions {
             stateChangeStreaming.doStreamingChanges(
                     writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
         }
-        try {
-            final var genesisNetwork = startupNetworks.genesisNetworkOrThrow(config);
-            if (genesisNetwork != null) {
-                maybeInitializeGenesisTssFromNetwork(state, config, genesisNetwork, stateChangeStreaming);
-            }
-        } catch (IllegalStateException e) {
-            log.debug("No genesis startup network available for TSS bootstrap", e);
-        }
+        maybeWriteGenesisTssPrivateKeys(config);
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
@@ -727,27 +717,19 @@ public class SystemTransactions {
         return false;
     }
 
-    private void maybeInitializeGenesisTssFromNetwork(
-            @NonNull final State state,
-            @NonNull final Configuration config,
-            @NonNull final Network network,
-            @NonNull final StateChangeStreaming stateChangeStreaming) {
-        requireNonNull(state);
+    private void maybeWriteGenesisTssPrivateKeys(@NonNull final Configuration config) {
         requireNonNull(config);
-        requireNonNull(network);
-        requireNonNull(stateChangeStreaming);
-        if (!TssStartupNetworks.hasTssMetadata(network)) {
-            return;
+        try {
+            final var network = startupNetworks.genesisNetworkOrThrow(config);
+            if (!TssStartupNetworks.hasTssMetadata(network)) {
+                return;
+            }
+            log.warn("Writing dev-only local TSS private keys from startup network JSON");
+            TssStartupNetworks.writePrivateKeys(
+                    network, config, networkInfo.selfNodeInfo().nodeId());
+        } catch (IllegalStateException e) {
+            log.debug("No genesis startup network available for TSS private key bootstrap", e);
         }
-        log.warn("Initializing dev-only TSS state and local private keys from startup network JSON");
-        final var hintsStates = state.getWritableStates(HintsService.NAME);
-        stateChangeStreaming.doStreamingChanges(
-                hintsStates, null, () -> TssStartupNetworks.initializeHintsState(hintsStates, network));
-        final var historyStates = state.getWritableStates(HistoryService.NAME);
-        stateChangeStreaming.doStreamingChanges(
-                historyStates, null, () -> TssStartupNetworks.initializeHistoryState(historyStates, network));
-        TssStartupNetworks.writePrivateKeys(
-                network, config, networkInfo.selfNodeInfo().nodeId());
     }
 
     /**

@@ -285,9 +285,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 this::now,
                 defaultNodeId,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
-                        this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),
-                (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
+                (appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier) ->
+                        this.hintsService = new FakeHintsService(
+                                appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier),
+                (appContext, bootstrapConfig, genesisNetworkSupplier) ->
+                        this.historyService = new FakeHistoryService(appContext, genesisNetworkSupplier),
                 (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
                         new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),
                 PLATFORM_CONFIG,
