@@ -4,6 +4,9 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.io.OutputStream;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Optional;
@@ -39,6 +42,7 @@ public class CodeV2 extends OutputStream implements Code {
     // "Good enough" non-secure fast Hashcode, computed once
     private int _hash;
 
+
     // Return an empty CodeV2, from the FREE list if possible
     private static CodeV2 atomicGetFree() {
         // Under lock, pull from the free list
@@ -62,17 +66,15 @@ public class CodeV2 extends OutputStream implements Code {
     // Attempt to intern: if we've seen this before, use the old one.
     // If not, and interning, atomic record as the next "old one".
     private CodeV2 atomicIntern(boolean intern) {
+        // Compute hash
         assert _hash==0;
-        // Set the hash.  Yea Olde String Hash for us.
-        int hash = 0;
-        for( int i = 0; i < _len; i++ )
-            hash = hash*31 + _codes[i + _off];
-        if( hash == 0 ) hash = 0xDEADBEEF; // Avoid the appearance of a not-set zero hash
-        _hash = hash;
+        _hash = hash();
 
+        // Hash table lookup
         CodeV2 old = CODES.get(this);
         if( old != null )
             return atomicPutFree(old); // Got a Winner!
+
         // No prior, so do expensive setup.
         setUp();
         // If backing memory has scoped lifetime and will eventually get
@@ -142,14 +144,39 @@ public class CodeV2 extends OutputStream implements Code {
     public boolean equals(Object o) {
         if( !(o instanceof CodeV2 code) ) return false;
         if( _len != code._len ) return false;
+        // Equal base array and offsets are equal
         if( _codes == code._codes && _off == code._off ) return true;
+        // Either base array differs or offsets differ
         for( int i = 0; i < _len; i++ )
             if( _codes[i + _off] != code._codes[i + code._off] )
                 return false;
         return true;
     }
 
+    // Return pre-computed hash
     @Override public int hashCode() { return _hash; }
+
+    // Read ints from a byte array
+    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
+    // Read an int from the byte array
+    public static int getInt(byte[] data, int offset) { return (int) INT_HANDLE.get(data, offset); }
+
+    // compute the hash, first bytes, middle bytes, end bytes.
+    private int hash() {
+        int hash = 0;
+        if( _len < 16 ) {       // Small, just hash all the bits
+            for( int i = 0; i < _len; i++ )
+                hash = hash*31 + _codes[i + _off];
+        } else {
+            // Long (often > 1K), hash from some bits at beginning, middle, end
+            hash = 31*hash + getInt(_codes,(_off+3          )&3); // Beginning
+            hash = 31*hash + getInt(_codes,(_off+3+(_len>>1))&3); // Middle
+            hash = 31*hash + getInt(_codes,(_off+3+ _len-4  )&3); // End
+        }
+        // Avoid the appearance of a not-set zero hash
+        return hash == 0 ? 0xDEADBEEF : hash;
+    }
 
     // --------------------------------------
     // Become an OutputStream, so PBJ Bytes can hand us the byte[] directly.
