@@ -55,10 +55,7 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "output/network.json") @NodeProperty
         String diskNetworkExportFile,
 
-        @ConfigProperty(defaultValue = "ONLY_FREEZE_BLOCK") DiskNetworkExport diskNetworkExport,
-
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean diskNetworkExportTss,
-
+        @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,
 
         @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty

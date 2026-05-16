@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.ProofKeySet;
@@ -146,6 +147,7 @@ public final class TssStartupNetworks {
 
         final var partySize = partySizeFor(network);
         final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys = hintsStates.get(HINTS_KEY_SETS_STATE_ID);
+        var restoredHintsKeys = 0;
         for (final var nodeTssMetadata : network.nodeTssMetadata()) {
             if (nodeTssMetadata.hintsKey().length() > 0) {
                 hintsKeys.put(
@@ -155,8 +157,22 @@ public final class TssStartupNetworks {
                                 .adoptionTime(asTimestamp(Instant.EPOCH))
                                 .key(nodeTssMetadata.hintsKey())
                                 .build());
+                restoredHintsKeys++;
             }
         }
+        log.info(
+                "Initialized dev-only hinTS startup state: construction #{}, hasScheme={}, partySize={}, "
+                        + "parties={}, totalWeight={}, restoredPublicKeys={}, aggregationKeyBytes={}, "
+                        + "verificationKeyBytes={}, crsStage={}",
+                activeConstruction.constructionId(),
+                activeConstruction.hasHintsScheme(),
+                partySize,
+                partyCount(activeConstruction),
+                totalPartyWeight(activeConstruction),
+                restoredHintsKeys,
+                aggregationKeyBytes(activeConstruction),
+                verificationKeyBytes(activeConstruction),
+                tssMetadata.crsStateOrElse(CRSState.DEFAULT).stage());
         return activeConstruction;
     }
 
@@ -188,6 +204,7 @@ public final class TssStartupNetworks {
                 .put(new ProtoBytes(tssMetadata.wrapsProvingKeyHash()));
 
         final WritableKVState<NodeId, ProofKeySet> proofKeys = historyStates.get(PROOF_KEY_SETS_STATE_ID);
+        var restoredProofKeys = 0;
         for (final var nodeTssMetadata : network.nodeTssMetadata()) {
             if (nodeTssMetadata.schnorrPublicKey().length() > 0) {
                 proofKeys.put(
@@ -196,8 +213,24 @@ public final class TssStartupNetworks {
                                 .adoptionTime(asTimestamp(Instant.EPOCH))
                                 .key(nodeTssMetadata.schnorrPublicKey())
                                 .build());
+                restoredProofKeys++;
             }
         }
+        log.info(
+                "Initialized dev-only history startup state: construction #{}, ledgerId={}, "
+                        + "restoredPublicKeys={}, hasTargetProof={}, targetProofKeys={}, "
+                        + "hasChainOfTrustProof={}, chainOfTrustProof={}, chainOfTrustProofBytes={}, "
+                        + "uncompressedWrapsProofBytes={}, wrapsProvingKeyHashBytes={}",
+                activeConstruction.constructionId(),
+                network.ledgerId().length() > 0 ? network.ledgerId().toHex() : "<empty>",
+                restoredProofKeys,
+                activeConstruction.hasTargetProof(),
+                targetProofKeyCount(activeConstruction),
+                hasChainOfTrustProof(activeConstruction),
+                chainOfTrustProofKind(activeConstruction),
+                chainOfTrustProofBytes(activeConstruction),
+                uncompressedWrapsProofBytes(activeConstruction),
+                tssMetadata.wrapsProvingKeyHash().length());
         return activeConstruction;
     }
 
@@ -215,9 +248,19 @@ public final class TssStartupNetworks {
         requireNonNull(historyService);
         if (activeHintsConstruction.hasHintsScheme()) {
             hintsService.setActiveConstruction(activeHintsConstruction);
+            log.info(
+                    "Installed dev-only hinTS runtime construction #{} from startup network (verificationKeyBytes={})",
+                    activeHintsConstruction.constructionId(),
+                    verificationKeyBytes(activeHintsConstruction));
         }
         if (activeProofConstruction.hasTargetProof()) {
             historyService.setLatestHistoryProof(activeProofConstruction.targetProofOrThrow());
+            log.info(
+                    "Installed dev-only history runtime construction #{} from startup network "
+                            + "(chainOfTrustProof={}, chainOfTrustProofBytes={})",
+                    activeProofConstruction.constructionId(),
+                    chainOfTrustProofKind(activeProofConstruction),
+                    chainOfTrustProofBytes(activeProofConstruction));
         }
     }
 
@@ -236,20 +279,35 @@ public final class TssStartupNetworks {
                 .filter(metadata -> metadata.nodeId() == selfNodeId)
                 .findFirst();
         if (selfMetadata.isEmpty()) {
-            log.warn("No TSS key material found for self node{} in startup network", selfNodeId);
+            log.warn("No TSS key material found for self node {} in startup network", selfNodeId);
             return;
         }
         final var metadata = selfMetadata.get();
+        final var hintsConstructionId = hintsConstructionId(tssMetadata);
+        final var proofConstructionId = proofConstructionId(tssMetadata);
+        var wroteBlsPrivateKey = false;
+        var wroteSchnorrKeyPair = false;
         if (metadata.blsPrivateKey().length() > 0) {
-            TssKeyFiles.writeBlsPrivateKey(config, hintsConstructionId(tssMetadata), metadata.blsPrivateKey());
+            TssKeyFiles.writeBlsPrivateKey(config, hintsConstructionId, metadata.blsPrivateKey());
+            wroteBlsPrivateKey = true;
         }
         if (metadata.schnorrPrivateKey().length() > 0
                 && metadata.schnorrPublicKey().length() > 0) {
             TssKeyFiles.writeSchnorrKeyPair(
                     config,
-                    proofConstructionId(tssMetadata),
+                    proofConstructionId,
                     new TssKeyFiles.SchnorrKeyPair(metadata.schnorrPrivateKey(), metadata.schnorrPublicKey()));
+            wroteSchnorrKeyPair = true;
         }
+        log.info(
+                "Wrote dev-only local TSS private keys for self node {} from startup network: "
+                        + "blsPrivateKeyWritten={} (hinTS construction #{}), "
+                        + "schnorrKeyPairWritten={} (history construction #{})",
+                selfNodeId,
+                wroteBlsPrivateKey,
+                hintsConstructionId,
+                wroteSchnorrKeyPair,
+                proofConstructionId);
     }
 
     private static TreeMap<Long, NodeTssMetadata> nodeTssMetadataFrom(
@@ -396,5 +454,89 @@ public final class TssStartupNetworks {
         return tssMetadata
                 .activeProofConstructionOrElse(HistoryProofConstruction.DEFAULT)
                 .constructionId();
+    }
+
+    private static int partyCount(@NonNull final HintsConstruction construction) {
+        return construction.hasHintsScheme()
+                ? construction.hintsSchemeOrThrow().nodePartyIds().size()
+                : 0;
+    }
+
+    private static long totalPartyWeight(@NonNull final HintsConstruction construction) {
+        return construction.hasHintsScheme()
+                ? construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .mapToLong(nodePartyId -> nodePartyId.partyWeight())
+                        .sum()
+                : 0;
+    }
+
+    private static long aggregationKeyBytes(@NonNull final HintsConstruction construction) {
+        return construction.hasHintsScheme()
+                        && construction.hintsSchemeOrThrow().hasPreprocessedKeys()
+                ? construction
+                        .hintsSchemeOrThrow()
+                        .preprocessedKeysOrThrow()
+                        .aggregationKey()
+                        .length()
+                : 0;
+    }
+
+    private static long verificationKeyBytes(@NonNull final HintsConstruction construction) {
+        return construction.hasHintsScheme()
+                        && construction.hintsSchemeOrThrow().hasPreprocessedKeys()
+                ? construction
+                        .hintsSchemeOrThrow()
+                        .preprocessedKeysOrThrow()
+                        .verificationKey()
+                        .length()
+                : 0;
+    }
+
+    private static int targetProofKeyCount(@NonNull final HistoryProofConstruction construction) {
+        return construction.hasTargetProof()
+                ? construction.targetProofOrThrow().targetProofKeys().size()
+                : 0;
+    }
+
+    private static boolean hasChainOfTrustProof(@NonNull final HistoryProofConstruction construction) {
+        return construction.hasTargetProof()
+                && construction.targetProofOrThrow().hasChainOfTrustProof();
+    }
+
+    private static String chainOfTrustProofKind(@NonNull final HistoryProofConstruction construction) {
+        if (!hasChainOfTrustProof(construction)) {
+            return "none";
+        }
+        return chainOfTrustProofKind(construction.targetProofOrThrow().chainOfTrustProofOrThrow());
+    }
+
+    private static String chainOfTrustProofKind(@NonNull final ChainOfTrustProof proof) {
+        if (proof.hasWrapsProof()) {
+            return "WRAPS";
+        } else if (proof.hasAggregatedNodeSignatures()) {
+            return "AGGREGATED_NODE_SIGNATURES";
+        } else {
+            return "unset";
+        }
+    }
+
+    private static long chainOfTrustProofBytes(@NonNull final HistoryProofConstruction construction) {
+        if (!hasChainOfTrustProof(construction)) {
+            return 0;
+        }
+        final var proof = construction.targetProofOrThrow().chainOfTrustProofOrThrow();
+        if (proof.hasWrapsProof()) {
+            return proof.wrapsProofOrThrow().length();
+        } else if (proof.hasAggregatedNodeSignatures()) {
+            return proof.aggregatedNodeSignaturesOrThrow().aggregatedSignature().length();
+        } else {
+            return 0;
+        }
+    }
+
+    private static long uncompressedWrapsProofBytes(@NonNull final HistoryProofConstruction construction) {
+        return construction.hasTargetProof()
+                ? construction.targetProofOrThrow().uncompressedWrapsProof().length()
+                : 0;
     }
 }

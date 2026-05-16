@@ -431,6 +431,7 @@ public class SystemTransactions {
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
                 lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
         systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
+        startupNetworks.clearCachedNetworks();
     }
 
     /**
@@ -506,6 +507,7 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        startupNetworks.clearCachedNetworks();
     }
 
     /**

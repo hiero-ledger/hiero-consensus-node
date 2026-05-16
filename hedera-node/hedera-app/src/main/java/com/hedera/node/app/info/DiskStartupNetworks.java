@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
@@ -30,7 +31,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -50,6 +53,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static final String GENESIS_NETWORK_JSON = "genesis-network.json";
     public static final String OVERRIDE_NETWORK_JSON = "override-network.json";
     public static final Pattern ROUND_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final int STARTUP_NETWORK_JSON_MAX_FIELD_SIZE = 64 * 1024 * 1024;
 
     private final ConfigProvider configProvider;
 
@@ -75,6 +79,10 @@ public class DiskStartupNetworks implements StartupNetworks {
         OVERRIDE,
         MIGRATION,
     }
+
+    private record NetworkLoad(Optional<Network> network, boolean cached) {}
+
+    private final Map<Path, Network> cachedNetworks = new HashMap<>();
 
     public DiskStartupNetworks(@NonNull final ConfigProvider configProvider) {
         this.configProvider = requireNonNull(configProvider);
@@ -112,17 +120,27 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     @Override
-    public void setOverrideRound(final long roundNumber) {
+    public synchronized void setOverrideRound(final long roundNumber) {
         final var config = configProvider.getConfiguration();
-        final var path = networksPath(config, OVERRIDE_NETWORK_JSON);
+        final var path =
+                networksPath(config, OVERRIDE_NETWORK_JSON).toAbsolutePath().normalize();
         if (Files.exists(path)) {
-            final var roundDir = networksPath(config, "" + roundNumber);
-            final var scopedPath = roundDir.resolve(OVERRIDE_NETWORK_JSON);
+            final var cachedNetwork = cachedNetworks.remove(path);
+            final var roundDir =
+                    networksPath(config, "" + roundNumber).toAbsolutePath().normalize();
+            final var scopedPath =
+                    roundDir.resolve(OVERRIDE_NETWORK_JSON).toAbsolutePath().normalize();
             try {
                 Files.createDirectories(roundDir);
                 Files.move(path, scopedPath);
+                if (cachedNetwork != null) {
+                    cachedNetworks.put(scopedPath, cachedNetwork);
+                }
                 log.info("Moved override network file to {}", scopedPath);
             } catch (IOException e) {
+                if (cachedNetwork != null) {
+                    cachedNetworks.put(path, cachedNetwork);
+                }
                 log.warn("Failed to move override network file", e);
             }
         }
@@ -133,6 +151,11 @@ public class DiskStartupNetworks implements StartupNetworks {
         // from that state we will fail to repeat the post-upgrade transplant
         // dispatches and hit an ISS immediately after restart
         lastOverrideRoundNumber = roundNumber;
+    }
+
+    @Override
+    public synchronized void clearCachedNetworks() {
+        cachedNetworks.clear();
     }
 
     @Override
@@ -166,6 +189,7 @@ public class DiskStartupNetworks implements StartupNetworks {
         } catch (IOException e) {
             log.warn("Failed to list round override network files", e);
         }
+        clearCachedNetworks();
     }
 
     @Override
@@ -318,17 +342,34 @@ public class DiskStartupNetworks implements StartupNetworks {
      */
     private Optional<Network> loadNetwork(
             @NonNull final AssetUse use, @NonNull final Configuration config, @NonNull final String... segments) {
-        final var path = networksPath(config, segments);
+        final var path = networksPath(config, segments).toAbsolutePath().normalize();
         log.info("Checking for {} network info at {}", use, path.toAbsolutePath());
-        final var maybeNetwork = loadNetworkFrom(path);
-        maybeNetwork.ifPresentOrElse(
-                network -> log.info(
-                        "  -> Parsed {} network info for N={} nodes from {}",
-                        use,
-                        network.nodeMetadata().size(),
-                        path.toAbsolutePath()),
-                () -> log.info("  -> N/A"));
-        return maybeNetwork;
+        final var load = loadNetworkWithCache(path);
+        load.network()
+                .ifPresentOrElse(
+                        network -> log.info(
+                                "  -> {} {} network info for N={} nodes from {}",
+                                load.cached() ? "Reused cached" : "Parsed",
+                                use,
+                                network.nodeMetadata().size(),
+                                path.toAbsolutePath()),
+                        () -> log.info("  -> N/A"));
+        return load.network();
+    }
+
+    private synchronized NetworkLoad loadNetworkWithCache(@NonNull final Path path) {
+        requireNonNull(path);
+        if (!Files.exists(path)) {
+            cachedNetworks.remove(path);
+            return new NetworkLoad(Optional.empty(), false);
+        }
+        final var cachedNetwork = cachedNetworks.get(path);
+        if (cachedNetwork != null) {
+            return new NetworkLoad(Optional.of(cachedNetwork), true);
+        }
+        final var network = loadNetworkFrom(path);
+        network.ifPresent(parsedNetwork -> cachedNetworks.put(path, parsedNetwork));
+        return new NetworkLoad(network, false);
     }
 
     /**
@@ -340,7 +381,12 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static Optional<Network> loadNetworkFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                return Optional.of(Network.JSON.parseStrict(new ReadableStreamingData(fin)));
+                return Optional.of(Network.JSON.parse(
+                        new ReadableStreamingData(fin),
+                        true,
+                        false,
+                        DEFAULT_MAX_DEPTH,
+                        STARTUP_NETWORK_JSON_MAX_FIELD_SIZE));
             } catch (Exception e) {
                 log.warn("Failed to load {} network info from {}", path.toAbsolutePath(), e);
             }
