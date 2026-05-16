@@ -283,6 +283,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 FakeServicesRegistry.FACTORY,
                 new FakeServiceMigrator(),
                 this::now,
+                defaultNodeId,
                 DiskStartupNetworks::new,
                 (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
                         this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),

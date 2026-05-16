@@ -363,6 +363,10 @@ public final class Hedera
      */
     private Platform platform;
     /**
+     * The id of this node.
+     */
+    private final NodeId selfId;
+    /**
      * The current status of the platform.
      */
     private PlatformStatus platformStatus = STARTING_UP;
@@ -484,6 +488,8 @@ public final class Hedera
      * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory the factory to use for creating the services registry
      * @param migrator the migrator to use with the services
+     * @param instantSource the source of wall-clock instants
+     * @param selfId the node id of this node
      * @param startupNetworksFactory the factory for the startup networks
      * @param hintsServiceFactory the factory for the hinTS service
      * @param historyServiceFactory the factory for the history service
@@ -498,6 +504,7 @@ public final class Hedera
             @NonNull final ServicesRegistry.Factory registryFactory,
             @NonNull final ServiceMigrator migrator,
             @NonNull final InstantSource instantSource,
+            @NonNull final NodeId selfId,
             @NonNull final StartupNetworksFactory startupNetworksFactory,
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
@@ -512,6 +519,7 @@ public final class Hedera
         requireNonNull(historyServiceFactory);
         this.metrics = requireNonNull(metrics);
         this.serviceMigrator = requireNonNull(migrator);
+        this.selfId = requireNonNull(selfId);
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
@@ -807,7 +815,7 @@ public final class Hedera
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
             ensureWrapsProvingKey();
         }
-        initializeStartupTssRuntime(trigger);
+        initializeGenesisTssRuntime(trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
@@ -827,9 +835,9 @@ public final class Hedera
             }
         }
 
-        NodeId selfId = platform.getSelfId();
-        assertEnvSanityChecks(selfId);
-        logger.info("Initializing Hedera app with HederaNode#{}", selfId);
+        final var platformSelfId = platform.getSelfId();
+        assertEnvSanityChecks(platformSelfId);
+        logger.info("Initializing Hedera app with HederaNode#{}", platformSelfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
 
@@ -848,28 +856,27 @@ public final class Hedera
     }
 
     /**
-     * Initializes any dev-only TSS runtime state from startup network JSON once the platform self id is available.
+     * Initializes any dev-only TSS runtime state from genesis network JSON.
      */
-    private void initializeStartupTssRuntime(@NonNull final InitTrigger trigger) {
+    private void initializeGenesisTssRuntime(@NonNull final InitTrigger trigger) {
         requireNonNull(trigger);
-        final var config = configProvider.getConfiguration();
-        final Optional<Network> startupNetwork;
-        if (trigger == GENESIS) {
-            try {
-                startupNetwork = Optional.of(startupNetworks.genesisNetworkOrThrow(config));
-            } catch (IllegalStateException e) {
-                logger.debug("No genesis startup network available for TSS runtime bootstrap", e);
-                return;
-            }
-        } else {
-            startupNetwork = startupNetworks.lastUsedOverrideNetwork(config);
+        if (trigger != GENESIS) {
+            return;
         }
-        startupNetwork.filter(TssStartupNetworks::hasTssMetadata).ifPresent(network -> {
-            logger.warn("Initializing dev-only TSS runtime and local private keys from startup network JSON");
-            TssStartupNetworks.initializeRuntime(network, hintsService, historyService);
-            TssStartupNetworks.writePrivateKeys(
-                    network, config, requireNonNull(platform).getSelfId().id());
-        });
+        final var config = configProvider.getConfiguration();
+        final Network genesisNetwork;
+        try {
+            genesisNetwork = startupNetworks.genesisNetworkOrThrow(config);
+        } catch (IllegalStateException e) {
+            logger.debug("No genesis startup network available for TSS runtime bootstrap", e);
+            return;
+        }
+        if (!TssStartupNetworks.hasTssMetadata(genesisNetwork)) {
+            return;
+        }
+        logger.warn("Initializing dev-only TSS runtime and local private keys from genesis network JSON");
+        TssStartupNetworks.initializeRuntime(genesisNetwork, hintsService, historyService);
+        TssStartupNetworks.writePrivateKeys(genesisNetwork, config, selfId.id());
     }
 
     /**
@@ -1694,7 +1701,7 @@ public final class Hedera
         if (!TssStartupNetworks.hasTssMetadata(network)) {
             return;
         }
-        logger.warn("Initializing dev-only TSS state from override network JSON");
+        logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
         final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
         final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
         ((CommittableWritableStates) writableHintsStates).commit();
@@ -1703,6 +1710,7 @@ public final class Hedera
         ((CommittableWritableStates) writableHistoryStates).commit();
         TssStartupNetworks.initializeRuntime(
                 activeHintsConstruction, activeProofConstruction, hintsService, historyService);
+        TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
