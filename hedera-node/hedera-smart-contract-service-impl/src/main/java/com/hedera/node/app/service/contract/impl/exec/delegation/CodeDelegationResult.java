@@ -23,7 +23,11 @@ public record CodeDelegationResult(
         OTHER
     }
 
-    public record ValidDelegation(Bytes authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {}
+    public record ValidDelegation(
+            Bytes authorityEcdsaPublicKey,
+            Address authorityAddress,
+            Address delegationTarget,
+            boolean lazyAccountCreationGasPaid) {}
 
     public static final CodeDelegationResult EMPTY =
             new CodeDelegationResult(0, 0, 0, 0, Map.of(), List.of(), List.of());

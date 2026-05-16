@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -32,6 +35,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -51,6 +55,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.tuweni.bytes.Bytes;
+import org.bouncycastle.util.encoders.Hex;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -150,10 +157,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
-                // TODO (dsinyakov): switch to below assert when atomic batch behavior is fixed
-                // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
-                getAliasedAccountInfo(delegatingAccount).hasNoDelegation());
+                getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
     // 1.3: atomicBatch(type-4 sets delegation + calls contract that reverts) - batch fails due to
@@ -176,10 +180,7 @@ public class CodeDelegationAtomicBatchTest {
                                 .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
-                // TODO (dsinyakov): switch to below assert when atomic batch behavior is fixed
-                // getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress)
-                getAliasedAccountInfo(delegatingAccount).hasNoDelegation());
+                getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
     // 1.4: atomicBatch(invalid transfer, type-4 sets delegation on A) - batch fails before type-4 tx is dispatched
@@ -263,13 +264,8 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // Account A rolled back (does not exist). No delegation persisted.
-                getAliasedAccountInfo(accountInBatch).hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID)
-
-                // TODO (dsinyakov): Add below assert when atomic batch delegation persistence is fixed
-                // When delegation survives rollback, account A should exist with delegation set
-                // getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress)
-                );
+                // Delegations survive rollback - account A should exist with delegation set
+                getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress));
     }
 
     // 2.3: atomicBatch(CryptoCreate(A, initialDelegation=D1), type-4 updates A delegation to D2) - batch succeeds
@@ -326,10 +322,8 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
                 // Delegation to A should survive rollback
-                // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress)
-                getAliasedAccountInfo(authorityAccount).hasNoDelegation());
+                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
     // 3.2: Account A exists with delegation D1. atomicBatch(type-4 changes A delegation to D2, invalid transfer) -
@@ -361,10 +355,8 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
                 // Delegation on A should be D2 (survives rollback). Original D1 is NOT restored.
-                // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(revertingDelegationTargetAddress)
-                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
+                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(revertingDelegationTargetAddress));
     }
 
     // 4.1: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, valid transfer) - batch
@@ -423,10 +415,8 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
                 // Delegation clearing should survive rollback
-                // getAliasedAccountInfo(authorityAccount).hasNoDelegation()
-                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
+                getAliasedAccountInfo(authorityAccount).hasNoDelegation());
     }
 
     // 6.1: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries) - batch
@@ -514,20 +504,12 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
                 // CryptoUpdate delegation should be rolled back
-                // getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                // Valid type-4 delegations (sender + delegatingAccount1) should survive rollback
-                // getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress),
-                // getAliasedAccountInfo(delegatingAccount1).hasDelegationAddress(delegationTargetAddress),
-                // Invalid auth entries (wrong nonce) should still be skipped
-                // getAliasedAccountInfo(delegatingAccount2).hasNoDelegation(),
-                // getAliasedAccountInfo(delegatingAccount3).hasNoDelegation()
-
-                // Current behavior: all delegation effects rolled back
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                getAliasedAccountInfo(sender).hasNoDelegation(),
-                getAliasedAccountInfo(authority1).hasNoDelegation(),
+                // Valid type-4 delegations (sender + delegatingAccount1) should survive rollback
+                getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress),
+                getAliasedAccountInfo(authority1).hasDelegationAddress(delegationTargetAddress),
+                // Invalid auth entries (wrong nonce) should still be skipped
                 getAliasedAccountInfo(authority2).hasNoDelegation(),
                 getAliasedAccountInfo(authority3).hasNoDelegation());
     }
@@ -629,27 +611,20 @@ public class CodeDelegationAtomicBatchTest {
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
                             "Sender nonce should increment by 2 (tx + auth)");
-                    // TODO (dsinyakov): add below asserts when atomic batch nonce persistence if fixed
-                    //                            assertEquals(
-                    //                                    auth1NonceBefore.get() + 1,
-                    //                                    auth1NonceAfter.get(),
-                    //                                    "Auth1 nonce should increment by 1 (auth only)");
-                    //                            assertEquals(
-                    //                                    auth2NonceBefore.get() + 1,
-                    //                                    auth2NonceAfter.get(),
-                    //                                    "Auth2 nonce should increment by 1 (auth only)");
+                    assertEquals(
+                            auth1NonceBefore.get() + 1,
+                            auth1NonceAfter.get(),
+                            "Auth1 nonce should increment by 1 (auth only)");
+                    assertEquals(
+                            auth2NonceBefore.get() + 1,
+                            auth2NonceAfter.get(),
+                            "Auth2 nonce should increment by 1 (auth only)");
                 }),
 
-                // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
                 // Delegations and nonces should survive rollback
-                // getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress),
-                // getAliasedAccountInfo(authAccount1).hasDelegationAddress(delegationTargetAddress),
-                // getAliasedAccountInfo(authAccount2).hasDelegationAddress(delegationTargetAddress)
-
-                // Current behavior: delegations rolled back
-                getAliasedAccountInfo(sender).hasNoDelegation(),
-                getAliasedAccountInfo(authAccount1).hasNoDelegation(),
-                getAliasedAccountInfo(authAccount2).hasNoDelegation());
+                getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress),
+                getAliasedAccountInfo(authAccount1).hasDelegationAddress(delegationTargetAddress),
+                getAliasedAccountInfo(authAccount2).hasDelegationAddress(delegationTargetAddress));
     }
 
     // 9.1: atomicBatch(type-4 delegates A, valid transfer) - batch succeeds.
@@ -658,7 +633,7 @@ public class CodeDelegationAtomicBatchTest {
         // Intrinsic gas components
         final long TX_BASE_COST = 21_000L;
         final long CALLDATA_GAS = 4 * 16L; // create() selector: 4 non-zero bytes
-        final long CODE_DELEGATION_GAS = 25_000L; // 1 auth entry (EIP-7702)
+        final long CODE_DELEGATION_GAS = 12_500; // 1 auth entry for existing account (EIP-7702)
         final long EXPECTED_INTRINSIC_GAS = TX_BASE_COST + CALLDATA_GAS + CODE_DELEGATION_GAS;
 
         final var sender = "SenderAccount";
@@ -803,10 +778,13 @@ public class CodeDelegationAtomicBatchTest {
                             expectedSuccessCharge,
                             successSenderDelta,
                             "Success sender charge must equal gasUsed * gasPriceTinybars");
-                    // TODO(dsinyakov): add below assert when atomic batch when issue with replay of fees for atomic
-                    //  batch is fixed
-                    // assertEquals(expectedRollbackCharge, rollbackSenderDelta,
-                    //        "Rollback sender charge must equal gasUsed * gasPriceTinybars");
+
+                    // TODO: Ethereum transaction rollback charges are currently broken
+                    // within atomic batch (refund isn't applied). Change to assertEquals once fixed.
+                    assertNotEquals(
+                            expectedRollbackCharge,
+                            rollbackSenderDelta,
+                            "Rollback sender charge must equal gasUsed * gasPriceTinybars");
                 }));
     }
 
@@ -820,27 +798,33 @@ public class CodeDelegationAtomicBatchTest {
     final Stream<DynamicTest> testGasAndFeesChargedOnRollbackWithCryptoCreate() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var rollbackPayer = "PayerOnRollbackAccount";
-        final var payer = "PayerAccount";
+        final var successPayer = "PayerAccount";
         final var accountInBatchRollback = "AccountInBatchRollback";
         final var accountInBatch = "AccountInBatch";
+        final var hbarReceiver = "HbarReceiver";
         final var type4Txn = "type4GasFee";
         final var type4TxnRollback = "type4GasFeeRollback";
 
         final var rollbackPayerBalanceBefore = new AtomicLong();
         final var rollbackPayerBalanceAfter = new AtomicLong();
-        final var payerBalanceBefore = new AtomicLong();
-        final var payerBalanceAfter = new AtomicLong();
+
+        final var successPayerBalanceBefore = new AtomicLong();
+        final var successPayerBalanceAfter = new AtomicLong();
+
+        final var relayerBalanceBeforeAny = new AtomicLong();
+        final var relayerBalanceAfterRollback = new AtomicLong();
+        final var relayerBalanceAfterBoth = new AtomicLong();
 
         return hapiTest(
                 overriding("contracts.codeDelegations.enabled", "true"),
+                newKeyNamed(hbarReceiver).shape(SECP_256K1_SHAPE),
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 newKeyNamed(accountInBatchRollback).shape(SECP_256K1_SHAPE),
-                createFundedAccount(rollbackPayer),
-                createFundedAccount(payer),
-                getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceBefore::set),
-                getAccountBalance(payer).exposingBalanceTo(payerBalanceBefore::set),
+                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceBeforeAny::set),
 
                 // Rollback
+                createFundedAccount(rollbackPayer),
+                getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceBefore::set),
                 atomicBatch(
                                 cryptoCreate(accountInBatchRollback)
                                         .key(accountInBatchRollback)
@@ -856,14 +840,29 @@ public class CodeDelegationAtomicBatchTest {
                                         .via(type4TxnRollback)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, hbarReceiver))
                                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                assertionsHold((spec, opLog) -> {
+                    final var accountInBatchRollbackKey = spec.registry().getKey(accountInBatchRollback);
+                    final var accountInRollbackEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
+                            accountInBatchRollbackKey.getECDSASecp256K1().toByteArray()));
+                    final var evmAddress = "0x" + Hex.toHexString(accountInRollbackEvmAddress.toByteArray());
+                    allRunFor(
+                            spec,
+                            getContractBytecode(evmAddress)
+                                    .exposingBytecodeTo(bytes -> assertEquals(
+                                            fromHeadlongAddress(delegationTargetAddress),
+                                            CodeDelegationHelper.getTargetAddress(Bytes.wrap(bytes)))));
+                }),
                 getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceAfter::set),
+                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterRollback::set),
 
                 // Success
+                createFundedAccount(successPayer),
+                getAccountBalance(successPayer).exposingBalanceTo(successPayerBalanceBefore::set),
                 atomicBatch(
                                 cryptoCreate(accountInBatch)
                                         .key(accountInBatch)
@@ -871,7 +870,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .balance(ONE_HUNDRED_HBARS)
                                         .batchKey(RELAYER),
                                 ethereumCall(CONTRACT, "create")
-                                        .signingWith(payer)
+                                        .signingWith(successPayer)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
@@ -879,17 +878,20 @@ public class CodeDelegationAtomicBatchTest {
                                         .via(type4Txn)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                                .between(ACCOUNT_WITH_BALANCE, hbarReceiver))
                                         .hasKnownStatus(SUCCESS)
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
-                getAccountBalance(payer).exposingBalanceTo(payerBalanceAfter::set),
+                getAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress),
+                getAccountBalance(successPayer).exposingBalanceTo(successPayerBalanceAfter::set),
+                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterBoth::set),
                 assertionsHold((spec, opLog) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
-                    final var type4RecordRollback = getTxnRecord(type4TxnRollback);
-                    final var type4Record = getTxnRecord(type4Txn);
+                    final var type4RecordRollback =
+                            getTxnRecord(type4TxnRollback).andAllChildRecords();
+                    final var type4Record = getTxnRecord(type4Txn).andAllChildRecords();
                     allRunFor(spec, type4RecordRollback, type4Record);
 
                     final var recordedType4FeeOnRollback =
@@ -909,18 +911,18 @@ public class CodeDelegationAtomicBatchTest {
                     assertEquals(expectedGasCharge, recorderType4Fee);
                     assertEquals(expectedGasChargeOnRollback, recordedType4FeeOnRollback);
 
-                    // TODO (dsinyakov): add commented below asserts when atomic batch when issue with replay of fees
-                    //  for atomic batch is fixed
-                    //                    assertTrue(gasUsedOnRollback > gasUsed,"gas used on rollback should be higher
-                    // since account creation is rolled back and re-played as part of the type4 tx execution");
-                    //                    assertTrue(expectedGasChargeOnRollback > expectedGasCharge,"Expected gas
-                    // charge on rollback should be higher since account creation is rolled back and re-played as part
-                    // of the type4 tx execution");
-                    //
-                    final var rollbackPayerDelta = rollbackPayerBalanceBefore.get() - rollbackPayerBalanceAfter.get();
-                    final var payerDelta = payerBalanceBefore.get() - payerBalanceAfter.get();
-                    //  assertEquals(expectedGasChargeOnRollback, rollbackPayerDelta,
-                    //   "Rollback payer charge must equal gasUsed * gasPriceTinybars");
+                    // TODO: Ethereum transaction rollback charges are currently broken
+                    // within atomic batch - refund isn't applied - and this isn't correctly
+                    // reflected in the result.
+                    // Change these assertions to `>` (strictly greater than) once that's fixed.
+                    assertTrue(
+                            gasUsedOnRollback >= gasUsed,
+                            "gas used on rollback should be higher since account creation is rolled back and re-played as part of the type4 tx execution");
+                    assertTrue(
+                            expectedGasChargeOnRollback >= expectedGasCharge,
+                            "Expected gas charge on rollback should be higher since account creation is rolled back and re-played as part of the type4 tx execution");
+
+                    final var payerDelta = successPayerBalanceBefore.get() - successPayerBalanceAfter.get();
                     assertEquals(expectedGasCharge, payerDelta, "Payer charge must equal gasUsed * gasPriceTinybars");
                 }));
     }
@@ -978,15 +980,10 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
                 // CryptoUpdate delegation should be rolled back
-                // getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                // Type-4 delegation should survive rollback
-                // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
-
-                // Current behavior: all delegation effects rolled back
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                getAliasedAccountInfo(delegatingAccount).hasNoDelegation());
+                // Type-4 delegation should survive rollback
+                getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {

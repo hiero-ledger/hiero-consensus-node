@@ -76,7 +76,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle connectionMonitorThreadRefHandle;
 
     private static final MethodHandle isActiveConnectionAutoResetHandle;
-    private static final MethodHandle isActiveConnectionStalledHandle;
     private static final MethodHandle isHigherPriorityNodeAvailableHandle;
     private static final MethodHandle isBufferUnhealthyHandle;
     private static final MethodHandle isConfigUpdatedHandle;
@@ -108,11 +107,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     "isActiveConnectionAutoReset", Instant.class, BlockNodeStreamingConnection.class);
             isActiveConnectionAutoReset.setAccessible(true);
             isActiveConnectionAutoResetHandle = lookup.unreflect(isActiveConnectionAutoReset);
-
-            final Method isActiveConnectionStalled = cls.getDeclaredMethod(
-                    "isActiveConnectionStalled", Instant.class, BlockNodeStreamingConnection.class);
-            isActiveConnectionStalled.setAccessible(true);
-            isActiveConnectionStalledHandle = lookup.unreflect(isActiveConnectionStalled);
 
             final Method isHigherPriorityNodeAvailable =
                     cls.getDeclaredMethod("isHigherPriorityNodeAvailable", BlockNodeStreamingConnection.class);
@@ -246,49 +240,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).autoResetTimestamp();
         verify(activeConnection).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
-        verifyNoMoreInteractions(activeConnection);
-    }
-
-    @Test
-    void testIsActiveConnectionStalled_nullConnection() throws Throwable {
-        final boolean isStalled = invoke_isActiveConnectionStalled(Instant.now(), null);
-        assertThat(isStalled).isFalse();
-    }
-
-    @Test
-    void testIsActiveConnectionStalled_false() throws Throwable {
-        final Instant now = Instant.now();
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
-        final StreamingConnectionStatistics connStats = mock(StreamingConnectionStatistics.class);
-        when(activeConnection.connectionStatistics()).thenReturn(connStats);
-        // stalled connections are based on the heartbeat timestamp, so if we set the last heartbeat to near now
-        // the connection will not be marked as stalled
-        when(connStats.lastHeartbeatMillis()).thenReturn(now.toEpochMilli());
-
-        final boolean isStalled = invoke_isActiveConnectionStalled(now, activeConnection);
-
-        assertThat(isStalled).isFalse();
-
-        verify(activeConnection).connectionStatistics();
-        verifyNoMoreInteractions(activeConnection);
-    }
-
-    @Test
-    void testIsActiveConnectionStalled_true() throws Throwable {
-        final Instant now = Instant.now();
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
-        final StreamingConnectionStatistics connStats = mock(StreamingConnectionStatistics.class);
-        // stalled connections are based on the heartbeat timestamp, so set the last heartbeat to far in the past
-        // to trigger a stall detection
-        when(connStats.lastHeartbeatMillis()).thenReturn(now.minusSeconds(1).toEpochMilli());
-        when(activeConnection.connectionStatistics()).thenReturn(connStats);
-
-        final boolean isStalled = invoke_isActiveConnectionStalled(now, activeConnection);
-
-        assertThat(isStalled).isTrue();
-
-        verify(activeConnection).connectionStatistics();
-        verify(activeConnection).close(CloseReason.CONNECTION_STALLED, true);
         verifyNoMoreInteractions(activeConnection);
     }
 
@@ -1599,66 +1550,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testUpdateConnectionIfNeeded_activeConnectionStalledOnly() throws Throwable {
-        // set active connection that is stalled
-        final BlockNodeConfiguration existingActiveNodeConfig = newBlockNodeConfig("localhost", 1234, 1);
-        final BlockNodeStreamingConnection existingActiveConnection = mock(BlockNodeStreamingConnection.class);
-        when(existingActiveConnection.configuration()).thenReturn(existingActiveNodeConfig);
-        // set the last heartbeat to be in the distant past to trigger the stall check
-        final StreamingConnectionStatistics existingConnStats = mock(StreamingConnectionStatistics.class);
-        when(existingActiveConnection.connectionStatistics()).thenReturn(existingConnStats);
-        when(existingConnStats.lastHeartbeatMillis())
-                .thenReturn(Instant.now().minusSeconds(2).toEpochMilli());
-        when(existingActiveConnection.autoResetTimestamp())
-                .thenReturn(Instant.now().plusSeconds(90));
-        final BlockNode existingActiveNode = mock(BlockNode.class);
-        lenient().when(existingActiveNode.configuration()).thenReturn(existingActiveNodeConfig);
-        when(existingActiveNode.isStreamingCandidate()).thenReturn(false);
-        activeConnectionRef().set(existingActiveConnection);
-        // mark the buffer as healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
-        // add another block node to switch to
-        final BlockNodeConfiguration otherNodeConfig = newBlockNodeConfig("localhost", 2345, 1);
-        final BlockNode otherNode = mock(BlockNode.class);
-        when(otherNode.configuration()).thenReturn(otherNodeConfig);
-        when(otherNode.isStreamingCandidate()).thenReturn(true);
-        final Future<Object> otherNodeFuture = mock(Future.class);
-        when(otherNodeFuture.state()).thenReturn(State.SUCCESS);
-        when(otherNodeFuture.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
-        when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
-                .thenReturn(List.of(otherNodeFuture));
-        // set the latest config as the current config
-        final VersionedBlockNodeConfigurationSet configSet =
-                new VersionedBlockNodeConfigurationSet(1, List.of(existingActiveNodeConfig, otherNodeConfig));
-        activeConfigRef().set(configSet);
-        when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
-        // other setup
-        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
-        when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
-
-        blockNodes().put(existingActiveNodeConfig.streamingEndpoint(), existingActiveNode);
-        blockNodes().put(otherNodeConfig.streamingEndpoint(), otherNode);
-
-        final BlockNodeStreamingConnection newActiveConnection;
-        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
-                mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_updateConnectionIfNeeded();
-
-            // one connection should have been created
-            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
-            assertThat(createdConnections).hasSize(1);
-
-            newActiveConnection = createdConnections.getFirst();
-        }
-
-        assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(newActiveConnection);
-        verify(newActiveConnection).initialize();
-        verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(existingActiveConnection).closeAtBlockBoundary(CloseReason.CONNECTION_STALLED);
-        verify(metrics).recordActiveConnectionCount(anyLong());
-    }
-
-    @Test
     void testUpdateConnectionIfNeeded_activeConnectionAutoResetOnly() throws Throwable {
         // set active connection that is ready for auto reset
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig("localhost", 1234, 1);
@@ -1804,6 +1695,34 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void hasActiveStreamingConnectionIsFalseWhenManagerInactive() {
+        activeConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isFalse();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
+    void hasActiveStreamingConnectionIsFalseWhenNoActiveConnection() {
+        isConnectionManagerActive().set(true);
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isFalse();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
+    void hasActiveStreamingConnectionIsTrueWhenManagerActiveWithConnection() {
+        isConnectionManagerActive().set(true);
+        activeConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+
+        assertThat(connectionManager.hasActiveStreamingConnection()).isTrue();
+
+        verifyNoInteractions(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
     void testShutdown_alreadyShutdown() {
         isConnectionManagerActive().set(false);
 
@@ -1875,11 +1794,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     boolean invoke_isHigherPriorityNodeAvailable(final BlockNodeStreamingConnection activeConnection) throws Throwable {
         return (boolean) isHigherPriorityNodeAvailableHandle.invoke(connectionManager, activeConnection);
-    }
-
-    boolean invoke_isActiveConnectionStalled(final Instant now, final BlockNodeStreamingConnection activeConnection)
-            throws Throwable {
-        return (boolean) isActiveConnectionStalledHandle.invoke(connectionManager, now, activeConnection);
     }
 
     boolean invoke_isActiveConnectionAutoReset(final Instant now, final BlockNodeStreamingConnection activeConnection)
