@@ -40,6 +40,7 @@ import java.time.Duration;
  *                                    via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in a basic cool down
  * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
  *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
+ * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #pipelineOperationTimeout()}
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -63,12 +64,13 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
         @ConfigProperty(defaultValue = "131072000") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
         @ConfigProperty(defaultValue = "200") @Min(1) @NetworkProperty int connectionMonitorCheckIntervalMillis,
-        @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
+        @ConfigProperty(defaultValue = "500") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
         @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
         @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds,
         @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis,
         @ConfigProperty(defaultValue = "20.0") @Min(0) @NetworkProperty double numBlocksBehindLowThreshold,
-        @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold) {
+        @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold,
+        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis) {
 }
 // spotless:on

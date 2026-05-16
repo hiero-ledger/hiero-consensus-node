@@ -5,7 +5,7 @@ import org.hiero.gradle.environment.EnvAccess
 pluginManagement { includeBuild("gradle/besu-native-patch") }
 
 plugins {
-    id("org.hiero.gradle.build") version "0.7.7"
+    id("org.hiero.gradle.build") version "0.7.8"
     id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
     id("org.hiero.gradle.feature.besu-native-patch")
 }
@@ -122,21 +122,6 @@ gradle.lifecycle.beforeProject {
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
     tasks.withType<Test>().configureEach {
-        reports.junitXml.mergeReruns = true
-
-        // CI: configure rerun to accept and track flakiness
-        develocity.testRetry {
-            maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
-            maxFailures = 10
-            failOnPassedAfterRetry = false
-        }
-        // Write a marker when tests actually execute (not on cache restore).
-        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
-        doLast {
-            markerFile.parentFile.mkdirs()
-            markerFile.writeText(java.time.Instant.now().toString())
-        }
-
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
         // not flaky
         val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
