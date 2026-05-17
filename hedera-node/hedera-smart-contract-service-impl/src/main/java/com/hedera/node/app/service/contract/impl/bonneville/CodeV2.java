@@ -29,10 +29,14 @@ import org.hyperledger.besu.evm.code.CodeSection;
 // spotless:off
 public class CodeV2 extends OutputStream implements Code {
 
+    // Interning table
     private static final ConcurrentHashMap<CodeV2, CodeV2> CODES = new ConcurrentHashMap<>();
 
+    // Free list to probe intern table without allocation
     private static final ArrayList<CodeV2> FREE = new ArrayList<>();
 
+    // Canonical empty code object.  Must be *below* the FREE and CODES fields
+    // so they are statically initalized first.
     public static final CodeV2 EMPTY = make(new byte[0]);
 
     // EVM bytecodes.  This array is commonly shared and must be immutable
@@ -121,6 +125,15 @@ public class CodeV2 extends OutputStream implements Code {
         return code.atomicIntern(true);
     }
 
+    public static CodeV2 make(com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        CodeV2 code = atomicGetFree();
+
+        // Fill in codes fields - Look Ma!  No Copy!
+        bytes.writeTo(code);
+
+        return code.atomicIntern(true);
+    }
+
     private BitSet _jmpDest; // Set if we are keeping "this"
     // Things to do after we interned the Code and before we try to use it.
     private void setUp() {
@@ -160,7 +173,7 @@ public class CodeV2 extends OutputStream implements Code {
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 
     // Read an int from the byte array
-    public static int getInt(byte[] data, int offset) { return (int) INT_HANDLE.get(data, offset); }
+    private static int getInt(byte[] data, int offset) { return (int) INT_HANDLE.get(data, offset); }
 
     // compute the hash, first bytes, middle bytes, end bytes.
     private int hash() {
@@ -174,6 +187,7 @@ public class CodeV2 extends OutputStream implements Code {
             hash = 31*hash + getInt(_codes,(_off+3+(_len>>1))&3); // Middle
             hash = 31*hash + getInt(_codes,(_off+3+ _len-4  )&3); // End
         }
+        hash ^= (hash>>>15);
         // Avoid the appearance of a not-set zero hash
         return hash == 0 ? 0xDEADBEEF : hash;
     }
