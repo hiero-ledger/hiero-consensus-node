@@ -4,8 +4,10 @@ package com.swirlds.benchmark;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -52,8 +54,17 @@ public final class Utils {
                     logger.warn("Couldn't delete {}: {}", p, ex.getMessage());
                 }
             });
+        } catch (UncheckedIOException ex) {
+            if (ex.getCause() instanceof NoSuchFileException) {
+                logger.debug(
+                        "Path already deleted while cleaning up {}: {}",
+                        path,
+                        ex.getCause().getMessage());
+            } else {
+                logger.warn("Error while deleting files from {}: {}", path, ex.getMessage());
+            }
         } catch (IOException ex) {
-            logger.error("Error while deleting files", ex);
+            logger.warn("Error while deleting files from {}: {}", path, ex.getMessage());
         }
     }
 

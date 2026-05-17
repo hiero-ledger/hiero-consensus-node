@@ -32,7 +32,7 @@ class SigningTest {
         final var tx = new EthTxData(
                 null,
                 LEGACY_ETHEREUM,
-                null,
+                ZERO_BYTES,
                 1,
                 TINYBARS_57_IN_WEIBARS,
                 TINYBARS_2_IN_WEIBARS,
@@ -50,7 +50,7 @@ class SigningTest {
 
         final EthTxData signedTx = Signing.signMessage(tx, TRUFFLE0_PRIVATE_ECDSA_KEY);
 
-        assertArrayEquals(null, signedTx.chainId());
+        assertArrayEquals(ZERO_BYTES, signedTx.chainId());
         assertArrayEquals(new byte[] {27}, signedTx.v());
         assertNotNull(tx.r());
         assertNotNull(tx.s());

@@ -98,9 +98,7 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
     }
 
     @Nested

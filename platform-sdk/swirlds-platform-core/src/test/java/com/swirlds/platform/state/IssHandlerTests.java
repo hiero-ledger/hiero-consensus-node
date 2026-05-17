@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -17,6 +16,7 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
 import com.swirlds.platform.test.fixtures.SimpleScratchpad;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.state.config.StateConfig_;

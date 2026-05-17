@@ -1481,7 +1481,7 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -486,6 +486,32 @@ class VirtualPipelineTests {
             return true;
         });
         assertEquals(10, sum.get(), "List integrity violated");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
+    @DisplayName("Final destroyed copy is flushed before shutdown")
+    void finalDestroyedCopyIsFlushedBeforeShutdown() throws InterruptedException {
+        final List<DummyVirtualRoot> copies = setupCopies(3, i -> i == 0);
+        final DummyVirtualRoot flushableCopy = copies.get(0);
+        final DummyVirtualRoot middleCopy = copies.get(1);
+        final DummyVirtualRoot lastCopy = copies.get(2);
+
+        // Destroy newer copies first. The pipeline should run, but the flushable copy is still not destroyed,
+        // so it must not be flushed yet.
+        middleCopy.release();
+        lastCopy.release();
+
+        MILLISECONDS.sleep(100);
+        assertFalse(flushableCopy.isFlushed(), "Flushable copy should not flush before it is destroyed");
+
+        // This final release makes the oldest copy both destroyed and flushable.
+        // The pipeline must run one final lifecycle pass before shutdown.
+        flushableCopy.release();
+
+        assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Pipeline should shut down");
+        assertTrue(flushableCopy.isFlushed(), "Final destroyed flushable copy should be flushed before shutdown");
+        assertTrue(lastCopy.isShutdownHandlerCalled(), "Shutdown handler should be invoked");
     }
 
     @Test

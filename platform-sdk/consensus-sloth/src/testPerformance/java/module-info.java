@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.sloth.test.performance {
     requires com.swirlds.config.extensions;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.utility;

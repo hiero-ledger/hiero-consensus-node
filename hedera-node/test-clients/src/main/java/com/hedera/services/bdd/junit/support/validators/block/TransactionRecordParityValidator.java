@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
@@ -19,6 +20,7 @@ import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.TestTags;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -31,9 +33,11 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +63,9 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     @Nullable
     private BlockTransactionalUnitTranslator translator;
 
+    @Nullable
+    private Path preservedPreviewBlocksDir;
+
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
@@ -69,10 +76,22 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
         @Override
         public @NonNull TransactionRecordParityValidator create(@NonNull final HapiSpec spec) {
-            return new TransactionRecordParityValidator()
+            final var validator = new TransactionRecordParityValidator()
                     .withTargetNetwork(
                             spec.targetNetworkOrThrow().shard(),
                             spec.targetNetworkOrThrow().realm());
+            if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
+                final var preservedDir = node0.metadata()
+                        .workingDir()
+                        .resolve("data")
+                        .resolve("cutover")
+                        .resolve("preservedPreviewBlocks");
+                if (Files.isDirectory(preservedDir)) {
+                    validator.preservedPreviewBlocksDir = preservedDir;
+                }
+            }
+            return validator;
         }
     };
 
@@ -145,11 +164,23 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         requireNonNull(blocks);
         requireNonNull(data);
         logger.info("Starting TransactionRecordParityValidator");
+        final List<Block> allBlocks;
+        if (preservedPreviewBlocksDir != null) {
+            logger.info("Reading preserved preview blocks from {}", preservedPreviewBlocksDir);
+            final var previewBlocks =
+                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
+            logger.info("Prepending {} preview blocks to {} post-cutover blocks", previewBlocks.size(), blocks.size());
+            allBlocks = new ArrayList<>(previewBlocks.size() + blocks.size());
+            allBlocks.addAll(previewBlocks);
+            allBlocks.addAll(blocks);
+        } else {
+            allBlocks = blocks;
+        }
         final var baseTranslator = requireNonNull(translator).getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
         var foundGenesisBlock = false;
-        for (final var block : blocks) {
+        for (final var block : allBlocks) {
             if (translator.scanBlockForGenesis(block)) {
                 rfTranslator.scanBlockForGenesis(block);
                 foundGenesisBlock = true;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.sequence.set;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.test.fixtures.assertions.AssertionUtils.completeBeforeTimeout;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -42,20 +41,17 @@ class ChildlessEventTrackerTests {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
             final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId1)
-                    .setNGen(0)
                     .build();
 
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 110);
             final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId2)
-                    .setNGen(0)
                     .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
                     .setSelfParent(nonExistentParent1)
                     .setOtherParent(nonExistentParent2)
-                    .setNGen(1)
                     .build();
 
             tracker.addEvent(event);
@@ -95,7 +91,6 @@ class ChildlessEventTrackerTests {
                     .setCreatorId(NodeId.of(nodeId))
                     .setSelfParent(parentEvent1)
                     .setOtherParent(parentEvent2)
-                    .setNGen(1)
                     .build();
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
@@ -119,7 +114,7 @@ class ChildlessEventTrackerTests {
                     .setCreatorId(NodeId.of(nodeId))
                     .setSelfParent(parentEvent1)
                     .setOtherParent(parentEvent2)
-                    .setNGen(0)
+                    .setSequenceNumberOverride(0)
                     .build();
 
             tracker.addEvent(event);
@@ -186,11 +181,9 @@ class ChildlessEventTrackerTests {
 
         final PlatformEvent parent1 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(numNodes + 1))
-                .setNGen(100)
                 .build();
         final PlatformEvent parent2 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(numNodes + 2))
-                .setNGen(100)
                 .build();
 
         // Register the parents of a new self event with existing childless events as parents
@@ -223,7 +216,6 @@ class ChildlessEventTrackerTests {
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(initialEvents.get(0))
                 .setOtherParent(initialEvents.get(1))
-                .setNGen(1)
                 .build();
         tracker.addEvent(eventWithTwoParents);
 
@@ -242,7 +234,6 @@ class ChildlessEventTrackerTests {
                 .setCreatorId(NodeId.of(2))
                 .setSelfParent(initialEvents.get(2))
                 .setOtherParent(initialEvents.get(2))
-                .setNGen(1)
                 .build();
         tracker.addEvent(eventWithSameParents);
 
@@ -274,12 +265,10 @@ class ChildlessEventTrackerTests {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
             final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId1)
-                    .setNGen(0)
                     .build();
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 101);
             final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId2)
-                    .setNGen(0)
                     .build();
 
             final long birthRound = nodeId + ancientThresholdOffset;
@@ -288,7 +277,6 @@ class ChildlessEventTrackerTests {
                     .setBirthRound(birthRound)
                     .setSelfParent(nonExistentParent1)
                     .setOtherParent(nonExistentParent2)
-                    .setNGen(1)
                     .build();
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
@@ -329,12 +317,18 @@ class ChildlessEventTrackerTests {
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
         final NodeId nodeId = NodeId.of(0);
 
-        final PlatformEvent e0 =
-                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(0).build();
-        final PlatformEvent e1 =
-                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(1).build();
-        final PlatformEvent e2 =
-                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(2).build();
+        final PlatformEvent e0 = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSequenceNumberOverride(0)
+                .build();
+        final PlatformEvent e1 = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSequenceNumberOverride(1)
+                .build();
+        final PlatformEvent e2 = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSequenceNumberOverride(2)
+                .build();
 
         tracker.addEvent(e0);
         tracker.addEvent(e1);
@@ -346,12 +340,12 @@ class ChildlessEventTrackerTests {
         final PlatformEvent e3 = new TestingEventBuilder(random)
                 .setCreatorId(nodeId)
                 .setSelfParent(e2)
-                .setNGen(3)
+                .setSequenceNumberOverride(3)
                 .build();
         final PlatformEvent e3Branch = new TestingEventBuilder(random)
                 .setCreatorId(nodeId)
                 .setSelfParent(e2)
-                .setNGen(3)
+                .setSequenceNumberOverride(3)
                 .build();
 
         // Branch with the same generation, existing event should not be discarded.
@@ -365,7 +359,7 @@ class ChildlessEventTrackerTests {
         final PlatformEvent e2Branch = new TestingEventBuilder(random)
                 .setCreatorId(nodeId)
                 .setSelfParent(e1)
-                .setNGen(2)
+                .setSequenceNumberOverride(2)
                 .build();
         tracker.addEvent(e2Branch);
 
@@ -373,8 +367,10 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents().iterator().next()).isEqualTo(e3);
 
         // Branch with a higher generation, existing event should be discarded.
-        final PlatformEvent e99Branch =
-                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(99).build();
+        final PlatformEvent e99Branch = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSequenceNumberOverride(99)
+                .build();
         tracker.addEvent(e99Branch);
 
         assertThat(tracker.getChildlessEvents()).hasSize(1);
@@ -415,7 +411,6 @@ class ChildlessEventTrackerTests {
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
-                    .setNGen(EventConstants.FIRST_GENERATION)
                     .build();
             initialEvents.add(event);
         }

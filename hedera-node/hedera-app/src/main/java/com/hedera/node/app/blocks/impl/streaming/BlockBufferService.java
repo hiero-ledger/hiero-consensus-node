@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -88,6 +90,13 @@ public class BlockBufferService {
      */
     private final AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef =
             new AtomicReference<>();
+    /** Guards access to {@link #acknowledgementFutures}. */
+    private final Object acknowledgementFuturesLock = new Object();
+
+    /**
+     * Futures waiting for the acknowledgement watermark to reach a given block number.
+     */
+    private final NavigableMap<Long, List<CompletableFuture<Void>>> acknowledgementFutures = new TreeMap<>();
     /**
      * The most recent produced block number (i.e. the last block to be opened). A value of -1 indicates that no blocks
      * have been open/produced yet.
@@ -212,6 +221,8 @@ public class BlockBufferService {
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
         awaitingRecovery = false;
+        completeAcknowledgementFuturesExceptionally(
+                new IllegalStateException("Block buffer service shut down before acknowledgement completed"));
 
         logger.info("Block buffer service shutdown complete");
     }
@@ -275,7 +286,7 @@ public class BlockBufferService {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
-        logger.debug("Opening block {}.", blockNumber);
+        logger.debug("Opening block: {}", blockNumber);
 
         if (blockNumber < 0) {
             throw new IllegalArgumentException("Block number must be non-negative");
@@ -366,6 +377,30 @@ public class BlockBufferService {
     }
 
     /**
+     * Returns a future that completes when all blocks up to and including the given block number have been acknowledged
+     * by a block node.
+     *
+     * @param blockNumber the block number to wait for
+     * @return a future that completes when the acknowledgement watermark reaches the block number
+     */
+    public @NonNull CompletableFuture<Void> acknowledgedThroughFuture(final long blockNumber) {
+        if (getHighestAckedBlockNumber() >= blockNumber) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        final var future = new CompletableFuture<Void>();
+        synchronized (acknowledgementFuturesLock) {
+            if (getHighestAckedBlockNumber() >= blockNumber) {
+                return CompletableFuture.completedFuture(null);
+            }
+            acknowledgementFutures
+                    .computeIfAbsent(blockNumber, ignore -> new ArrayList<>())
+                    .add(future);
+        }
+        return future;
+    }
+
+    /**
      * Marks all blocks up to and including the specified block as being acknowledged by any Block Node.
      *
      * @param blockNumber the block number to mark acknowledged up to and including
@@ -377,6 +412,27 @@ public class BlockBufferService {
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
         blockStreamMetrics.recordLatestBlockAcked(highestBlock);
+        completeAcknowledgementFutures(highestBlock);
+    }
+
+    private void completeAcknowledgementFutures(final long highestBlock) {
+        final List<CompletableFuture<Void>> futuresToComplete = new ArrayList<>();
+        synchronized (acknowledgementFuturesLock) {
+            final var completedFutures = acknowledgementFutures.headMap(highestBlock, true);
+            completedFutures.values().forEach(futuresToComplete::addAll);
+            completedFutures.clear();
+        }
+        futuresToComplete.forEach(future -> future.complete(null));
+    }
+
+    private void completeAcknowledgementFuturesExceptionally(@NonNull final Throwable cause) {
+        requireNonNull(cause);
+        final List<CompletableFuture<Void>> futuresToComplete = new ArrayList<>();
+        synchronized (acknowledgementFuturesLock) {
+            acknowledgementFutures.values().forEach(futuresToComplete::addAll);
+            acknowledgementFutures.clear();
+        }
+        futuresToComplete.forEach(future -> future.completeExceptionally(cause));
     }
 
     /**
@@ -688,7 +744,7 @@ public class BlockBufferService {
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksInProgress={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksInProgress,
@@ -811,14 +867,14 @@ public class BlockBufferService {
             // there is not enough of the buffer reclaimed/available yet... do not disable back pressure
             awaitingRecovery = true;
             logger.debug(
-                    "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold (saturation={}%, recoveryThreshold={}%)",
+                    "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold (saturation: {}%, recoveryThreshold: {}%)",
                     latestPruneResult.saturationPercent, recoveryThreshold);
             return;
         }
 
         awaitingRecovery = false;
         logger.debug(
-                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation={}%, recoveryThreshold={}%)",
+                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation: {}%, recoveryThreshold: {}%)",
                 latestPruneResult.saturationPercent, recoveryThreshold);
 
         disableBackPressure();
@@ -859,7 +915,7 @@ public class BlockBufferService {
 
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled "
-                                + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
+                                + "(idealMaxBufferSize: {}, blocksChecked: {}, blocksPruned: {}, blocksPendingAck: {}, saturation: {}%)",
                         latestPruneResult.idealMaxBufferSize,
                         latestPruneResult.numBlocksChecked,
                         latestPruneResult.numBlocksPruned,

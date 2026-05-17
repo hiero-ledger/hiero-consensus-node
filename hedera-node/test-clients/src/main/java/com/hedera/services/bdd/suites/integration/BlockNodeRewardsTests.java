@@ -359,10 +359,15 @@ public final class BlockNodeRewardsTests {
         ops.add(getAccountBalance(NODE_REWARD).exposingBalanceTo(ctx.nodeRewardBalance()::set));
 
         ops.add(sleepForBlockPeriod());
-        // This is considered as one transaction submitted, so one round
-        ops.add(EmbeddedVerbs.handleAnyRepeatableQueryPayment());
+        // Force a block boundary with a real transaction so the current block closes.
+        // This ensures the subsequent state mutation is not overwritten by onCloseBlock,
+        // which rebuilds NodeRewards entirely from NodeRewardManager's in-memory fields.
+        ops.add(cryptoCreate("forceBlockBoundary").payingWith(GENESIS));
 
-        // configures node activity info based on the configured test context
+        // Set node activity state: active nodes get 0 missed rounds, inactive get 100/100.
+        // With activeRoundsPercent=10 (default), active nodes pass (0 ≤ 90) and inactive
+        // nodes fail (100 > 90). A few extra rounds from subsequent blocks won't flip the
+        // classification because the initial bias is strong (100 base rounds).
         ops.add(forceNodeActivity(ctx));
 
         // Capture consensus time and register the record-stream listener AFTER the forced
@@ -416,7 +421,9 @@ public final class BlockNodeRewardsTests {
         return cleanupOps;
     }
 
-    /** Configures node activity levels based on the test context. */
+    /**
+     * Configures node activity levels based on the test context.
+     */
     private static MutateSingletonOp<NodeRewards> forceNodeActivity(@NonNull final TestContext ctx) {
         return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (final NodeRewards nodeRewards) -> {
             final List<NodeActivity> activities = LongStream.range(0, ctx.numConsensusNodes())
