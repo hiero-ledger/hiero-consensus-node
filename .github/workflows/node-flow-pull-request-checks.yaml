@@ -72,7 +72,7 @@ jobs:
       enable-hapi-tests-smart-contract: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: "25"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:
