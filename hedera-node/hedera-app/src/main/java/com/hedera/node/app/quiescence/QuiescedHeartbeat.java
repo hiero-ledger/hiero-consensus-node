@@ -6,7 +6,8 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESC
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
-import com.swirlds.platform.system.Platform;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -29,41 +30,55 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}.
  * <p>
  * The heartbeat is stopped when the {@link QuiescenceController} reports any status other than
- * {@link QuiescenceCommand#QUIESCE} inside the heartbeat.
+ * {@link QuiescenceCommand#QUIESCE} inside the heartbeat. Transitions out of {@code QUIESCE} are routed through
+ * {@link QuiescenceCommands#update(QuiescenceCommand)} so the manager-side {@code lastCommand} stays in sync —
+ * fixing the bug from issue #25140 where the heartbeat emitted to the platform directly and left the manager
+ * holding a stale {@code QUIESCE}.
+ *
+ * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a> for context.
  */
 @Singleton
 public class QuiescedHeartbeat {
     private static final Logger log = LogManager.getLogger(QuiescedHeartbeat.class);
 
-    private final Platform platform;
+    private final QuiescenceCommands quiescenceCommands;
     private final QuiescenceController controller;
     private final ScheduledExecutorService scheduler;
+    private final Counter heartbeatErrors;
 
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
 
     @Inject
-    public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
-        this(platform, controller, Executors.newSingleThreadScheduledExecutor(r -> {
-            final var thread = new Thread(r, "quiesced-heartbeat");
-            thread.setDaemon(true);
-            return thread;
-        }));
+    public QuiescedHeartbeat(
+            @NonNull final QuiescenceController controller,
+            @NonNull final QuiescenceCommands quiescenceCommands,
+            @NonNull final Metrics metrics) {
+        this(
+                quiescenceCommands,
+                controller,
+                Executors.newSingleThreadScheduledExecutor(r -> {
+                    final var thread = new Thread(r, "quiesced-heartbeat");
+                    thread.setDaemon(true);
+                    return thread;
+                }),
+                metrics);
     }
 
     /**
      * Package-private constructor for testing that allows injection of a custom scheduler.
-     *
-     * @param controller the quiescence controller
-     * @param scheduler the scheduled executor service
      */
     QuiescedHeartbeat(
-            @NonNull final Platform platform,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final QuiescenceController controller,
-            @NonNull final ScheduledExecutorService scheduler) {
-        this.platform = requireNonNull(platform);
+            @NonNull final ScheduledExecutorService scheduler,
+            @NonNull final Metrics metrics) {
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.controller = requireNonNull(controller);
         this.scheduler = requireNonNull(scheduler);
+        this.heartbeatErrors = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("quiescence", "heartbeatErrors")
+                        .withDescription("Number of unhandled exceptions thrown inside the quiesced heartbeat tick"));
     }
 
     /**
@@ -82,7 +97,9 @@ public class QuiescedHeartbeat {
                 () -> {
                     try {
                         heartbeat(probe);
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
+                        // Already counted and routed to DONT_QUIESCE inside heartbeat(); just swallow so the
+                        // scheduler does not silently cancel us before stop() has run.
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
                 },
@@ -116,22 +133,22 @@ public class QuiescedHeartbeat {
      */
     private void heartbeat(@NonNull final TctProbe probe) {
         try {
-            // Probe for the TCT
             final var tct = probe.findTct();
-            // If a non-null TCT is found, set it on the controller
             if (tct != null) {
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();
-            // Check if we should continue running
             if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
-                platform.quiescenceCommand(commandNow);
+                quiescenceCommands.update(commandNow);
                 stop();
             }
         } catch (final Exception e) {
-            // End quiescence and stop the heartbeat to avoid log spam from repeated failures
-            platform.quiescenceCommand(DONT_QUIESCE);
+            heartbeatErrors.increment();
+            // End quiescence and stop the heartbeat to avoid log spam from repeated failures.
+            // update() is a no-op when DONT_QUIESCE is already the recorded last command, so we don't
+            // generate churn on platforms that were never reported as QUIESCE.
+            quiescenceCommands.update(DONT_QUIESCE);
             stop();
             throw e;
         }

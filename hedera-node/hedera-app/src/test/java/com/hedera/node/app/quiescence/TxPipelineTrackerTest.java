@@ -17,6 +17,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,7 @@ class TxPipelineTrackerTest {
 
     @BeforeEach
     void setUp() {
-        tracker = new TxPipelineTracker();
+        tracker = new TxPipelineTracker(new NoOpMetrics());
     }
 
     @Nested
@@ -39,7 +40,7 @@ class TxPipelineTrackerTest {
         @Test
         @DisplayName("Constructor initializes with zero counts")
         void constructorInitializesWithZeroCounts() {
-            final var newTracker = new TxPipelineTracker();
+            final var newTracker = new TxPipelineTracker(new NoOpMetrics());
             assertEquals(0, newTracker.estimateTxPipelineCount());
         }
     }

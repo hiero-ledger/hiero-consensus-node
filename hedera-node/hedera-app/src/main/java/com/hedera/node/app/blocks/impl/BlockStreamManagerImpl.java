@@ -51,6 +51,7 @@ import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
@@ -69,7 +70,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -96,7 +96,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -133,9 +132,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
-    private final Platform platform;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
+    private final QuiescenceCommands quiescenceCommands;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -149,7 +148,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new ConcurrentHashMap<>();
-    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
     // Cutover only: carries over the final original record hash until `startBlock()` is called for the first time. This
@@ -236,16 +234,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ExecutorService executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
-            @NonNull final Platform platform,
             @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
-        this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
@@ -472,6 +470,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @VisibleForTesting
     void initLastBlockHash(@NonNull final Bytes blockHash) {
         lastBlockHash = requireNonNull(blockHash);
+    }
+
+    /**
+     * Starts the quiesced heartbeat with a fresh {@link TctProbe} built from the current state and config. Called
+     * after {@link QuiescenceCommands#update(QuiescenceCommand)} reports a real transition into
+     * {@link QuiescenceCommand#QUIESCE}.
+     */
+    private void startQuiescedHeartbeat(@NonNull final State state) {
+        final var config = configProvider.getConfiguration();
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        quiescedHeartbeat.start(
+                blockStreamConfig.quiescedHeartbeatInterval(),
+                new TctProbe(
+                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                        config.getConfigData(StakingConfig.class).periodMins(),
+                        state));
     }
 
     /**
@@ -747,23 +761,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     attempt.chainOfTrustProof());
                         }
                         if (quiescenceEnabled) {
-                            final var lastCommand = lastQuiescenceCommand.get();
                             final var commandNow = quiescenceController.getQuiescenceStatus();
-                            if (commandNow != lastCommand
-                                    && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                                log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                                platform.quiescenceCommand(commandNow);
-                                if (commandNow == QUIESCE) {
-                                    final var config = configProvider.getConfiguration();
-                                    final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                                    quiescedHeartbeat.start(
-                                            blockStreamConfig.quiescedHeartbeatInterval(),
-                                            new TctProbe(
-                                                    blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                                    config.getConfigData(StakingConfig.class)
-                                                            .periodMins(),
-                                                    state));
-                                }
+                            if (quiescenceCommands.update(commandNow) && commandNow == QUIESCE) {
+                                startQuiescedHeartbeat(state);
                             }
                         }
                     })

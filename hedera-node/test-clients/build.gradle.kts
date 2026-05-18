@@ -108,7 +108,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|QUIESCENCE)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -138,6 +138,7 @@ val prCheckTags =
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
+        "hapiTestQuiescence" to "QUIESCENCE",
     )
 
 val remoteCheckTags =
@@ -147,6 +148,7 @@ val remoteCheckTags =
                 listOf(
                     "hapiTestIss",
                     "hapiTestRestart",
+                    "hapiTestQuiescence",
                     "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
@@ -180,6 +182,7 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestQuiescence" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -227,8 +230,14 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestQuiescence" to
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
     )
-val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
+val prCheckPlatformOverrides =
+    mapOf(
+        "hapiTestRestart" to "platformStatus.observingStatusDelay=10s",
+        "hapiTestQuiescence" to "platformStatus.observingStatusDelay=10s",
+    )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here

@@ -13,6 +13,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreMetrics;
@@ -38,10 +39,12 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
@@ -169,7 +172,12 @@ public final class NoOpDependencies {
     /** Creates a real QuiescenceController with disabled quiescence for benchmarking */
     public static QuiescenceController createBenchmarkQuiescenceController(@NonNull ConfigProvider configProvider) {
         final var config = configProvider.getConfiguration().getConfigData(QuiescenceConfig.class);
-        return new QuiescenceController(config, java.time.Instant::now, () -> 0L);
+        return new QuiescenceController(
+                config,
+                Instant::now,
+                () -> 0L,
+                new QuiescenceCommands(new NoOpPlatform(), new NoOpMetrics()),
+                new NoOpMetrics());
     }
 
     /** Creates a no-op InitialStateHash */
@@ -189,7 +197,8 @@ public final class NoOpDependencies {
     /** Creates a QuiescedHeartbeat using real QuiescenceController but NoOpPlatform */
     public static QuiescedHeartbeat createBenchmarkQuiescedHeartbeat(
             @NonNull QuiescenceController quiescenceController) {
-        return new QuiescedHeartbeat(quiescenceController, new NoOpPlatform());
+        return new QuiescedHeartbeat(
+                quiescenceController, new QuiescenceCommands(new NoOpPlatform(), new NoOpMetrics()), new NoOpMetrics());
     }
 
     /** Creates a real BoundaryStateChangeListener for benchmarking */
@@ -257,8 +266,12 @@ public final class NoOpDependencies {
         }
     }
 
-    /** No-op Metrics */
-    public static class NoOpMetrics implements Metrics {
+    /**
+     * Counter-only {@link Metrics} stub used by benchmarks that don't exercise quiescence. Quiescence-aware
+     * helpers in this file use the full-featured {@link NoOpMetrics} from the platform SDK instead, because
+     * {@link QuiescenceCommands} also registers an {@code IntegerGauge}.
+     */
+    public static class LocalNoOpMetrics implements Metrics {
         @Override
         public Metric getMetric(@NonNull String category, @NonNull String name) {
             return null;
@@ -277,12 +290,10 @@ public final class NoOpDependencies {
         @Override
         @SuppressWarnings("unchecked")
         public <T extends Metric> @NonNull T getOrCreate(final @NonNull MetricConfig<T, ?> config) {
-            // Check if this is a Counter config and return a NoOpCounter
             if (config.getResultClass() == Counter.class) {
                 return (T) new NoOpCounter();
             }
-            // For other metric types, throw exception (can be extended later if needed)
-            throw new UnsupportedOperationException("NoOpMetrics.getOrCreate() not implemented for "
+            throw new UnsupportedOperationException("LocalNoOpMetrics.getOrCreate() not implemented for "
                     + config.getResultClass().getSimpleName());
         }
 

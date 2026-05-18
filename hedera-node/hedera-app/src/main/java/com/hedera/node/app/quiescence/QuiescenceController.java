@@ -5,6 +5,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.config.data.QuiescenceConfig;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -26,6 +28,9 @@ import org.hiero.consensus.model.transaction.Transaction;
 /**
  * Tracks all the information needed to determine if the system is quiescent or not. This class is thread-safe, it is
  * expected that all methods may be called concurrently from different threads.
+ *
+ * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a>
+ * for the feature's design rationale.
  */
 public class QuiescenceController {
     private static final Logger logger = LogManager.getLogger(QuiescenceController.class);
@@ -33,16 +38,21 @@ public class QuiescenceController {
     private final QuiescenceConfig config;
     private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
+    private final QuiescenceCommands quiescenceCommands;
+    private final Counter disabledCounter;
 
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
     private final Map<Long, QuiescenceBlockTracker> blockTrackers;
 
     /**
-     * If set, the block tracker for the in-progress block.
+     * If set, the block tracker for the in-progress block. Marked {@code volatile} because it is written from
+     * the block-stream / block-record manager threads (via {@link #startingBlock} / {@link #switchTracker}) and
+     * read from the handle-workflow thread (via {@link #inProgressBlockTransaction} /
+     * {@link #finishHandlingInProgressBlock}).
      */
     @Nullable
-    private QuiescenceBlockTracker inProgressBlockTracker;
+    private volatile QuiescenceBlockTracker inProgressBlockTracker;
 
     /**
      * Constructs a new quiescence controller.
@@ -51,17 +61,29 @@ public class QuiescenceController {
      * @param time                    the time source
      * @param pendingTransactionCount a supplier that provides the number of transactions submitted to the node but not
      *                                yet included put into an event
+     * @param quiescenceCommands      collaborator that owns the canonical {@code lastCommand} and the platform-level
+     *                                dispatch; the controller relays {@code RECONNECT_COMPLETE} resets through it
+     * @param metrics                 metrics registry; the controller publishes a {@code quiescence.disabled} counter
+     *                                so operators can see when a transient error has silently turned the feature off
      */
     public QuiescenceController(
             @NonNull final QuiescenceConfig config,
             @NonNull final InstantSource time,
-            @NonNull final LongSupplier pendingTransactionCount) {
+            @NonNull final LongSupplier pendingTransactionCount,
+            @NonNull final QuiescenceCommands quiescenceCommands,
+            @NonNull final Metrics metrics) {
         this.config = requireNonNull(config);
         this.time = requireNonNull(time);
         this.pendingTransactionCount = requireNonNull(pendingTransactionCount);
-        nextTct = new AtomicReference<>();
-        pipelineTransactionCount = new AtomicLong(0);
-        blockTrackers = new ConcurrentHashMap<>();
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
+        this.disabledCounter = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("quiescence", "disabled")
+                        .withDescription("Number of times the quiescence controller has self-disabled due to an "
+                                + "unexpected condition; a non-zero value indicates the feature is silently off "
+                                + "until the next RECONNECT_COMPLETE or process restart"));
+        this.nextTct = new AtomicReference<>();
+        this.pipelineTransactionCount = new AtomicLong(0);
+        this.blockTrackers = new ConcurrentHashMap<>();
     }
 
     /**
@@ -77,7 +99,7 @@ public class QuiescenceController {
         }
         try {
             pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
-        } catch (final BadMetadataException e) {
+        } catch (final Exception e) {
             disableQuiescence(e);
         }
     }
@@ -118,7 +140,7 @@ public class QuiescenceController {
         }
         try {
             requireNonNull(inProgressBlockTracker).finishedHandlingTransactions();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             disableQuiescence(e);
         }
     }
@@ -194,6 +216,9 @@ public class QuiescenceController {
      * @param blockNumber the fully signed block number
      */
     public void blockFullySigned(final long blockNumber) {
+        if (isDisabled()) {
+            return;
+        }
         final QuiescenceBlockTracker blockTracker = blockTrackers.remove(blockNumber);
         if (blockTracker == null) {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
@@ -214,7 +239,7 @@ public class QuiescenceController {
         }
         try {
             pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
-        } catch (final BadMetadataException e) {
+        } catch (final Exception e) {
             disableQuiescence(e);
         }
     }
@@ -233,16 +258,25 @@ public class QuiescenceController {
 
     /**
      * Notifies the controller that the platform status has changed.
+     * <p>
+     * On {@code RECONNECT_COMPLETE} the controller clears its counters and re-enables itself if it had
+     * previously self-disabled — a transient error during normal operation should not require a node restart
+     * to recover quiescence after a successful reconnect. The {@link QuiescenceCommands} collaborator is also
+     * reset so the next manager poll sees a clean transition.
      *
      * @param platformStatus the new platform status
      */
     public void platformStatusUpdate(@NonNull final PlatformStatus platformStatus) {
-        if (isDisabled()) {
-            return;
-        }
         if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
-            pipelineTransactionCount.set(0);
+            // Setting pipelineTransactionCount to 0 re-enables the controller (see isDisabled()), so the other
+            // fields are cleared first. A concurrent getQuiescenceStatus() reader between the re-enable and the
+            // nextTct/tracker clears would self-correct on the next poll; the handle workflow is paused during
+            // reconnect, so in practice this window is empty.
             blockTrackers.clear();
+            nextTct.set(null);
+            inProgressBlockTracker = null;
+            pipelineTransactionCount.set(0);
+            quiescenceCommands.resetForReconnect();
         }
     }
 
@@ -259,7 +293,13 @@ public class QuiescenceController {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         final Instant tct = nextTct.get();
-        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.instant())) {
+        // Defense-in-depth: a TCT at Instant.EPOCH would always be reported as "past due" by the threshold check
+        // below, which would force the node out of quiescence on the first heartbeat tick. TctProbe is responsible
+        // for returning null when there is no real deadline, but we guard here too in case a future caller pushes
+        // EPOCH through setNextTargetConsensusTime.
+        if (tct != null
+                && !tct.equals(Instant.EPOCH)
+                && tct.minus(config.tctDuration()).isBefore(time.instant())) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pendingTransactionCount.getAsLong() > 0) {
@@ -300,7 +340,11 @@ public class QuiescenceController {
     private void disableQuiescence() {
         // During normal operation the count should never be negative, so we use that to indicate disabled.
         // We use Long.MIN_VALUE/2 to avoid any concurrent updates from overflowing and wrapping around to positive.
-        pipelineTransactionCount.set(Long.MIN_VALUE / 2);
+        // Only count the transition disabled<-enabled, not repeated calls while already disabled.
+        final long previous = pipelineTransactionCount.getAndSet(Long.MIN_VALUE / 2);
+        if (previous >= 0) {
+            disabledCounter.increment();
+        }
     }
 
     private static Instant tctUpdate(@Nullable final Instant currentTct, @NonNull final Instant currentConsensusTime) {

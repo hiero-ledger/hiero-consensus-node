@@ -24,11 +24,11 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -72,7 +72,7 @@ class BlockOpeningTest {
     private QuiescedHeartbeat quiescedHeartbeat;
 
     @Mock
-    private Platform platform;
+    private QuiescenceCommands quiescenceCommands;
 
     @Mock
     private WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
@@ -117,11 +117,13 @@ class BlockOpeningTest {
     void maybeQuiesceStartsHeartbeatOnQuiesceCommandChange() {
         setupBlockInfo(CONSENSUS_NOW);
         given(quiescenceController.getQuiescenceStatus()).willReturn(QUIESCE);
+        // First update() call observes a real transition into QUIESCE; second call sees the command unchanged.
+        given(quiescenceCommands.update(QUIESCE)).willReturn(true).willReturn(false);
 
         subject.maybeQuiesce(state);
         subject.maybeQuiesce(state);
 
-        verify(platform, times(1)).quiescenceCommand(QUIESCE);
+        verify(quiescenceCommands, times(2)).update(QUIESCE);
         verify(quiescedHeartbeat, times(1)).start(any(), any());
     }
 
@@ -132,7 +134,8 @@ class BlockOpeningTest {
 
         subject.maybeQuiesce(state);
 
-        verify(platform, never()).quiescenceCommand(any());
+        // update is invoked but returns false (no transition); heartbeat never starts.
+        verify(quiescenceCommands).update(DONT_QUIESCE);
         verify(quiescedHeartbeat, never()).start(any(), any());
     }
 
@@ -153,7 +156,7 @@ class BlockOpeningTest {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
+                quiescenceCommands,
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
