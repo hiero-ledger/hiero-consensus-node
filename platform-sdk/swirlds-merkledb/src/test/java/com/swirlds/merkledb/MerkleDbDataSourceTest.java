@@ -2,14 +2,10 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
-import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,8 +17,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.function.CheckedConsumer;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -31,6 +25,7 @@ import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -45,7 +40,6 @@ import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,74 +51,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class MerkleDbDataSourceTest {
+class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
 
     private static final Random RANDOM = new Random(1234);
-
-    @TempDir
-    Path tempDir;
-
-    private FileSystemManager fileSystemManager;
-    private Path testDirectory;
-
-    /**
-     * Keep track of initial direct memory used already, so we can check if we leak over and above
-     * what we started with
-     */
-    private long directMemoryUsedAtStart;
-
-    @BeforeEach
-    void initializeDirectMemoryAtStart() {
-        directMemoryUsedAtStart = getDirectMemoryUsedBytes();
-    }
-
-    @BeforeEach
-    void setupDatabaseDir() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-        testDirectory = fileSystemManager.resolveNewTemp("MerkleDbDataSourceTest");
-    }
-
-    @AfterEach
-    void checkDirectMemoryForLeaks() {
-        // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
-    }
 
     // =================================================================================================================
     // Tests
 
-    @ParameterizedTest
-    @EnumSource(TestType.class)
-    void createAndCheckInternalNodeHashes(final TestType testType) throws IOException {
-
-        final String tableName = "createAndCheckInternalNodeHashes";
-        // check db count
-        MerkleDbTestUtils.assertAllDatabasesClosed();
+    @Test
+    void createAndCheckInternalNodeHashes() throws IOException {
         // create db
         final int count = 10_000;
         final int firstLeafPath = count - 1;
         final int lastLeafPath = firstLeafPath * 2;
-        createAndApplyDataSource(fileSystemManager, testDirectory, tableName, testType, count, dataSource -> {
-            // check db count
-            MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
-
+        createAndApplyDataSource(count, dataSource -> {
             final int hashChunkHeight = dataSource.getHashChunkHeight();
 
             // create some node hashes
@@ -153,50 +99,23 @@ class MerkleDbDataSourceTest {
                     "loadHashChunk should throw IAE on invalid chunk ID");
             assertEquals(
                     "Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
-
-            // close data source
-            dataSource.close();
-            // check db count
-            MerkleDbTestUtils.assertAllDatabasesClosed();
-            // check the database was deleted
-            assertEventuallyFalse(
-                    () -> Files.exists(testDirectory.resolve(tableName)),
-                    Duration.ofSeconds(1),
-                    "Database should have been deleted by close()");
         });
     }
 
     @Test
     void throwsOnNonPositiveInitialCapacity() {
         // 0 initial capacity
-        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
-                .dataType()
-                .createDataSource(
-                        CONFIGURATION,
-                        fileSystemManager,
-                        testDirectory.resolve("badInitialCapacityZero" + nextInt()),
-                        "badInitialZero",
-                        0,
-                        false,
-                        false));
+        assertThrows(IllegalArgumentException.class, () -> createDataSource(0, false, false)
+                .close());
         // negative initial capacity
-        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
-                .dataType()
-                .createDataSource(
-                        CONFIGURATION,
-                        fileSystemManager,
-                        testDirectory.resolve("badInitialCapacityNegative" + nextInt()),
-                        "badInitialNeg",
-                        -1,
-                        false,
-                        false));
+        assertThrows(IllegalArgumentException.class, () -> createDataSource(-1, false, false)
+                .close());
     }
 
-    @ParameterizedTest
-    @EnumSource(TestType.class)
-    void testRandomHashUpdates(final TestType testType) throws IOException {
+    @Test
+    void testRandomHashUpdates() throws IOException {
         final int testSize = 2000;
-        createAndApplyDataSource(fileSystemManager, testDirectory, "test2", testType, testSize, dataSource -> {
+        createAndApplyDataSource(testSize, dataSource -> {
             final int chunkHeight = dataSource.getHashChunkHeight();
             // create some node hashes
             dataSource.saveRecords(
@@ -243,7 +162,7 @@ class MerkleDbDataSourceTest {
         final int count = 10_000;
         final int firstLeafPath = count - 1;
         final int lastLeafPath = firstLeafPath * 2;
-        createAndApplyDataSource(fileSystemManager, testDirectory, "test3", testType, count, dataSource -> {
+        createAndApplyDataSource(count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
                     firstLeafPath,
@@ -273,64 +192,61 @@ class MerkleDbDataSourceTest {
 
     @ParameterizedTest
     @EnumSource(TestType.class)
-    void updateLeaves(final TestType testType) throws IOException, InterruptedException {
+    void updateLeaves(final TestType testType) throws IOException {
         final int firstLeafPath = 499;
         final int lastLeafPath = 998;
 
-        createAndApplyDataSource(
-                fileSystemManager, testDirectory, "test4", testType, lastLeafPath - firstLeafPath + 1, dataSource -> {
-                    // create some leaves
-                    dataSource.saveRecords(
-                            firstLeafPath,
-                            lastLeafPath,
-                            createHashChunkStream(firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
-                            IntStream.range(firstLeafPath, lastLeafPath + 1)
-                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty(),
-                            false);
-                    // check all the leaf data
+        createAndApplyDataSource(lastLeafPath - firstLeafPath + 1, dataSource -> {
+            // create some leaves
+            dataSource.saveRecords(
+                    firstLeafPath,
+                    lastLeafPath,
+                    createHashChunkStream(firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(firstLeafPath, lastLeafPath + 1)
-                            .forEach(i -> assertLeaf(testType, dataSource, i, i));
-                    // update all to i+10,000 in a random order
-                    final int[] randomInts = shuffle(
-                            RANDOM,
-                            IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
-                    dataSource.saveRecords(
-                            firstLeafPath,
-                            lastLeafPath,
-                            Stream.empty(),
-                            Arrays.stream(randomInts)
-                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
-                                    .sorted(Comparator.comparingLong(VirtualLeafBytes::path)),
-                            Stream.empty(),
-                            false);
-                    assertEquals(
-                            testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
-                            testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
-                            "same call to createVirtualLeafRecord returns different results");
-                    // check all the leaf data
-                    IntStream.range(firstLeafPath, lastLeafPath + 1)
-                            .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
-                    // delete a couple leaves
-                    dataSource.saveRecords(
-                            firstLeafPath,
-                            lastLeafPath,
-                            Stream.empty(),
-                            Stream.empty(),
-                            IntStream.range(firstLeafPath + 10, firstLeafPath + 20 + 1)
-                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            false);
-                    // check deleted items are no longer there
-                    for (int i = (firstLeafPath + 10); i < (firstLeafPath + 20 + 1); i++) {
-                        final Bytes key = testType.dataType().createVirtualLongKey(i);
-                        assertEqualsAndPrint(null, dataSource.loadLeafRecord(key));
-                    }
-                    // check all remaining leaf data
-                    IntStream.range(firstLeafPath, firstLeafPath + 10)
-                            .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
-                    IntStream.range(firstLeafPath + 21, lastLeafPath + 1)
-                            .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
-                });
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    Stream.empty(),
+                    false);
+            // check all the leaf data
+            IntStream.range(firstLeafPath, lastLeafPath + 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
+            // update all to i+10,000 in a random order
+            final int[] randomInts = shuffle(
+                    RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
+            dataSource.saveRecords(
+                    firstLeafPath,
+                    lastLeafPath,
+                    Stream.empty(),
+                    Arrays.stream(randomInts)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
+                            .sorted(Comparator.comparingLong(VirtualLeafBytes::path)),
+                    Stream.empty(),
+                    false);
+            assertEquals(
+                    testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
+                    testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
+                    "same call to createVirtualLeafRecord returns different results");
+            // check all the leaf data
+            IntStream.range(firstLeafPath, lastLeafPath + 1)
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
+            // delete a couple leaves
+            dataSource.saveRecords(
+                    firstLeafPath,
+                    lastLeafPath,
+                    Stream.empty(),
+                    Stream.empty(),
+                    IntStream.range(firstLeafPath + 10, firstLeafPath + 20 + 1)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    false);
+            // check deleted items are no longer there
+            for (int i = (firstLeafPath + 10); i < (firstLeafPath + 20 + 1); i++) {
+                final Bytes key = testType.dataType().createVirtualLongKey(i);
+                assertEqualsAndPrint(null, dataSource.loadLeafRecord(key));
+            }
+            // check all remaining leaf data
+            IntStream.range(firstLeafPath, firstLeafPath + 10)
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
+            IntStream.range(firstLeafPath + 21, lastLeafPath + 1)
+                    .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
+        });
     }
 
     @ParameterizedTest
@@ -339,49 +255,48 @@ class MerkleDbDataSourceTest {
         final int incFirstLeafPath = 499;
         final int exclLastLeafPath = 998;
 
-        createAndApplyDataSource(
-                fileSystemManager, testDirectory, "test5", testType, exclLastLeafPath - 1, dataSource -> {
-                    // create some leaves
-                    dataSource.saveRecords(
-                            incFirstLeafPath,
-                            exclLastLeafPath,
-                            createHashChunkStream(
-                                    incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
-                            IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty(),
-                            false);
-                    // check 500 and 800
-                    assertLeaf(testType, dataSource, 500, 500);
-                    assertLeaf(testType, dataSource, 800, 800);
-                    // move a leaf from 500 to 750, under new API there is no move as such, so we just write leaf 500
-                    // at path 750
+        createAndApplyDataSource(exclLastLeafPath - 1, dataSource -> {
+            // create some leaves
+            dataSource.saveRecords(
+                    incFirstLeafPath,
+                    exclLastLeafPath,
+                    createHashChunkStream(
+                            incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
+                    IntStream.range(incFirstLeafPath, exclLastLeafPath)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    Stream.empty(),
+                    false);
+            // check 500 and 800
+            assertLeaf(testType, dataSource, 500, 500);
+            assertLeaf(testType, dataSource, 800, 800);
+            // move a leaf from 500 to 750, under new API there is no move as such, so we just write leaf 500
+            // at path 750
 
-                    final VirtualLeafBytes vlr500 =
-                            testType.dataType().createVirtualLeafRecord(500).withPath(750);
-                    dataSource.saveRecords(
-                            incFirstLeafPath,
-                            exclLastLeafPath,
-                            createHashChunkStream(750, 750, i -> 500, dataSource.getHashChunkHeight()),
-                            Stream.of(vlr500),
-                            Stream.empty(),
-                            false);
+            final VirtualLeafBytes vlr500 =
+                    testType.dataType().createVirtualLeafRecord(500).withPath(750);
+            dataSource.saveRecords(
+                    incFirstLeafPath,
+                    exclLastLeafPath,
+                    createHashChunkStream(750, 750, i -> 500, dataSource.getHashChunkHeight()),
+                    Stream.of(vlr500),
+                    Stream.empty(),
+                    false);
 
-                    // check 750 now has 500's data
-                    assertLeaf(testType, dataSource, 700, 700);
-                    assertEquals(
-                            testType.dataType().createVirtualLeafRecord(500, 500, 500),
-                            dataSource.loadLeafRecord(500),
-                            "creating/loading same LeafRecord gives different results");
-                    assertLeaf(testType, dataSource, 750, 500);
-                });
+            // check 750 now has 500's data
+            assertLeaf(testType, dataSource, 700, 700);
+            assertEquals(
+                    testType.dataType().createVirtualLeafRecord(500, 500, 500),
+                    dataSource.loadLeafRecord(500),
+                    "creating/loading same LeafRecord gives different results");
+            assertLeaf(testType, dataSource, 750, 500);
+        });
     }
 
     @ParameterizedTest
     @EnumSource(TestType.class)
     void createAndDeleteAllLeaves(final TestType testType) throws IOException {
         final int count = 1000;
-        createAndApplyDataSource(fileSystemManager, testDirectory, "test3", testType, count, dataSource -> {
+        createAndApplyDataSource(count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
                     count - 1,
@@ -415,7 +330,7 @@ class MerkleDbDataSourceTest {
 
     @Test
     void preservesInterruptStatusWhenInterruptedSavingRecords() throws IOException {
-        createAndApplyDataSource(fileSystemManager, testDirectory, "test6", TestType.long_fixed, 1000, dataSource -> {
+        createAndApplyDataSource(1000, dataSource -> {
             final CountDownLatch savingThreadStarted = new CountDownLatch(1);
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
             savingThread.start();
@@ -442,10 +357,9 @@ class MerkleDbDataSourceTest {
     void createCloseSnapshotCheckDelete(final TestType testType) throws IOException {
         final int count = 10_000;
         final String tableName = "testDB";
-        final Path originalDbPath = testDirectory.resolve("merkledb-" + testType);
-        // array to hold the snapshot path
-        final Path[] snapshotDbPathRef = new Path[1];
-        createAndApplyDataSource(fileSystemManager, originalDbPath, tableName, testType, count, dataSource -> {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("merkledb-" + testType + "_SNAPSHOT");
+
+        createAndApplyDataSource(tableName, count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
                     count - 1,
@@ -458,39 +372,20 @@ class MerkleDbDataSourceTest {
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
-            snapshotDbPathRef[0] = testDirectory.resolve("merkledb-" + testType + "_SNAPSHOT");
-            dataSource.snapshot(snapshotDbPathRef[0]);
-            // close data source
-            dataSource.close();
-            // check directory is deleted on close
-            assertFalse(Files.exists(originalDbPath), "Data source dir should be deleted");
-            assertTrue(Files.exists(snapshotDbPathRef[0]), "Snapshot dir [" + snapshotDbPathRef[0] + "] should exist");
+
+            dataSource.snapshot(snapshotDir);
         });
 
+        assertTrue(Files.exists(snapshotDir), "Snapshot dir [" + snapshotDir + "] should exist");
+
         // reopen data source and check
-        final MerkleDbDataSource dataSource2 =
-                testType.dataType().getDataSource(fileSystemManager, snapshotDbPathRef[0], tableName, false);
+        final MerkleDbDataSource dataSource2 = restoreDataSource(snapshotDir, tableName, false);
         try {
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource2, i, i));
         } finally {
             // close data source
             dataSource2.close();
-        }
-        // check db count
-        MerkleDbTestUtils.assertAllDatabasesClosed();
-    }
-
-    boolean directMemoryUsageByDataFileIteratorWorkaroundApplied = false;
-
-    // When the first DataFileIterator is initialized, it allocates 16Mb direct byte buffer internally.
-    // Since we have direct memory usage checks after each test case, it's reported as a memory leak.
-    // A workaround is to reset memory usage value right after the first usage of iterator. No need to
-    // do it before each test run, it's enough to do just once
-    void reinitializeDirectMemoryUsage() {
-        if (!directMemoryUsageByDataFileIteratorWorkaroundApplied) {
-            initializeDirectMemoryAtStart();
-            directMemoryUsageByDataFileIteratorWorkaroundApplied = true;
         }
     }
 
@@ -499,70 +394,62 @@ class MerkleDbDataSourceTest {
     void snapshotRestoreIndex(final TestType testType) throws IOException {
         final int count = 1000;
         final String tableName = "vm";
-        final Path originalDbPath = testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType);
         final int[] deltas = {-10, 0, 10};
+        final Path snapshotDir =
+                fileSystemManager.resolveNewTemp("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
+
         for (int delta : deltas) {
-            createAndApplyDataSource(
-                    fileSystemManager, originalDbPath, tableName, testType, count + Math.abs(delta), dataSource -> {
-                        // create some records
-                        dataSource.saveRecords(
-                                count - 1,
-                                count * 2 - 2,
-                                createHashChunkStream(0, count * 2 - 2, i -> i + 1, dataSource.getHashChunkHeight()),
-                                IntStream.range(count - 1, count * 2 - 1)
-                                        .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                                Stream.empty(),
-                                false);
-                        if (delta != 0) {
-                            // create some more, current leaf path range shifted by delta
-                            dataSource.saveRecords(
-                                    count - 1 + delta,
-                                    count * 2 - 2 + 2 * delta,
-                                    createHashChunkStream(
-                                            1, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
-                                    IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
-                                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                                    Stream.empty(),
-                                    false);
-                        }
-                        // create a snapshot
-                        final Path snapshotDbPath =
-                                testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
-                        dataSource.snapshot(snapshotDbPath);
-                        // close data source
-                        dataSource.close();
+            createAndApplyDataSource(tableName, count + Math.abs(delta), dataSource -> {
+                // create some records
+                dataSource.saveRecords(
+                        count - 1,
+                        count * 2 - 2,
+                        createHashChunkStream(0, count * 2 - 2, i -> i + 1, dataSource.getHashChunkHeight()),
+                        IntStream.range(count - 1, count * 2 - 1)
+                                .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                        Stream.empty(),
+                        false);
+                if (delta != 0) {
+                    // create some more, current leaf path range shifted by delta
+                    dataSource.saveRecords(
+                            count - 1 + delta,
+                            count * 2 - 2 + 2 * delta,
+                            createHashChunkStream(
+                                    1, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
+                            IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
+                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                            Stream.empty(),
+                            false);
+                }
+                // create a snapshot
 
-                        final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
-                        // Delete all indices
-                        Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
-                        Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
-                        // There is no way to use MerkleDbPaths to get bucket index file path
-                        Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
+                dataSource.snapshot(snapshotDir);
+            });
 
-                        final MerkleDbDataSource snapshotDataSource =
-                                testType.dataType().getDataSource(fileSystemManager, snapshotDbPath, tableName, false);
-                        reinitializeDirectMemoryUsage();
-                        // Check hashes
-                        IntStream.range(1, count * 2 - 1 + 2 * delta)
-                                .forEach(i -> assertHash(snapshotDataSource, i, i + 1));
-                        assertNullHash(snapshotDataSource, count * 2 + 2 * delta);
-                        // Check leaves
-                        IntStream.range(0, count - 2 + delta).forEach(i -> assertNullLeaf(snapshotDataSource, i));
-                        IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
-                                .forEach(i -> assertLeaf(testType, snapshotDataSource, i, i, i + 1, i));
-                        assertNullLeaf(snapshotDataSource, count * 2 + 2 * delta);
-                        // close data source
-                        snapshotDataSource.close();
+            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDir);
+            // Delete all indices
+            Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
+            Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
+            // There is no way to use MerkleDbPaths to get bucket index file path
+            Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
 
-                        // check db count
-                        MerkleDbTestUtils.assertAllDatabasesClosed();
-                    });
+            final MerkleDbDataSource snapshotDataSource = restoreDataSource(snapshotDir, tableName, false);
+            // Check hashes
+            IntStream.range(1, count * 2 - 1 + 2 * delta).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
+            assertNullHash(snapshotDataSource, count * 2 + 2 * delta);
+            // Check leaves
+            IntStream.range(0, count - 2 + delta).forEach(i -> assertNullLeaf(snapshotDataSource, i));
+            IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
+                    .forEach(i -> assertLeaf(testType, snapshotDataSource, i, i, i + 1, i));
+            assertNullLeaf(snapshotDataSource, count * 2 + 2 * delta);
+            // close data source
+            snapshotDataSource.close();
         }
     }
 
     @Test
     void preservesInterruptStatusWhenInterruptedClosing() throws IOException {
-        createAndApplyDataSource(fileSystemManager, testDirectory, "test8", TestType.long_fixed, 1001, dataSource -> {
+        createAndApplyDataSource(1001, dataSource -> {
             /* Keep an executor busy */
             final CountDownLatch savingThreadStarted = new CountDownLatch(1);
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
@@ -595,19 +482,14 @@ class MerkleDbDataSourceTest {
     @Test
     void canConstructStandardStoreWithMergingDisabled() {
         assertDoesNotThrow(
-                () -> TestType.long_fixed
-                        .dataType()
-                        .createDataSource(CONFIGURATION, fileSystemManager, testDirectory, "testDB", 1000, false, false)
-                        .close(),
+                () -> createDataSource(1000, false, false).close(),
                 "Should be possible to instantiate data source with merging disabled");
-        // check db count
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
     void skipKeyToPathCompactionWhenResizeNeeded() throws IOException {
         // spotless:off
-        createAndApplyDataSource(fileSystemManager, testDirectory, "skipKeyToPathCompactionWhenResizeNeeded", TestType.long_fixed, 1, dataSource -> {
+        createAndApplyDataSource(1, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
             coordinator.stopAndDisableBackgroundCompaction();
 
@@ -638,10 +520,7 @@ class MerkleDbDataSourceTest {
     @ParameterizedTest
     @EnumSource(TestType.class)
     void dirtyDeletedLeavesBetweenFlushesOnReconnect(final TestType testType) throws IOException {
-        final String tableName = "vm";
-        final Path originalDbPath =
-                testDirectory.resolve("merkledb-dirtyDeletedLeavesBetweenFlushesOnReconnect-" + testType);
-        createAndApplyDataSource(fileSystemManager, originalDbPath, tableName, testType, 100, dataSource -> {
+        createAndApplyDataSource(100, dataSource -> {
             final List<Bytes> keys = new ArrayList<>(31);
             for (int i = 0; i < 31; i++) {
                 keys.add(testType.dataType().createVirtualLongKey(i));
@@ -747,10 +626,8 @@ class MerkleDbDataSourceTest {
         final int size = 300_000;
         final long firstLeafPath = size - 1;
         final long lastLeafPath = 2 * size - 2;
-        final TestType testType = TestType.long_fixed;
-        final Path originalDbPath = testDirectory.resolve("migrateHashesToChunks");
-        createAndApplyDataSource(fileSystemManager, originalDbPath, dbName, testType, size, dataSource -> {
-            final Path snapshotDbPath = testDirectory.resolve("migrateHashesToChunks-snapshot");
+        createAndApplyDataSource(dbName, size, dataSource -> {
+            final Path snapshotDbPath = fileSystemManager.resolveNewTemp("migrateHashesToChunks-snapshot");
             // MerkleDbDataSource.snapshot() builds a snapshot in a new format with hash chunks.
             // Let's hack the snapshot so it looks like the old format, so hash migration can
             // be tested
@@ -777,7 +654,7 @@ class MerkleDbDataSourceTest {
                 hashStoreRam.writeToFile(snapshotPaths.hashStoreRamFile);
             }
             if (hashesRamToDiskThreshold <= lastLeafPath) {
-                final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
+                final Path tmpDir = fileSystemManager.resolveNewTemp("migrateHashesToChunks-tmp");
                 final LongListSegment hashStoreDiskIndex = new LongListSegment(1024, 2 * size, 1024);
                 final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
                         CONFIGURATION.getConfigData(MerkleDbConfig.class),
@@ -799,8 +676,7 @@ class MerkleDbDataSourceTest {
             }
 
             // Restore
-            final MerkleDbDataSource snapshot = testType.dataType()
-                    .createDataSource(CONFIGURATION, fileSystemManager, snapshotDbPath, dbName, size, false, false);
+            final MerkleDbDataSource snapshot = restoreDataSource(snapshotDbPath, dbName, false);
             // Check all hashes are migrated successfully
             try {
                 for (long i = firstLeafPath; i <= lastLeafPath; i++) {
@@ -819,10 +695,9 @@ class MerkleDbDataSourceTest {
     void testRebuildHDHMIndex() throws Exception {
         final String label = "testRebuildHDHMIndex";
         final TestType testType = TestType.variable_variable;
-        final Path originalDbPath = testDirectory.resolve("merkledb-testRebuildHDHMIndex-" + testType);
-        final Path snapshotDbPath1 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT1");
-        final Path snapshotDbPath2 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT2");
-        createAndApplyDataSource(fileSystemManager, originalDbPath, label, testType, 100, dataSource -> {
+        final Path snapshotDbPath1 = fileSystemManager.resolveNewTemp("merkledb-testRebuildHDHMIndex_SNAPSHOT1");
+        final Path snapshotDbPath2 = fileSystemManager.resolveNewTemp("merkledb-testRebuildHDHMIndex_SNAPSHOT2");
+        createAndApplyDataSource(label, 100, dataSource -> {
             // Flush 1: leaf path range is [8,16]
             dataSource.saveRecords(
                     8,
@@ -844,9 +719,9 @@ class MerkleDbDataSourceTest {
             // Create snapshots
             dataSource.snapshot(snapshotDbPath1);
             dataSource.snapshot(snapshotDbPath2);
-            // close data source
-            dataSource.close();
         });
+
+        final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
 
         // Load snapshot 1 with empty tablesToRepairHdhm config. It's expected to contain a stale key
         final Configuration config1 = ConfigurationBuilder.create()
@@ -855,12 +730,13 @@ class MerkleDbDataSourceTest {
                 .withConfigDataType(TemporaryFileConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
                 .build();
-        final MerkleDbDataSource snapshotDataSource1 =
-                new MerkleDbDataSource(snapshotDbPath1, config1, fileSystemManager, label, false, false);
-        IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
-        final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
-        assertEquals(8, snapshotDataSource1.findKey(staleKey));
-        snapshotDataSource1.close();
+        final MerkleDbDataSource snapshotDataSource1 = restoreDataSource(config1, snapshotDbPath1, label, false);
+        try {
+            IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
+            assertEquals(8, snapshotDataSource1.findKey(staleKey));
+        } finally {
+            snapshotDataSource1.close();
+        }
 
         // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
         final Configuration config2 = ConfigurationBuilder.create()
@@ -868,11 +744,13 @@ class MerkleDbDataSourceTest {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
                 .build();
-        final MerkleDbDataSource snapshotDataSource2 =
-                new MerkleDbDataSource(snapshotDbPath2, config2, fileSystemManager, label, false, false);
-        IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
-        assertEquals(-1, snapshotDataSource2.findKey(staleKey));
-        snapshotDataSource2.close();
+        final MerkleDbDataSource snapshotDataSource2 = restoreDataSource(config2, snapshotDbPath2, label, false);
+        try {
+            IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
+            assertEquals(-1, snapshotDataSource2.findKey(staleKey));
+        } finally {
+            snapshotDataSource2.close();
+        }
     }
 
     @Test
@@ -881,8 +759,8 @@ class MerkleDbDataSourceTest {
         // for the copy correctly
         final String label = "copyStatisticsTest";
         final TestType testType = TestType.variable_variable;
-        final Metrics metrics = testType.getMetrics();
-        createAndApplyDataSource(fileSystemManager, testDirectory, label, testType, 16, dataSource -> {
+        final Metrics metrics = MerkleDbTestUtils.createMetrics();
+        createAndApplyDataSource(label, 16, dataSource -> {
             dataSource.registerMetrics(metrics);
             assertEquals(
                     1L,
@@ -905,9 +783,7 @@ class MerkleDbDataSourceTest {
             assertEquals(1L, sourceCounter.get());
             final Path copyPath = fileSystemManager.resolveNewTemp("copyStatisticsTest");
             dataSource.snapshot(copyPath);
-            final MerkleDbDataSource copy =
-                    testType.dataType().getDataSource(fileSystemManager, copyPath, dataSource.getTableName(), true);
-            reinitializeDirectMemoryUsage();
+            final MerkleDbDataSource copy = restoreDataSource(copyPath, dataSource.getTableName(), true);
             try {
                 assertEquals(
                         2L, metrics.getMetric("merkle_db", "merkledb_count").get(ValueType.VALUE));
@@ -926,82 +802,60 @@ class MerkleDbDataSourceTest {
 
     @ParameterizedTest
     @EnumSource(TestType.class)
-    void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
-        final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(CONFIGURATION, fileSystemManager, dbPath, "vm", 1000, false, false);
-
-        final int count = 20;
-        final List<Bytes> keys = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            keys.add(testType.dataType().createVirtualLongKey(i));
-        }
-        final List<ExampleByteArrayVirtualValue> values = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            values.add(testType.dataType().createVirtualValue(i + 1));
-        }
-
-        final CountDownLatch updateStarted = new CountDownLatch(1);
-        final Thread closeThread = new Thread(() -> {
-            try {
-                updateStarted.await();
-                Thread.sleep(new Random().nextInt(100));
-                dataSource.close();
-            } catch (Exception z) {
-                // Print and ignore
-                z.printStackTrace(System.err);
+    void closeWhileFlushingTest(final TestType testType) throws IOException {
+        createAndApplyDataSource(1000, dataSource -> {
+            final int count = 20;
+            final List<Bytes> keys = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                keys.add(testType.dataType().createVirtualLongKey(i));
             }
+            final List<ExampleByteArrayVirtualValue> values = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                values.add(testType.dataType().createVirtualValue(i + 1));
+            }
+
+            final CountDownLatch updateStarted = new CountDownLatch(1);
+            final Thread closeThread = new Thread(() -> {
+                try {
+                    updateStarted.await();
+                    Thread.sleep(new Random().nextInt(100));
+                    dataSource.close();
+                } catch (Exception z) {
+                    // Print and ignore
+                    z.printStackTrace(System.err);
+                }
+            });
+            closeThread.start();
+
+            updateStarted.countDown();
+            for (int i = 1; i < 10; i++) {
+                final int k = i;
+                try {
+                    dataSource.saveRecords(
+                            count - 1,
+                            2 * count - 2,
+                            createHashChunkStream(k, k + count - 1, t -> t + 1, dataSource.getHashChunkHeight()),
+                            IntStream.range(count - 1, count)
+                                    .mapToObj(j -> new VirtualLeafBytes(
+                                            k + j,
+                                            keys.get(k),
+                                            values.get((k + j) % count),
+                                            testType.dataType().getCodec())),
+                            Stream.empty(),
+                            true);
+                } catch (Exception z) {
+                    // Print and ignore
+                    z.printStackTrace(System.err);
+                    break;
+                }
+            }
+
+            closeThread.join();
         });
-        closeThread.start();
-
-        updateStarted.countDown();
-        for (int i = 1; i < 10; i++) {
-            final int k = i;
-            try {
-                dataSource.saveRecords(
-                        count - 1,
-                        2 * count - 2,
-                        createHashChunkStream(k, k + count - 1, t -> t + 1, dataSource.getHashChunkHeight()),
-                        IntStream.range(count - 1, count)
-                                .mapToObj(j -> new VirtualLeafBytes(
-                                        k + j,
-                                        keys.get(k),
-                                        values.get((k + j) % count),
-                                        testType.dataType().getCodec())),
-                        Stream.empty(),
-                        true);
-            } catch (Exception z) {
-                // Print and ignore
-                z.printStackTrace(System.err);
-                break;
-            }
-        }
-
-        closeThread.join();
     }
 
     // =================================================================================================================
     // Helper Methods
-
-    public static void createAndApplyDataSource(
-            final FileSystemManager fileSystemManager,
-            final Path testDirectory,
-            final String name,
-            final TestType testType,
-            final int size,
-            CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
-            throws IOException {
-        final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(CONFIGURATION, fileSystemManager, testDirectory, name, size, false, false);
-        try {
-            dataSourceConsumer.accept(dataSource);
-        } catch (Throwable e) {
-            fail(e);
-        } finally {
-            dataSource.close();
-        }
-        MerkleDbTestUtils.assertAllDatabasesClosed();
-    }
 
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
         final int hashChunkHeight = dataSource.getHashChunkHeight();

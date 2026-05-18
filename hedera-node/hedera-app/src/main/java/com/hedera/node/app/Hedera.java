@@ -12,6 +12,8 @@ import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransacti
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
+import static com.hedera.node.config.types.BlockStreamWriterMode.FILE_AND_GRPC;
+import static com.hedera.node.config.types.BlockStreamWriterMode.GRPC;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -20,7 +22,8 @@ import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
@@ -69,6 +72,7 @@ import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -159,6 +163,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -179,6 +185,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -356,6 +363,10 @@ public final class Hedera
      */
     private Platform platform;
     /**
+     * The id of this node.
+     */
+    private final NodeId selfId;
+    /**
      * The current status of the platform.
      */
     private PlatformStatus platformStatus = STARTING_UP;
@@ -427,6 +438,8 @@ public final class Hedera
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
+    private int txnOffsetNanos;
+
     @FunctionalInterface
     public interface StartupNetworksFactory {
         @NonNull
@@ -440,13 +453,17 @@ public final class Hedera
                 @NonNull AppContext appContext,
                 @NonNull Configuration bootstrapConfig,
                 @NonNull RsaContext rsaContext,
-                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
+                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
     public interface HistoryServiceFactory {
         @NonNull
-        HistoryService apply(@NonNull AppContext appContext, @NonNull Configuration bootstrapConfig);
+        HistoryService apply(
+                @NonNull AppContext appContext,
+                @NonNull Configuration bootstrapConfig,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
@@ -475,6 +492,8 @@ public final class Hedera
      * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory the factory to use for creating the services registry
      * @param migrator the migrator to use with the services
+     * @param instantSource the source of wall-clock instants
+     * @param selfId the node id of this node
      * @param startupNetworksFactory the factory for the startup networks
      * @param hintsServiceFactory the factory for the hinTS service
      * @param historyServiceFactory the factory for the history service
@@ -489,6 +508,7 @@ public final class Hedera
             @NonNull final ServicesRegistry.Factory registryFactory,
             @NonNull final ServiceMigrator migrator,
             @NonNull final InstantSource instantSource,
+            @NonNull final NodeId selfId,
             @NonNull final StartupNetworksFactory startupNetworksFactory,
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
@@ -503,6 +523,7 @@ public final class Hedera
         requireNonNull(historyServiceFactory);
         this.metrics = requireNonNull(metrics);
         this.serviceMigrator = requireNonNull(migrator);
+        this.selfId = requireNonNull(selfId);
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
@@ -543,20 +564,23 @@ public final class Hedera
                         new SignatureVerifierImpl()),
                 this,
                 configSupplier,
-                () -> daggerApp.networkInfo().selfNodeInfo(),
+                () -> requireNonNull(daggerApp).networkInfo().selfNodeInfo(),
                 () -> this.metrics,
                 new AppScheduleThrottleFactory(
                         configSupplier,
-                        () -> daggerApp.workingStateAccessor().getState(),
-                        () -> daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow(),
+                        () -> requireNonNull(daggerApp).workingStateAccessor().getState(),
+                        () -> requireNonNull(daggerApp).throttleServiceManager().activeThrottleDefinitionsOrThrow(),
                         ThrottleAccumulator::new),
-                () -> daggerApp.appFeeCharging(),
+                () -> requireNonNull(daggerApp).appFeeCharging(),
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         rsaContext = new RsaContext(configSupplier);
-        hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings);
-        historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
-        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
+        final Supplier<Network> genesisNetworkSupplier =
+                () -> requireNonNull(this.genesisNetworkSupplier).get();
+        hintsService =
+                hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
+        historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
+        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
                 .transactionChecker()
                 .parseSignedAndCheck(txnBytes)
                 .txBody());
@@ -565,8 +589,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl =
-                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
+        final var rosterServiceImpl = new RosterServiceImpl(
+                this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks, this::onOverrideNetwork);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -644,7 +668,8 @@ public final class Hedera
     @Override
     public void accept(@NonNull final PlatformEvent event) {
         requireNonNull(event);
-        if (quiescenceEnabled && daggerApp != null) {
+        if (quiescenceEnabled) {
+            final var app = requireNonNull(daggerApp);
             // First set a minimal PreHandleResult on every event so the quiescence controller can classify them
             final var transactions = new ArrayList<Transaction>(1000);
             event.forEachTransaction(transactions::add);
@@ -655,29 +680,26 @@ public final class Hedera
             transactions.stream().parallel().forEach(tx -> {
                 TransactionInfo txInfo = null;
                 try {
-                    txInfo = daggerApp
-                            .transactionChecker()
-                            .parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
+                    txInfo = app.transactionChecker().parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
                 } catch (PreCheckException ignore) {
                 }
                 tx.setMetadata(PreHandleResult.shortCircuitingTransaction(txInfo));
             });
-            daggerApp.quiescenceController().staleEvent(event);
+            app.quiescenceController().staleEvent(event);
             // If this is a self-created event, decrement in-flight counts by stale transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                daggerApp.txPipelineTracker().countLanded(transactions.iterator());
+                app.txPipelineTracker().countLanded(transactions.iterator());
             }
         }
     }
 
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        final var app = requireNonNull(daggerApp);
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
-        if (daggerApp != null) {
-            // No-op if quiescence is disabled
-            daggerApp.quiescenceController().platformStatusUpdate(platformStatus);
-        }
+        // No-op if quiescence is disabled
+        app.quiescenceController().platformStatusUpdate(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         final var streamToBlockNodes = configProvider
                 .getConfiguration()
@@ -691,7 +713,7 @@ public final class Hedera
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
-                    daggerApp.blockNodeConnectionManager().shutdown();
+                    app.blockNodeConnectionManager().shutdown();
                 }
             }
             case CATASTROPHIC_FAILURE -> {
@@ -699,7 +721,7 @@ public final class Hedera
                 shutdownGrpcServer();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
-                    daggerApp.blockNodeConnectionManager().shutdown();
+                    app.blockNodeConnectionManager().shutdown();
                 }
 
                 // Wait for the block stream to close any pending or current blocks–-we may need them for triage
@@ -819,9 +841,9 @@ public final class Hedera
             }
         }
 
-        NodeId selfId = platform.getSelfId();
-        assertEnvSanityChecks(selfId);
-        logger.info("Initializing Hedera app with HederaNode#{}", selfId);
+        final var platformSelfId = platform.getSelfId();
+        assertEnvSanityChecks(platformSelfId);
+        logger.info("Initializing Hedera app with HederaNode#{}", platformSelfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
 
@@ -865,7 +887,6 @@ public final class Hedera
                 () -> HapiUtils.toString(deserializedVersion),
                 () -> HapiUtils.toString(version),
                 () -> trigger);
-        blockStreamService.resetMigratedLastBlockHash();
         startupNetworks = startupNetworksFactory.apply(configProvider);
         this.initState = state;
         final var migrationChanges = serviceMigrator.doMigrations(
@@ -907,9 +928,10 @@ public final class Hedera
     @Override
     public void submit(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        if (platformStatus != ACTIVE) {
+        if (daggerApp == null) {
             throw new IllegalStateException("" + PLATFORM_NOT_ACTIVE);
         }
+        final var app = daggerApp;
         final HederaFunctionality function;
         try {
             function = functionOf(body);
@@ -925,9 +947,9 @@ public final class Hedera
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             // Always use priority=true for node gossip submissions
-            requireNonNull(daggerApp).submissionManager().submit(body, payload, true);
+            app.submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
-                daggerApp.txPipelineTracker().incrementInFlight();
+                app.txPipelineTracker().incrementInFlight();
             }
         } catch (PreCheckException e) {
             final var reason = e.responseCode();
@@ -947,14 +969,32 @@ public final class Hedera
 
     @Override
     public boolean isAvailable() {
-        return daggerApp != null && daggerApp.currentPlatformStatus().get() == ACTIVE;
+        if (daggerApp == null) {
+            return false;
+        }
+        final var status = daggerApp.currentPlatformStatus().get();
+        return isGossipAvailableForNodeTransactions(status);
+    }
+
+    static boolean isGossipAvailableForNodeTransactions(@NonNull final PlatformStatus platformStatus) {
+        requireNonNull(platformStatus);
+        return switch (platformStatus) {
+            case ACTIVE, CHECKING, FREEZING -> true;
+            case BEHIND,
+                    CATASTROPHIC_FAILURE,
+                    FREEZE_COMPLETE,
+                    OBSERVING,
+                    RECONNECT_COMPLETE,
+                    REPLAYING_EVENTS,
+                    STARTING_UP -> false;
+        };
     }
 
     /**
      * Called to perform orderly close record streams.
      */
     private void closeRecordStreams() {
-        daggerApp.blockRecordManager().close();
+        requireNonNull(daggerApp).blockRecordManager().close();
     }
 
     /**
@@ -1007,17 +1047,18 @@ public final class Hedera
         shutdownGrpcServer();
 
         if (daggerApp != null) {
+            final var app = daggerApp;
             logger.debug("Shutting down the Block Node Connection Manager");
-            daggerApp.blockNodeConnectionManager().shutdown();
+            app.blockNodeConnectionManager().shutdown();
 
             logger.debug("Shutting down the state");
-            final var state = daggerApp.workingStateAccessor().getState();
+            final var state = app.workingStateAccessor().getState();
             if (state instanceof VirtualMapStateImpl msr) {
                 msr.close();
             }
 
             logger.debug("Shutting down the block manager");
-            daggerApp.blockRecordManager().close();
+            app.blockRecordManager().close();
         }
 
         platform = null;
@@ -1032,10 +1073,10 @@ public final class Hedera
             @NonNull final Event event,
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
+        final var app = requireNonNull(daggerApp);
         final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
-        final var creatorInfo =
-                daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
+        final var creatorInfo = app.networkInfo().nodeInfo(event.getCreatorId().id());
         final ShortCircuitCallback shortCircuitTxnCallback = (stateSignatureTx, ignored) -> {
             if (stateSignatureTx != null) {
                 final var scopedTxn =
@@ -1045,14 +1086,13 @@ public final class Hedera
         };
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
-        daggerApp
-                .preHandleWorkflow()
+        app.preHandleWorkflow()
                 .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
         if (quiescenceEnabled) {
-            daggerApp.quiescenceController().onPreHandle(transactions);
+            app.quiescenceController().onPreHandle(transactions);
             // If this is a self-created event, decrement in-flight counts by the transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                daggerApp.txPipelineTracker().countLanded(event.transactionIterator());
+                app.txPipelineTracker().countLanded(event.transactionIterator());
             }
         }
     }
@@ -1060,7 +1100,7 @@ public final class Hedera
     @Override
     public void onNewRecoveredState(@NonNull final State recoveredStateRoot) {
         // Always close the block manager so replay will end with a complete record file
-        daggerApp.blockRecordManager().close();
+        requireNonNull(daggerApp).blockRecordManager().close();
     }
 
     /**
@@ -1072,8 +1112,9 @@ public final class Hedera
             @NonNull final Round round,
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        daggerApp.workingStateAccessor().setState(state);
-        daggerApp.handleWorkflow().handleRound(state, round, stateSignatureTxnCallback);
+        final var app = requireNonNull(daggerApp);
+        app.workingStateAccessor().setState(state);
+        app.handleWorkflow().handleRound(state, round, stateSignatureTxnCallback);
     }
 
     /**
@@ -1101,8 +1142,11 @@ public final class Hedera
      * Start the gRPC Server if it is not already running.
      */
     void startGrpcServer() {
-        if (isNotEmbedded() && !daggerApp.grpcServerManager().isRunning()) {
-            daggerApp.grpcServerManager().start();
+        if (isNotEmbedded()) {
+            final var app = requireNonNull(daggerApp);
+            if (!app.grpcServerManager().isRunning()) {
+                app.grpcServerManager().start();
+            }
         }
     }
 
@@ -1111,7 +1155,7 @@ public final class Hedera
      */
     public void shutdownGrpcServer() {
         if (isNotEmbedded()) {
-            daggerApp.grpcServerManager().stop();
+            requireNonNull(daggerApp).grpcServerManager().stop();
         }
     }
 
@@ -1123,6 +1167,10 @@ public final class Hedera
     public void setInitialStateHash(@NonNull final Hash stateHash) {
         requireNonNull(stateHash);
         initialStateHashFuture = completedFuture(stateHash.getBytes());
+    }
+
+    public void setTxnOffsetNanos(final int txnOffsetNanos) {
+        this.txnOffsetNanos = txnOffsetNanos;
     }
 
     /**
@@ -1145,19 +1193,19 @@ public final class Hedera
     *
     =================================================================================================================*/
     public IngestWorkflow ingestWorkflow() {
-        return daggerApp.ingestWorkflow();
+        return requireNonNull(daggerApp).ingestWorkflow();
     }
 
     public QueryWorkflow queryWorkflow() {
-        return daggerApp.queryWorkflow();
+        return requireNonNull(daggerApp).queryWorkflow();
     }
 
     public QueryWorkflow operatorQueryWorkflow() {
-        return daggerApp.operatorQueryWorkflow();
+        return requireNonNull(daggerApp).operatorQueryWorkflow();
     }
 
     public HandleWorkflow handleWorkflow() {
-        return daggerApp.handleWorkflow();
+        return requireNonNull(daggerApp).handleWorkflow();
     }
 
     public ConfigProvider configProvider() {
@@ -1169,11 +1217,11 @@ public final class Hedera
     }
 
     public BlockStreamManager blockStreamManager() {
-        return daggerApp.blockStreamManager();
+        return requireNonNull(daggerApp).blockStreamManager();
     }
 
     public ThrottleDefinitions activeThrottleDefinitions() {
-        return daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow();
+        return requireNonNull(daggerApp).throttleServiceManager().activeThrottleDefinitionsOrThrow();
     }
 
     public boolean isBlockStreamEnabled() {
@@ -1189,7 +1237,7 @@ public final class Hedera
     }
 
     public boolean systemEntitiesCreated() {
-        return Optional.ofNullable(daggerApp.systemEntitiesCreationFlag())
+        return Optional.ofNullable(requireNonNull(daggerApp).systemEntitiesCreationFlag())
                 .map(AtomicBoolean::get)
                 .orElse(true);
     }
@@ -1240,7 +1288,10 @@ public final class Hedera
      */
     @Override
     public boolean hasBufferedSignatureTransactions() {
-        return transactionPool.hasBufferedSignatureTransactions();
+        final var app = requireNonNull(daggerApp);
+        return transactionPool.hasBufferedSignatureTransactions()
+                || !app.blockStreamManager().allBlocksSigned()
+                || !app.blockRecordManager().allBlocksSigned();
     }
 
     /**
@@ -1274,13 +1325,14 @@ public final class Hedera
         // everything); but we must ensure the gRPC server in the old component is fully stopped,
         // as well as unregister listeners from the last time this method ran
         if (daggerApp != null) {
+            final var app = daggerApp;
             shutdownGrpcServer();
-            notifications.unregister(ReconnectCompleteListener.class, daggerApp.reconnectListener());
-            notifications.unregister(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
-            notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
+            notifications.unregister(ReconnectCompleteListener.class, app.reconnectListener());
+            notifications.unregister(StateWriteToDiskCompleteListener.class, app.stateWriteToDiskListener());
+            notifications.unregister(AsyncFatalIssListener.class, app.fatalIssListener());
             if (blockStreamEnabled) {
-                notifications.unregister(StateHashedListener.class, daggerApp.blockStreamManager());
-                daggerApp.blockNodeConnectionManager().shutdown();
+                notifications.unregister(StateHashedListener.class, app.blockStreamManager());
+                app.blockNodeConnectionManager().shutdown();
             }
         }
         if (trigger == RECONNECT) {
@@ -1351,6 +1403,7 @@ public final class Hedera
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
+                .transactionOffsetNanos(txnOffsetNanos)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
@@ -1360,9 +1413,7 @@ public final class Hedera
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            final var lastBlockHash = (trigger == GENESIS)
-                    ? HASH_OF_ZERO
-                    : blockStreamService.migratedLastBlockHash().orElse(null);
+            final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
             daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;
         }
@@ -1403,7 +1454,7 @@ public final class Hedera
     private void assertEnvSanityChecks(@NonNull final NodeId nodeId) {
         // Check that UTF-8 is in use. Otherwise, the node will be subject to subtle bugs in string handling that will
         // lead to ISS.
-        final var defaultCharset = daggerApp.nativeCharset().get();
+        final var defaultCharset = requireNonNull(daggerApp).nativeCharset().get();
         if (!isUTF8(defaultCharset)) {
             logger.error(
                     """
@@ -1471,20 +1522,116 @@ public final class Hedera
     }
 
     private boolean sealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+        final boolean sealClosedBoundary;
         if (streamMode == RECORDS) {
-            return daggerApp
+            sealClosedBoundary = daggerApp
                     .blockRecordManager()
                     .closeCurrentRecordFileIfConsTimeElapsed(state, round.getConsensusTimestamp());
-        }
-        daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
-        if (streamMode == BOTH) {
-            final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
-            if (closesBlock) {
-                daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+        } else {
+            daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
+            if (streamMode == BOTH) {
+                final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
+                if (closesBlock) {
+                    daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+                }
+                sealClosedBoundary = daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+            } else {
+                sealClosedBoundary = daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
             }
-            return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
         }
-        return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+        if (isLatestFreezeRound(round, state)) {
+            awaitFreezeRoundBlockProofsAndAcks(round);
+        }
+        return sealClosedBoundary;
+    }
+
+    private boolean isLatestFreezeRound(@NonNull final Round round, @NonNull final State state) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
+        return platformStateStore.getLatestFreezeRound() == round.getRoundNum();
+    }
+
+    private void awaitFreezeRoundBlockProofsAndAcks(@NonNull final Round round) {
+        final var config = configProvider.getConfiguration();
+        final var nowFrozenWriteTimeout =
+                config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        try {
+            final var blockStreamFuture =
+                    requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
+            final var wrbWritersFuture =
+                    requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
+            final var signingFuture = CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture);
+            final var freezeStateReadyFuture = waitsForBlockNodeAcknowledgements(blockStreamConfig)
+                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round))
+                    : signingFuture;
+            logger.info(
+                    "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
+                            + "and block node acknowledgements if enabled "
+                            + "before returning the freeze state to the platform; "
+                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}",
+                    round.getRoundNum(),
+                    nowFrozenWriteTimeout,
+                    blockStreamFuture.isDone(),
+                    wrbWritersFuture.isDone(),
+                    waitsForBlockNodeAcknowledgements(blockStreamConfig));
+            freezeStateReadyFuture.get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
+        } catch (final TimeoutException e) {
+            logger.warn(
+                    "Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                            + "after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn(
+                    "Interrupted while waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                            + "after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e);
+        } catch (final ExecutionException e) {
+            logger.warn(
+                    "Pending block proof, WRB writer, or block node acknowledgement future completed exceptionally "
+                            + "after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e.getCause());
+        } catch (final RuntimeException e) {
+            logger.warn(
+                    "Unable to get pending block proof, WRB writer, or block node acknowledgement future "
+                            + "after sealing freeze round {}; "
+                            + "returning the freeze state to the platform anyway",
+                    round.getRoundNum(),
+                    e);
+        }
+    }
+
+    private boolean waitsForBlockNodeAcknowledgements(@NonNull final BlockStreamConfig blockStreamConfig) {
+        requireNonNull(blockStreamConfig);
+        final var writerMode = blockStreamConfig.writerMode();
+        return (writerMode == GRPC || writerMode == FILE_AND_GRPC)
+                && daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection();
+    }
+
+    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
+        requireNonNull(round);
+        if (!daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection()) {
+            logger.info(
+                    "Freeze round {} block signing completed; skipping block node acknowledgement wait because "
+                            + "there is no active block node streaming connection",
+                    round.getRoundNum());
+            return completedFuture(null);
+        }
+        final var blockBufferService = daggerApp.blockBufferService();
+        final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
+        logger.info(
+                "Freeze round {} block signing completed; waiting for block node acknowledgement through block {}; "
+                        + "highestAckedBlock={}",
+                round.getRoundNum(),
+                lastProducedBlock,
+                blockBufferService.getHighestAckedBlockNumber());
+        return requireNonNull(blockBufferService.acknowledgedThroughFuture(lastProducedBlock));
     }
 
     /**
@@ -1528,6 +1675,24 @@ public final class Hedera
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
                         || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
+    }
+
+    private void onOverrideNetwork(@NonNull final Network network) {
+        requireNonNull(initState);
+        requireNonNull(network);
+        if (!TssStartupNetworks.hasTssMetadata(network)) {
+            return;
+        }
+        logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
+        final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        ((CommittableWritableStates) writableHintsStates).commit();
+        final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        ((CommittableWritableStates) writableHistoryStates).commit();
+        TssStartupNetworks.initializeRuntime(
+                activeHintsConstruction, activeProofConstruction, hintsService, historyService);
+        TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {

@@ -12,13 +12,13 @@ val besu = "25.2.2"
 val bouncycastle = "1.83"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
-val grpc = "1.73.0"
-val hederaCryptography = "3.7.8"
+val grpc = "1.81.0"
+val hederaCryptography = "3.8.1"
 val helidon = "4.4.1"
 val jackson = "2.21.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.3"
-val mockito = "5.18.0"
+val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.33.5"
@@ -45,11 +45,10 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
-    api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
-    api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
+    api("com.google.guava:guava:33.6.0-jre") { because("com.google.common") }
     api("com.google.jimfs:jimfs:1.3.1") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
@@ -91,7 +90,7 @@ dependencies.constraints {
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
         because("org.apache.logging.log4j.slf4j2.impl")
     }
-    api("org.assertj:assertj-core:3.27.3") { because("org.assertj.core") }
+    api("org.assertj:assertj-core:3.27.7") { because("org.assertj.core") }
     api("org.bouncycastle:bcpkix-jdk18on:$bouncycastle") { because("org.bouncycastle.pkix") }
     api("org.bouncycastle:bcprov-jdk18on:$bouncycastle") { because("org.bouncycastle.provider") }
     api("org.eclipse.collections:eclipse-collections-api:$eclipseCollections") {

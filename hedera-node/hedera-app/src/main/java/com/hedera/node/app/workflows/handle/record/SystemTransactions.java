@@ -58,6 +58,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -279,6 +280,7 @@ public class SystemTransactions {
             stateChangeStreaming.doStreamingChanges(
                     writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
         }
+        maybeWriteGenesisTssPrivateKeys(config);
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
@@ -429,6 +431,7 @@ public class SystemTransactions {
         final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
                 lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
         systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
+        startupNetworks.clearCachedNetworks();
     }
 
     /**
@@ -504,6 +507,7 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        startupNetworks.clearCachedNetworks();
     }
 
     /**
@@ -713,6 +717,21 @@ public class SystemTransactions {
             return true;
         }
         return false;
+    }
+
+    private void maybeWriteGenesisTssPrivateKeys(@NonNull final Configuration config) {
+        requireNonNull(config);
+        try {
+            final var network = startupNetworks.genesisNetworkOrThrow(config);
+            if (!TssStartupNetworks.hasTssMetadata(network)) {
+                return;
+            }
+            log.warn("Writing dev-only local TSS private keys from startup network JSON");
+            TssStartupNetworks.writePrivateKeys(
+                    network, config, networkInfo.selfNodeInfo().nodeId());
+        } catch (IllegalStateException e) {
+            log.debug("No genesis startup network available for TSS private key bootstrap", e);
+        }
     }
 
     /**

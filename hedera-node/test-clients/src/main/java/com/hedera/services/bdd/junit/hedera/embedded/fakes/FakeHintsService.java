@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
@@ -36,7 +38,8 @@ public class FakeHintsService implements HintsService {
             @NonNull final AppContext appContext,
             @NonNull final Configuration bootstrapConfig,
             @NonNull final RsaContext rsaContext,
-            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
         delegate = new HintsServiceImpl(
                 new NoOpMetrics(),
                 pendingHintsSubmissions::offer,
@@ -44,7 +47,8 @@ public class FakeHintsService implements HintsService {
                 new HintsLibraryImpl(),
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
                 rsaContext,
-                rsaSignings);
+                rsaSignings,
+                genesisNetworkSupplier);
     }
 
     @Override
@@ -63,7 +67,7 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
     }
 
@@ -119,5 +123,10 @@ public class FakeHintsService implements HintsService {
     @Override
     public @Nullable HintsConstruction activeConstruction() {
         return delegate.activeConstruction();
+    }
+
+    @Override
+    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+        delegate.setActiveConstruction(construction);
     }
 }

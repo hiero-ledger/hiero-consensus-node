@@ -273,9 +273,7 @@ class MerkleDbCompactionCoordinatorTest {
         coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config, fileCollection);
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
 
-        coordinator.pauseCompactionAndRun(() -> {
-            verify(compactor).pauseCompaction();
-        });
+        coordinator.pauseCompactionAndRun(() -> verify(compactor).pauseCompaction());
         verify(compactor).resumeCompaction();
 
         releaseTask.countDown();
@@ -453,7 +451,6 @@ class MerkleDbCompactionCoordinatorTest {
 
         final List<List<DataFileReader>> allCompactedGroups = new ArrayList<>();
         final CountDownLatch allTasksDone = new CountDownLatch(2); // garbage + consolidation
-        final AtomicInteger compactorCalls = new AtomicInteger();
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
             synchronized (allCompactedGroups) {
