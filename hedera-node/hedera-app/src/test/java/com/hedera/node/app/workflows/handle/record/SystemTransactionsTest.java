@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -23,14 +30,20 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.impl.BlockStreamCutover;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -58,6 +71,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
+import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -65,16 +82,21 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
+    private static final long ROUND_NUMBER = 666L;
     private static final AccountID NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
@@ -428,6 +450,111 @@ class SystemTransactionsTest {
     }
 
     @Test
+    void postUpgradeInvokesServiceHooksWithStreamingContext() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("fees.createSimpleFeeSchedule", "false")
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        final var versionedConfig = new VersionedConfigImpl(config, 1);
+        final var serviceName = "MOCK_SERVICE";
+        final var service = mock(Service.class);
+        final var schemaRegistry = mock(SchemaRegistry.class);
+        final var writableStates = mock(WritableStates.class);
+        final var otherReadableStates = mock(ReadableStates.class);
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(configProvider.getConfiguration()).willReturn(versionedConfig);
+        given(service.getServiceName()).willReturn(serviceName);
+        given(servicesRegistry.registrations())
+                .willReturn(Set.of(new ServicesRegistry.Registration(service, schemaRegistry)));
+        given(state.getWritableStates(serviceName)).willReturn(writableStates);
+        given(state.getReadableStates(FileService.NAME)).willReturn(otherReadableStates);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        doAnswer(invocation -> {
+                    invocation.<Runnable>getArgument(2).run();
+                    return null;
+                })
+                .when(stateChangeStreaming)
+                .doStreamingChanges(any(), isNull(), any());
+
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
+
+        verify(stateChangeStreaming).doStreamingChanges(eq(writableStates), isNull(), any());
+        final var contextCaptor = ArgumentCaptor.forClass(PostUpgradeContext.class);
+        verify(service).doPostUpgradeSetup(eq(writableStates), contextCaptor.capture());
+        final var context = contextCaptor.getValue();
+        assertEquals(NOW, context.consensusTime());
+        assertEquals(ROUND_NUMBER, context.roundNumber());
+        assertEquals(1, context.networkSize());
+        assertSame(versionedConfig, context.configuration());
+        assertSame(otherReadableStates, context.readableStates(FileService.NAME));
+        assertSame(writableStates, context.writableStates(serviceName));
+    }
+
+    @Test
+    void postUpgradeMarksPreviewBlockStreamOverwrittenAfterCutoverSetup() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.enableCutover", "true")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("fees.createSimpleFeeSchedule", "false")
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+
+        final var blockInfo = cutoverBlockInfo();
+        final var runningHashes = cutoverRunningHashes();
+        final var previewBlockStreamInfo = BlockStreamInfo.newBuilder()
+                .blockNumber(50)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .build();
+        final var blockInfoRef = new AtomicReference<>(blockInfo);
+        final var runningHashesRef = new AtomicReference<>(runningHashes);
+        final var blockStreamInfoRef = new AtomicReference<>(previewBlockStreamInfo);
+        final var fakeState = new FakeState()
+                .addService(
+                        BlockRecordService.NAME,
+                        Map.<Integer, Object>of(
+                                BLOCKS_STATE_ID, blockInfoRef, RUNNING_HASHES_STATE_ID, runningHashesRef))
+                .addService(
+                        BlockStreamService.NAME,
+                        Map.<Integer, Object>of(BLOCK_STREAM_INFO_STATE_ID, blockStreamInfoRef));
+        final var blockStreamService = new BlockStreamService();
+        final var schemaRegistry = mock(SchemaRegistry.class);
+        given(servicesRegistry.registrations())
+                .willReturn(Set.of(new ServicesRegistry.Registration(blockStreamService, schemaRegistry)));
+        doAnswer(invocation -> {
+                    invocation.<Runnable>getArgument(2).run();
+                    invocation.<CommittableWritableStates>getArgument(0).commit();
+                    return null;
+                })
+                .when(stateChangeStreaming)
+                .doStreamingChanges(any(), isNull(), any());
+
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, fakeState, stateChangeStreaming);
+
+        assertEquals(
+                BlockStreamCutover.blockStreamInfoFrom(blockInfo, runningHashes, previewBlockStreamInfo),
+                blockStreamInfoRef.get());
+        assertTrue(blockInfoRef.get().previewStreamOverwritten());
+        verify(stateChangeStreaming, times(2)).doStreamingChanges(any(), isNull(), any());
+    }
+
+    @Test
     void testDispatchNodePaymentsWithNonEmptyTransfersButEmptyAccountAmounts() {
         // TransferList with empty accountAmounts list
         final var transfers =
@@ -492,7 +619,8 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        given(servicesRegistry.registrations()).willReturn(Set.of());
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
@@ -545,7 +673,8 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        given(servicesRegistry.registrations()).willReturn(Set.of());
+        subject.doPostUpgradeSetup(NOW, ROUND_NUMBER, state, stateChangeStreaming);
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();
@@ -601,6 +730,30 @@ class SystemTransactionsTest {
         subject.maybeSubmitStartupMigrationRootHashVote(state);
 
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+    }
+
+    private static BlockInfo cutoverBlockInfo() {
+        final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
+        return BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .blockHashes(Bytes.wrap(new byte[HASH_SIZE * 2]))
+                .previousWrappedRecordBlockRootHash(wrappedHash)
+                .wrappedIntermediatePreviousBlockRootHashes(List.of(wrappedHash))
+                .wrappedIntermediateBlockRootsLeafCount(1)
+                .firstConsTimeOfCurrentBlock(new Timestamp(1000, 0))
+                .lastUsedConsTime(new Timestamp(1001, 0))
+                .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
+                .lastIntervalProcessTime(new Timestamp(1000, 0))
+                .previewStreamOverwritten(false)
+                .build();
+    }
+
+    private static RunningHashes cutoverRunningHashes() {
+        return new RunningHashes(
+                Bytes.fromHex("aa".repeat(HASH_SIZE)),
+                Bytes.fromHex("bb".repeat(HASH_SIZE)),
+                Bytes.fromHex("cc".repeat(HASH_SIZE)),
+                Bytes.fromHex("dd".repeat(HASH_SIZE)));
     }
 
     private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {

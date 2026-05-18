@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
@@ -81,6 +84,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -230,6 +234,8 @@ class HandleWorkflowTest {
         lenient().when(blockRecordReadableStates.getSingleton(BLOCKS_STATE_ID)).thenReturn((ReadableSingletonState)
                 blockInfoSingleton);
         lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadableStates);
+        lenient().when(blockRecordManager.lastUsedConsensusTime()).thenReturn(NOW);
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW);
     }
 
     @Test
@@ -669,6 +675,73 @@ class HandleWorkflowTest {
     }
 
     @Test
+    void skipsTssWorkWhilePostUpgradeWorkIsPending() {
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(blockStreamManager.pendingWork()).willReturn(POST_UPGRADE_WORK);
+        givenSubjectWith(
+                BOTH,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(hintsService, never()).onFinishedConstruction(any());
+        verify(historyService, never()).onFinishedConstruction(any());
+        verify(hintsService, never()).executeCrsWork(any(), any(), anyBoolean(), any());
+        verify(hintsService, never()).reconcile(any(), any(), any(), any(), anyBoolean());
+        verify(historyService, never()).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void usesStreamTimeForNodeFeeAndRewardSideEffectsEvenIfSignerIsNotReady() {
+        final var roundTime = NOW.plusSeconds(60);
+        final var streamTime = NOW.plusSeconds(30);
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        givenSingleEventRoundWithNoTransactions(roundTime);
+        lenient().when(blockHashSigner.isReady()).thenReturn(false);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(streamTime);
+
+        subject.handleRound(state, round, txns -> {});
+
+        final ArgumentCaptor<Instant> nodeFeeTimeCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(nodeFeeManager).distributeFees(same(state), nodeFeeTimeCaptor.capture(), same(systemTransactions));
+        assertEquals(streamTime.plusNanos(2), nodeFeeTimeCaptor.getValue());
+        final ArgumentCaptor<Instant> nodeRewardTimeCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(nodeRewardManager)
+                .maybeRewardActiveNodes(same(state), nodeRewardTimeCaptor.capture(), same(systemTransactions));
+        assertEquals(streamTime.plusNanos(4), nodeRewardTimeCaptor.getValue());
+    }
+
+    @Test
+    void streamingAllChangesFlushesPendingSingletonChangesBeforeResetting() throws Exception {
+        final var pendingChange =
+                StateChange.newBuilder().stateId(BLOCKS_STATE_ID).build();
+        given(boundaryStateChangeListener.allStateChanges())
+                .willReturn(List.of(pendingChange))
+                .willReturn(emptyList());
+        given(immediateStateChangeListener.getKvStateChanges()).willReturn(emptyList());
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
+
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemSpecCaptor = ArgumentCaptor.forClass(Function.class);
+        verify(blockStreamManager).writeItem(itemSpecCaptor.capture());
+        final var stateChanges = itemSpecCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow();
+        assertEquals(List.of(pendingChange), stateChanges.stateChanges());
+        verify(boundaryStateChangeListener, times(2)).reset();
+    }
+
+    @Test
     void logsDifferentTssReconcileErrorsIndependently() {
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
         final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
@@ -686,6 +759,18 @@ class HandleWorkflowTest {
     private void givenPositiveFreezeRound() {
         given(platformStateReadableSingletonState.get()).willReturn(platformState);
         given(platformState.latestFreezeRound()).willReturn(10L);
+    }
+
+    private void givenSingleEventRoundWithNoTransactions(@NonNull final Instant roundTime) {
+        final var creatorId = NodeId.of(0);
+        given(round.getConsensusTimestamp()).willReturn(roundTime);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getConsensusTimestamp()).willReturn(roundTime);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
     }
 
     private void invokeLogTssReconcileFailure(@NonNull final Exception e) {

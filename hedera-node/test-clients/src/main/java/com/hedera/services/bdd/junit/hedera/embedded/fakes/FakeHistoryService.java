@@ -16,6 +16,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -74,6 +75,11 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
         delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void loadProofContext(@NonNull final ReadableStates readableStates) {
+        delegate.loadProofContext(readableStates);
     }
 
     @Override

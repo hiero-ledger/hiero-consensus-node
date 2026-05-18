@@ -4,7 +4,9 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
@@ -41,6 +43,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -57,6 +61,8 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.impl.BlockStreamCutover;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
@@ -112,6 +118,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -192,6 +200,30 @@ public class SystemTransactions {
                 @NonNull WritableStates writableStates,
                 @Nullable WritableStates entityIdWritableStates,
                 @NonNull Runnable action);
+    }
+
+    private record PostUpgradeContextImpl(
+            @NonNull Instant consensusTime,
+            @NonNull Configuration configuration,
+            long roundNumber,
+            int networkSize,
+            @NonNull State state)
+            implements PostUpgradeContext {
+        private PostUpgradeContextImpl {
+            requireNonNull(consensusTime);
+            requireNonNull(configuration);
+            requireNonNull(state);
+        }
+
+        @Override
+        public @NonNull ReadableStates readableStates(@NonNull final String serviceName) {
+            return state.getReadableStates(requireNonNull(serviceName));
+        }
+
+        @Override
+        public @NonNull WritableStates writableStates(@NonNull final String serviceName) {
+            return state.getWritableStates(requireNonNull(serviceName));
+        }
     }
 
     /**
@@ -434,12 +466,31 @@ public class SystemTransactions {
     /**
      * Sets up post-upgrade state for the system.
      * @param now the current time
+     * @param roundNumber the current round number
      * @param state the state to set up
+     * @param stateChangeStreaming the callback to stream state changes
      */
-    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doPostUpgradeSetup(
+            @NonNull final Instant now,
+            final long roundNumber,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
+        requireNonNull(now);
+        requireNonNull(state);
+        requireNonNull(stateChangeStreaming);
+        final var config = configProvider.getConfiguration();
+        final int networkSize = networkInfo.addressBook().size();
+        final var postUpgradeContext = new PostUpgradeContextImpl(now, config, roundNumber, networkSize, state);
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            stateChangeStreaming.doStreamingChanges(
+                    writableStates, null, () -> service.doPostUpgradeSetup(writableStates, postUpgradeContext));
+        }
+        markPreviewBlockStreamOverwrittenIfCutoverComplete(state, config, stateChangeStreaming);
+
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
@@ -504,6 +555,60 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
+
+    private void markPreviewBlockStreamOverwrittenIfCutoverComplete(
+            @NonNull final State state,
+            @NonNull final Configuration config,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        if (!blockStreamConfig.enableCutover()) {
+            return;
+        }
+
+        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+        if (!blockRecordStates.contains(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                || !blockRecordStates.contains(RUNNING_HASHES_STATE_ID)) {
+            return;
+        }
+        final var blockInfoState = blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+        final var blockInfo = blockInfoState.get();
+        if (blockInfo == null || blockInfo.previewStreamOverwritten()) {
+            return;
+        }
+        final var runningHashes = blockRecordStates
+                .<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID)
+                .get();
+        if (runningHashes == null) {
+            return;
+        }
+
+        final var blockStreamStates = state.getReadableStates(BlockStreamService.NAME);
+        if (!blockStreamStates.contains(BLOCK_STREAM_INFO_STATE_ID)) {
+            return;
+        }
+        final var blockStreamInfo = blockStreamStates
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                .get();
+        if (blockStreamInfo == null) {
+            return;
+        }
+        final var expectedBlockStreamInfo =
+                BlockStreamCutover.blockStreamInfoFrom(blockInfo, runningHashes, blockStreamInfo);
+        if (!expectedBlockStreamInfo.equals(blockStreamInfo)) {
+            return;
+        }
+
+        stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
+            final var currentBlockInfo = requireNonNull(blockInfoState.get());
+            if (!currentBlockInfo.previewStreamOverwritten()) {
+                blockInfoState.put(currentBlockInfo
+                        .copyBuilder()
+                        .previewStreamOverwritten(true)
+                        .build());
+                log.info("Preview block stream's info overwritten for cutover; state is notified");
+            }
+        });
     }
 
     /**

@@ -16,7 +16,6 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.clea
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
@@ -45,6 +44,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
@@ -152,6 +152,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
+    private EffectiveStartupBlockStreamInfo effectiveStartupBlockStreamInfo;
     // Cutover only: carries over the final original record hash until `startBlock()` is called for the first time. This
     // should always be null except during cutover's gap between `init()` and the first call to `startBlock()`
     private Bytes cutoverTrailingBlockHash;
@@ -229,7 +230,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
-    @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final Supplier<BlockItemWriter> writerSupplier,
@@ -243,6 +243,37 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
+        this(
+                blockHashSigner,
+                writerSupplier,
+                executor,
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                initialStateHash,
+                version,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                EffectiveStartupBlockStreamInfo.NONE);
+    }
+
+    @Inject
+    public BlockStreamManagerImpl(
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final Supplier<BlockItemWriter> writerSupplier,
+            @NonNull final ExecutorService executor,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final Platform platform,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final InitialStateHash initialStateHash,
+            @NonNull final SemanticVersion version,
+            @NonNull final Lifecycle lifecycle,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Metrics metrics,
+            @NonNull final EffectiveStartupBlockStreamInfo effectiveStartupBlockStreamInfo) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -253,6 +284,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.effectiveStartupBlockStreamInfo = requireNonNull(effectiveStartupBlockStreamInfo);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -290,15 +322,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
+        final var previewingCutover = effectiveStartupBlockStreamInfo.previewingCutover();
+        final var config = configProvider.getConfiguration();
+        final var loadingCutoverData = previewingCutover
+                || loadCutoverData(config.getConfigData(BlockStreamConfig.class).enableCutover(), state);
 
         // Cutover case
-        if (loadCutoverData(
-                configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enableCutover(),
-                state)) {
+        if (loadingCutoverData) {
             log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
+            if (previewingCutover) {
+                BlockStreamCutover.deletePreviewBlockFiles(config);
+            }
 
             // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
             // trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid an off-by-one
@@ -333,9 +367,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             this.previousBlockHashes =
                     new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
         } else {
-            final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
-                    .get();
+            final var blockStreamInfo = blockStreamInfoFrom(state, false);
             requireNonNull(blockStreamInfo);
 
             // Most of the ingredients in the block hash are directly in the BlockStreamInfo
@@ -423,6 +455,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
             final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
+            effectiveStartupBlockStreamInfo = EffectiveStartupBlockStreamInfo.NONE;
             lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
@@ -1452,6 +1485,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static int maxReadBytesSize(@NonNull final Configuration config) {
         requireNonNull(config);
         return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
+    }
+
+    private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state, final boolean inGenesisBlock) {
+        final var effectiveBlockStreamInfo = effectiveStartupBlockStreamInfo.blockStreamInfo();
+        return effectiveBlockStreamInfo != null
+                ? effectiveBlockStreamInfo
+                : com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom(state, inGenesisBlock);
     }
 
     /**

@@ -55,6 +55,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -1665,6 +1666,55 @@ class BlockStreamManagerImplTest {
 
         // init with HASH_OF_ZERO — loadCutoverData should see previewStreamOverwritten=false and skip
         subject.init(state, HASH_OF_ZERO);
+    }
+
+    @Test
+    void cutoverLoadsInMemoryStateWhenEffectiveStartupInfoPreviewsCutover() {
+        final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var twoHashes = new byte[HASH_SIZE * 2];
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(100)
+                .blockHashes(Bytes.wrap(twoHashes))
+                .previousWrappedRecordBlockRootHash(wrappedHash)
+                .wrappedIntermediatePreviousBlockRootHashes(List.of(wrappedHash))
+                .wrappedIntermediateBlockRootsLeafCount(1)
+                .firstConsTimeOfCurrentBlock(new Timestamp(1000, 0))
+                .lastUsedConsTime(new Timestamp(1001, 0))
+                .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
+                .lastIntervalProcessTime(new Timestamp(1000, 0))
+                .previewStreamOverwritten(false)
+                .build();
+        final var effectiveBlockStreamInfo = BlockStreamInfo.newBuilder()
+                .blockNumber(100)
+                .lastHandleTime(new Timestamp(1001, 0))
+                .build();
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                EffectiveStartupBlockStreamInfo.previewingCutover(effectiveBlockStreamInfo));
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
+
+        assertDoesNotThrow(() -> subject.init(state, null));
     }
 
     @Test

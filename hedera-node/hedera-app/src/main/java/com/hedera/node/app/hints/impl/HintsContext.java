@@ -93,6 +93,14 @@ public class HintsContext {
     }
 
     /**
+     * Clears the active hinTS construction from the signing context.
+     */
+    public void clearConstruction() {
+        construction = null;
+        nodePartyIds = null;
+    }
+
+    /**
      * Returns true if the signing context is ready.
      * @return true if the context is ready
      */

@@ -20,6 +20,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -93,6 +94,13 @@ public interface HintsService extends Service {
      */
     @Nullable
     HintsConstruction activeConstruction();
+
+    /**
+     * Initializes the in-memory signing context from persisted state.
+     *
+     * @param readableStates the readable hinTS service states
+     */
+    void loadSigningContext(@NonNull ReadableStates readableStates);
 
     /**
      * Whether the signer is ready.

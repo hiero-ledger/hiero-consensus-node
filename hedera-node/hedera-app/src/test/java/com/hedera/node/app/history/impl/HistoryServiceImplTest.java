@@ -2,6 +2,10 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
@@ -21,6 +25,7 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -28,8 +33,14 @@ import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -44,6 +55,7 @@ class HistoryServiceImplTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+    private static final String HASH_HEX = "aa".repeat(48);
 
     @Mock
     private AppContext appContext;
@@ -69,6 +81,30 @@ class HistoryServiceImplTest {
     @Mock
     private WritableHistoryStore store;
 
+    @Mock
+    private WritableStates writableStates;
+
+    @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private ReadableSingletonState<HistoryProofConstruction> readableActiveConstructionState;
+
+    @Mock
+    private PostUpgradeContext postUpgradeContext;
+
+    @Mock
+    private WritableSingletonState<ProtoBytes> ledgerIdState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> activeConstructionState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> nextConstructionState;
+
+    @Mock
+    private WritableSingletonState<ProtoBytes> wrapsHashState;
+
     private HistoryServiceImpl subject;
 
     @Test
@@ -88,6 +124,38 @@ class HistoryServiceImplTest {
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build());
         assertTrue(subject.isReady());
+    }
+
+    @Test
+    void loadsProofContextFromState() {
+        withLiveSubject();
+        final var targetProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var activeConstruction =
+                HistoryProofConstruction.newBuilder().targetProof(targetProof).build();
+        given(readableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(activeConstruction);
+
+        subject.loadProofContext(readableStates);
+
+        assertTrue(subject.isReady());
+    }
+
+    @Test
+    void clearsProofContextWhenStateHasNoTargetProof() {
+        withLiveSubject();
+        subject.setLatestHistoryProof(HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build());
+        given(readableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(HistoryProofConstruction.DEFAULT);
+
+        subject.loadProofContext(readableStates);
+
+        assertFalse(subject.isReady());
     }
 
     @Test
@@ -175,6 +243,66 @@ class HistoryServiceImplTest {
         given(component.library()).willReturn(library);
         given(library.wrapsVerificationKey()).willReturn(mockKey);
         assertEquals(Bytes.wrap(mockKey), subject.historyProofVerificationKey());
+    }
+
+    @Test
+    void doesPostUpgradeSetupInitializesMissingSingletonsAndConfiguredHash() {
+        withMockSubject();
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", "true")
+                .withValue("tss.wrapsProvingKeyHash", HASH_HEX)
+                .getOrCreateConfig();
+        given(postUpgradeContext.configuration()).willReturn(configuration);
+        given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
+        given(ledgerIdState.get()).willReturn(null);
+        given(writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(null, HistoryProofConstruction.DEFAULT);
+        given(writableStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(null);
+        given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(wrapsHashState);
+        given(wrapsHashState.get()).willReturn(null);
+
+        assertTrue(subject.doPostUpgradeSetup(writableStates, postUpgradeContext));
+
+        verify(ledgerIdState).put(ProtoBytes.DEFAULT);
+        verify(activeConstructionState).put(HistoryProofConstruction.DEFAULT);
+        verify(nextConstructionState).put(HistoryProofConstruction.DEFAULT);
+        verify(wrapsHashState).put(ProtoBytes.DEFAULT);
+        verify(wrapsHashState)
+                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+    }
+
+    @Test
+    void doesPostUpgradeSetupInitializesLatestHistoryProofFromActiveConstruction() {
+        withMockSubject();
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", "true")
+                .withValue("tss.wrapsProvingKeyHash", "")
+                .getOrCreateConfig();
+        final var targetProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var activeConstruction =
+                HistoryProofConstruction.newBuilder().targetProof(targetProof).build();
+        given(postUpgradeContext.configuration()).willReturn(configuration);
+        given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
+        given(ledgerIdState.get()).willReturn(ProtoBytes.DEFAULT);
+        given(writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(activeConstruction);
+        given(writableStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(wrapsHashState);
+        given(wrapsHashState.get()).willReturn(ProtoBytes.DEFAULT);
+
+        assertFalse(subject.doPostUpgradeSetup(writableStates, postUpgradeContext));
+
+        assertTrue(subject.isReady());
     }
 
     private void withLiveSubject() {

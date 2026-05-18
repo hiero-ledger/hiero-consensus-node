@@ -6,12 +6,9 @@ import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.
 import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -27,7 +24,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,9 +65,6 @@ class V0540RosterSchemaTest {
     private BiConsumer<Roster, Roster> onAdopt;
 
     @Mock
-    private Predicate<Roster> canAdopt;
-
-    @Mock
     private State state;
 
     private State getState() {
@@ -82,7 +75,7 @@ class V0540RosterSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory);
+        subject = new V0540RosterSchema(onAdopt, rosterStoreFactory);
     }
 
     @Test
@@ -96,64 +89,12 @@ class V0540RosterSchemaTest {
     }
 
     @Test
-    void noOpIfNotUpgradeAndActiveRosterPresent() {
-        given(ctx.newStates()).willReturn(writableStates);
+    void restartDoesNothingWithoutOverrideNetwork() {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
-        verifyNoInteractions(rosterStore);
-    }
-
-    @Test
-    void doesNotAdoptNullCandidateRoster() {
-        given(ctx.newStates()).willReturn(writableStates);
-        given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(ctx.isUpgrade(any())).willReturn(true);
-        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
-
-        subject.restart(ctx);
-
-        verify(rosterStore).getCandidateRoster();
-        verifyNoMoreInteractions(rosterStore);
-    }
-
-    @Test
-    void doesNotAdoptCandidateRosterIfNotSpecified() {
-        given(ctx.newStates()).willReturn(writableStates);
-        given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(ctx.isUpgrade(any())).willReturn(true);
-        given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
-        given(canAdopt.test(ROSTER)).willReturn(false);
-        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
-
-        subject.restart(ctx);
-
-        verify(rosterStore).getCandidateRoster();
-        verifyNoMoreInteractions(rosterStore);
-    }
-
-    @Test
-    void adoptsCandidateRosterIfTestPasses() {
-        given(ctx.newStates()).willReturn(writableStates);
-        given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any())).willReturn(true);
-        given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
-        given(canAdopt.test(ROSTER)).willReturn(true);
-        given(ctx.roundNumber()).willReturn(ROUND_NO);
-        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
-
-        subject.restart(ctx);
-
-        verify(rosterStore, times(1)).getActiveRoster();
-        verify(rosterStore).getCandidateRoster();
-        verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
+        verifyNoInteractions(rosterStoreFactory, rosterStore, onAdopt);
     }
 
     @Test

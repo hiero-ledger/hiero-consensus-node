@@ -28,7 +28,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -38,6 +40,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.RosterStateId;
 
 /**
  * Default implementation of the {@link HintsService}.
@@ -127,6 +131,19 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public void loadSigningContext(@NonNull final ReadableStates readableStates) {
+        requireNonNull(readableStates);
+        final var activeConstruction = readableStates
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .get();
+        if (activeConstruction != null && activeConstruction.hasHintsScheme()) {
+            component.signingContext().setConstruction(activeConstruction);
+        } else {
+            component.signingContext().clearConstruction();
+        }
+    }
+
+    @Override
     public void handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
@@ -213,8 +230,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
-        registry.register(new V060HintsSchema(component.signingContext()));
-        registry.register(new V073HintsSchema(library, component.signingContext()));
+        registry.register(new V060HintsSchema());
+        registry.register(new V073HintsSchema());
     }
 
     @Override
@@ -238,6 +255,46 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             crsState.put(CRSState.DEFAULT);
         }
         return true;
+    }
+
+    @Override
+    public boolean doPostUpgradeSetup(
+            @NonNull final WritableStates writableStates, @NonNull final PostUpgradeContext context) {
+        requireNonNull(writableStates);
+        requireNonNull(context);
+        if (!context.configuration().getConfigData(TssConfig.class).hintsEnabled()) {
+            return false;
+        }
+        boolean changed = false;
+        final var activeConstructionState =
+                writableStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
+        var activeConstruction = activeConstructionState.get();
+        if (activeConstruction == null) {
+            activeConstructionState.put(HintsConstruction.DEFAULT);
+            activeConstruction = activeConstructionState.get();
+            changed = true;
+        }
+        loadSigningContext(writableStates);
+
+        final var nextConstructionState =
+                writableStates.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
+        if (nextConstructionState.get() == null) {
+            nextConstructionState.put(HintsConstruction.DEFAULT);
+            changed = true;
+        }
+
+        final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
+        if (crsState.get() == null) {
+            final var rosterStore = new ReadableRosterStoreImpl(context.readableStates(RosterStateId.SERVICE_NAME));
+            final var activeRoster = rosterStore.getActiveRoster();
+            final var candidateRoster = rosterStore.getCandidateRoster();
+            final var roster = activeRoster != null ? activeRoster : candidateRoster;
+            requireNonNull(roster, "Cannot initialize CRS state without an active or candidate roster");
+            crsState.put(initialCrsState((short) HintsService.partySizeForRosterNodeCount(
+                    roster.rosterEntries().size())));
+            changed = true;
+        }
+        return changed;
     }
 
     @Override

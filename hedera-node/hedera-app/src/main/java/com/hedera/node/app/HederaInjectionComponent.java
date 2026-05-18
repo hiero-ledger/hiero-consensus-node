@@ -7,6 +7,7 @@ import com.hedera.node.app.authorization.AuthorizerInjectionModule;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamModule;
+import com.hedera.node.app.blocks.EffectiveStartupBlockStreamInfo;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -248,6 +249,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder initialStateHash(InitialStateHash initialStateHash);
+
+        @BindsInstance
+        Builder effectiveStartupBlockStreamInfo(EffectiveStartupBlockStreamInfo effectiveStartupBlockStreamInfo);
 
         @BindsInstance
         Builder networkInfo(NetworkInfo networkInfo);

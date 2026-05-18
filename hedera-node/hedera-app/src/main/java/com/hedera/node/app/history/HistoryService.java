@@ -14,6 +14,7 @@ import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -78,6 +79,13 @@ public interface HistoryService extends Service, OnProofFinished {
      * @param historyProof the latest history proof
      */
     void setLatestHistoryProof(@NonNull HistoryProof historyProof);
+
+    /**
+     * Initializes the in-memory proof context from persisted state.
+     *
+     * @param readableStates the readable history service states
+     */
+    void loadProofContext(@NonNull ReadableStates readableStates);
 
     /**
      * Whether this service is ready to provide metadata-enriched proofs.

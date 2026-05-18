@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -357,8 +358,9 @@ public class HandleWorkflow {
         }
 
         final var setLedgerIdContext = new AtomicReference<LedgerIdContext>(null);
-        // If only producing a record stream, no reason to do any TSS work
-        if (streamMode != RECORDS) {
+        // If only producing a record stream, no reason to do any TSS work; and if post-upgrade
+        // setup is pending, TSS singleton states may not have been initialized yet
+        if (streamMode != RECORDS && blockStreamManager.pendingWork() != POST_UPGRADE_WORK) {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
@@ -367,11 +369,12 @@ public class HandleWorkflow {
                 logTssReconcileFailure(e);
             }
         }
-        final var lastUsedConsTime = blockHashSigner.isReady()
-                ? (streamMode == RECORDS
-                        ? blockRecordManager.lastUsedConsensusTime()
-                        : blockStreamManager.lastUsedConsensusTime())
-                : round.getConsensusTimestamp();
+        // Staking-period side effects must be tied to the deterministic stream item clock, not
+        // to local signer readiness; all nodes must schedule these synthetic transactions at
+        // the same consensus times.
+        final var lastUsedConsTime = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
         // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
         try {
             transactionsDispatched |=
@@ -473,7 +476,12 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
+                            state,
+                            creator,
+                            platformTxn,
+                            event.getEventCore().birthRound(),
+                            round.getRoundNum(),
+                            shortCircuitCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -553,6 +561,7 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
+     * @param roundNumber the current round number
      * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
      * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
@@ -562,6 +571,7 @@ public class HandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
+            final long roundNumber,
             @NonNull final ShortCircuitCallback shortCircuitCallback) {
         final var handleStart = System.nanoTime();
 
@@ -584,7 +594,7 @@ public class HandleWorkflow {
         }
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
-            systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            systemTransactions.doPostUpgradeSetup(consensusNow, roundNumber, state, this::doStreamingAllChanges);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }
@@ -986,7 +996,8 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             if (includeSingletons) {
-                boundaryStateChangeListener.reset();
+                // Post-upgrade setup can run after earlier round-level singleton writes.
+                streamAndResetSingletonChanges();
             }
         }
         action.run();
@@ -1004,14 +1015,19 @@ public class HandleWorkflow {
                         .build());
             }
             if (includeSingletons) {
-                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
-                if (!singletonChanges.isEmpty()) {
-                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
-                            .build());
-                }
+                streamAndResetSingletonChanges();
             }
         }
+    }
+
+    private void streamAndResetSingletonChanges() {
+        final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+        if (!singletonChanges.isEmpty()) {
+            blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                    .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                    .build());
+        }
+        boundaryStateChangeListener.reset();
     }
 
     /**

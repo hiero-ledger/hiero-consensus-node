@@ -12,13 +12,19 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0740BlockRecordSchema;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link Service} for managing the state of the running hashes and block information. Used by the
@@ -26,8 +32,12 @@ import javax.inject.Singleton;
  */
 @Singleton
 public final class BlockRecordService implements Service {
+    private static final Logger log = LogManager.getLogger(BlockRecordService.class);
+
     /** The original hash, only used at genesis */
     private static final Bytes GENESIS_HASH = Bytes.wrap(new byte[48]);
+
+    private static final int DEADLINE_BLOCK_NUMBER_BUFFER = 10;
 
     /** The name of this service */
     public static final String NAME = "BlockRecordService";
@@ -79,5 +89,45 @@ public final class BlockRecordService implements Service {
         writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).put(GENESIS_BLOCK_INFO);
         writableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID).put(GENESIS_RUNNING_HASHES);
         return true;
+    }
+
+    @Override
+    public boolean doPostUpgradeSetup(
+            @NonNull final WritableStates writableStates, @NonNull final PostUpgradeContext context) {
+        requireNonNull(writableStates);
+        requireNonNull(context);
+        final var configuration = context.configuration();
+        if (!configuration.getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()
+                || configuration.getConfigData(BlockStreamJumpstartConfig.class).blockNum() <= 0
+                || !writableStates.contains(BLOCKS_STATE_ID)) {
+            return false;
+        }
+
+        final var blockInfoState = writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+        final var existingBlockInfo = blockInfoState.get();
+        if (existingBlockInfo == null) {
+            log.info("Skipping wrapped record voting initialization because BlockInfo singleton does not exist");
+            return false;
+        }
+        if (wrappedRecordVotingAlreadyInitialized(existingBlockInfo)) {
+            return false;
+        }
+
+        final long votingCompletionDeadlineBlockNumber =
+                existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
+        blockInfoState.put(existingBlockInfo
+                .copyBuilder()
+                .votingComplete(false)
+                .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                .migrationRootHashVotes(List.of())
+                .build());
+        log.info("Initialized wrapped record voting singleton with deadline={}", votingCompletionDeadlineBlockNumber);
+        return true;
+    }
+
+    private static boolean wrappedRecordVotingAlreadyInitialized(@NonNull final BlockInfo blockInfo) {
+        return blockInfo.votingCompletionDeadlineBlockNumber() > 0
+                || !blockInfo.migrationRootHashVotes().isEmpty()
+                || !blockInfo.migrationWrappedHashes().isEmpty();
     }
 }

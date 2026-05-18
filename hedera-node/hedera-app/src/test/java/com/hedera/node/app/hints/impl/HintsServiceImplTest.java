@@ -19,7 +19,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -33,8 +37,12 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.PostUpgradeContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
@@ -42,6 +50,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -102,6 +111,12 @@ class HintsServiceImplTest {
     private WritableStates writableStates;
 
     @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private ReadableSingletonState<HintsConstruction> readableActiveConstructionState;
+
+    @Mock
     private WritableSingletonState<HintsConstruction> activeConstructionState;
 
     @Mock
@@ -112,6 +127,18 @@ class HintsServiceImplTest {
 
     @Mock
     private Configuration configuration;
+
+    @Mock
+    private PostUpgradeContext postUpgradeContext;
+
+    @Mock
+    private ReadableStates readableRosterStates;
+
+    @Mock
+    private ReadableSingletonState<RosterState> rosterState;
+
+    @Mock
+    private ReadableKVState<ProtoBytes, Roster> rosters;
 
     private HintsServiceImpl subject;
 
@@ -150,6 +177,34 @@ class HintsServiceImplTest {
         given(component.signingContext()).willReturn(context);
 
         assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
+    }
+
+    @Test
+    void loadSigningContextSetsConstructionFromState() {
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        given(readableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(activeConstruction);
+        given(component.signingContext()).willReturn(context);
+
+        subject.loadSigningContext(readableStates);
+
+        verify(context).setConstruction(activeConstruction);
+    }
+
+    @Test
+    void loadSigningContextClearsConstructionWhenStateHasNoScheme() {
+        given(readableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(readableActiveConstructionState);
+        given(readableActiveConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
+
+        subject.loadSigningContext(readableStates);
+
+        verify(context).clearConstruction();
     }
 
     @Test
@@ -382,10 +437,83 @@ class HintsServiceImplTest {
     }
 
     @Test
+    void doesPostUpgradeSetupWithHintsEnabledInitializesMissingSingletons() {
+        final var newCrs = Bytes.wrap(new byte[] {4, 5, 6});
+        final var activeRosterHash = Bytes.wrap("active-roster-hash".getBytes());
+        given(postUpgradeContext.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        given(tssConfig.hintsEnabled()).willReturn(true);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(null, HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(null);
+        given(writableStates.<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID))
+                .willReturn(crsState);
+        given(crsState.get()).willReturn(null);
+        given(postUpgradeContext.readableStates(RosterStateId.SERVICE_NAME)).willReturn(readableRosterStates);
+        given(readableRosterStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+                .willReturn(rosterState);
+        given(readableRosterStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
+                .willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .roundRosterPairs(List.of(new RoundRosterPair(123L, activeRosterHash)))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash)))
+                .willReturn(Roster.newBuilder()
+                        .rosterEntries(List.of(
+                                RosterEntry.DEFAULT,
+                                RosterEntry.DEFAULT,
+                                RosterEntry.DEFAULT,
+                                RosterEntry.DEFAULT,
+                                RosterEntry.DEFAULT))
+                        .build());
+        given(library.newCrs((short) partySizeForRosterNodeCount(5))).willReturn(newCrs);
+
+        assertTrue(subject.doPostUpgradeSetup(writableStates, postUpgradeContext));
+
+        verify(activeConstructionState).put(HintsConstruction.DEFAULT);
+        verify(context).clearConstruction();
+        verify(nextConstructionState).put(HintsConstruction.DEFAULT);
+        verify(crsState)
+                .put(CRSState.newBuilder()
+                        .stage(com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS)
+                        .nextContributingNodeId(0L)
+                        .crs(newCrs)
+                        .build());
+    }
+
+    @Test
+    void doesPostUpgradeSetupInitializesSigningContextFromExistingActiveConstruction() {
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        given(postUpgradeContext.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        given(tssConfig.hintsEnabled()).willReturn(true);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(activeConstruction);
+        given(component.signingContext()).willReturn(context);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
+        given(writableStates.<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID))
+                .willReturn(crsState);
+        given(crsState.get()).willReturn(CRSState.DEFAULT);
+
+        assertFalse(subject.doPostUpgradeSetup(writableStates, postUpgradeContext));
+
+        verify(context).setConstruction(activeConstruction);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void registersTwoSchemasWhenHintsEnabled() {
-        given(component.signingContext()).willReturn(context);
-
         subject.registerSchemas(schemaRegistry);
 
         final var captor = ArgumentCaptor.forClass(Schema.class);
