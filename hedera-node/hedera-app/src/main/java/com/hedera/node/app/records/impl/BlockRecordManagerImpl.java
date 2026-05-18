@@ -203,6 +203,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
      * @param initTrigger The init trigger
+     * @param wrappedRecordBlockHashMigration Migration whose {@code result()} (when present) seeds
+     *        the live wrapped-record hash chain so it matches the chain that will be agreed by
+     *        {@link com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler} once voting
+     *        completes.
      */
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
@@ -215,6 +219,32 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger) {
+        this(
+                configProvider,
+                state,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
+                initTrigger,
+                new WrappedRecordBlockHashMigration());
+    }
+
+    public BlockRecordManagerImpl(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final State state,
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final InitTrigger initTrigger,
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -256,14 +286,35 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
-            final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
-                    .map(Bytes::toByteArray)
-                    .toList();
-            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
-                    intermediateHashes,
-                    this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-            this.previousWrappedRecordBlockRootHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            // State only holds finalized wrapped-record values after migration root-hash voting
+            // completes (see WritableBlockRecordStore.applyFinalizedValuesAndMarkComplete and the
+            // votingComplete branch in closeBlockAndProduceFinalRecordFile). Until voting finishes,
+            // the chain that the vote will agree on lives in wrappedRecordBlockHashMigration.result()
+            // (computed in ServicesMain before this manager is constructed). Without seeding from
+            // that result, the live hasher would start empty, diverge from the vote handler's
+            // recomputed chain, and produce per-block wrapped-record root hashes that don't match
+            // what a fresh .rcd-replay would compute (see issue 25424).
+            Bytes initialPrevHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            List<Bytes> initialIntermediates = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
+            long initialLeafCount = this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
+            if (initialLeafCount == 0 && !this.lastBlockInfo.votingComplete()) {
+                final var migrationResult = wrappedRecordBlockHashMigration.result();
+                if (migrationResult != null) {
+                    initialPrevHash = migrationResult.previousWrappedRecordBlockRootHash();
+                    initialIntermediates = migrationResult.wrappedIntermediatePreviousBlockRootHashes();
+                    initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
+                    logger.info(
+                            "Seeded live wrapped-record hash chain from migration result"
+                                    + " (leafCount={}, prevHash={})",
+                            initialLeafCount,
+                            initialPrevHash);
+                }
+            }
+            final var intermediateHashes =
+                    initialIntermediates.stream().map(Bytes::toByteArray).toList();
+            this.prevWrappedRecordBlockHashes =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), intermediateHashes, initialLeafCount);
+            this.previousWrappedRecordBlockRootHash = initialPrevHash;
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
@@ -703,6 +754,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());
         previousWrappedRecordBlockRootHash = requireNonNull(blockRootHash);
+        logger.info(
+                "Persisted live wrapped record block root hash (as of block {}): {}",
+                justFinishedBlockNumber,
+                blockRootHash);
 
         // If enabled, forward the WRB items to a GrpcBlockItemWriter so they reach the BlockBufferService
         // and onward to block nodes. The block is left open until the RSA signature-list future can complete

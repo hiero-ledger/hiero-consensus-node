@@ -20,6 +20,8 @@ import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -132,10 +134,16 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         // 2.3. Wrapped prev record block root hashes
         final List<Bytes> wrappedPrevRecordBlockRootHashes = blockInfo.wrappedIntermediatePreviousBlockRootHashes();
 
-        // Step 3: delete preview block files
+        // Step 3: archive preview block files out of the active block directory so that
+        // (a) the post-cutover writer/pending-block recovery doesn't see them, and
+        // (b) downstream tools (e.g. EventHashBlockStreamValidator) can still resolve
+        //     cross-block parent event hashes for events emitted while FREEZING.
+        // See https://github.com/hiero-ledger/hiero-consensus-node/issues/25424.
         final var cutoverConfig = ctx.appConfig();
         final var blockDirPath = blockDirFor(cutoverConfig);
-        log.info("Cutover deleting all preview block files from {}", blockDirPath);
+        final Path archiveRoot =
+                blockDirPath.resolveSibling(blockDirPath.getFileName() + "-preview-archive");
+        log.info("Cutover archiving preview block files {} -> {}", blockDirPath, archiveRoot);
         try (var paths = Files.walk(blockDirPath, 2)) {
             paths.filter(Files::isRegularFile)
                     .filter(p -> {
@@ -147,13 +155,19 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                     })
                     .forEach(p -> {
                         try {
-                            Files.delete(p);
+                            final Path relative = blockDirPath.relativize(p);
+                            final Path target = archiveRoot.resolve(relative);
+                            final Path targetParent = target.getParent();
+                            if (targetParent != null) {
+                                Files.createDirectories(targetParent);
+                            }
+                            Files.move(p, target, StandardCopyOption.REPLACE_EXISTING);
                         } catch (IOException e) {
-                            log.warn("Failed to delete preview block file: {}", p, e);
+                            log.warn("Failed to archive preview block file: {}", p, e);
                         }
                     });
         } catch (IOException e) {
-            log.warn("Failed to remove preview block files", e);
+            log.warn("Failed to archive preview block files", e);
         }
 
         // Step 4: Overwrite the (preview) block stream info in state

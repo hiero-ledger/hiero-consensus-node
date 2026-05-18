@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
@@ -269,28 +270,29 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        // Pick the node directory with the most block files (compare by count first,
-        // then sort only the winner to avoid unnecessary sorting of discarded lists)
+        // Pick the node with the most total block files across its active + archive dirs.
+        // The archive sibling is populated by V0740BlockStreamSchema at cutover (see issue 25424);
+        // including it here keeps pre-cutover preview blocks available for validators that need
+        // to resolve cross-block parent event hashes across the cutover boundary.
         Path bestDir = null;
         List<Path> bestPaths = null;
         for (final var dir : blockStreamDirs) {
-            try (final var stream = Files.walk(dir)) {
-                final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
-                        .toList();
-                if (bestPaths == null || paths.size() > bestPaths.size()) {
-                    bestDir = dir;
-                    bestPaths = paths;
-                }
-            } catch (Exception ignore) {
-                // We will try the next node's directory
+            final var paths = collectBlockPaths(dir);
+            if (bestPaths == null || paths.size() > bestPaths.size()) {
+                bestDir = dir;
+                bestPaths = paths;
             }
         }
         if (bestPaths == null || bestPaths.isEmpty()) {
             return Optional.empty();
         }
-        bestPaths = bestPaths.stream()
-                .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
-                .toList();
+        // Dedup by block number, preferring the first complete block (active-dir paths come
+        // before archive paths in collectBlockPaths, so they win on overlapping numbers).
+        final var byBlockNumber = new TreeMap<Long, Path>();
+        for (final var p : bestPaths) {
+            byBlockNumber.putIfAbsent(BlockStreamAccess.extractBlockNumber(p), p);
+        }
+        bestPaths = new ArrayList<>(byBlockNumber.values());
         // Parse the winner's block files and pair each block with its source path
         final var otherDirs = new ArrayList<>(blockStreamDirs);
         otherDirs.remove(bestDir);
@@ -322,6 +324,29 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     /**
+     * Collects block file paths from the active block-stream directory plus any sibling preview
+     * archive populated by cutover (see {@code V0740BlockStreamSchema} and issue 25424).
+     * Active-dir paths are listed first so dedup-by-block-number prefers them over archived copies.
+     */
+    private static List<Path> collectBlockPaths(@NonNull final Path activeDir) {
+        final var paths = new ArrayList<Path>();
+        final var dirsToScan = new ArrayList<Path>();
+        dirsToScan.add(activeDir);
+        final Path archiveDir = activeDir.resolveSibling(activeDir.getFileName() + "-preview-archive");
+        if (Files.isDirectory(archiveDir)) {
+            dirsToScan.add(archiveDir);
+        }
+        for (final var dir : dirsToScan) {
+            try (final var stream = Files.walk(dir)) {
+                stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(paths::add);
+            } catch (Exception ignore) {
+                // Skip dirs we can't walk; an empty or absent archive is normal pre-cutover
+            }
+        }
+        return paths;
+    }
+
+    /**
      * Tries to find a complete version of a block across the given node directories. Each node
      * writes its blocks under a node-specific {@code block-<shard>.<realm>.<nodeAccountId>/}
      * subdirectory (and DAB can renumber those account IDs on upgrades), so resolving the same
@@ -342,24 +367,33 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             if (!Files.exists(dir)) {
                 continue;
             }
-            final List<Path> candidates;
-            // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
-            try (final var stream = Files.walk(dir, 2)) {
-                candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
-                        .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
-                        .toList();
-            } catch (Exception ignore) {
-                continue;
+            // Scan the active dir and (if present) its preview archive populated at cutover.
+            final var roots = new ArrayList<Path>();
+            roots.add(dir);
+            final Path archive = dir.resolveSibling(dir.getFileName() + "-preview-archive");
+            if (Files.isDirectory(archive)) {
+                roots.add(archive);
             }
-            for (final var candidatePath : candidates) {
-                try {
-                    final var block = BlockStreamAccess.blockFrom(candidatePath);
-                    final var items = block.items();
-                    if (!items.isEmpty() && items.getLast().hasBlockProof()) {
-                        return block;
-                    }
+            for (final var root : roots) {
+                final List<Path> candidates;
+                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+                try (final var stream = Files.walk(root, 2)) {
+                    candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                            .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
+                            .toList();
                 } catch (Exception ignore) {
-                    // Try the next candidate
+                    continue;
+                }
+                for (final var candidatePath : candidates) {
+                    try {
+                        final var block = BlockStreamAccess.blockFrom(candidatePath);
+                        final var items = block.items();
+                        if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                            return block;
+                        }
+                    } catch (Exception ignore) {
+                        // Try the next candidate
+                    }
                 }
             }
         }

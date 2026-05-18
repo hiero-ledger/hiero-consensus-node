@@ -65,18 +65,34 @@ public class V0750BlockRecordSchema extends Schema<SemanticVersion> {
                 return;
             }
             if (hasJumpstartData(ctx)) {
-                // We only want to initialize jumpstart voting if valid jumpstart data is present
-                final long votingCompletionDeadlineBlockNumber =
-                        existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
-                blockInfoSingleton.put(existingBlockInfo
-                        .copyBuilder()
-                        .votingComplete(false)
-                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                        .migrationRootHashVotes(List.of())
-                        .build());
-                log.info(
-                        "Initialized wrapped record voting singleton with deadline={}",
-                        votingCompletionDeadlineBlockNumber);
+                // {@code GENESIS_BLOCK_INFO.votingComplete} defaults to true (no-op),
+                // {@code votingCompletionDeadlineBlockNumber} defaults to 0. A previously
+                // finalized vote sets votingComplete=true AND deadline>0. Use that to
+                // distinguish "voting completed on a prior upgrade — preserve persisted
+                // wrapped-record chain" from "genesis default — initialize voting". Without
+                // this guard we'd reset votingComplete back to false on every restart with
+                // jumpstart data + liveWrite=true, kicking off a fresh vote whose recomputed
+                // chain disagrees with the in-memory chain the live writer has been extending
+                // since the original vote completed. See issue 25424.
+                final boolean alreadyFinalized = existingBlockInfo.votingComplete()
+                        && existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0;
+                if (alreadyFinalized) {
+                    log.info(
+                            "Wrapped record voting already finalized (deadline={}); skipping re-initialization",
+                            existingBlockInfo.votingCompletionDeadlineBlockNumber());
+                } else {
+                    final long votingCompletionDeadlineBlockNumber =
+                            existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
+                    blockInfoSingleton.put(existingBlockInfo
+                            .copyBuilder()
+                            .votingComplete(false)
+                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                            .migrationRootHashVotes(List.of())
+                            .build());
+                    log.info(
+                            "Initialized wrapped record voting singleton with deadline={}",
+                            votingCompletionDeadlineBlockNumber);
+                }
             }
         }
         if (!ctx.isGenesis()) {
