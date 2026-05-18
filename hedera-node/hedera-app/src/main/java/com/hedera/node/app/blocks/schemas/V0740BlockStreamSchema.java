@@ -141,8 +141,7 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         // See https://github.com/hiero-ledger/hiero-consensus-node/issues/25424.
         final var cutoverConfig = ctx.appConfig();
         final var blockDirPath = blockDirFor(cutoverConfig);
-        final Path archiveRoot =
-                blockDirPath.resolveSibling(blockDirPath.getFileName() + "-preview-archive");
+        final Path archiveRoot = blockDirPath.resolveSibling(blockDirPath.getFileName() + "-preview-archive");
         log.info("Cutover archiving preview block files {} -> {}", blockDirPath, archiveRoot);
         try (var paths = Files.walk(blockDirPath, 2)) {
             paths.filter(Files::isRegularFile)
