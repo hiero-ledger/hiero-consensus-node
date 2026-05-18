@@ -10,4 +10,4 @@ Per-file ADRs. Each ADR records context, decision, alternatives considered, and 
 
 |         ID         | Title | Date | Status | Summary |
 |--------------------|-------|------|--------|---------|
-| _(no entries yet)_ |       |      |        |         |
+| ADR-003 | [Clear Judge Metadata When a Same-Round Judge Is in Ancestry](ADR-003-clear-judge-metadata-on-roster-change.md) | 2026-05-15 | Accepted | Clear a judge's metadata at the start of a round if it has another judge from the same round in its ancestry, so `roundCreated(child) >= roundCreated(parent)` is preserved across roster changes. |
