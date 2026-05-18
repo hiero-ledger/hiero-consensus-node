@@ -39,7 +39,7 @@ public abstract class CallManager {
         int len = bevm.popInt();
         Bytes salt = hasSalt ? bevm.popBytes() : null;
 
-        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len);
+        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len, false);
 
         var senderAccount = bevm._updater.getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || bevm._frame.getDepth() >= 1024 /*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/ )
