@@ -33,7 +33,7 @@ on:
         required: true
       slack-api-token:
         description: "Slack bot token for author email-to-username lookup; omit to skip the mention"
-        required: true
+        required: false
 
 defaults:
   run:
