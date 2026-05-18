@@ -48,17 +48,21 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
-
-      #  Check out the specified hiero-consensus-node reference
-      - name: Checkout Consensus Node
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref || '' }}
-          fetch-depth: 0
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "25.0.2"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22"
 
       #  Checkout the json-rpc-relay repository
       - name: Checkout JSON-RPC Relay
@@ -68,25 +72,6 @@ jobs:
           repository: hiero-ledger/hiero-json-rpc-relay
           fetch-depth: 0
           fetch-tags: true
-
-      # Set up Java Environment
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: 25.0.2
-
-      # Set up the node environment
-      - name: Setup NodeJS Environment
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-
-      # Set up the gradle environment
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
-        with:
-          cache-read-only: false
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
