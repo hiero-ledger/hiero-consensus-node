@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Utility class for working with the HAPI. We might move this to the HAPI project.
+ * Utility class for work ing with the HAPI. We might move this to the HAPI project.
  */
 public class HapiUtils {
     /**
