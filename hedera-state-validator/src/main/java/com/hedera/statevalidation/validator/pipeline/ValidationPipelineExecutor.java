@@ -171,9 +171,9 @@ public final class ValidationPipelineExecutor {
 
                 // Progress tracking: total bytes across all segments is known upfront
                 final long totalBytes = readSegments.stream()
-                                        .mapToLong(s -> s.endByte() - s.startByte())
-                                                .sum();
-               final ProgressReporter progress = new ProgressReporter("Pipeline validation", totalBytes);
+                        .mapToLong(s -> s.endByte() - s.startByte())
+                        .sum();
+                final ProgressReporter progress = new ProgressReporter("Pipeline validation", totalBytes);
 
                 // Initialize data structures for processing
                 dataStats = new DataStats();

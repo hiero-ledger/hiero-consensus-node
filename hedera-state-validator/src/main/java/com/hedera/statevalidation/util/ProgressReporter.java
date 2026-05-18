@@ -4,7 +4,6 @@ package com.hedera.statevalidation.util;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.CONSOLE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,12 +29,13 @@ public class ProgressReporter {
     private final String label;
     private final long total;
     private final AtomicLong completed = new AtomicLong();
-    private final AtomicInteger lastReportedDecile = new AtomicInteger(0);
 
     /**
      * Interval for unbounded progress reporting: log every N units.
      */
-    private static final long UNBOUNDED_LOG_INTERVAL = 1000;
+    private static final long DEFAULT_UNBOUNDED_LOG_INTERVAL = 1000;
+
+    private final long unboundedLogInterval;
 
     /**
      * Creates a bounded progress reporter.
@@ -44,8 +44,20 @@ public class ProgressReporter {
      * @param total the total amount of work; must be positive
      */
     public ProgressReporter(@NonNull final String label, final long total) {
+        this(label, total, DEFAULT_UNBOUNDED_LOG_INTERVAL);
+    }
+
+    /**
+     * Creates a bounded progress reporter.
+     *
+     * @param label the label printed before each percentage (e.g. "Pipeline", "Block stream recovery")
+     * @param total the total amount of work; must be positive
+     * @param unboundedLogInterval the interval for unbounded progress reporting
+     */
+    public ProgressReporter(String label, long total, long unboundedLogInterval) {
         this.label = label;
         this.total = total;
+        this.unboundedLogInterval = unboundedLogInterval;
     }
 
     /**
@@ -56,30 +68,25 @@ public class ProgressReporter {
      */
     public void advance(final long delta) {
         final long current = completed.addAndGet(delta);
-        final int decile = (int) Math.min(current * 10 / total, 10);
-        int prev = lastReportedDecile.get();
-        // Report every 10% decile that was crossed since the last report
-        while (decile > prev) {
-            if (lastReportedDecile.compareAndSet(prev, decile)) {
-                for (int d = prev + 1; d <= decile; d++) {
-                    log.info(CONSOLE, "{}: {}%", label, d * 10);
-                }
-                break;
-            }
-            prev = lastReportedDecile.get();
+        final long prev = current - delta;
+        final int prevDecile = (int) (prev * 10 / total);
+        final int currentDecile = (int) Math.min(current * 10 / total, 10);
+        for (int d = prevDecile + 1; d <= currentDecile; d++) {
+            log.info(CONSOLE, "{}: {}%", label, d * 10);
         }
     }
 
     /**
      * Advances an unbounded counter (total unknown). Logs the current count
-     * every {@value UNBOUNDED_LOG_INTERVAL} units.
+     * every {@link #unboundedLogInterval} units.
      *
      * @param delta the amount of work completed
      */
     public void advanceUnbounded(final long delta) {
-        final long prev = completed.get();
         final long current = completed.addAndGet(delta);
-        if (current / UNBOUNDED_LOG_INTERVAL > prev / UNBOUNDED_LOG_INTERVAL) {
+        final long prev = current - delta;
+
+        if (current / unboundedLogInterval > prev / unboundedLogInterval) {
             log.info(CONSOLE, "{}: {} processed", label, current);
         }
     }

@@ -167,7 +167,6 @@ public class BlockStreamRecoveryWorkflow {
                 ? new ProgressReporter("Block stream recovery", targetRound - initRound)
                 : new ProgressReporter("Block stream recovery", 1); // unbounded fallback
 
-
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
