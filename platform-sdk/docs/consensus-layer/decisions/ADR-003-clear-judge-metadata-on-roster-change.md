@@ -115,7 +115,7 @@ and ordering untouched.
 - **Restores the parent/child `roundCreated` invariant** across roster changes, eliminating the bug where
   consensus stalls because a recalculated ancestor's round exceeds a descendant judge's round.
 - **Does not invalidate already-decided rounds.** Cleared judges are recalculated, but the decided round's judge set
-- are not revisited; no new election is run for the decided round.
+  and ordering are not revisited; no new election is run for the decided round.
 - **Localized change.** The fix lives in the metadata-clearing step that already runs at the start of each round; no
   change to the election or fame-decision logic is required.
 
