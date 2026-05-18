@@ -45,13 +45,16 @@ For Pass 3 entries: read all the inputs a Pass 2 lesson would read for each topi
 
 Draft the lesson against the appropriate template embedded below. Pass 2 entries use `<lesson_template>`. Pass 1 and Pass 3 entries use `<scenario_template>` with `depth: orientation`, `depth: full`, or `depth: edge` respectively. Populate every section the template prescribes. Every mechanism claim in the lesson body — every sentence describing what a component does, how components are wired, what flows where, which invariant holds — carries a link to the topic file or code anchor that grounds it. Sentences that paraphrase a mechanism without an anchor are the path by which lesson sections drift from the KB and from each other; an anchor on every claim makes drift visible. Where the KB or code is silent on a question the section needs to answer, write a bracketed `[TBD: short description of what's missing]` marker in place rather than fabricating, and list every `[TBD]` at the end of the lesson under the Open questions callout. Lessons are committed despite open questions; reviewer review fills them.
 
-Before writing the file, run a consistency pass on the draft. Three checks:
+Before writing the file, run a consistency pass on the draft. Five checks:
 
 - KB consistency: for every mechanism claim in the draft, verify the claim against the source it cites. A topic file is a paraphrase of the code, not the code itself; the code defines the structural facts the lesson's correctness under perturbation depends on. The check therefore distinguishes two kinds of claim. Behavioral claims — what a component does, what it produces, what its role in the system is — are verified against the topic file. Structural claims — when, how, on what thread, in what order, with what threshold, with what failure path — are verified against the code at the cited anchor (or against a code search if the topic file is silent on the structural detail). Verifying a structural claim against the topic file alone is the failure mode behind the "periodically" bug: both the lesson and the topic file agreed on a paraphrase that did not match the code's actual scheduling mechanism. Seven categories of structural claim require code grounding even when the topic file appears to answer them. **Execution model**: what triggers a thing to run (scheduled task, event callback, method call, tick), with what cadence and timing source, on which thread or executor, queued or inline, serial or parallel, push or pull. **State and lifecycle**: when state is created, when it is persisted, when it is destroyed, what survives restart versus reconnect versus freeze, what is in-memory versus checkpointed. **Ordering and atomicity**: what ordering discipline applies (arrival, topological, consensus, birth-round, custom comparator), what completes as a unit, what holds locks, what can interleave with what. **Error and saturation paths**: what happens on validation failure, exception, timeout, buffer-full, peer misbehavior — drop, log, propagate, quarantine, ban, kill — and how backpressure flows upstream when capacity is exceeded. **Thresholds and parameters**: the exact conditions and quantitative values for "when X is complete," "when enough Y has arrived," sizes, timeouts, retry counts, buffer depths, batch sizes. **Identity and equality**: what "the same event" or "this transaction" means — hash, reference, content, ID — and how deduplication and replay use this. **Versioning**: what specifically changes between versions in migration deltas, grounded in the code diff or the delta-map's structural claims rather than the topic file's prose summary. Pay particular attention to wiring claims between components — what flows where, in what order, with what intermediaries — because these straddle behavioral and structural and are the claims most likely to drift from neighbor topic files. A claim that contradicts the cited source, or a structural claim grounded only in a topic-file paraphrase, is a bug; rewrite the claim to match the code, or move the claim to a `[TBD]` if the code is genuinely ambiguous.
 - Internal consistency: scan every section of the lesson for descriptions of the same mechanism — the Mechanism chunks, the Engagement moves entries and their canonical answers, the Consolidation, the Contrasting cases material, perturbation answers in scenarios. If two sections describe the same mechanism, the descriptions must agree. Stop 3 saying event-creator → PCES → fan-out and the Consolidation saying event-creator → intake → PCES → fan-out is the failure mode this check catches. Reconcile against the KB source, not against the draft's other section.
 - Shape consistency: for every prediction-and-reveal move in the Engagement moves section, verify that the prompt shape matches the shape of the canonical answer and the shape of the underlying mechanism. A prompt that asks for a list when the mechanism is a fan-out graph, or a prompt that asks for a single answer when the mechanism has multiple correct shapes, produces a learner who answers correctly and gets scored against a mis-shaped canonical. Rewrite the prompt to match the mechanism's shape, or add structurally-correct alternative answers to the move's consolidation (see the lesson template's Engagement moves section for the shape descriptor and alternatives fields).
+- Answerability: for every learner-facing prompt in the draft — prediction-and-reveal prompts, completion problems, free-recall and cued-recall checks, the transfer prompt — read the lesson top to bottom and stop at the point where that prompt sits. Ask: could a reader who has seen only the text above this point produce the canonical answer using only terms already defined above it? If the canonical answer needs a mechanism the lesson introduces later, a term not yet defined, or a value or example the learner has not yet worked, the prompt fails the check. Rewrite the prompt so its answer is derivable from text above it, or relocate the prompt below the material it depends on. The transfer prompt gets a sharper version of this check, because it is the prompt most prone to the failure: it points forward in topic by design, which tempts it into asking the learner to predict the design or API of the next subsystem. The check on a transfer prompt is by question type, not by derivability — asking "could this be derived with enough ingenuity" is too weak, because almost anything can be rationalized as derivable. Instead ask: is the prompt asking the learner to apply, predict a consequence of, or locate stress in a mechanism already taught (legitimate), or to invent the design, API, or mechanism of a subsystem the curriculum has not covered (mis-authored)? A prompt whose canonical answer is "the design the next lesson introduces" fails regardless of how it is phrased, including when the design prediction is dressed as "what would be needed." Forward references to the next lesson are allowed only as motivational framing around a question that is itself answerable now. The sole genuine exception across all prompt types is the incoming retrieval probes, which reference prerequisite lessons by design; they may not reference later-in-lesson or later-cluster material either. Whole-lesson scope phrases in prompts — "the rest of the wiring lifecycle," "everything downstream," "later mechanisms" — fail this check on sight; the canonical answer must name specific referents the learner has already seen, not gesture at unscoped material.
 
-If any check finds an inconsistency Claude Code cannot reconcile against the KB without guessing, mark the relevant claim `[TBD]` and surface it in Open questions rather than committing the contradiction. The consistency pass is not optional even on tight runs — the bugs it catches are the ones the tutor will deliver to the learner as confident-but-wrong content, which is worse than a deferred lesson.
+- Verbatim-readiness: every learner-facing prompt in the draft is delivered to the learner word for word by a tutor that will not paraphrase, improve, or repair it. Read each prompt as the learner will hear it. A prompt written as an instruction to the tutor — "ask the learner to predict the fan-out," "have them explain why the check exists" — fails the check, because the tutor delivers text, not intent; rewrite it as the exact second-person words the learner reads. Confirm each answer-eliciting move carries a `canonical_answer`, an `alternative_correct_answers` list, and, where the answer is reachable by restatement or shaky reasoning, an authored `followup`. Confirm exposition and prompts are not blurred: learning objectives, threshold-concept statements, load-bearing-line notes, and misconception entries are declarative and never phrased as questions, because the system prompt forbids the tutor from converting them into quizzes and a question-shaped objective invites exactly that. Confirm the Incoming retrieval probes section carries no learner-facing free-recall prompt — it is an authorial signal, and a scripted opening quiz there contradicts the trust-based entry. A prompt that is not verbatim-ready is as much a defect as a factually wrong one, because there is no delivery-time repair behind this gate.
+
+If any check finds an inconsistency Claude Code cannot reconcile against the KB without guessing, mark the relevant claim `[TBD]` and surface it in Open questions rather than committing the contradiction. The consistency pass is not optional even on tight runs — the bugs it catches are the ones the tutor will deliver to the learner as confident-but-wrong or undeliverable content, which is worse than a deferred lesson.
 
 Write the file at `tutor/lessons/<lesson_id>.md`. Update the manifest entry's `status` to `drafted`. Stop. Report the lesson_id written, its curriculum index, the count of entries still without files, and a one-line summary of what the consistency pass flagged (including resolutions and any new `[TBD]` markers added during the pass). Do not move on to the next lesson — one invocation produces exactly one lesson.
 </phase_two_author>
@@ -66,8 +69,13 @@ Template justification — section list traced to the pedagogy research and the 
     models so the learner can judge their own readiness.
 
   - Incoming retrieval probes: successive-relearning queue (Rawson & Dunlosky
-    2022), free-recall opening from prior cluster (research lesson architecture).
-    The tutor runs these as recall-with-feedback before new content is added.
+    2022). An authorial signal, not an opening quiz script — the system
+    prompt is explicit that running these as session-open retrieval quizzes
+    contradicts the trust-based entry. The section tells the tutor which
+    prior-lesson concepts to watch for at the entry self-assessment and to
+    consolidate when they resurface; active retrieval, when wanted, is a
+    free-recall engagement move at the point of resurfacing, where the
+    research's post-teaching consolidation gain actually applies.
 
   - Misconception watchlist: EMT-style representation (Chi et al.; tutor
     system prompt). Enumerates likely wrong models — adjacent-protocol imports
@@ -81,17 +89,21 @@ Template justification — section list traced to the pedagogy research and the 
     Engagement moves section and are invoked contingent on what the learner
     shows.
 
-  - Engagement moves: an inventory of move types the tutor may invoke at named
-    moments in the lesson. Five types: prediction-and-reveal (Kapur 2008/2014;
-    Loibl et al. 2017; hypercorrection effect), worked example with
-    self-explanation (Sweller & Cooper 1985; Renkl 2014; Bisra et al. 2018
-    g = 0.55), direct walk with cued check (Kalyuga expertise-reversal;
-    Adesope et al. testing-effect meta-analysis), contrasting cases (Gick &
-    Holyoak 1983; Gentner structure-mapping), and free recall (Roediger &
-    Karpicke testing effect). Each moment in the lesson lists which moves are
-    available and what each one supplies. The tutor picks contingent on
-    diagnosed prior knowledge for the specific point in front of it, and
-    varies move type across moments so the session does not become monotonous.
+  - Engagement moves: a labelled inventory of move types at named moments.
+    The tutor selects exactly one move per moment by diagnosis tag and
+    delivers its authored prompt verbatim — it does not generate, paraphrase,
+    or repair questions (system prompt). Five types: prediction-and-reveal
+    (Kapur 2008/2014; Loibl et al. 2017; hypercorrection effect), worked
+    example with self-explanation (Sweller & Cooper 1985; Renkl 2014; Bisra
+    et al. 2018 g = 0.55), direct walk with cued check (Kalyuga
+    expertise-reversal; Adesope et al. testing-effect meta-analysis),
+    contrasting cases (Gick & Holyoak 1983; Gentner structure-mapping), and
+    free recall (Roediger & Karpicke testing effect). Each answer-eliciting
+    move supplies a verbatim prompt, a canonical answer, alternative correct
+    answers, and an authored follow-up where restatement or shaky reasoning
+    is the expected failure, because the tutor will not compose any of these
+    at delivery time. The tutor varies move type across moments so the
+    session does not become monotonous.
 
   - Contrasting cases material: a separate section (not a separate move type)
     that supplies the two-or-three cases needed when a threshold concept is in
@@ -107,7 +119,10 @@ Template justification — section list traced to the pedagogy research and the 
     than restating the difference.
 
   - Transfer prompt: forward-pointing bridge (Perkins & Salomon 1992). Primes
-    the next cluster while consolidating the present one.
+    the next cluster while consolidating the present one. Asks the learner to
+    apply, predict a consequence of, or locate stress in a mechanism already
+    taught — never to predict the design of an uncovered subsystem; forward
+    references are motivational framing only, not the question.
 
   - Close-out retrieval: free-recall in learner's own words plus
     successive-relearning tags (day 1, day 3, ~2 weeks) for threshold concepts.
@@ -143,7 +158,7 @@ title: <lesson title>
 pass: 2
 prerequisites:                     # lesson IDs whose mental models this lesson assumes
   - <prereq_lesson_id>
-kb_topics:                         # paths under platform-sdk/docs/consensus-layer/
+kb_topics_touched:                 # paths under platform-sdk/docs/consensus-layer/; the tutor reads these at entry as a cross-check against the lesson
   - architecture/topics/<topic>.md
 kb_concepts:
   - concepts/<concept>.md
@@ -169,7 +184,7 @@ last_verified_against: <git-sha-of-main-at-authoring-time>
 
 ## Prerequisites
 
-List each prerequisite lesson by ID and give a one-line description of the mental model that lesson establishes — enough for the learner to judge whether they feel solid on it. If this lesson has no prerequisites, state so explicitly:
+List each prerequisite lesson by ID and give a one-line description of the mental model that lesson establishes — enough for the learner to judge whether they feel solid on it. The one-line description does double duty: it is what the learner reads at the trust-based self-assessment, and it is what the tutor consolidates against if the learner hedges on that specific prerequisite and the tutor runs the bounded recall probe the system prompt allows. Write it as a declarative statement of the mental model, not as a question — the tutor poses the recall in its own framing and checks the learner's articulation against this statement. If this lesson has no prerequisites, state so explicitly:
 
 > None — this lesson assumes only general distributed-systems background.
 
@@ -177,7 +192,9 @@ Do not omit this section even when prerequisites are empty; the tutor's entry be
 
 ## Incoming retrieval probes
 
-List concepts from prior lessons that should be retrieved before this lesson's new content is added on top of them. Each probe carries the concept name, a free-recall prompt for the tutor to run, and the canonical answer the tutor consolidates against. Threshold concepts from earlier lessons whose successive-relearning interval falls in this lesson's session belong here. If the lesson sits early enough in the curriculum that no probes apply, state so explicitly.
+This section is an authorial signal to the tutor, not a script of opening quiz prompts. The system prompt is explicit that the tutor does not run these as session-open retrieval quizzes — doing so contradicts the trust-based entry — and that their operational use is to tell the tutor which concepts from prior lessons to be especially watchful for during the entry self-assessment and which to consolidate explicitly when they resurface during delivery. The strongest retrieval gains come from consolidation after new material is taught, which the free-recall engagement move already supplies.
+
+So each entry here lists the concept from a prior lesson the current lesson builds on, the prior lesson ID it came from, and a one-line canonical statement of what the learner should be able to say about it — the thing the tutor consolidates against when the concept comes up. Do not author a learner-facing free-recall prompt in this section; if the lesson wants the concept actively retrieved, that belongs in a free-recall engagement move at the point in the spine where the concept resurfaces, not at session open. Threshold concepts from earlier lessons whose successive-relearning interval falls in this lesson's session belong here as watch-for signals. If the lesson sits early enough in the curriculum that no probes apply, state so explicitly.
 
 ## Misconception watchlist
 
@@ -201,29 +218,33 @@ The tutor's default delivery on a chunk without an attached moment is a direct w
 
 ## Engagement moves
 
-A small inventory of teaching moves the tutor may invoke at named moments along the spine. The tutor picks contingent on what it sees from the learner: which moves fit depends on whether the learner is showing fluency, novelty, or a likely misconception on the specific point in front of it. The tutor also varies move type across moments to keep the session from becoming monotonous.
+An inventory of teaching moves at named moments along the spine. The tutor selects exactly one move per moment by matching the move's diagnosis tag to what the learner has shown, and delivers that move's authored prompt verbatim. The tutor does not blend two moves, run a moment's moves in sequence, or reword the selected one — so each move must stand alone as a complete, deliverable unit, and the prompt text in it must be the exact words the learner reads.
 
-A lesson typically has two to four moments with engagement-move inventories — the load-bearing transitions, the threshold-concept introduction, the points where misconceptions are most likely. Not every chunk in the Mechanism section warrants a moment. The reviewer's eye on the lesson is partly an eye on whether the moments are well-chosen.
+A lesson typically has two to four moments with engagement-move inventories — the load-bearing transitions, the threshold-concept introduction, the points where misconceptions are most likely. Not every chunk in the Mechanism section warrants a moment, and a moment is allowed to resolve to no question: if a chunk is best delivered as exposition, do not manufacture a moment for it. The system prompt is explicit that asking nothing is correct when no authored prompt fits; the lesson should not pad the spine with prompts to fill silence.
 
 Each moment in this section names:
 
 - The `moment_id` matching a chunk in the Mechanism section.
-- A one-sentence description of why this moment is load-bearing.
-- An inventory of available moves, each tagged with the diagnosis it fits. Supply at least two moves per moment so the tutor has a real choice.
+- A one-sentence description of why this moment is load-bearing (exposition — the tutor uses this to choose, it is not read to the learner).
+- An inventory of labelled moves — `A`, `B`, `C` — each carrying its diagnosis tag and its complete authored content. Supply at least two moves per moment so the tutor has a real choice; the contrasting-cases move counts toward this only at threshold-concept moments.
+
+Every move that elicits an answer from the learner carries, in addition to its prompt: a `canonical_answer`, an `alternative_correct_answers` list of two or three answers that are also correct and must be credited rather than called wrong, and — where the canonical answer can be reached with shaky reasoning or satisfied by restating the mechanism — an authored `followup` question delivered verbatim when the tutor judges the learner restated rather than explained or reached the outcome without the reasoning. The tutor scores only against the canonical and the alternatives and will not invent a follow-up; both fields are load-bearing on every answer-eliciting move, not just prediction-and-reveal.
 
 The available move types:
 
-**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing distributed-systems schemas. Include the framing scenario, the prediction prompt phrased as low-stakes thinking-aloud ("what's your gut prediction?", "before I show what happens, what does your model say?"), an optional confidence elicitation when high-confidence wrong beliefs are likely, the canonical answer with code anchor, and the consolidation move that names the gap between the prediction and the canonical mechanism. Diagnosis tag: the learner is showing strong grasp of the surrounding material or is likely to hold a confidently-wrong adjacent-protocol intuition. Do not supply this move type if the prediction would require concepts the lesson has not yet established — that is not productive failure, just frustration. Two additional fields are needed on every prediction-and-reveal entry. First, an `answer_shape` descriptor naming the shape the canonical answer takes — "sequential list of stages," "fan-out graph from component X," "state transition with K branches," "single invariant statement," or whatever fits. The shape of the prompt must match the shape of the mechanism: a prompt that asks for a list when the mechanism is a fan-out graph scores a correct learner as wrong. Second, an `alternative_correct_answers` field listing two or three plausible answer shapes that should be credited as correct — a learner who says "PCES fans out to gossip and hashgraph in parallel" gives a correct graph-shaped answer to a graph-shaped question, and the consolidation needs to recognize this rather than score against missing-from-the-list. The consolidation move uses these alternatives to map the learner's structure onto the lesson's structure when they differ in shape but agree in substance.
+**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing distributed-systems schemas. Include the framing scenario, the prediction prompt phrased as low-stakes thinking-aloud ("what's your gut prediction?", "before I show what happens, what does your model say?") and written as the exact words the learner reads, an optional confidence elicitation when high-confidence wrong beliefs are likely, the `canonical_answer` with code anchor, the `alternative_correct_answers`, and the authored `followup` for a correct-outcome-but-shaky-reasoning answer ("you got the behavior — which invariant forced it?"). Diagnosis tag: the learner is showing strong grasp of the surrounding material or is likely to hold a confidently-wrong adjacent-protocol intuition. Do not supply this move type if the prediction would require concepts the lesson has not yet established — that is not productive failure, just frustration. Also supply an `answer_shape` descriptor naming the shape the canonical answer takes — "sequential list of stages," "fan-out graph from component X," "state transition with K branches," "single invariant statement," or whatever fits. The shape of the prompt must match the shape of the mechanism: a prompt that asks for a list when the mechanism is a fan-out graph scores a correct learner as wrong. The `alternative_correct_answers` carry the shape work too — a learner who says "PCES fans out to gossip and hashgraph in parallel" gives a correct graph-shaped answer to a graph-shaped question and is credited, not scored against missing-from-the-list.
 
-**Worked example with self-explanation.** Supply when the learner is likely new to this point on this codebase. Include the example, the load-bearing lines marked explicitly, and a principle-based self-explanation prompt at each load-bearing line — "which invariant justifies this step?", "what failure scenario does this rule prevent?", "what breaks if we remove this check?" Avoid "explain this," which produces restatement. Diagnosis tag: the learner is asking for an example, hesitating on terms specific to this code path, or showing they have not encountered this subsystem before.
+**Worked example with self-explanation.** Supply when the learner is likely new to this point on this codebase. Include the example, the load-bearing lines marked explicitly (exposition — what the tutor signals, not a question), and at each load-bearing line a principle-based self-explanation prompt written verbatim as the learner reads it — "which invariant justifies this step?", "what failure scenario does this rule prevent?", "what breaks if we remove this check?" Avoid "explain this," which produces restatement. Each self-explanation prompt carries its `canonical_answer`, `alternative_correct_answers`, and an authored `followup` that pushes a restatement toward inference ("that is what the code does — I am asking why; what does the system lose if this line is gone?"), since restatement is the expected failure here and the tutor will not compose the push itself. Diagnosis tag: the learner is asking for an example, hesitating on terms specific to this code path, or showing they have not encountered this subsystem before.
 
-**Direct walk with cued check.** Supply when the chunk is content the learner is likely fluent on but the tutor needs to verify before moving on. State the mechanism briefly, then run a short cued-recall or application check — "given this snippet, what is the precondition?" or "in this trace, which line would violate the invariant?" Diagnosis tag: the learner has shown fluency on the surrounding material; a fuller scaffolding would be redundant.
+**Direct walk with cued check.** Supply when the chunk is content the learner is likely fluent on but the tutor needs to verify before moving on. State the mechanism briefly (exposition), then a short cued-recall or application check written verbatim — "given this snippet, what is the precondition?" or "in this trace, which line would violate the invariant?" — with its `canonical_answer` and `alternative_correct_answers`. Diagnosis tag: the learner has shown fluency on the surrounding material; a fuller scaffolding would be redundant.
 
-**Contrasting cases with comparison prompt.** Supply when the moment introduces a threshold concept and the lesson includes contrasting-cases material in the section below. Reference the cases by name, supply the comparison prompt ("what is the same across these, what is different, what is the invariant that survives?"), and name the deep invariant the cases surface. Diagnosis tag: threshold concept; transfer is the goal.
+**Contrasting cases with comparison prompt.** Supply when the moment introduces a threshold concept and the lesson includes contrasting-cases material in the section below. Reference the cases by name and supply the comparison prompt verbatim ("what is the same across these, what is different, what is the invariant that survives?") with its `canonical_answer` and `alternative_correct_answers`. The deep invariant the cases surface is exposition for the consolidation, not part of the prompt. Diagnosis tag: threshold concept; transfer is the goal. The system prompt notes the cases do no pedagogical work unless the comparison prompt is actually put to the learner, so the prompt is mandatory in this move, not optional.
 
-**Free recall.** Supply when the moment lands on something the lesson has already covered and the tutor needs the learner to retrieve it in their own words. Include the prompt and the canonical answer for consolidation. Diagnosis tag: mid-session check on something just covered, or a retrieval cycle the lesson wants to run before the next chunk.
+**Free recall.** Supply when the moment lands on something the lesson has already covered and the tutor needs the learner to retrieve it in their own words. Include the prompt verbatim, the `canonical_answer` for consolidation, and `alternative_correct_answers`. Diagnosis tag: the learner signaled uncertainty on this concept, a mid-session check on something just covered, or a retrieval cycle before the next chunk.
 
 Each moment should usually offer the worked-example move and at least one other, so the tutor has a fallback when the diagnosis points toward novelty. The contrasting-cases move is available only at moments tied to threshold concepts.
+
+Every prompt supplied in this section, and every canonical answer, must be answerable from lesson text that appears above the moment it is attached to. A prompt whose canonical answer needs a mechanism from a later chunk, a later cluster, or a term not yet defined is mis-placed: either move the moment lower in the Mechanism spine or rewrite the prompt to depend only on material already covered. The answerability check in the consistency pass enforces this; author the moments so they pass it, because the tutor will not repair an unanswerable prompt at delivery — it will deliver it as written.
 
 ## Contrasting cases material
 
@@ -233,26 +254,32 @@ Provide two or three contrasting cases — e.g. this codebase's choice versus a 
 
 ## Completion problems
 
-Progressive problems that fade scaffolding step by step. The first problem leaves a small step blank in an otherwise complete worked example; later problems leave more blank, until the learner is producing the full step from a posed scenario. Each problem ships with:
+Progressive problems that fade scaffolding step by step. The first problem leaves a small step blank in an otherwise complete worked example; later problems leave more blank, until the learner is producing the full step from a posed scenario. The problem statement and every hint-ladder rung are learner-facing text the tutor delivers verbatim — write them as the exact words, not as a description of what to ask. Each problem ships with:
 
-- The problem statement.
-- The hint ladder the tutor escalates through: where in the codebase or KB to look first, then a focused question, then a partial walkthrough, then the full answer. Full answers stay at the bottom rung, gated on demonstrated effort.
-- The canonical answer and the invariant or mechanism it exercises.
+- The problem statement, written verbatim as the learner reads it.
+- The hint ladder as authored rungs the tutor delivers one at a time, escalating only on continued effort: rung 1 names where in the codebase or KB to look (verbatim, with the file and what to look for stated explicitly, since the system prompt requires the tutor to name the file rather than gesture at it); rung 2 is a focused narrowing question (verbatim); rung 3 is a partial worked example; rung 4 is the full answer, gated on demonstrated effort.
+- The `canonical_answer`, the `alternative_correct_answers`, the invariant or mechanism the problem exercises (exposition), and an authored `followup` where the answer is reachable by restatement.
 
 ## Delta callout
 
-Brief callout pointing to `delta-map/<topic>.md` for the difference between current code and the proposed redesign on the material this lesson covers. Summarize the delta's status (`done`, `partial`, `not started`, `divergent`) in one line and link the file. Do not restate the delta in detail — the delta-map is the canonical source and the lesson exists alongside it.
+Brief callout pointing to `delta-map/<topic>.md` for the difference between current code and the proposed redesign on the material this lesson covers. Summarize the delta's status (`done`, `partial`, `not started`, `divergent`) in one line and link the file. Do not restate the delta in detail — the delta-map is the canonical source and the lesson exists alongside it. This section is exposition; it carries no learner-facing prompt.
 
 ## Transfer prompt
 
-Forward-pointing bridge that asks the learner to predict the system's behavior under a new failure mode, or to articulate how the invariant just learned will be challenged in a future cluster. Keep it open-ended enough that the answer requires applying the lesson's mechanism to a novel situation rather than retrieving it. This primes the next cluster while consolidating the present one.
+A transfer prompt asks the learner to do one of three things with material the lesson has already taught: apply the invariant or mechanism just learned to a new situation, predict a behavior or consequence under a new condition, or identify where the current invariant would be stressed. The answer is reasoned out from what is already on the page plus general distributed-systems knowledge. The prompt is open-ended enough that the answer requires applying the lesson's mechanism rather than retrieving it. It is a close-of-session move the tutor delivers verbatim; write it as the exact words, and supply its `canonical_answer` and `alternative_correct_answers` so the tutor scores against them rather than improvising.
+
+A transfer prompt does not ask the learner to predict the design, API, or mechanism of a subsystem the curriculum has not yet covered. "Given two components with their own schedulers, what would the framework need to provide to let data flow between them — name two operations and a validity constraint" is mis-authored, because the canonical answer is the wiring API the next lesson introduces, and there is no chain of reasoning from a scheduler-and-queue lesson to that API. Phrasing the design prediction as "what would be needed" does not rescue it — the failure is the question type, not the wording. The test is not whether the answer could be derived with enough ingenuity; it is whether the prompt asks the learner to reason about something they have been taught or to invent something they have not seen. If the canonical answer is "the design the next lesson introduces," the prompt is mis-authored regardless of phrasing.
+
+Forward-pointing is allowed, but only as motivational framing, never as the question. A transfer prompt may name the next lesson and say the current material is what it builds on — "the next lesson covers the wire layer; here is a question about what you just learned that it will build on" — but the question itself is answerable now, from material already on the page. The legitimate shape for the scheduler example: "You have seen that a scheduler owns its queue and applies a thread-execution policy. Suppose two schedulers with different policies hand work to each other. Using only how a scheduler consumes its own queue, what ordering or backpressure hazard would you expect at that boundary?" That applies the lesson's own mechanism, motivates the wiring lesson, and does not require inventing the wiring API.
+
+This primes the next cluster while consolidating the present one.
 
 ## Close-out retrieval
 
-Two retrieval acts the tutor runs before ending the session.
+Close-of-session content. The system prompt requires the tutor to run the close-of-session moves and then signal the end of delivery plainly, so this section supplies what it runs.
 
-- Free-recall summary: the tutor asks the learner to articulate the load-bearing invariant or mechanism in their own words. Provide the prompt and the canonical answer for the tutor to consolidate against.
-- Successive-relearning tags: for each threshold concept this lesson establishes, name when it should be probed in subsequent sessions — roughly day 1, day 3, and two weeks. The tutor adds these to the learner's relearning queue. If the lesson establishes no threshold concept, state so explicitly.
+- Free-recall summary: the prompt asking the learner to articulate the load-bearing invariant or mechanism in their own words, written verbatim, with its `canonical_answer` and `alternative_correct_answers` for the tutor to consolidate against.
+- Successive-relearning tags: exposition, not a prompt. For each threshold concept this lesson establishes, name when it should be probed in subsequent sessions — roughly day 1, day 3, and two weeks. The tutor adds these to the learner's relearning queue. If the lesson establishes no threshold concept, state so explicitly.
 
 ## Open questions
 
@@ -287,16 +314,19 @@ Template justification — section list traced to research and system prompt:
     transitions, and surfaces cross-cluster stitch points. The trace is
     annotated with named moments where engagement-moves apply.
 
-  - Engagement moves: an inventory of move types the tutor may invoke at named
-    moments along the trace, mirroring the lesson template. Five types:
+  - Engagement moves: a labelled inventory at named moments along the trace,
+    mirroring the lesson template. The tutor selects exactly one move per
+    moment by diagnosis tag and delivers its authored prompt verbatim; each
+    answer-eliciting move supplies a verbatim prompt, canonical answer,
+    alternative correct answers, and an authored follow-up where needed,
+    because the tutor composes none of these at delivery. Five types:
     prediction-and-reveal, worked example with self-explanation, direct walk
-    with cued check, contrasting cases, and free recall. The tutor picks
-    contingent on diagnosed prior knowledge for the specific transition in
-    front of it, and varies move type across moments so the trace does not
-    become a sequence of similar predictions. Orientation scenarios have
-    fewer moments (often only one or two, at the start) and lighter moves
-    (typically role-level prediction-and-reveal or direct walks); full and
-    edge scenarios populate more moments with richer moves.
+    with cued check, contrasting cases, and free recall. The tutor varies
+    move type across moments so the trace does not become a sequence of
+    similar predictions. Orientation scenarios have fewer moments (often only
+    one or two, at the start) and lighter moves (typically role-level
+    prediction-and-reveal or direct walks); full and edge scenarios populate
+    more moments with richer moves.
 
   - Perturbation prompts: Pass 3 only. The project brief's success criteria
     require learners to predict behavior under perturbations; the scenario
@@ -375,7 +405,7 @@ For Pass 3 canonicals and edges this section typically lists the Pass 2 lessons 
 
 For orientation scenarios: omit or note "None — orientation scenario, no incoming probes."
 
-For full and edge scenarios: list threshold concepts from prior Pass 2 or Pass 3 entries that should be retrieved before the trace re-engages them. Each probe carries the concept, the recall prompt, and the canonical answer for the tutor to consolidate against. Cross-cluster scenarios depend on this — without retrieving the relevant Pass 2 mechanisms, the learner cannot follow the cross-cluster interaction.
+For full and edge scenarios: this is an authorial signal, not a script of opening quiz prompts, exactly as in the lesson template. List the concepts from prior Pass 2 or Pass 3 entries the scenario builds on, the entry each came from, and a one-line canonical statement of what the learner should be able to say about it for the tutor to consolidate against when it resurfaces. The tutor does not run these as session-open quizzes; if a concept needs active retrieval, that belongs in a free-recall engagement move at the trace stop where the concept resurfaces. Cross-cluster scenarios depend on these mechanisms being available — flag them here as watch-for signals so the tutor consolidates them in line rather than discovering the gap mid-trace.
 
 ## Misconception watchlist
 
@@ -410,27 +440,29 @@ For orientation scenarios the trace is the whole point: walk the components and 
 
 ## Engagement moves
 
-A small inventory of teaching moves the tutor may invoke at named moments along the trace. The tutor picks contingent on what it sees from the learner, and varies move type across moments to keep the session from becoming monotonous. The five available move types mirror the lesson template.
+An inventory of teaching moves at named moments along the trace. The tutor selects exactly one move per moment by matching its diagnosis tag to what the learner has shown, and delivers that move's authored prompt verbatim — it does not blend, sequence, or reword. The five move types mirror the lesson template, and the same verbatim-delivery rules apply: every prompt is the exact words the learner reads, not an instruction to the tutor; every answer-eliciting move carries a `canonical_answer`, an `alternative_correct_answers` list, and an authored `followup` where the answer can be reached with shaky reasoning or by restatement.
 
 Each moment in this section names:
 
 - The `moment_id` matching a stop in the Trace section (or a perturbation in the section below, if the perturbation itself is the moment).
-- A one-sentence description of why this moment is load-bearing.
-- An inventory of available moves, each tagged with the diagnosis it fits. Supply at least two moves per moment where possible.
+- A one-sentence description of why this moment is load-bearing (exposition; not read to the learner).
+- An inventory of labelled moves — `A`, `B`, `C` — each carrying its diagnosis tag and its complete authored content. Supply at least two moves per moment where possible. A moment may also resolve to no question; do not manufacture a prompt where exposition is the right delivery.
 
 The available move types:
 
-**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing schemas — for full and edge scenarios, that includes everything the prerequisite Pass 2 lessons established. Include the framing scenario, the prediction prompt phrased as low-stakes thinking-aloud, optional confidence elicitation, the canonical answer with code anchor when applicable, and the consolidation move. For orientation scenarios this move is light and role-level ("which components do you think get involved here, and in what order?"). For full and edge scenarios it is rigorous and mechanism-level. Do not supply this move type at a moment where the prediction would require a mechanism the trace has not yet reached. Every prediction-and-reveal entry also carries an `answer_shape` descriptor and an `alternative_correct_answers` field with two or three plausible answer shapes that should be credited as correct. A scenario's trace is often graph-shaped — fan-outs, parallel branches, cross-cluster stitches — and a prompt that asks for a sequential list when the mechanism is a graph scores a correct learner as wrong. The shape descriptor and the alternatives let the consolidation map the learner's structure onto the scenario's structure when they differ in shape but agree in substance.
+**Prediction-and-reveal.** Supply only when the question can be answered from prior lessons and existing schemas — for full and edge scenarios, that includes everything the prerequisite Pass 2 lessons established. Include the framing scenario, the prediction prompt written verbatim as low-stakes thinking-aloud, optional confidence elicitation, the `canonical_answer` with code anchor when applicable, the `alternative_correct_answers`, and the authored `followup` for a correct-outcome-but-shaky-reasoning answer. For orientation scenarios this move is light and role-level ("which components do you think get involved here, and in what order?"). For full and edge scenarios it is rigorous and mechanism-level. Do not supply this move type at a moment where the prediction would require a mechanism the trace has not yet reached. Also carry an `answer_shape` descriptor. A scenario's trace is often graph-shaped — fan-outs, parallel branches, cross-cluster stitches — and a prompt that asks for a sequential list when the mechanism is a graph scores a correct learner as wrong; the shape descriptor and the alternatives let the tutor credit a correct differently-shaped answer rather than score it against the canonical's shape.
 
-**Worked example with self-explanation.** Supply when the learner is likely new to the subsystem the current stop sits in. Include the example and a principle-based self-explanation prompt at each load-bearing line — "which invariant survives this transition?", "what would break if this component skipped this step?" Diagnosis tag: the learner is hesitating on the current component or asking for clarification on how it behaves.
+**Worked example with self-explanation.** Supply when the learner is likely new to the subsystem the current stop sits in. Include the example and, at each load-bearing line, a principle-based self-explanation prompt written verbatim — "which invariant survives this transition?", "what would break if this component skipped this step?" — each with its `canonical_answer`, `alternative_correct_answers`, and an authored `followup` pushing restatement toward inference. Diagnosis tag: the learner is hesitating on the current component or asking for clarification on how it behaves.
 
-**Direct walk with cued check.** Supply when the stop is content the learner is likely fluent on but the tutor needs to verify before moving on. State what happens, then run a short cued-recall or application check. Diagnosis tag: the learner has shown fluency on the surrounding components.
+**Direct walk with cued check.** Supply when the stop is content the learner is likely fluent on but the tutor needs to verify before moving on. State what happens (exposition), then a short cued-recall or application check written verbatim, with its `canonical_answer` and `alternative_correct_answers`. Diagnosis tag: the learner has shown fluency on the surrounding components.
 
-**Contrasting cases with comparison prompt.** Supply only at moments that introduce or revisit a threshold concept, and only if contrasting-cases material is available in the prerequisite lessons or in this scenario. Reference the cases, supply the comparison prompt, and name the deep invariant they surface.
+**Contrasting cases with comparison prompt.** Supply only at moments that introduce or revisit a threshold concept, and only if contrasting-cases material is available in the prerequisite lessons or in this scenario. Reference the cases and supply the comparison prompt verbatim with its `canonical_answer` and `alternative_correct_answers`; the deep invariant is exposition for the consolidation, not part of the prompt. The comparison prompt is mandatory in this move — the cases do no work unless it is put to the learner.
 
-**Free recall.** Supply at moments that land on something already covered earlier in the trace or in a prerequisite lesson, when the tutor needs the learner to articulate it before moving on. Include the prompt and the canonical answer for consolidation.
+**Free recall.** Supply at moments that land on something already covered earlier in the trace or in a prerequisite lesson, when the tutor needs the learner to articulate it before moving on. Include the prompt verbatim, the `canonical_answer`, and `alternative_correct_answers`.
 
 Each load-bearing moment should usually offer the worked-example move and at least one other, so the tutor has a fallback when the diagnosis points toward novelty.
+
+Every prompt supplied in this section, and every canonical answer, must be answerable from trace text above the stop it is attached to. A scenario prompt whose canonical answer needs a stop further along the trace, a later-cluster mechanism the trace has not yet reached, or a term the scenario has not yet introduced is mis-placed: move the moment to a later stop or rewrite the prompt to depend only on what the learner has walked through so far. The incoming retrieval probes are an authorial signal, not a forward reference; nothing in the scenario may reference forward material. The answerability check in the consistency pass enforces this, because the tutor will deliver the prompt as written rather than repair it.
 
 ## Perturbation prompts
 
@@ -491,6 +523,12 @@ Across the curriculum, scaffolding withdraws as the learner progresses through a
 <authoring_principles>
 Lessons are production quality, not stubs. Each section is populated with real content drawn from the KB and code, not placeholder text. The lesson is committed and run by the tutor as-is; subsequent reviewer review fills `[TBD]` markers and tightens phrasing.
 
+The tutor delivers authored prompts verbatim and writes none of its own. The system prompt is explicit that the tutor will not generate, paraphrase, reformulate, or repair a question at delivery time — question quality is the lesson author's responsibility, enforced here at authoring time, and the tutor's job is selection and faithful delivery. This changes what a prompt in the lesson is. It is not an instruction to the tutor about what to ask ("ask the learner to predict the fan-out"); it is the exact words the learner will read ("Before I show the wiring: when this self-event leaves the creator, where do you expect it to go first?"). Write every learner-facing prompt — every probe, prediction, comprehension check, completion problem, self-explanation prompt, contrasting-cases comparison prompt, follow-up, and close-out question — as final verbatim text in the learner's second person, not as a description of the question's intent. A prompt written as an instruction to the tutor is a defect, because the tutor will not convert it; it will either deliver the instruction text to the learner as-is or have nothing to deliver. The authoring-time consistency pass is the only quality gate this content passes through; there is no delivery-time repair behind it.
+
+Mark exposition distinct from authored prompts. Learning objectives, threshold-concept statements, load-bearing-line notes, misconception entries, the canonical answers, and the consolidation's substance are exposition — material the tutor states or uses, never converts into a question. The system prompt forbids the tutor from turning a load-bearing note into "predict what this line does." A lesson that blurs the line — phrasing a learning objective as a question, or writing a threshold-concept statement that reads like a prompt — invites exactly the conversion the system prompt prohibits. Keep exposition in declarative form and keep authored prompts in interrogative form, so the tutor's selection logic can tell them apart on sight.
+
+Consolidation exposition is the tutor's to phrase; the lesson supplies the canonical answer and any follow-up questions. After a prediction-and-reveal the tutor names the gap between the learner's prediction and the canonical mechanism in its own words — the lesson does not script that prose. But any follow-up question the consolidation calls for is delivered verbatim from the lesson, not invented: the press on a correct-outcome-but-shaky-reasoning answer ("you got the behavior — which invariant forced it?") and the push on a restatement toward inference ("that is what the code does — I am asking why; what does the system lose if this line is gone?") are authored in the move, because the tutor will not compose them. Supply these follow-ups on every move whose canonical answer a learner can reach with shaky reasoning or satisfy by restating the mechanism.
+
 Cite the KB by link rather than restating. `concepts/` files own the canonical mental models; `architecture/topics/` files own mechanism prose; `glossary.md` owns term definitions; `invariants.md` owns INV-NNN claims; `delta-map/` files own current-versus-proposed differences; `decisions/` owns ADR rationale. The lesson exists alongside these files and gains nothing by copying them — link instead, and the lesson stays evergreen as the KB updates.
 
 Anchor every mechanism claim. Each sentence in the lesson body describing what a component does, how components are wired, what flows where, or which invariant holds carries a link to the topic file or code anchor that grounds it. Sentences that paraphrase a mechanism without an anchor are the path by which lesson sections drift from the KB and from each other. The consistency pass before writing leans on these anchors — without them, two sections describing the same mechanism in different ways look equally plausible and the pass cannot tell which is right.
@@ -508,6 +546,8 @@ The learner's prior knowledge is uneven and varies per learner and per point —
 Use prediction-and-reveal sparingly and only where the prediction is genuinely answerable from prior knowledge. A prompt that requires concepts the lesson has not yet introduced is not productive failure — it is plain failure, and it reads to the learner as a quiz they could not have prepared for. The fidelity conditions matter: the question must sit in the learner's zone of proximal failure, the learner must be able to generate something to contrast against, and consolidation must follow. When any of these is doubtful, choose a different move type for that moment.
 
 Match the shape of the prediction prompt to the shape of the mechanism. When the mechanism is a fan-out graph, the prompt asks for a graph, the canonical answer is a graph, and the alternative-correct-answers field lists the graph shapes a correct learner is likely to give. When the mechanism is a sequential list, the prompt asks for a list. A prompt that asks for the wrong shape will score correct learners as wrong against a mis-shaped canonical. The consistency pass before writing checks for this, but the right time to get it right is at drafting — examine the mechanism in the topic file and choose the prompt shape from what the file shows.
+
+Every learner-facing prompt is answerable from text above it. A prompt's canonical answer must be derivable strictly from lesson text appearing before that prompt — no forward mechanisms, no later-cluster references, no term not already defined above it. The drafting self-check, applied to each prompt as it is written: could a reader who has seen only the text above this point produce the canonical answer using only terms already defined there? If not, rewrite the prompt or relocate it below the material it depends on. Anchor every prompt to something already on the page — a named code path, a term defined above, or a value or example the learner has already worked. Ban whole-lesson scope phrases from prompts and their canonical answers: "the rest of the wiring lifecycle," "everything downstream," "later mechanisms" each name unscoped material the learner has not seen; replace each with the specific referents, named explicitly. Two clarifications. The transfer prompt is the prompt most prone to violating this, because it points forward in topic by design and is easily tempted into asking the learner to predict the design or API of the next subsystem — a question with no answer the learner could reason to. A transfer prompt asks the learner to apply, predict a consequence of, or locate stress in a mechanism already taught; it never asks them to invent a subsystem the curriculum has not covered, and dressing a design prediction as "what would be needed" does not make it legitimate. Forward references to the next lesson are allowed as motivational framing only, never as the question; the question itself is answerable now. The incoming retrieval probes are the sole genuine exception: they reference prerequisite lessons by design, but never later-in-lesson or later-cluster material.
 
 Do not pre-answer the questions the tutor's dialogue would handle. The lesson is the tutor's script, not a transcript. A completion problem provides the problem and the hint ladder and the canonical answer — it does not provide the conversation that gets the learner from one to the other. That conversation is the tutor's job, conducted live.
 
