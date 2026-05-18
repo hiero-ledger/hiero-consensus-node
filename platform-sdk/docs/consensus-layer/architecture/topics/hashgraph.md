@@ -8,24 +8,24 @@ last_reviewed: TBD
 
 ## Responsibilities
 
-The hashgraph topic owns the in-memory directed acyclic graph (DAG) of
+The hashgraph module owns the in-memory directed acyclic graph (DAG) of
 non-ancient events and runs the consensus algorithm that turns a
 topologically ordered stream of `PlatformEvent`s into an ordered stream
 of `ConsensusRound`s carrying judges, a consensus timestamp, the
 consensus roster for the round, and the `EventWindow` that defines the
 ancient and expired thresholds going forward.
 
-The topic does not validate, deduplicate, or topologically order events
+The module does not validate, deduplicate, or topologically order events
 — those concerns live in
 [`../topics/event-intake.md`](../topics/event-intake.md). It does not
 durably persist events — that is the Pre-Consensus Event Stream
 (see [`../topics/restart-and-pces.md`](../topics/restart-and-pces.md)).
-It does not gossip — that is `consensus-gossip`. Once a round reaches
+It does not gossip — that is `consensus-gossip` (see [`../topics/gossip.md`](../topics/gossip.md). Once a round reaches
 consensus, the round leaves the hashgraph; downstream signing, hashing,
 and signature collection live in
 [`../topics/signed-state-management.md`](../topics/signed-state-management.md).
 
-The two boundaries that frame the topic:
+The two boundaries that frame the module:
 
 - **Upstream:** event intake delivers events on
   `consensus-hashgraph/.../HashgraphModule.java#eventInputWire` (input
@@ -46,13 +46,13 @@ and output wires. It does not hold algorithm state itself.
 
 **Per-event driver.**
 [`consensus-hashgraph-impl/.../DefaultConsensusEngine.java`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)
-orchestrates one `addEvent` cycle. Its fields are the topic's working
+orchestrates one `addEvent` cycle. Its fields are the module's working
 state at runtime:
 
-- `linker: ConsensusLinker` — the DAG of non-ancient linked events.
+- `linker: ConsensusLinker` — attaches parent events to each incoming event (instead of a parent descriptor).
 - `consensus: Consensus` (impl
   [`ConsensusImpl`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java))
-  — round / witness / fame / judge state.
+  — the core consensus algorithm that calculates round / witness / fame / judge state.
 - `futureEventBuffer: FutureEventBuffer` — events whose birth round is
   still in the future.
 - `freezeRoundController: FreezeRoundController` — cuts off rounds at
@@ -72,8 +72,9 @@ state at runtime:
   plus the per-event memoized round, witness flag, judge flag,
   `DeGen`, `lastSee`, and `stronglySeeP` slots used by the algorithm.
 - `ConsensusImpl` owns `ConsensusRounds` (per-round state including the
-  current `RoundElections`), the
-  `RosterLookup`, the `lastConsensusTime`, the running `numConsensus`
+  current `RoundElections`), `lastConsensusTime` (the timestamp of the
+  most recent consensus event, used to keep consensus timestamps
+  strictly increasing across rounds), the running `numConsensus`
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
@@ -118,7 +119,7 @@ is wired against those.
 ([`consensus-model/.../ConsensusRound.java`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/ConsensusRound.java))
 carries the consensus event list (in consensus order), the
 `EventWindow` for the round (the new ancient and expired thresholds and
-the next pending round), the consensus roster, a
+the next pending round), the consensus roster used to calculate the round, a
 `ConsensusSnapshot` (round number, minimum-judge info, monotonic
 consensus number, consensus timestamp, judge IDs), and a `pcesRound`
 flag indicating whether the round was decided during PCES replay.
@@ -138,8 +139,14 @@ buffered future events and emit several decided rounds.
 **Per-event lifecycle.** `DefaultConsensusEngine.addEvent` (lines
 ~102–194) pushes the incoming event through this pipeline:
 
-1. `freezeRoundController.isFrozen()` — short-circuits to an empty
-   output once the freeze round has emitted.
+1. `freezeRoundController.isFrozen()` — once the freeze round has
+   emitted, the event bypasses the consensus algorithm: it is run
+   through `futureEventBuffer.addEvent` and, if it is not a future
+   event, returned on the pre-consensus output (no consensus rounds,
+   no stale events). Future events still buffer and yield an empty
+   output. This lets the platform pre-handle post-freeze events (for
+   example, to collect freeze-state signatures) without emitting any
+   further rounds.
 2. `futureEventBuffer.addEvent(event)` — returns `null` if the event's
    birth round is beyond the current pending consensus round (held for
    later release) or below the buffer's discard threshold.
@@ -154,7 +161,9 @@ buffered future events and emit several decided rounds.
    [`../concepts/stale-events.md`](../concepts/stale-events.md)).
 6. `futureEventBuffer.updateEventWindow(eventWindow)` releases any
    future events whose birth round is now eligible; they are appended
-   to the work queue and the loop iterates.
+   to the work queue and each is fed back into step 3
+   (`linker.linkEvent`), looping through steps 3–6 until the queue
+   drains.
 7. After the loop, `freezeRoundController.filterAndModify` truncates
    any rounds beyond the freeze boundary.
 
@@ -218,12 +227,8 @@ events that just reached consensus by, in order:
    whitening).
 
 `ConsensusSorter` is constructed once per decided round and discarded.
-[TBD: question for engineer — `ConsensusSorter`'s class JavaDoc lists
-the order as "consensus timestamp → extended median → generation →
-whitened signature", but its `compare` method JavaDoc separately
-references "roundReceived" as the leading sort key. Round-received is
-implicit because the sorter runs per decided round; is the four-step
-order above the authoritative description today?]
+(`ConsensusSorter`'s class JavaDoc is stale and lists a different
+key order; the implementation matches the four-step order above.)
 
 **Round emission.** `roundDecided` packages the result into a
 `ConsensusRound` carrying the consensus event list, an `EventWindow`
@@ -239,25 +244,29 @@ restart or reconnect, `Consensus.waitingForInitJudges()` returns
 snapshot's judges (handled by `InitJudges`). While that flag is set,
 `DefaultConsensusEngine.addEvent` returns an empty output — the
 just-added event is not yet classified as pre-consensus, because it
-might already have been part of a previously decided round. When the
-last init judge arrives, the engine flushes any consensus events the
-just-decided rounds produced and the queued pre-consensus events into
-the output.
-[TBD: question for engineer — the `waitingForInitJudges` flag is
-checked both before and after `consensus.addEvent` in
-`DefaultConsensusEngine.addEvent`. Is the post-add check intended to
-be the only point at which we can transition out of waiting, or can a
-single `addEvent` flip the flag in either direction in practice?]
+might already have been part of a previously decided round. The
+flag is checked both before and after `consensus.addEvent`; the
+post-add check is the transition point out of waiting. When the last
+init judge arrives, the engine flushes any consensus events the
+just-decided rounds produced and the queued pre-consensus events
+into the output. Usually no rounds are decided in that same call,
+but a major roster change can produce some — in which case those
+consensus events are also reported as pre-consensus events so the
+downstream view of pre-consensus output stays complete.
 
-> **Note on the paper.** The paper computes rounds against the event's
-> non-deterministic generation (NGen); the current code uses event
-> sequence numbers for parent matching and birth round for
-> ancient-ness. Where the paper and the code use the same names
-> (witness, strongly-seeing, fame, judge), the meanings line up; where
-> they diverge in mechanics (NGen vs. birth round; the
-> `DeGen`/`cGen` family of generations used inside the implementation
-> only), the conceptual background lives in
-> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
+> **Note on the paper.** Round, witness, strongly-seeing, fame, and
+> judge mean the same thing in the paper and in the code. The notable
+> divergence is the ancient/expired horizon: the paper uses the
+> deterministic generation (max parent generation + 1) to define
+> ancient-ness, and the current code uses `birthRound` instead. The
+> implementation also carries a few quantities that do not appear in
+> the paper — `NGen` (a locally-computed, non-deterministic generation
+> used only for picking a topological order and for "higher in the
+> hashgraph" comparisons; see `NonDeterministicGeneration`) and the
+> `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> background lives in
+> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
+> and [`../concepts/birth-round.md`](../concepts/birth-round.md).
 
 ## Birth-round filtering
 

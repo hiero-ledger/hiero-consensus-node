@@ -9,12 +9,27 @@ last_reviewed: TBD
 ## Definition
 
 A *stale event* in current code is an event that was admitted to the
-hashgraph DAG and then aged past the ancient threshold without ever
-reaching consensus. Stale is a *fate*, not one of the
-[event lifecycle](event-lifecycle.md) states: the lifecycle describes
-states an admitted event passes through, and stale is the specific
-outcome of an admitted event whose lifecycle ended in *ancient*
-without consensus.
+hashgraph and then aged past the ancient threshold without ever
+reaching consensus on this node. By definition, a stale event did
+not reach consensus and never will — its transactions are not part
+of the consensus order anywhere in the network. Stale is a *fate*,
+not one of the [event lifecycle](event-lifecycle.md) states: the
+lifecycle describes states an admitted event passes through, and
+stale is the specific outcome of an admitted event whose lifecycle
+ended in *ancient* without consensus.
+
+Because a stale event is by definition an event that does not reach
+consensus and never will, stale event reports are **not deterministic
+across nodes**. The same underlying event may show up as stale on
+some nodes and never be observed at all on others. The creating node
+may simply have never gossiped it, or did gossip it but the event was
+not propagated through the network quickly enough to be well connected
+in the graph (i.e. not propagated to enough peers in time to end up
+in the ancestry of the judges of the rounds before its birth
+round went ancient). There is no consensus-level
+guarantee that every node sees the
+same stale set; the stale-events output is a local-observation
+stream.
 
 The fate matters mostly for self-events. Their transactions never
 became part of the consensus order, so the application can resubmit
@@ -40,37 +55,43 @@ pre-admission rejection.
 
 ## Example
 
-Node A creates self-event `s` at birth round 50. `s` enters the
-hashgraph and contributes to ongoing rounds, but A is briefly
-partitioned before any round in which `s` would have judged decides.
-The network proceeds without A; eventually the ancient threshold
-advances past 50. The linker unlinks `s` as ancient. Because `s`
-never reached consensus the engine emits `s` on the stale-events
-output. A's stale-event callback receives `s` and resubmits its
-transactions on a new self-event.
+Node A creates self-event `s` at birth round 50, but A is briefly
+partitioned before `s` propagates widely enough to end up in the
+ancestry of any decided round's judges. An event reaches judge
+ancestry only when peers select it as an other-parent when they
+create their own events (see
+[`../architecture/topics/event-creator.md`](../architecture/topics/event-creator.md));
+peers fail to do that for `s` either because they never received it
+(gossip never delivered it — partition is one cause, and
+[`reasons-not-to-gossip.md`](reasons-not-to-gossip.md) covers the
+others) or because they had `s` but chose different other-parents.
+Eventually the ancient threshold advances past 50; the linker
+unlinks `s` as ancient, and because `s` never reached consensus the
+engine emits `s` on the stale-events output. A's stale-event
+callback receives `s` and resubmits its transactions on a new
+self-event.
 
 ## In current code
 
 Stale events are produced by
-[`DefaultConsensusEngine.addEvent`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)
+[
+`DefaultConsensusEngine.addEvent`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)
 (lines ~122, 180–185, 192–193): non-consensus events returned by
 `ConsensusLinker.setEventWindow` are appended to the stale-events
 list and emitted via
-[`HashgraphModule.staleEventOutputWire`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/HashgraphModule.java).
+[
+`HashgraphModule.staleEventOutputWire`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/HashgraphModule.java).
 Application consumers register through
-[`PlatformBuilder.withStaleEventCallback`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
+[
+`PlatformBuilder.withStaleEventCallback`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
 (line 250).
 
-No `StaleEventDetector` class exists in current code; the legacy
-[`StaleEventDetectorOutput`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/StaleEventDetectorOutput.java)
-enum still ships in `consensus-model` but appears unused outside its
-declaration.
-
-[TBD: question for engineer — the
-[`StaleEventDetectorOutput`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/StaleEventDetectorOutput.java)
-enum distinguishes `SELF_EVENT` from `STALE_SELF_EVENT` but no
-production code references it. Is it dead code, or is a new detector
-component planned?]
+No `StaleEventDetector` class exists in current code. The legacy
+[
+`StaleEventDetectorOutput`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/StaleEventDetectorOutput.java)
+enum still ships in `consensus-model` but is dead code; its removal
+is tracked in
+[hiero-consensus-node#25505](https://github.com/hiero-ledger/hiero-consensus-node/issues/25505).
 
 ## Cross-references
 
