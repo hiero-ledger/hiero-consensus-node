@@ -102,6 +102,16 @@ This is a per-node guarantee, and it holds only if the maximum timeout does not 
 It does **not** guarantee that every other node in the network will also hold a fully-signed
 freeze block before transitioning — see [Limitations](#limitations) below.
 
+## Temporary Nature
+
+This blocking mechanism is a **temporary solution** required only while blocks are signed with
+**RSA signatures**, where each node contributes an independent signature and a threshold of
+per-node signatures must be collected and gossiped before shutdown.
+
+Once blocks are signed with **TSS (Threshold Signature Scheme) signatures**, the per-node
+signature-gossip step that motivates this block goes away, and the `onSealConsensusRound`
+blocking behavior introduced here **should be removed**.
+
 ## Limitations
 
 This decision guarantees that **the self node** holds a fully-signed freeze block before
