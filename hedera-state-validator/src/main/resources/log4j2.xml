@@ -4,6 +4,10 @@
       <Console name="DefaultConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
+      <Console name="ConsoleMarkerAppender" target="SYSTEM_OUT">
+          <MarkerFilter marker="CONSOLE" onMatch="ACCEPT" onMismatch="DENY"/>
+          <PatternLayout pattern="%msg%n"/>
+      </Console>
       <Console name="StateAnalysisConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
@@ -37,6 +41,7 @@
       </Logger>
       <Root level="DEBUG">
           <AppenderRef ref="FileAppender"/>
+          <AppenderRef ref="ConsoleMarkerAppender"/>
       </Root>
     </Loggers>
 </Configuration>

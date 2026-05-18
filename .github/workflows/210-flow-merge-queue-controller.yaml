@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
-      branch_name: ${{ github.ref_name }}
+      branch-name: ${{ github.ref_name }}
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
       solo-ge-0440: "true"
       helm-release-name: "mirror-1"

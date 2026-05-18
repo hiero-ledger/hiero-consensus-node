@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -35,7 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class V0740BlockRecordSchemaTest {
+class V0750BlockRecordSchemaTest {
     @Mock
     private MigrationContext ctx;
 
@@ -63,11 +64,11 @@ class V0740BlockRecordSchemaTest {
     @Mock
     private WritableSingletonState<BlockInfo> blockInfoState;
 
-    private final V0740BlockRecordSchema subject = new V0740BlockRecordSchema();
+    private final V0750BlockRecordSchema subject = new V0750BlockRecordSchema();
 
     @Test
-    void versionIsV0740() {
-        assertEquals(new SemanticVersion(0, 74, 0, "", ""), subject.getVersion());
+    void versionIsV0750() {
+        assertEquals(new SemanticVersion(0, 75, 0, "", ""), subject.getVersion());
     }
 
     @Test
@@ -233,6 +234,38 @@ class V0740BlockRecordSchemaTest {
         subject.restart(ctx);
 
         verify(ctx, never()).sharedValues();
+    }
+
+    @Test
+    void migrateIsNoopOnGenesis() {
+        given(ctx.isGenesis()).willReturn(true);
+
+        subject.migrate(ctx);
+
+        verify(ctx, never()).newStates();
+        verifyNoInteractions(writableStates, blockInfoState);
+    }
+
+    @Test
+    void migrateIncrementsLastBlockNumberAndSetsFirstConsTimeToEpoch() {
+        final var nonEpochTime = new Timestamp(1_000_000L, 0);
+        final var initialBlockInfo = baseBlockInfo()
+                .copyBuilder()
+                .firstConsTimeOfCurrentBlock(nonEpochTime)
+                .build();
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        given(blockInfoState.get()).willReturn(initialBlockInfo);
+
+        subject.migrate(ctx);
+
+        verify(blockInfoState)
+                .put(initialBlockInfo
+                        .copyBuilder()
+                        .lastBlockNumber(initialBlockInfo.lastBlockNumber() + 1)
+                        .firstConsTimeOfCurrentBlock(EPOCH)
+                        .build());
     }
 
     private void givenRestartPreconditions() {
