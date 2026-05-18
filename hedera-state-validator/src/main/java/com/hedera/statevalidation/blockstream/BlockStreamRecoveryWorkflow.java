@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -160,6 +161,13 @@ public class BlockStreamRecoveryWorkflow {
                 ? new RateLimiter(platformContext.getTime(), roundsPerSecond)
                 : null;
 
+        // Progress reporting: percentage-based when targetRound is known, count-based otherwise
+        final boolean bounded = targetRound != DEFAULT_TARGET_ROUND;
+        final ProgressReporter progress = bounded
+                ? new ProgressReporter("Block stream recovery", targetRound - initRound)
+                : new ProgressReporter("Block stream recovery", 1); // unbounded fallback
+
+
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
@@ -197,6 +205,11 @@ public class BlockStreamRecoveryWorkflow {
                         // requestAndTrigger() always succeeds .
                         rateLimit(rateLimiter);
                         currentRound.incrementAndGet();
+                        if (bounded) {
+                            progress.advance(1);
+                        } else {
+                            progress.advanceUnbounded(1);
+                        }
                     }
                 }
 

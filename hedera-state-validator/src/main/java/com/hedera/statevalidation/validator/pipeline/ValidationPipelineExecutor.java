@@ -7,6 +7,7 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.validator.Validator;
 import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DataStats;
@@ -168,6 +169,12 @@ public final class ValidationPipelineExecutor {
                 // Sort segments: largest segments first (better thread utilization)
                 readSegments.sort((a, b) -> Long.compare(b.endByte() - b.startByte(), a.endByte() - a.startByte()));
 
+                // Progress tracking: total bytes across all segments is known upfront
+                final long totalBytes = readSegments.stream()
+                                        .mapToLong(s -> s.endByte() - s.startByte())
+                                                .sum();
+               final ProgressReporter progress = new ProgressReporter("Pipeline validation", totalBytes);
+
                 // Initialize data structures for processing
                 dataStats = new DataStats();
                 totalBoundarySearchTime = new AtomicLong(0L);
@@ -186,6 +193,7 @@ public final class ValidationPipelineExecutor {
                 for (final ReadSegment segment : readSegments) {
                     ioFutures.add(ioPool.submit(() -> {
                         readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
+                        progress.advance(segment.endByte() - segment.startByte());
                         return null;
                     }));
                 }
