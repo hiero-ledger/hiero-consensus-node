@@ -309,7 +309,6 @@ jobs:
       solo-version: ${{ inputs.solo-version }}
     secrets:
       access-token: ${{ secrets.regression-access-token }}
-      slack-api-token: ${{ secrets.slack-api-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
