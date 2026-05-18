@@ -14,4 +14,6 @@ COPY --chown=appuser:appuser lib/* /opt/DockerApp/lib/
 # Run as non-root user
 USER appuser
 
-CMD ["java", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]
+# --sun-misc-unsafe-memory-access=allow silences protobuf's UnsafeUtil deprecation warning on JDK 25.
+# The netty System.loadLibrary warning is silenced via the JAR's Enable-Native-Access manifest entry.
+CMD ["java", "--sun-misc-unsafe-memory-access=allow", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]

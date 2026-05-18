@@ -3,9 +3,9 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -17,14 +17,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests that verify {@link LongListDisk} correctly handles concurrent reads
@@ -44,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
  * because a reader can grab a chunk file-offset that is freed and reused for
  * a different index range between the offset lookup and the file read.
  */
-class LongListDiskConcurrentChunkRecyclingTest {
+class LongListDiskConcurrentChunkRecyclingTest extends AbstractFileManagerAwareTest {
 
     /**
      * Small chunk size to maximize the number of chunk boundaries and therefore
@@ -72,16 +69,6 @@ class LongListDiskConcurrentChunkRecyclingTest {
 
     /** Number of concurrent reader threads. */
     private static final int READER_THREADS = 4;
-
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
-
-    @BeforeAll
-    static void setupFileSystemManager() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
 
     private LongListDisk list;
 
@@ -163,9 +150,8 @@ class LongListDiskConcurrentChunkRecyclingTest {
         list.updateValidRange(newMin, CAPACITY - 1);
 
         // Write into indices beyond the initial range — these should reuse freed chunk offsets
-        final int extendedStart = initialCount;
         final int extendedEnd = initialCount + LONGS_PER_CHUNK * 3;
-        for (int i = extendedStart; i < extendedEnd; i++) {
+        for (int i = initialCount; i < extendedEnd; i++) {
             list.put(i, i + VALUE_MAGIC);
         }
 
@@ -174,7 +160,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
             assertEquals(i + VALUE_MAGIC, list.get(i, 0), "Surviving index " + i + " should retain its value");
         }
         // Verify new values in recycled chunks
-        for (int i = extendedStart; i < extendedEnd; i++) {
+        for (int i = initialCount; i < extendedEnd; i++) {
             assertEquals(
                     i + VALUE_MAGIC,
                     list.get(i, 0),
@@ -527,12 +513,12 @@ class LongListDiskConcurrentChunkRecyclingTest {
 
         // Wrong expected → no change
         boolean changed = list.putIfEqual(42, 999, 200);
-        assertEquals(false, changed);
+        assertFalse(changed);
         assertEquals(100, list.get(42, 0));
 
         // Correct expected → swap
         changed = list.putIfEqual(42, 100, 200);
-        assertEquals(true, changed);
+        assertTrue(changed);
         assertEquals(200, list.get(42, 0));
     }
 }

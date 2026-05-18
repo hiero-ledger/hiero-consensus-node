@@ -233,39 +233,4 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      */
     void syncFinalizedMigrationHashes(
             @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
-
-    /**
-     * Hook to compute wrapped record-file block data for the current in-progress record block
-     * prior to a freeze. In such an event, this method has one of two possible responsibilities:
-     * <ol>
-     *   <li>If live wrapped record hash computation is enabled, it must persist the current wrapped
-     *   block's hash to state.</li>
-     *   <li>If live wrapped record hash computation is disabled, but writing wrapped record block
-     *   hashes to disk is enabled, it must write the current wrapped record's component hashes to
-     *   the wrapped hashes file on disk.</li>
-     * </ol>
-     * Note that the 'live' check is intentionally preferred over the 'disk' check, because if live
-     * computation is enabled, there's no need to write data to the disk file.
-     *
-     * @param state the state to persist BlockInfo to
-     */
-    void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state);
-
-    /**
-     * Persists wrapped record-file block hash inputs for the current in-progress block to the on-disk wrapped-hashes
-     * file when {@link com.hedera.node.config.data.BlockRecordStreamConfig#writeWrappedRecordFileBlockHashesToDisk()
-     * writeWrappedRecordFileBlockHashesToDisk} is enabled.
-     *
-     * <p>This freeze hook treats the open record block as if it were about to close: it snapshots the block number
-     * ({@code lastBlockNumber + 1}), the block's first consensus time, the record stream running hash at end of the
-     * round, and the in-memory record stream items and sidecars accumulated for that block, then appends that payload
-     * asynchronously for downstream wrapped-hash computation.
-     *
-     * <p>Called from the handle workflow at the end of a freeze round (after user transactions for the round have been
-     * streamed). If the disk feature flag is off, this method returns immediately without I/O.
-     *
-     * @param state the mutable state at the end of the freeze round (mirrors
-     *              {@link #writeFreezeBlockWrappedRecordFileBlockHashesToState(State)}; the implementation may not read it)
-     */
-    void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull State state);
 }

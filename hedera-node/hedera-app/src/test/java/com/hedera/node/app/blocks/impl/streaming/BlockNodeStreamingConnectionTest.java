@@ -931,9 +931,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testClose() {
         activateConnection();
 
-        connection.close(CloseReason.CONNECTION_STALLED, true);
+        connection.close(CloseReason.CONFIG_UPDATE, true);
 
-        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_STALLED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONFIG_UPDATE);
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
         // verifications for sending EndStream.RESET
@@ -941,7 +941,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         // remaining verifications
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_STALLED);
+        verify(metrics).recordConnectionClosed(CloseReason.CONFIG_UPDATE);
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
