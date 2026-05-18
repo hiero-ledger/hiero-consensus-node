@@ -95,6 +95,13 @@ public interface HintsService extends Service {
     HintsConstruction activeConstruction();
 
     /**
+     * Sets a completed active construction into the signing context during startup.
+     *
+     * @param construction the active construction to use for signing
+     */
+    void setActiveConstruction(@NonNull HintsConstruction construction);
+
+    /**
      * Whether the signer is ready.
      */
     boolean isReady();
