@@ -17,9 +17,9 @@ package proto.blocks;
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Blocks";
-option java_package = "com.hedera.hashgraph.proto.blocks";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.blocks">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Blocks";
+option java_package = "com.hiero.proto.blocks";
+// <<<pbj.java_package = "com.hiero.proto.blocks">>> This comment is special code for setting PBJ Compiler java package
 
 option java_multiple_files = true;
 

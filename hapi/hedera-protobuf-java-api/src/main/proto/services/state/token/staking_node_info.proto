@@ -29,9 +29,9 @@ package proto.services.state.token;
  * limitations under the License.
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Token";
-option java_package = "com.hedera.hashgraph.proto.services.state.token";
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.token">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.Token";
+option java_package = "com.hiero.proto.services.state.token";
+// <<<pbj.java_package = "com.hiero.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

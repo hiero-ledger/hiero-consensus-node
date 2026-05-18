@@ -14,9 +14,9 @@ syntax = "proto3";
 
 package proto.network;
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Network";
-option java_package = "com.hedera.hashgraph.proto.network";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.network">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Network";
+option java_package = "com.hiero.proto.network";
+// <<<pbj.java_package = "com.hiero.proto.network">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";

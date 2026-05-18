@@ -28,9 +28,9 @@ package proto.services.auxiliary.tss;
  * limitations under the License.
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.Auxiliary.Tss";
-option java_package = "com.hedera.hashgraph.proto.services.auxiliary.tss";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.services.auxiliary.tss">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.Auxiliary.Tss";
+option java_package = "com.hiero.proto.services.auxiliary.tss";
+// <<<pbj.java_package = "com.hiero.proto.services.auxiliary.tss">>> This comment is special code for setting PBJ Compiler java package
 
 option java_multiple_files = true;
 

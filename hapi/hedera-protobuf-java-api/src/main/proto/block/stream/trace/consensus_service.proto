@@ -15,9 +15,9 @@ syntax = "proto3";
 package proto.block.stream.trace;
 
 // SPDX-License-Identifier: Apache-2.0
-option csharp_namespace = "Hedera.Hashgraph.Proto.Block.Stream.Trace";
-option java_package = "com.hedera.hashgraph.proto.block.stream.trace";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.stream.trace">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Block.Stream.Trace";
+option java_package = "com.hiero.proto.block.stream.trace";
+// <<<pbj.java_package = "com.hiero.proto.stream.trace">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

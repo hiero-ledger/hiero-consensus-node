@@ -8,9 +8,9 @@ syntax = "proto3";
 
 package proto.fees;
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Fees";
-option java_package = "com.hedera.hashgraph.proto.fees";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.fees">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Fees";
+option java_package = "com.hiero.proto.fees";
+// <<<pbj.java_package = "com.hiero.proto.fees">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 import "services/basic_types.proto";

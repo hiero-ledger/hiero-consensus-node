@@ -8,14 +8,14 @@ plugins {
 
 javaModules {
     // The Hedera API module
-    directory("hapi") { group = "com.hedera.hashgraph" }
+    directory("hapi") { group = "com.hiero" }
 
     // The Hedera platform modules
-    directory("platform-sdk") { group = "com.hedera.hashgraph" }
+    directory("platform-sdk") { group = "com.hiero" }
 
     // The Hedera services modules
     directory("hedera-node") {
-        group = "com.hedera.hashgraph"
+        group = "com.hiero"
 
         // Configure 'artifact' for projects where folder does not correspond to artifact name
         module("hapi-fees") { artifact = "app-hapi-fees" }
@@ -46,11 +46,11 @@ javaModules {
     }
 
     // Platform-base demo applications
-    directory("example-apps") { group = "com.hedera.hashgraph" }
+    directory("example-apps") { group = "com.hiero" }
 
-    directory("hiero-observability") { group = "com.hedera.hashgraph" }
+    directory("hiero-observability") { group = "com.hiero" }
 
-    module("hedera-state-validator") { group = "com.hedera.hashgraph" }
+    module("hedera-state-validator") { group = "com.hiero" }
 }
 
 // Flaky test handling

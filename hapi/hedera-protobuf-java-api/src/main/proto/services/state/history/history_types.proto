@@ -5,9 +5,9 @@ package proto.services.state.history;
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.History";
-option java_package = "com.hedera.hashgraph.proto.services.state.history";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.services.state.history">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.History";
+option java_package = "com.hiero.proto.services.state.history";
+// <<<pbj.java_package = "com.hiero.proto.services.state.history">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

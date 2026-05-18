@@ -30,8 +30,8 @@ package proto.services;
  * limitations under the License.
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services";
-option java_package = "com.hedera.hashgraph.proto.services";
+option csharp_namespace = "Hiero.Proto.Services";
+option java_package = "com.hiero.proto.services";
 option java_multiple_files = true;
 
 import "platform/event/state_signature_transaction.proto";
@@ -135,7 +135,7 @@ import "services/auxiliary/blockrecords/migration_root_hash_vote.proto";
  * The four deprecated fields will be removed and reserved in a future release.
  */
 message Transaction {
-    // <<<pbj.java_package = "com.hedera.hashgraph.node.base">>> This comment is special code for setting PBJ Compiler java package
+    // <<<pbj.java_package = "com.hiero.node.base">>> This comment is special code for setting PBJ Compiler java package
     /**
      * Replaced with `signedTransactionBytes`.<br/>
      * The body of the transaction.
@@ -184,7 +184,7 @@ message Transaction {
  * various parameters required to process a transaction.
  */
 message TransactionBody {
-    // <<<pbj.java_package = "com.hedera.hashgraph.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+    // <<<pbj.java_package = "com.hiero.node.transaction">>> This comment is special code for setting PBJ Compiler java package
     reserved 30, 61, 62, 63, 64;
 
     reserved "tssMessage", "tssVote", "tssShareSignature", "tssEncryptionKey";
@@ -731,7 +731,7 @@ message TransactionBody {
  * A transaction body for handling a set of transactions atomically.
  */
 message AtomicBatchTransactionBody {
-  // <<<pbj.java_package = "com.hedera.hashgraph.node.util">>> This comment is special code for setting PBJ Compiler java package
+  // <<<pbj.java_package = "com.hiero.node.util">>> This comment is special code for setting PBJ Compiler java package
     /**
      * A list of signed bytes that represent the batch transactions.
      */

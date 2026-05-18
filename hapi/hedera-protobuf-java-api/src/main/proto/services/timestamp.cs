@@ -1,4 +1,4 @@
-﻿using Hedera.Hashgraph.Proto.Services;
+﻿using Hiero.Proto.Services;
 
 namespace System
 {

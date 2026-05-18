@@ -16,9 +16,9 @@ syntax = "proto3";
 package proto.services.auxiliary.tss;
 
 // SPDX-License-Identifier: Apache-2.0
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.Auxiliary.Tss";
-option java_package = "com.hedera.hashgraph.proto.services.auxiliary.tss";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.services.auxiliary.tss">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.Auxiliary.Tss";
+option java_package = "com.hiero.proto.services.auxiliary.tss";
+// <<<pbj.java_package = "com.hiero.proto.services.auxiliary.tss">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

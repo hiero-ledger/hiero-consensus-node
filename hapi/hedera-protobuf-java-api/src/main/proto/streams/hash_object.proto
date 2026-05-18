@@ -22,9 +22,9 @@ package proto.streams;
  * ‍
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Streams";
-option java_package = "com.hedera.hashgraph.proto.streams";
-// <<<pbj.java_package = "com.hedera.hashgraph.streams">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Streams";
+option java_package = "com.hiero.proto.streams";
+// <<<pbj.java_package = "com.hiero.streams">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

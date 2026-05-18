@@ -3,9 +3,9 @@ syntax = "proto3";
 package proto.services.state.blockrecords;
 
 // SPDX-License-Identifier: Apache-2.0
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.BlockRecords";
-option java_package = "com.Hedera.Hashgraph.Proto.Services.State.BlockRecords";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.services.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.BlockRecords";
+option java_package = "com.Hiero.Proto.Services.State.BlockRecords";
+// <<<pbj.java_package = "com.hiero.proto.services.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

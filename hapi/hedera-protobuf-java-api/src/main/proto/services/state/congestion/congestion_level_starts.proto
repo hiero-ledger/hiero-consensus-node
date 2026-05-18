@@ -31,9 +31,9 @@ package proto.services.state.congestion;
 
 import "services/timestamp.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Congestion";
-option java_package = "com.hedera.hashgraph.proto.services.state.congestion";
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.congestion">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.Congestion";
+option java_package = "com.hiero.proto.services.state.congestion";
+// <<<pbj.java_package = "com.hiero.node.state.congestion">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

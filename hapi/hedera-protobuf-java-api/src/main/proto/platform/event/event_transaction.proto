@@ -31,9 +31,9 @@ package proto.platform.event;
 
 import "platform/event/state_signature_transaction.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Platform.Event";
-option java_package = "com.hedera.hashgraph.proto.platform.event";
-// <<<pbj.java_package = "com.hedera.hashgraph.platform.event">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Platform.Event";
+option java_package = "com.hiero.proto.platform.event";
+// <<<pbj.java_package = "com.hiero.platform.event">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

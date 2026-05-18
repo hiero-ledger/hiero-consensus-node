@@ -6,9 +6,9 @@ package proto.services.state.addressbook;
 import "services/basic_types.proto";
 import "services/registered_service_endpoint.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.AddressBook";
-option java_package = "com.hedera.hashgraph.proto.services.state.addressbook";
-// <<<pbj.java_package = "com.hedera.hashgraph.proto.services.state.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.AddressBook";
+option java_package = "com.hiero.proto.services.state.addressbook";
+// <<<pbj.java_package = "com.hiero.proto.services.state.addressbook">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

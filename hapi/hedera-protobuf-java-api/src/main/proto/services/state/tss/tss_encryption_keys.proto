@@ -28,9 +28,9 @@ package proto.services.state.tss;
  * limitations under the License.
  */
  
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Tss";
-option java_package = "com.hedera.hashgraph.proto.services.state.tss";
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.tss">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.Tss";
+option java_package = "com.hiero.proto.services.state.tss";
+// <<<pbj.java_package = "com.hiero.node.state.tss">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

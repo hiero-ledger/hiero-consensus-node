@@ -29,9 +29,9 @@ package proto.block.stream.input;
  * limitations under the License.
  */
  
-option csharp_namespace = "Hedera.Hashgraph.Proto.Block.Stream.Input";
-option java_package = "com.hedera.hashgraph.proto.block.stream.input";
-// <<<pbj.java_package = "com.hedera.hashgraph.block.stream.input">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Block.Stream.Input";
+option java_package = "com.hiero.proto.block.stream.input";
+// <<<pbj.java_package = "com.hiero.block.stream.input">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 import "platform/event/event_core.proto";

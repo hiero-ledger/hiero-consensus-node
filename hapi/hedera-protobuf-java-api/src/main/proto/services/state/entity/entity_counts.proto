@@ -27,9 +27,9 @@ package proto.services.state.entity;
  * limitations under the License.
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Entity";
-option java_package = "com.hedera.hashgraph.proto.services.state.entity";
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.entity">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.Entity";
+option java_package = "com.hiero.proto.services.state.entity";
+// <<<pbj.java_package = "com.hiero.node.state.entity">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

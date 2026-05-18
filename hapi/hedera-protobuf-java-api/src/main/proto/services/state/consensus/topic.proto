@@ -31,10 +31,10 @@ package proto.services.state.consensus;
 import "services/basic_types.proto";
 import "services/custom_fees.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Consensus";
-option java_package = "com.hedera.hashgraph.proto.services.state.consensus";
+option csharp_namespace = "Hiero.Proto.Services.State.Consensus";
+option java_package = "com.hiero.proto.services.state.consensus";
 
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.consensus">>> This comment is special code for setting PBJ Compiler java package
+// <<<pbj.java_package = "com.hiero.node.state.consensus">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

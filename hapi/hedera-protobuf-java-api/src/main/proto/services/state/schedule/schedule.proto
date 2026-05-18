@@ -33,9 +33,9 @@ import "services/basic_types.proto";
 import "services/schedulable_transaction_body.proto";
 import "services/transaction.proto";
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Services.State.Schedule";
-option java_package = "com.hedera.hashgraph.proto.services.state.schedule";
-// <<<pbj.java_package = "com.hedera.hashgraph.node.state.schedule">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Services.State.Schedule";
+option java_package = "com.hiero.proto.services.state.schedule";
+// <<<pbj.java_package = "com.hiero.node.state.schedule">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 /**

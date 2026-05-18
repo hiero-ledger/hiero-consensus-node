@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package proto.sdk;
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.SDK";
-option java_package = "com.hedera.hashgraph.proto.sdk";
+option csharp_namespace = "Hiero.Proto.SDK";
+option java_package = "com.hiero.proto.sdk";
 option java_multiple_files = true;
 
 import "services/transaction.proto";

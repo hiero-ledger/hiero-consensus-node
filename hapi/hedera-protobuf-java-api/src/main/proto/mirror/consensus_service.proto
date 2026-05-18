@@ -23,8 +23,8 @@ syntax = "proto3";
 package proto.mirror;
 
 option java_multiple_files = true; // Required for the reactor-grpc generator to work correctly
-option csharp_namespace = "Hedera.Hashgraph.Proto.Mirror";
-option java_package = "com.hedera.hashgraph.proto.mirror";
+option csharp_namespace = "Hiero.Proto.Mirror";
+option java_package = "com.hiero.proto.mirror";
 
 import "services/consensus_submit_message.proto";
 import "services/timestamp.proto";

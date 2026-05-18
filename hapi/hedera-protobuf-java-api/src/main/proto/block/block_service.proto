@@ -29,9 +29,9 @@ package proto.block;
  * limitations under the License.
  */
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Block";
-option java_package = "com.hedera.hashgraph.proto.block";
-// <<<pbj.java_package = "com.hedera.hashgraph.block">>> This comment is special code for setting PBJ Compiler java package
+option csharp_namespace = "Hiero.Proto.Block";
+option java_package = "com.hiero.proto.block";
+// <<<pbj.java_package = "com.hiero.block">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
 import "block/stream/block.proto";

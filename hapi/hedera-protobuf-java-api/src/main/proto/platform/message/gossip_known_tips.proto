@@ -3,8 +3,8 @@ syntax = "proto3";
 
 package proto.platform.message;
 
-option csharp_namespace = "Hedera.Hashgraph.Proto.Platform.Message";
-option java_package = "com.hedera.hashgraph.proto.platform.message";
+option csharp_namespace = "Hiero.Proto.Platform.Message";
+option java_package = "com.hiero.proto.platform.message";
 // <<<pbj.java_package = "com.hedera.hapi.platform.message">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 

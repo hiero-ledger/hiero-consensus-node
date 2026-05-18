@@ -39,8 +39,8 @@ package proto.block.stream.output;
  * limitations under the License.
  */
  
-option csharp_namespace = "Hedera.Hashgraph.Proto.Block.Stream.Output";
-option java_package = "com.hedera.hashgraph.proto.block.stream.output";
+option csharp_namespace = "Hiero.Proto.Block.Stream.Output";
+option java_package = "com.hiero.proto.block.stream.output";
 // <<<pbj.java_package = "proto.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
