@@ -25,7 +25,7 @@ on:
       ref:
         description: "Commit ref or SHA to report on; drives the Source Commit link and git author lookup"
         type: string
-        required: false
+        required: true
         default: ""
     secrets:
       webhook:
@@ -33,7 +33,7 @@ on:
         required: true
       slack-api-token:
         description: "Slack bot token for author email-to-username lookup; omit to skip the mention"
-        required: false
+        required: true
 
 defaults:
   run:
@@ -55,7 +55,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 1
 
       - name: Setup Node
