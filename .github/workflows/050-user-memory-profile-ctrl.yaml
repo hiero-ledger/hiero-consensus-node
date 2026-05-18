@@ -307,6 +307,7 @@ jobs:
               bash ${HOME}/mat/ParseHeapDump.sh ./$i org.eclipse.mat.api:overview
               mkdir -p "${{ github.workspace }}"/report/$i.report
               unzip -d "${{ github.workspace }}"/report/$i.report $(find . -name '*System_Overview.zip')
+              cp ./$i "${{ github.workspace }}"/report/$i.report
               cd "${{ github.workspace }}"/solo
           done
 
