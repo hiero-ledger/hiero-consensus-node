@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
-import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -23,6 +22,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -121,7 +121,7 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         final var usage = feeBuilder.getContractByteCodeQueryFeeMatrices(
                 (int) effectiveBytecode.length(), fromPbjResponseType(responseType));
-        return context.feeCalculator().legacyCalculate(sigValueObj -> usage);
+        return context.feeCalculator().legacyCalculate(_ -> usage);
     }
 
     /**
@@ -145,7 +145,7 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
             } else if (account.smartContract()) {
                 return bytecodeFrom(context, account);
             } else if (account.delegationAddress().length() > 0) {
-                return Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), account.delegationAddress());
+                return ProxyEvmAccount.createDelegationIndicatorPJB(account.delegationAddress());
             } else {
                 return null;
             }
