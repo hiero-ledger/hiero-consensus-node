@@ -79,7 +79,7 @@ public class TxPipelineTracker {
      * Note that every user transaction submitted via ingest will certainly be relevant to quiescence, but the
      * iterator might include other self-created transactions that are not relevant to quiescence.
      * <p>
-     * {@link #inFlightCount} is a per-node counter — it is incremented by {@link IngestWorkflowImpl} when this
+     * {@link #inFlightCount} is a per-node counter — it is incremented by {@link com.hedera.node.app.workflows.ingest.IngestWorkflowImpl} when this
      * node accepts a transaction via gRPC, and decremented here when this node creates an event containing a
      * relevant transaction. In a multi-node network, a transaction ingested by node {@code X} routinely lands in
      * an event created by node {@code Y}; node {@code Y} will then call {@code countLanded} for a transaction it

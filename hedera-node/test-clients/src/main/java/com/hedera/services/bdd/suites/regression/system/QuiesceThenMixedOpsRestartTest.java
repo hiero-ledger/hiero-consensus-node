@@ -139,7 +139,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
      *       receives it via ingest.</li>
      *   <li><b>Create {@code scheduledReceiver}</b> with an initial balance of 41 HBAR.</li>
      *   <li><b>Create a scheduled {@code cryptoTransfer}</b> of 1 HBAR to {@code scheduledReceiver} that expires
-     *       {@code 6 * tctDuration} seconds after the receiver-creation txn. This is the {@link TctProbe} target the
+     *       {@code 6 * tctDuration} seconds after the receiver-creation txn. This is the {@link com.hedera.node.app.quiescence.TctProbe} target the
      *       heartbeat will discover.</li>
      *   <li><b>Read the schedule's expiry timestamp</b> via {@code getScheduleInfo} for later assertion bounds.</li>
      *   <li><b>Sleep for {@code 2 * tctDuration}</b> (~10 s) to give the network time to settle and quiesce.</li>
