@@ -7,22 +7,25 @@ import static com.swirlds.merkledb.files.DataFileCommon.PAGE_SIZE;
 import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.MemoryData;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
-import org.hiero.base.utility.MemoryUtils;
 
 /**
  * Class for creating and sequentially writing to the file. A data file contains a header
@@ -31,36 +34,49 @@ import org.hiero.base.utility.MemoryUtils;
  *
  * <p>{@link #close()} must be called after done writing data using {@link #storeDataItem(BufferedData)},
  * or {@link #storeDataItem(Consumer, int)}, or {@link #storeDataItemWithTag(BufferedData)}
- * any number of times. The implementation doesn't control the file size.
+ * any number of times. When a file writer is closed, the file size is set to the last byte of
+ * the last data item written.
  *
- * <p>Internally, the data items are written to a memory mapped file using {@link MappedByteBuffer}
- * of fixed size, that could be provided in constructor. This buffer is moved to the current
- * file position when needed.
+ * <p>Right after a data file writer is created, it's ready to write from multiple threads.
+ * After all write calls are finished, the writer should be closed using {@link #close()}. It
+ * is callers' responsibility to make sure there are no write calls in progress, when writers
+ * are closed.
  *
- * <p><b>This class is NOT thread safe.</b>
+ * <p>Internally, writing is implemented as mapping parts of the file (called writing windows)
+ * and writing to them. Every call to store a data item increases the current writing offset in
+ * the file atomically. For this offset, the right writing window is identified and mapped to
+ * memory, if needed. After the data item is written, the window is notified that the right
+ * number of bytes have been written to it. Once the number of bytes written is equal to the
+ * size of a writing window, the window is closed, and the corresponding memory segment is
+ * unmapped.
+ *
+ * <p>Mapped memory segments are overlapping, this is done to avoid writing a single data item
+ * to multiple mapped segments. If data buffer size is 100Mb, then the first window is mapped
+ * at offset 0 and length 100Mb, the second window is mapped at offset 50Mb and length 100Mb,
+ * and so on. Once 50Mb of data is written to a window, it gets unmapped.
  *
  * <p>{@link DataFileReader} or {@link DataFileIterator} can be used to read file back and access data items.
  */
 public final class DataFileWriter {
 
     /**
-     * Default buffer size for writing into the file is 64 Mb
+     * Default max file size, in bytes.
+     */
+    private static final long DEFAULT_MAX_FILE_SIZE = 1L << 40;
+
+    /**
+     * Default buffer size for writing, in bytes.
      */
     private static final int DEFAULT_BUF_SIZE = PAGE_SIZE * KIBIBYTES_TO_BYTES * 16;
 
-    private static final String ERROR_DATA_ITEM_TOO_LARGE =
-            "Data item is too large to write to a data file. Increase data file mapped byte buffer size";
+    private static final String ERROR_DATA_ITEM_TOO_LARGE = "Data item is too large to write to a data file";
 
-    private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = new ThreadLocal<>();
-    private static final ThreadLocal<BufferedData> WRITER_CACHE = new ThreadLocal<>();
-
-    private final AtomicReferenceArray<WritingWindow> writingWindows =
-            new AtomicReferenceArray<>((int) ((1L << 40) / DEFAULT_BUF_SIZE));
-
-    /**
-     * Offset, in bytes, of the current mapped byte buffer in the file channel.
-     */
-    private final AtomicLong currentWriteOffset = new AtomicLong(0);
+    // These two thread locals are a workaround for missing PBJ API to write to MemoryData
+    // objects at specified offsets (positioned writes). Once this API is available, data
+    // file writers will write directly into MemoryData (wrapped over mapped memory segments).
+    // See https://github.com/hashgraph/pbj/issues/790 for details
+    private static final ThreadLocal<MemorySegment> SEGMENT_CACHE = new ThreadLocal<>();
+    private static final ThreadLocal<MemoryData> WRITE_CACHE = new ThreadLocal<>();
 
     /** The path to the data file we are writing */
     private final Path path;
@@ -71,18 +87,33 @@ public final class DataFileWriter {
     private DataFileMetadata metadata;
 
     /** Total number of items written to this file */
-    private long itemsCount = 0;
+    private final AtomicLong itemsCount = new AtomicLong(0);
 
-    private final long dataBufferSize;
-    private final long halfBufferSize;
+    /**
+     * Offset, in bytes, of the current position in the file channel, where the next
+     * data item will be written.
+     */
+    private final AtomicLong currentWriteOffset = new AtomicLong(0);
 
-    private final long headerSize;
+    /**
+     * Writing windows. Each window has an offset in the file, a mapped memory segment
+     * used to write into the window, and an arena to release (unmap) the memory
+     * segment, when the window is completely written.
+     */
+    private final AtomicReferenceArray<WritingWindow> writingWindows;
+
+    /**
+     * Data buffer size is the size of single writing window and the max data item size to
+     * write. Note that writing windows overlap with each other, so mapped memory segments
+     * are two times larger than this buffer size.
+     */
+    private final int dataBufferSize;
 
     /**
      * Indicates if this file writer has been closed. Only set and accessed on the
      * writing thread.
      */
-    private boolean closed = false;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Create a new data file with moving mapped byte buffer of 256Mb size.
@@ -94,7 +125,7 @@ public final class DataFileWriter {
             final Instant creationTime,
             final int compactionLevel)
             throws IOException {
-        this(filePrefix, dataFileDir, index, creationTime, compactionLevel, DEFAULT_BUF_SIZE);
+        this(filePrefix, dataFileDir, index, creationTime, compactionLevel, DEFAULT_BUF_SIZE, DEFAULT_MAX_FILE_SIZE);
     }
 
     /**
@@ -115,30 +146,38 @@ public final class DataFileWriter {
             final int index,
             final Instant creationTime,
             final int compactionLevel,
-            final long dataBufferSize)
+            final int dataBufferSize,
+            final long maxFileSize)
             throws IOException {
         this.dataBufferSize = dataBufferSize;
-        this.halfBufferSize = dataBufferSize / 2;
+
+        final long maxNumWritingWindows = maxFileSize / dataBufferSize;
+        if (maxNumWritingWindows > 1L << 24) {
+            throw new IllegalArgumentException("Data buffer size " + dataBufferSize + " is too small"
+                    + " or max file size " + maxFileSize + " is too large");
+        }
+        this.writingWindows = new AtomicReferenceArray<>((int) maxNumWritingWindows);
 
         path = createDataFilePath(
                 filePrefix, dataFileDir, index, creationTime, compactionLevel, DataFileCommon.FILE_EXTENSION);
         Files.createFile(path);
         fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
-        metadata = new DataFileMetadata(index, creationTime, compactionLevel, itemsCount);
+        // Items count will be updated after the file is completely written
+        metadata = new DataFileMetadata(index, creationTime, compactionLevel, 0);
 
-        headerSize = writeHeader();
+        final int headerSize = writeHeader();
         currentWriteOffset.set(headerSize);
+        getWritingWindow(0).bytesWritten(headerSize);
     }
 
-    private long writeHeader() throws IOException {
-        final MappedByteBuffer headerMappedBuffer = fileChannel.map(MapMode.READ_WRITE, 0, 1024);
-        final BufferedData headerBuffer = BufferedData.wrap(headerMappedBuffer);
-        try {
-            metadata.writeTo(headerBuffer);
-            return headerBuffer.position();
-        } finally {
-            MemoryUtils.closeMmapBuffer(headerMappedBuffer);
-        }
+    private int writeHeader() throws IOException {
+        final int metadataSize = metadata.metadataSizeInBytes();
+        final ByteBuffer buf = ByteBuffer.allocate(metadataSize);
+        metadata.writeTo(BufferedData.wrap(buf));
+        assert buf.remaining() == 0;
+        buf.flip();
+        MerkleDbFileUtils.completelyWrite(fileChannel, buf, 0);
+        return metadataSize;
     }
 
     /**
@@ -160,6 +199,71 @@ public final class DataFileWriter {
     }
 
     /**
+     * Gets a writing window with a given index, initializing (mapping from the file) it
+     * if needed.
+     */
+    private WritingWindow getWritingWindow(final int windowIndex) throws IOException {
+        WritingWindow window = writingWindows.get(windowIndex);
+        // Two approaches are viable here. First, double check with synchronization. Second,
+        // CAS with delete. To delete a newly created writing window includes memory segment
+        // unmap, which is supposed to be slower than a synchronized block, so let's use
+        // the former approach
+        if (window == null) {
+            synchronized (this) {
+                window = writingWindows.get(windowIndex);
+                if (window == null) {
+                    window = new WritingWindow(windowIndex);
+                    writingWindows.set(windowIndex, window);
+                }
+            }
+        }
+        return window;
+    }
+
+    /**
+     * Returns a temp MemoryData buffer with position set to 0 and limit set to sizeToWrite. The
+     * buffer can be used on the current thread only.
+     */
+    private MemoryData getTempLocalWriteBuffer(final int sizeToWrite) {
+        MemoryData out = WRITE_CACHE.get();
+        if ((out == null) || (out.capacity() < sizeToWrite)) {
+            final MemorySegment segment = MemorySegment.ofArray(new byte[sizeToWrite]);
+            SEGMENT_CACHE.set(segment);
+            out = MemoryData.wrap(segment);
+            WRITE_CACHE.set(out);
+        } else {
+            out.position(0);
+            out.limit(sizeToWrite);
+        }
+        return out;
+    }
+
+    /**
+     * This method is called, when a data item is written. If the data item is written completely
+     * into a single writing window, this window is notified that all data item bytes are written
+     * to it. If write happened on a boundary of two windows, both windows are notified
+     * accordingly. Once all bytes are written for any window, the window is unmapped from memory.
+     */
+    private void bytesWritten(final long fileOffset, final int sizeToWrite) throws IOException {
+        final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
+        final long nextOffset = fileOffset + sizeToWrite;
+        if ((nextOffset - 1) / dataBufferSize == writingWindowIndex) {
+            // Same window
+            getWritingWindow(writingWindowIndex).bytesWritten(sizeToWrite);
+        } else {
+            // Some bytes are written into the next window
+            assert nextOffset / dataBufferSize == writingWindowIndex + 1;
+            final int currentWindowBytesWritten = Math.toIntExact(dataBufferSize - fileOffset % dataBufferSize);
+            assert currentWindowBytesWritten > 0;
+            assert currentWindowBytesWritten < sizeToWrite;
+            getWritingWindow(writingWindowIndex).bytesWritten(currentWindowBytesWritten);
+            final int nextWindowBytesWritten = Math.toIntExact(nextOffset % dataBufferSize);
+            assert nextWindowBytesWritten > 0;
+            getWritingWindow(writingWindowIndex + 1).bytesWritten(nextWindowBytesWritten);
+        }
+    }
+
+    /**
      * Store a data item in file returning location it was stored at. The data item is written
      * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
      *
@@ -171,16 +275,6 @@ public final class DataFileWriter {
         return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
     }
 
-    private void prepareWritingWindow(final long offset) throws IOException {
-        final int writingIndex = (int) (offset / halfBufferSize);
-        WritingWindow writingWindow = writingWindows.get(writingIndex);
-        if (writingWindow == null) {
-            writingWindow = new WritingWindow(writingIndex * halfBufferSize);
-            writingWindows.set(writingIndex, writingWindow);
-        }
-        writingWindow.retain();
-    }
-
     /**
      * Store a data item in file returning location it was stored at. The data item is written
      * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
@@ -190,71 +284,12 @@ public final class DataFileWriter {
      * @return the data location of written data in bytes
      * @throws IOException if there was a problem appending data to the file
      */
-    public long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize) throws IOException {
-        if (closed) {
-            throw new IOException("Data file is already closed");
-        }
-
+    public long storeDataItem(final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
+            throws IOException {
         final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, dataItemSize);
-        if (sizeToWrite > halfBufferSize) {
-            throw new IOException(
-                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + halfBufferSize);
-        }
-
-        final long fileOffset = currentWriteOffset.getAndUpdate(cur -> {
-            try {
-                prepareWritingWindow(cur);
-                return cur + sizeToWrite;
-            } catch (final IOException z) {
-                throw new UncheckedIOException(z);
-            }
-        });
-        final int writingIndex = (int) (fileOffset / halfBufferSize);
-        final WritingWindow writingWindow = writingWindows.get(writingIndex);
-        assert writingWindow != null;
-        assert writingWindow.refCount.get() > 0;
-
-        try {
-            final long writingOffset = fileOffset % halfBufferSize;
-
-//            final BufferedData writeBuf = writingWindow.writeBuffer.slice(writingOffset, sizeToWrite);
-//            ProtoWriterTools.writeDelimited(writeBuf, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
-
-//            final byte[] writeBytes = new byte[sizeToWrite];
-//            final BufferedData writeBuf = BufferedData.wrap(writeBytes);
-//            ProtoWriterTools.writeDelimited(writeBuf, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
-//            writingWindow.mappedBuffer.put((int) writingOffset, writeBytes);
-
-            ByteBuffer writeBB = BUFFER_CACHE.get();
-            final BufferedData writeBuf;
-            if ((writeBB == null) || (writeBB.capacity() < sizeToWrite)) {
-                writeBB = ByteBuffer.allocate(sizeToWrite);
-                BUFFER_CACHE.set(writeBB);
-                writeBuf = BufferedData.wrap(writeBB);
-                WRITER_CACHE.set(writeBuf);
-            } else {
-                writeBuf = WRITER_CACHE.get();
-            }
-            writeBuf.position(0);
-            writeBuf.limit(sizeToWrite);
-            ProtoWriterTools.writeDelimited(writeBuf, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
-            writingWindow.mappedBuffer.put((int) writingOffset, writeBB, 0, sizeToWrite);
-
-            // double check that we wrote the expected number of bytes
-            if (writeBuf.remaining() != 0) {
-                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
-                        + (sizeToWrite - writeBuf.remaining()));
-            }
-        } finally {
-            writingWindow.release();
-            if ((fileOffset / halfBufferSize) != ((fileOffset + sizeToWrite) / halfBufferSize)) {
-                writingWindow.release();
-            }
-        }
-
-        itemsCount++;
-        // return the offset where we wrote the data
-        return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
+        return store(
+                out -> ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter),
+                sizeToWrite);
     }
 
     /**
@@ -270,47 +305,42 @@ public final class DataFileWriter {
      * @throws IOException if there was a problem appending data to the file
      */
     public long storeDataItemWithTag(final BufferedData dataItemWithTag) throws IOException {
-        if (closed) {
+        final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
+        return store(out -> out.writeBytes(dataItemWithTag), sizeToWrite);
+    }
+
+    private long store(final Consumer<MemoryData> writer, final int sizeToWrite) throws IOException {
+        if (closed.get()) {
             throw new IOException("Data file is already closed");
         }
 
-        final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
-        if (sizeToWrite > halfBufferSize) {
+        if (sizeToWrite > dataBufferSize) {
             throw new IOException(
-                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + halfBufferSize);
+                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
         }
 
-        final long fileOffset = currentWriteOffset.getAndUpdate(cur -> {
-            try {
-                prepareWritingWindow(cur);
-                return cur + sizeToWrite;
-            } catch (final IOException z) {
-                throw new UncheckedIOException(z);
-            }
-        });
-        final int writingIndex = (int) (fileOffset / halfBufferSize);
-        final WritingWindow writingWindow = writingWindows.get(writingIndex);
-        assert writingWindow != null;
-        assert writingWindow.refCount.get() > 0;
+        final long fileOffset = currentWriteOffset.getAndAdd(sizeToWrite);
+        final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
+        final WritingWindow writingWindow = getWritingWindow(writingWindowIndex);
 
         try {
-            final long writingOffset = fileOffset % halfBufferSize;
-            final BufferedData writeBuffer = writingWindow.writeBuffer.slice(writingOffset, sizeToWrite);
-            writeBuffer.writeBytes(dataItemWithTag);
-
+            final MemoryData out = getTempLocalWriteBuffer(sizeToWrite);
+            writer.accept(out);
             // double check that we wrote the expected number of bytes
-            if (writeBuffer.remaining() != 0) {
+            if (out.remaining() != 0) {
                 throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
-                        + (sizeToWrite - writeBuffer.remaining()));
+                        + (sizeToWrite - out.remaining()));
             }
+
+            // The segment contains the same data as out above
+            final MemorySegment segment = SEGMENT_CACHE.get();
+            final long writingOffset = fileOffset % dataBufferSize;
+            MemorySegment.copy(segment, 0, writingWindow.writeBuffer, writingOffset, sizeToWrite);
         } finally {
-            writingWindow.release();
-            if ((fileOffset / halfBufferSize) != ((fileOffset + sizeToWrite) / halfBufferSize)) {
-                writingWindow.release();
-            }
+            bytesWritten(fileOffset, sizeToWrite);
         }
 
-        itemsCount++;
+        itemsCount.incrementAndGet();
         // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
@@ -319,21 +349,16 @@ public final class DataFileWriter {
      * Release all the resources like mapped buffer and file channel.
      */
     public void close() throws IOException {
-        if (closed) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
-        closed = true;
 
         // total file size is where the current writing pos is
         final long totalFileSize = currentWriteOffset.get();
 
-        if (totalFileSize > headerSize) {
-            // release all the resources
-            final int lastWritingIndex = (int) (totalFileSize / halfBufferSize);
-            final WritingWindow lastWritingWindow = writingWindows.get(lastWritingIndex);
-            if (lastWritingWindow != null) {
-                lastWritingWindow.release();
-            }
+        // Cleanup the last writing window
+        if (totalFileSize % dataBufferSize != 0) {
+            getWritingWindow((int) ((totalFileSize - 1) / dataBufferSize)).close();
         }
 
         // Update metadata with the final items count and rewrite the header.
@@ -341,12 +366,10 @@ public final class DataFileWriter {
         // is FIXED64 (always 8 bytes regardless of value), so this cannot
         // overwrite data items.
         metadata = new DataFileMetadata(
-                metadata.getIndex(), metadata.getCreationDate(), metadata.getCompactionLevel(), itemsCount);
+                metadata.getIndex(), metadata.getCreationDate(), metadata.getCompactionLevel(), itemsCount.get());
         writeHeader();
 
-        // Truncate after header rewrite. writeHeader() maps a 1024-byte buffer
-        // which may extend the file beyond totalFileSize; truncating here removes
-        // any zero padding.
+        // Truncate after header rewrite
         fileChannel.truncate(totalFileSize);
 
         fileChannel.close();
@@ -354,26 +377,36 @@ public final class DataFileWriter {
 
     private class WritingWindow {
 
-        private final AtomicInteger refCount = new AtomicInteger(1);
-        public final MappedByteBuffer mappedBuffer;
-        public final BufferedData writeBuffer;
+        private final Arena arena = Arena.ofShared();
 
-        public WritingWindow(final long fileOffset) throws IOException {
-            assert fileOffset % halfBufferSize == 0;
-            mappedBuffer = fileChannel.map(MapMode.READ_WRITE, fileOffset, dataBufferSize);
-            writeBuffer = BufferedData.wrap(mappedBuffer);
+        // FUTURE WORK: use MemoryData to directly write data items to
+        private final MemorySegment writeBuffer;
+
+        private final AtomicInteger bytesLeftToWrite;
+
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
+        WritingWindow(final int windowIndex) throws IOException {
+            final long fileOffset = (long) windowIndex * dataBufferSize;
+            // Mapped segment size is 2 x data buffer size to make sure writing windows are overlapped
+            writeBuffer = fileChannel.map(MapMode.READ_WRITE, fileOffset, dataBufferSize * 2L, arena);
+            bytesLeftToWrite = new AtomicInteger(dataBufferSize);
         }
 
-        public void retain() {
-            assert refCount.get() > 0;
-            refCount.incrementAndGet();
-        }
-
-        public void release() {
-            assert refCount.get() > 0;
-            if (refCount.decrementAndGet() == 0) {
-                MemoryUtils.closeMmapBuffer(mappedBuffer);
+        public void bytesWritten(final int bytes) {
+            final int left = bytesLeftToWrite.addAndGet(-bytes);
+            assert left >= 0;
+            if (left == 0) {
+                close();
             }
+        }
+
+        public void close() {
+            if (!closed.compareAndSet(false, true)) {
+                throw new RuntimeException("Double close");
+            }
+            assert bytesLeftToWrite.get() >= 0;
+            arena.close();
         }
     }
 }

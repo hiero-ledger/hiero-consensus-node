@@ -32,15 +32,18 @@ import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
+import com.hedera.services.bdd.junit.support.validators.RunningHashChainValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
+import com.hedera.services.bdd.junit.support.validators.block.BinaryStateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.RedactingEventHashBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
+import com.hedera.services.bdd.junit.support.validators.block.WrbRecordFileValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
@@ -59,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -86,10 +90,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
+            BinaryStateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
             BlockNumberSequenceValidator.FACTORY,
             EventHashBlockStreamValidator.FACTORY,
             RedactingEventHashBlockStreamValidator.FACTORY);
+
+    // WRB blocks contain only a header, a single RecordFileItem, and a proof — none of the
+    // transaction/event/state-change content that the full validator set expects.
+    private static final List<BlockStreamValidator.Factory> WRB_BLOCK_VALIDATOR_FACTORIES = List.of(
+            BlockNumberSequenceValidator.FACTORY, WrbRecordFileValidator.FACTORY, BlockContentsValidator.FACTORY);
 
     private record DataOrException(
             @Nullable StreamFileAccess.RecordStreamData data,
@@ -101,7 +111,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 new TransactionBodyValidator(),
                 new ExpiryRecordsValidator(),
                 new BalanceReconciliationValidator(),
-                new TokenReconciliationValidator());
+                new TokenReconciliationValidator(),
+                new RunningHashChainValidator());
     }
 
     @Override
@@ -117,7 +128,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
-        // Validate the record streams
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
@@ -128,6 +138,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         "Unable to read stream data at " + recordStreamLocationsOf(spec),
                                         dataOrException.e());
                             }
+                            dataRef.set(data);
                             final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
@@ -137,7 +148,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                 throw new AssertionError(
                                         "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
-                            dataRef.set(data);
                         },
                         () -> Assertions.fail(
                                 "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
@@ -184,7 +194,25 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
-        validateProofs(spec);
+
+        // If WRBs are streaming to block nodes, also validate the block node stream independently
+        if (isStreamingWrappedRecordBlocks(spec)) {
+            readMaybeBlockNodeStreamsFor(spec).ifPresent(blockNodeBlocks -> {
+                final var data = requireNonNull(dataRef.get());
+                final var maybeErrors = WRB_BLOCK_VALIDATOR_FACTORIES.stream()
+                        .filter(factory -> factory.appliesTo(spec))
+                        .map(factory -> factory.create(spec))
+                        .flatMap(v -> v.validationErrorsIn(blockNodeBlocks, data))
+                        .peek(t -> log.error("Block node WRB stream validation error", t))
+                        .map(Throwable::getMessage)
+                        .collect(joining(ERROR_PREFIX));
+                if (!maybeErrors.isBlank()) {
+                    throw new AssertionError("Block node WRB stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                }
+            });
+        } else {
+            validateProofs(spec);
+        }
 
         // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
         final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
@@ -211,7 +239,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             // Retry reading from block nodes — blocks may still be in-flight after freeze,
             // especially with TSS/state proofs enabled where block finalization is async
             for (int attempt = 1; attempt <= BLOCK_NODE_READ_MAX_ATTEMPTS; attempt++) {
-                final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
+                final var result = readMaybeBlockNodeStreamsFor(spec);
                 if (result.isPresent()) {
                     return result;
                 }
@@ -230,6 +258,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
             return Optional.empty();
         }
+        // Dump whatever is available from block nodes for debugging before reading from disk
+        readMaybeBlockNodeStreamsFor(spec);
         return readBlocksFromDisk(spec);
     }
 
@@ -459,6 +489,104 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         }
         return pendingBlocks;
+    }
+
+    private static void dumpBlockNodeBlocksToDisk(
+            @NonNull final HapiSpec spec, @NonNull final BlockNodeNetwork blockNodeNetwork) {
+        final var nodes = spec.getNetworkNodes();
+        if (nodes.isEmpty()) {
+            return;
+        }
+        final var node0 = nodes.getFirst();
+        final var outputRoot = node0.getExternalPath(BLOCK_STREAMS_PARENT_DIR)
+                .toAbsolutePath()
+                .getParent()
+                .resolve("blockStreams-blocknode");
+
+        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
+                .findFirst()
+                .orElse(BlockNodeMode.NONE);
+
+        if (mode == BlockNodeMode.SIMULATOR) {
+            for (final Map.Entry<Long, SimulatedBlockNodeServer> entry :
+                    blockNodeNetwork.getSimulatedBlockNodeById().entrySet()) {
+                final long blockNodeId = entry.getKey();
+                final Path nodeDir = outputRoot.resolve("blocknode-" + blockNodeId);
+                try {
+                    Files.createDirectories(nodeDir);
+                    final var blocks = entry.getValue().getAllVerifiedBlocks();
+                    for (final Block block : blocks) {
+                        writeBlockFileToDisk(nodeDir, block);
+                    }
+                    log.info("Dumped {} blocks from simulator {} to {}", blocks.size(), blockNodeId, nodeDir);
+                } catch (Exception e) {
+                    log.warn("Failed to dump blocks from simulator block node {} to {}", blockNodeId, nodeDir, e);
+                }
+            }
+        } else if (mode == BlockNodeMode.REAL) {
+            for (final Map.Entry<Long, BlockNodeContainer> entry :
+                    blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
+                final long blockNodeId = entry.getKey();
+                final Path nodeDir = outputRoot.resolve("blocknode-" + blockNodeId);
+                try {
+                    Files.createDirectories(nodeDir);
+                    final var container = entry.getValue();
+                    try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
+                        final long lastBlock = client.getLastAvailableBlock();
+                        if (lastBlock >= 0) {
+                            final var blocks = client.subscribeBlocks(0, lastBlock);
+                            for (final Block block : blocks) {
+                                writeBlockFileToDisk(nodeDir, block);
+                            }
+                            log.info(
+                                    "Dumped {} blocks from real block node {} to {}",
+                                    blocks.size(),
+                                    blockNodeId,
+                                    nodeDir);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to dump blocks from real block node {} to {}", blockNodeId, nodeDir, e);
+                }
+            }
+        }
+    }
+
+    private static void writeBlockFileToDisk(@NonNull final Path dir, @NonNull final Block block) throws IOException {
+        final long blockNumber = blockNumberOf(block);
+        if (blockNumber == Long.MAX_VALUE) {
+            log.warn("Skipping block without header; cannot determine block number");
+            return;
+        }
+        final String baseName = String.format("%036d", blockNumber);
+        final Path blockFile = dir.resolve(baseName + ".blk.gz");
+        try (final var out = new GZIPOutputStream(Files.newOutputStream(blockFile))) {
+            out.write(Block.PROTOBUF.toBytes(block).toByteArray());
+        }
+        Files.createFile(dir.resolve(baseName + ".mf"));
+    }
+
+    private static boolean isStreamingWrappedRecordBlocks(@NonNull final HapiSpec spec) {
+        try {
+            return Boolean.parseBoolean(spec.startupProperties().get("blockStream.streamWrappedRecordBlocks"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static Optional<List<Block>> readMaybeBlockNodeStreamsFor(@NonNull final HapiSpec spec) {
+        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null) {
+            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        }
+        if (blockNodeNetwork == null) {
+            return Optional.empty();
+        }
+        final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
+        if (result.isPresent()) {
+            dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
+        }
+        return result;
     }
 
     private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {

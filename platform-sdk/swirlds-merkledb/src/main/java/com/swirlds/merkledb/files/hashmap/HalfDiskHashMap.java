@@ -29,20 +29,18 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.LongSummaryStatistics;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
 import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  * This is a hash map implementation where the bucket index is in RAM and the buckets are on disk.
@@ -80,9 +78,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     static final int PERCENT_START_RESIZE = 70;
 
-    /** The limit on the number of concurrent read tasks in {@code endWriting()} */
-    private static final int MAX_IN_FLIGHT = 128;
-
     /** Platform configuration */
     @NonNull
     private final Configuration config;
@@ -119,40 +114,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private Thread writingThread;
 
-    private final AtomicReference<SubmitTask> currentSubmitTask = new AtomicReference<>();
-
-    /** Number of buckets updated during flush */
-    private final AtomicInteger updatedBucketsCount = new AtomicInteger();
-
-    /**
-     * Number of bucket tasks that can be scheduled at the moment, i.e. MAX_IN_FLIGHT minus
-     * the number of buckets currently being processed
-     */
-    private final AtomicInteger bucketPermits = new AtomicInteger(MAX_IN_FLIGHT);
-
-    /**
-     * The last created "store bucket" task, or null if no such tasks have been created yet in
-     * the current flush. This reference is used to set store task dependencies to make sure
-     * only a single bucket is written to disk at a time
-     */
-    private final AtomicReference<StoreBucketTask> lastStoreTask = new AtomicReference<>();
-
-    /**
-     * Number of "store bucket" tasks created so far in the current flush. This counter is
-     * compared against {@link #updatedBucketsCount} to manage the first and the last "store bucket"
-     * task dependencies
-     */
-    private final AtomicInteger storeBucketTasksCreated = new AtomicInteger();
-
-    /**
-     * A task used in {@link #endWriting()} to wait for all submitted tasks to complete. It
-     * is set as a "next" dependency for the last created "store bucket" task.
-     */
-    private final AtomicReference<AbstractTask> notifyTaskRef = new AtomicReference<>();
-
-    /** A holder for the first exception occurred during endWriting() tasks */
-    private final AtomicReference<Throwable> exceptionOccurred = new AtomicReference<>();
-
     /** Fork-join pool for HDHM.endWriting() */
     private static volatile ForkJoinPool flushingPool = null;
 
@@ -172,8 +133,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 pool = flushingPool;
                 if (pool == null) {
                     final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
-                    final int hashingThreadCount = merkleDbConfig.getNumHalfDiskHashMapFlushThreads();
-                    pool = new ForkJoinPool(hashingThreadCount);
+                    final int flushThreadCount = merkleDbConfig.getNumHalfDiskHashMapFlushThreads();
+                    pool = new ForkJoinPool(flushThreadCount);
                     flushingPool = pool;
                 }
             }
@@ -185,6 +146,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Construct a new HalfDiskHashMap
      *
      * @param configuration                  Platform configuration.
+     * @param fileSystemManager              File system manager to use for resolving file locations
      * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
      *                                       many key collisions. This capacity is used to calculate the initial number
      *                                       of key buckets to store key to path entries. This number of buckets will
@@ -203,6 +165,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public HalfDiskHashMap(
             final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager,
             final long initialCapacity,
             final java.nio.file.Path storeDir,
             final String storeName,
@@ -264,13 +227,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, bucketIndexCapacity, configuration)
+                        ? new LongListDisk(indexFile, bucketIndexCapacity, configuration, fileSystemManager)
                         : new LongListSegment(indexFile, bucketIndexCapacity, configuration);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(bucketIndexCapacity, configuration)
+                        ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
                         : new LongListSegment(bucketIndexCapacity, configuration);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
@@ -287,7 +250,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
             bucketIndexToBucketLocation = preferDiskBasedIndex
-                    ? new LongListDisk(bucketIndexCapacity, configuration)
+                    ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
                     : new LongListSegment(bucketIndexCapacity, configuration);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
@@ -383,7 +346,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             if (recordBytes == null) {
                                 throw new IOException("Record not found in pathToKeyValue store, path=" + path);
                             }
-                            final VirtualLeafBytes record = VirtualLeafBytes.parseFrom(recordBytes);
+                            final VirtualLeafBytes<?> record = VirtualLeafBytes.parseFrom(recordBytes);
                             if (!record.keyBytes().equals(keyBytes)) {
                                 logger.warn(
                                         MERKLE_DB.getMarker(),
@@ -548,18 +511,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     /**
-     * Resets all the fields used in endWriting()
-     */
-    private void resetEndWriting(final ForkJoinPool pool, final int size) {
-        exceptionOccurred.set(null);
-        updatedBucketsCount.set(size);
-        bucketPermits.set(MAX_IN_FLIGHT);
-        lastStoreTask.set(null);
-        storeBucketTasksCreated.set(0);
-        notifyTaskRef.set(new NotifyTask(pool));
-    }
-
-    /**
      * End current writing session, committing all puts to data store.
      *
      * @return Data file reader for the file written
@@ -585,29 +536,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             if (size > 0) {
                 fileCollection.startWriting();
                 final ForkJoinPool pool = getFlushingPool(config);
-                resetEndWriting(pool, size);
-/*
-                final Iterator<IntObjectPair<List<BucketMutation>>> it =
-                        oneTransactionsData.keyValuesView().iterator();
-                // Create a task to submit bucket processing tasks. This initial submit task
-                // is scheduled to run right away. Subsequent submit tasks will be run only
-                // after some buckets are completely processed to make sure no more than
-                // MAX_IN_FLIGHT buckets are handled in parallel (to limit resource usage)
-                final SubmitTask submitTask = new SubmitTask(pool, it, 1);
-                currentSubmitTask.set(submitTask);
+                final AbstractTask notifyTask = new NotifyTask(pool, size);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
                 submitTask.send();
-                // Wait until all tasks are completed by waiting for the notify task to join. This
-                // task depends on the last "store bucket" task
-                notifyTaskRef.get().join();
-*/
-                exceptionOccurred.set(null);
-                final SubmitBucketTask submitTask = new SubmitBucketTask(pool);
-                notifyTaskRef.set(submitTask);
-                submitTask.send();
-                submitTask.join();
-                if (exceptionOccurred.get() != null) {
-                    throw new IOException(exceptionOccurred.get());
-                }
+                notifyTask.join();
                 // close files session
                 dataFileReader = fileCollection.endWriting();
                 logger.info(
@@ -626,7 +558,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } finally {
             writingThread = null;
             oneTransactionsData = null;
-            currentSubmitTask.set(null);
         }
         final long end = System.currentTimeMillis();
         logger.info(MERKLE_DB.getMarker(), "endWriting took {} ms", end - start);
@@ -634,332 +565,75 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     /**
-     * A task to submit "read bucket" tasks. Tasks are submitted till the number of buckets
-     * in progress exceeds MAX_IN_FLIGHT. After that, if there are still unprocessed buckets,
-     * a new "submit task" is scheduled. This new task is run after at least one bucket is
-     * fully processed, i.e. its "store" task is complete.
+     * A simple task to submit individual tasks to load, update, and store buckets
+     * according to oneTransactionData. This task doesn't have any dependencies.
      */
-    private class SubmitTask extends AbstractTask {
-
-        private final Iterator<IntObjectPair<List<BucketMutation>>> it;
-
-        SubmitTask(
-                final ForkJoinPool pool, final Iterator<IntObjectPair<List<BucketMutation>>> it, final int depCount) {
-            super(pool, depCount);
-            this.it = it;
-        }
-
-        // Notifies that some bucket is fully processed. It sets one of this task's dependencies.
-        // The other one is set in the end of the previous submit task
-        void notifyBucketProcessed() {
-            send();
-        }
-
-        @Override
-        protected boolean onExecute() {
-            // The next submit task to run after the current one. It will only be run, if
-            // this task doesn't schedule tasks for all remaining buckets, and at least one
-            // bucket is completely processed while this method is running
-            final SubmitTask nextSubmitTask = new SubmitTask(getPool(), it, 2);
-            final boolean newSubmitTaskSet = currentSubmitTask.compareAndSet(this, nextSubmitTask);
-            assert newSubmitTaskSet;
-            int maxToSubmit = bucketPermits.getAndSet(0);
-            assert maxToSubmit > 0;
-            while (it.hasNext() && (maxToSubmit-- > 0)) {
-                final IntObjectPair<List<BucketMutation>> keyValue = it.next();
-                final int bucketIndex = keyValue.getOne();
-                final List<BucketMutation> bucketMutations = keyValue.getTwo();
-                // Create a "read bucket" task
-                final ReadUpdateBucketTask readBucketTask =
-                        new ReadUpdateBucketTask(getPool(), bucketIndex, bucketMutations);
-                // Execute it right away
-                readBucketTask.send();
-            }
-            if (it.hasNext()) {
-                // There are more buckets to process. Let the next submit task run. One of the next task's
-                // dependencies is set here, the other one is set in the end of StoreBucketTask
-                nextSubmitTask.send();
-            }
-            return true;
-        }
-    }
-
-    // This is a helper method used in ReadUpdateBucketTask and StoreBucketTask, when a bucket
-    // is processed (either no updates to the bucket, or it has been written to disk).
-    private void bucketProcessed() {
-        // Let the current submit task know that a bucket is fully processed, and
-        // the task can be run
-        if (bucketPermits.getAndIncrement() == 0) {
-            // If a submit task is currently running in parallel, it must have already created
-            // a new "current" submit task and permits have been set to 0, otherwise the
-            // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
-            // will be called on a different submit task than the one currently running
-            currentSubmitTask.get().notifyBucketProcessed();
-        }
-    }
-
-    /**
-     * A task to read a bucket identified by the given idex from disk and apply a list of
-     * updates to the keys to it. The task has no dependencies, it's executed right after
-     * creation.
-     */
-    private class ReadUpdateBucketTask extends AbstractTask {
-
-        // Bucket index
-        private final int bucketIndex;
-
-        // List of updates to apply to the bucket
-        private final List<BucketMutation> updates;
-
-        ReadUpdateBucketTask(final ForkJoinPool pool, final int bucketIndex, final List<BucketMutation> updates) {
-            super(pool, 0);
-            this.bucketIndex = bucketIndex;
-            this.updates = updates;
-        }
-
-        private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) throws IOException {
-            if (bucketChanged) {
-                // Create a subsequent "store bucket" task for the bucket
-                final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
-                // The last created "store bucket" task. storeTask above will be set as an
-                // output dependency for that task to make sure tasks are running only one at
-                // a time. See StoreBucketTask for details
-                final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
-                if (prevTask != null) {
-                    // This will trigger prevTask execution as soon as its prev task is complete
-                    prevTask.setNext(storeTask);
-                } else {
-                    // The first task: no dependency on the prev task, can be executed rightaway
-                    storeTask.send();
-                }
-            } else {
-                // Just close the bucket and mark it as processed
-                bucket.close();
-                bucketProcessed();
-            }
-            if (storeBucketTasksCreated.incrementAndGet() == updatedBucketsCount.get()) {
-                // The last task: no dependency on the next task, can be executed as soon as
-                // its prev task is complete, no need to wait until the next task dependency
-                // is set
-                final StoreBucketTask lastTask = lastStoreTask.get();
-                if (lastTask != null) {
-                    lastTask.setNext(notifyTaskRef.get());
-                } else {
-                    notifyTaskRef.get().send();
-                }
-            }
-        }
-
-        @Override
-        protected boolean onExecute() throws IOException {
-            BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
-            // The bucket will be closed by StoreBucketTask
-            final Bucket bucket = bucketPool.getBucket();
-            boolean bucketChanged = false;
-            if (bucketData == null) {
-                // An empty bucket
-                bucket.setBucketIndex(bucketIndex);
-                // Add all entries
-                assert updates != null;
-                for (int i = 0; i < updates.size(); i++) {
-                    final BucketMutation m = updates.get(i);
-                    assert m.oldPath() == Path.INVALID_PATH;
-                    if (m.path() != Path.INVALID_PATH) {
-                        assert m.value() != null;
-                        bucket.addValue(m.key(), m.keyHashCode(), m.path(), m.value());
-                    }
-                }
-                bucketChanged = true;
-            } else {
-                // Read from bytes
-                bucket.readFrom(bucketData);
-                if ((bucket.getBucketIndex() & bucketIndex) != bucket.getBucketIndex()) {
-                    logger.error(
-                            MERKLE_DB.getMarker(),
-                            "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
-                    /*
-                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
-                       which caused possible corruption in snapshots.
-                       If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
-                       may be different from the expected one. In this case, we clear the bucket (as it contains garbage
-                       anyway) and set the correct index.
-                    */
-                    bucket.clear();
-                }
-                // Apply all updates
-                for (int i = 0; i < updates.size(); i++) {
-                    final BucketMutation m = updates.get(i);
-                    if (bucket.putLeaf(m.key(), m.keyHashCode(), m.oldPath(), m.path(), m.value())) {
-                        bucketChanged = true;
-                    }
-                }
-                // Sanitize the bucket only if there have been any updates to it
-                if (bucketChanged) {
-                    // Clear old bucket entries with wrong hash codes
-                    bucket.sanitize(bucketIndex, bucketMaskBits.get());
-                }
-            }
-            // Schedule a "store bucket" task for this bucket
-            createAndScheduleStoreTask(bucket, bucketChanged);
-            return true;
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            logger.error(
-                    MERKLE_DB.getMarker(),
-                    "Failed to read / update bucket {}, location {}",
-                    bucketIndex,
-                    DataFileCommon.dataLocationToString(bucketIndexToBucketLocation.get(bucketIndex)),
-                    t);
-            exceptionOccurred.set(t);
-            // Make sure the writing thread is resumed
-            notifyTaskRef.get().completeExceptionally(t);
-        }
-    }
-
-    /**
-     * A task to write an updated bucket (or remove it, if empty) to disk. Writing to disk
-     * may not be done in parallel on multiple threads, this is why all these "store" tasks
-     * are made sure to run one at a time. This is implemented by having two dependencies
-     * for each task: one is set the next task, the other one is when the previous task is
-     * complete. The very first created "store" task doesn't need to wait until its previous
-     * task is complete, see storeTask.send() call above with the corresponding comment. The
-     * very last task has its next task set to notifyTask, which is a special no-op task used
-     * only to wait till all buckets are processed.
-     */
-    public class StoreBucketTask extends AbstractTask {
-
-        private final Bucket bucket;
-
-        private AbstractTask next;
-
-        StoreBucketTask(final ForkJoinPool pool, final Bucket bucket) {
-            super(pool, 2);
-            this.bucket = bucket;
-        }
-
-        void setNext(final AbstractTask next) {
-            this.next = next;
-            send();
-        }
-
-        @Override
-        protected boolean onExecute() throws IOException {
-            try (bucket) {
-                final int bucketIndex = bucket.getBucketIndex();
-                if (bucket.isEmpty()) {
-                    // bucket is missing or empty, remove it from the index
-                    bucketIndexToBucketLocation.remove(bucketIndex);
-                } else {
-                    // save bucket
-                    final long bucketLocation = fileCollection.storeDataItem(bucket::writeTo, bucket.sizeInBytes());
-                    // update bucketIndexToBucketLocation
-                    bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
-                }
-                return true;
-            } finally {
-                bucketProcessed();
-                next.send();
-            }
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucket.getBucketIndex(), t);
-            exceptionOccurred.set(t);
-            // Make sure the writing thread is resumed
-            notifyTaskRef.get().completeExceptionally(t);
-        }
-    }
-
-    /**
-     * A special no-op task used as the very last task in the sequence of "store" tasks.
-     * This task is used in {@link #endWriting()} to wait till all buckets are fully
-     * processed by calling join() on it.
-     */
-    private static class NotifyTask extends AbstractTask {
-
-        NotifyTask(final ForkJoinPool pool) {
-            super(pool, 1);
-        }
-
-        @Override
-        protected boolean onExecute() {
-            // Task body is empty: the task is only needed to wait until its dependency
-            // tasks are complete
-            return true;
-        }
-    }
-
     private class SubmitBucketTask extends AbstractTask {
 
-        private final CountDownLatch finishLatch;
+        private final AbstractTask notifyTask;
 
-        public SubmitBucketTask(final ForkJoinPool pool) {
+        public SubmitBucketTask(final ForkJoinPool pool, final AbstractTask notifyTask) {
             super(pool, 1);
-            finishLatch = new CountDownLatch(oneTransactionsData.size());
+            this.notifyTask = notifyTask;
         }
 
         @Override
-        protected boolean onExecute() throws InterruptedException {
+        protected boolean onExecute() {
             for (final IntObjectPair<List<BucketMutation>> pair : oneTransactionsData.keyValuesView()) {
                 final int bucketIndex = pair.getOne();
                 final List<BucketMutation> mutations = pair.getTwo();
-                final BucketTask bucketTask = new BucketTask(getPool(), bucketIndex, mutations, finishLatch);
+                final BucketTask bucketTask = new BucketTask(getPool(), bucketIndex, mutations, notifyTask);
                 bucketTask.send();
             }
-            finishLatch.await();
             return true;
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to submit bucket tasks", t);
-            if (exceptionOccurred.compareAndSet(null, t)) {
-                notifyTaskRef.get().completeExceptionally(t);
-            }
         }
     }
 
+    /**
+     * A task to load a bucket, apply all given updates (bucket mutations), and then
+     * store the updated bucket to the file collection. After the task is complete,
+     * it notifies the given notifyTask using send().
+     */
     private class BucketTask extends AbstractTask {
 
+        /// Bucket index
         private final int bucketIndex;
 
-        private final List<BucketMutation> updates;
+        /// Bucket mutations to apply to the bucket
+        private final List<BucketMutation> keyUpdates;
 
-        private final CountDownLatch finishLatch;
+        /// A task to notify, when bucket processing is complete
+        private final AbstractTask notifyTask;
 
         BucketTask(
                 final ForkJoinPool pool,
                 final int bucketIndex,
-                final List<BucketMutation> updates,
-                final CountDownLatch finishLatch) {
+                final List<BucketMutation> keyUpdates,
+                final AbstractTask notifyTask) {
             super(pool, 1);
             this.bucketIndex = bucketIndex;
-            this.updates = updates;
-            this.finishLatch = finishLatch;
+            this.keyUpdates = keyUpdates;
+            this.notifyTask = notifyTask;
         }
 
         @Override
         protected boolean onExecute() throws IOException {
-            final BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
+            final BufferedData bucketData =
+                    fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
             try (final Bucket bucket = bucketPool.getBucket()) {
-                boolean bucketChanged = false;
                 if (bucketData == null) {
                     // An empty bucket
                     bucket.setBucketIndex(bucketIndex);
                     // Add all entries
-                    assert updates != null;
-                    for (int i = 0; i < updates.size(); i++) {
-                        final BucketMutation m = updates.get(i);
+                    assert keyUpdates != null;
+                    for (int i = 0; i < keyUpdates.size(); i++) {
+                        final BucketMutation m = keyUpdates.get(i);
                         assert m.oldPath() == Path.INVALID_PATH;
                         if (m.path() != Path.INVALID_PATH) {
                             assert m.value() != null;
                             bucket.addValue(m.key(), m.keyHashCode(), m.path(), m.value());
                         }
                     }
-                    bucketChanged = true;
                 } else {
                     // Read from bytes
                     bucket.readFrom(bucketData);
@@ -967,18 +641,19 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                         logger.error(
                                 MERKLE_DB.getMarker(),
                                 "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
-                    /*
-                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
-                       which caused possible corruption in snapshots.
-                       If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
-                       may be different from the expected one. In this case, we clear the bucket (as it contains garbage
-                       anyway) and set the correct index.
-                    */
+                        /*
+                           This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                           which caused possible corruption in snapshots.
+                           If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
+                           may be different from the expected one. In this case, we clear the bucket (as it contains garbage
+                           anyway) and set the correct index.
+                        */
                         bucket.clear();
                     }
                     // Apply all updates
-                    for (int i = 0; i < updates.size(); i++) {
-                        final BucketMutation m = updates.get(i);
+                    boolean bucketChanged = false;
+                    for (int i = 0; i < keyUpdates.size(); i++) {
+                        final BucketMutation m = keyUpdates.get(i);
                         if (bucket.putLeaf(m.key(), m.keyHashCode(), m.oldPath(), m.path(), m.value())) {
                             bucketChanged = true;
                         }
@@ -998,18 +673,33 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // update bucketIndexToBucketLocation
                     bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
                 }
-            } finally {
-                finishLatch.countDown();
+                notifyTask.send();
             }
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucketIndex, t);
-            if (exceptionOccurred.compareAndSet(null, t)) {
-                notifyTaskRef.get().completeExceptionally(t);
-            }
+            logger.error(MERKLE_DB.getMarker(), "Failed to process bucket " + bucketIndex, t);
+            notifyTask.completeExceptionally(t);
+        }
+    }
+
+    /**
+     * A no-op task, which is used in {@link #endWriting()} to wait till all buckets
+     * are processed. The task is created right in {@link #endWriting()}, but not started.
+     * All individual bucket tasks notify this task, so when all buckets are processed,
+     * this task is run, and {@link #endWriting()} is unblocked.
+     */
+    private static class NotifyTask extends AbstractTask {
+
+        NotifyTask(final ForkJoinPool pool, final int bucketCount) {
+            super(pool, bucketCount);
+        }
+
+        @Override
+        protected boolean onExecute() {
+            return true;
         }
     }
 

@@ -2,6 +2,8 @@
 package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
@@ -31,9 +33,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HintsContextTest {
+    private static final byte[] VALID_AGGREGATION_KEY_BYTES = new byte[49];
     private static final Bytes BLOCK_HASH = Bytes.wrap("BH");
     private static final Bytes VERIFICATION_KEY = Bytes.wrap("VK");
-    private static final Bytes AGGREGATION_KEY = Bytes.wrap("AK");
+    private static final Bytes AGGREGATION_KEY = Bytes.wrap(VALID_AGGREGATION_KEY_BYTES);
     private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(AGGREGATION_KEY, VERIFICATION_KEY);
     private static final NodePartyId A_NODE_PARTY_ID = new NodePartyId(1L, 2, 1L);
     private static final NodePartyId B_NODE_PARTY_ID = new NodePartyId(3L, 6, 1L);
@@ -138,7 +141,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
@@ -175,7 +178,7 @@ class HintsContextTest {
 
         subject.setConstruction(construction);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         // Exactly half (5 out of 10 total weight): should NOT complete, need strictly > 1/2
@@ -253,7 +256,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
@@ -275,7 +278,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
@@ -286,6 +289,24 @@ class HintsContextTest {
                 HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE,
                 completion.getCause().getMessage());
         verify(library).verifyAggregate(aggregateSignature, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L);
+        verify(signingMetrics, never()).recordSignatureProduced(longThat(ms -> ms >= 0));
+    }
+
+    @Test
+    void nullAggregateSignatureCompletesExceptionallyWithoutVerification() {
+        given(configuration.getConfigData(TssConfig.class)).willReturn(configWithValidateBlockSignatures(true));
+        final Map<Integer, Bytes> expectedSignatures = Map.of(D_NODE_PARTY_ID.partyId(), signature);
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
+                .willReturn(null);
+
+        subject.setConstruction(CONSTRUCTION);
+
+        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var future = signing.future();
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+
+        assertTrue(future.isCompletedExceptionally());
+        verify(library, never()).verifyAggregate(any(), any(), any(), anyLong(), anyLong());
         verify(signingMetrics, never()).recordSignatureProduced(longThat(ms -> ms >= 0));
     }
 }

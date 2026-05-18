@@ -6,7 +6,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.FastCopyable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -16,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.FastCopyable;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.node.NodeId;
@@ -176,7 +176,8 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
         final long limitBefore = in.limit();
         in.limit(in.position() + length);
 
-        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        final com.hedera.hapi.platform.state.SigSet sigSet =
+                com.hedera.hapi.platform.state.SigSet.PROTOBUF.parseStrict(in);
         in.limit(limitBefore);
 
         final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();

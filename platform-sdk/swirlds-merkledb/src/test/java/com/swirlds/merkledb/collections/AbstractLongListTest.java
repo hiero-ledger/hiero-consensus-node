@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
@@ -22,11 +21,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -40,10 +39,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,7 +56,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
+abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends AbstractFileManagerAwareTest {
 
     // Constants (used in ordered and some of the other tests)
 
@@ -204,12 +207,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         // Also skip for LongListSegment — FFM arena allocations are not tracked by the
         // direct memory BufferPoolMXBean; they are verified separately below.
         if (!(longList instanceof LongListDisk) && !(longList instanceof LongListSegment)) {
-            assertTrue(
-                    checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                    "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                            + (directMemoryUsedAtStart * BYTES_TO_MEBIBYTES) + "MB and is now "
-                            + (getDirectMemoryUsedBytes() * BYTES_TO_MEBIBYTES)
-                            + "MB");
+            checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
         }
         // For LongListSegment: Arena.close() is deterministic — no GC dependency. If
         // AbstractLongList.close() called closeChunk for every chunk (which it does via
@@ -241,24 +239,25 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         }
     }
 
-    @SuppressWarnings("resource")
     @Test
     void testConstructorValidatesArgs() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> createLongList(1, -1, 0),
+                () -> createLongList(1, -1, 0).close(),
                 "Should not be able to create with a negative maxLongs");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> createLongList(Integer.MAX_VALUE, 1000, 0),
+                () -> createLongList(Integer.MAX_VALUE, 1000, 0).close(),
                 "Should not be able to create with a more longs per chunk than maxLongs");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> createLongList((Integer.MAX_VALUE / 8) + 1, Integer.MAX_VALUE, 0),
+                () -> createLongList((Integer.MAX_VALUE / 8) + 1, Integer.MAX_VALUE, 0)
+                        .close(),
                 "Check that IllegalArgumentException of num longs per chuck is too big");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> createLongList(Integer.MAX_VALUE - 1, Integer.MAX_VALUE, 0),
+                () -> createLongList(Integer.MAX_VALUE - 1, Integer.MAX_VALUE, 0)
+                        .close(),
                 "Check that IllegalArgumentException of num longs per chuck is too big");
     }
 
@@ -300,17 +299,13 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
      */
     @Test
     void testCloseAndRecreateLongListMultipleTimes(@TempDir final Path tempDir) throws IOException {
-        final Path file = tempDir.resolve("testCloseAndRecreateLongListMultipleTimes.ll");
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
-
+        Path file;
         try (final LongList longList = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
             longList.updateValidRange(0, SAMPLE_SIZE);
             for (int i = 0; i <= SAMPLE_SIZE; i++) {
                 longList.put(i, i + 100);
             }
-            longList.writeToFile(file);
+            file = writeLongListToFileAndVerify(longList, "testCloseAndRecreateLongListMultipleTimes.ll", tempDir);
             assertTrue(Files.exists(file), "The file should exist after writing with the first list");
         }
 
@@ -329,10 +324,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
 
     @Test
     void testLoadDifferentChunkSize(@TempDir final Path tempDir) throws IOException {
-        final Path file = tempDir.resolve("testLoadDifferentChunkSize.ll");
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
+        final Path file;
         final long CAPACITY = 1000;
         final int GAP = 50;
         try (final LongList longList = createLongList(100, CAPACITY, 0)) {
@@ -340,8 +332,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             for (int i = GAP; i <= CAPACITY - GAP; i++) {
                 longList.put(i, i * 2L);
             }
-            longList.writeToFile(file);
-            assertTrue(Files.exists(file), "The file should exist after writing with the first list");
+            file = writeLongListToFileAndVerify(longList, "testLoadDifferentChunkSize.ll", tempDir);
         }
         try (final LongList longList = createLongList(file, 200, CAPACITY, 0)) {
             assertEquals(GAP, longList.getMinValidIndex());
@@ -354,18 +345,14 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
 
     @Test
     void testLoadIncreasedCapacity(@TempDir final Path tempDir) throws IOException {
-        final Path file = tempDir.resolve("testLoadIncreasedCapacity.ll");
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
+        final Path file;
         final long CAPACITY = 1000;
         try (final LongList longList = createLongList(100, CAPACITY, 0)) {
             longList.updateValidRange(0, CAPACITY - 1);
             for (int i = 0; i < CAPACITY; i++) {
                 longList.put(i, i * 2L + 1);
             }
-            longList.writeToFile(file);
-            assertTrue(Files.exists(file), "The file should exist after writing with the first list");
+            file = writeLongListToFileAndVerify(longList, "testLoadIncreasedCapacity.ll", tempDir);
         }
         try (final LongList longList = createLongList(file, 100, CAPACITY + 100, 0)) {
             assertEquals(0, longList.getMinValidIndex());
@@ -381,20 +368,17 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
 
     @Test
     void testLoadDecreasedCapacity(@TempDir final Path tempDir) throws IOException {
-        final Path file = tempDir.resolve("testLoadDecreasedCapacity.ll");
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
+        final Path file;
         final long CAPACITY = 1000;
         try (final LongList longList = createLongList(100, CAPACITY, 0)) {
             longList.updateValidRange(0, CAPACITY - 1);
             for (int i = 0; i < CAPACITY; i++) {
                 longList.put(i, i * 2L + 1);
             }
-            longList.writeToFile(file);
-            assertTrue(Files.exists(file), "The file should exist after writing with the first list");
+            file = writeLongListToFileAndVerify(longList, "testLoadDecreasedCapacity.ll", tempDir);
         }
-        assertThrows(IllegalArgumentException.class, () -> createLongList(file, 100, CAPACITY - 100, 0));
+        assertThrows(IllegalArgumentException.class, () -> createLongList(file, 100, CAPACITY - 100, 0)
+                .close());
     }
 
     // SAMPLE_SIZE should be 10K for this test
@@ -581,59 +565,47 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     }
 
     @Test
-    void testRestoreUpdateSnapshot() throws IOException {
+    void testRestoreUpdateSnapshot(@TempDir Path testDir) throws IOException {
         try (final LongList longList = createLongList(100, MAX_LONGS, 0)) {
             longList.updateValidRange(0, 50);
             longList.put(2, 1002);
-            final Path tmpDir = Files.createTempDirectory("testRestoreUpdateSnapshot");
-            final Path tmpFile = tmpDir.resolve("snapshot");
-            longList.writeToFile(tmpFile);
-            try (final LongList restored = createLongList(tmpFile, 100, MAX_LONGS, 0)) {
+            final Path snapshot1 = testDir.resolve("snapshot1");
+            longList.writeToFile(snapshot1);
+            try (final LongList restored = createLongList(snapshot1, 100, MAX_LONGS, 0)) {
                 restored.updateValidRange(0, 50);
                 assertEquals(3, restored.size());
                 assertEquals(1002, restored.get(2));
                 restored.put(3, 1003);
-                final Path tmpDir2 = Files.createTempDirectory("testRestoreUpdateSnapshot");
-                final Path tmpFile2 = tmpDir2.resolve("snapshot");
-                restored.writeToFile(tmpFile2);
-                try (final LongList restored2 = createLongList(tmpFile2, 100, MAX_LONGS, 0)) {
+                final Path snapshot2 = testDir.resolve("snapshot2");
+                restored.writeToFile(snapshot2);
+                try (final LongList restored2 = createLongList(snapshot2, 100, MAX_LONGS, 0)) {
                     restored2.updateValidRange(0, 50);
                     assertEquals(4, restored2.size());
                     assertEquals(1002, restored2.get(2));
                     assertEquals(1003, restored2.get(3));
-                } finally {
-                    Files.delete(tmpFile2);
-                    Files.delete(tmpDir2);
                 }
-            } finally {
-                Files.delete(tmpFile);
-                Files.delete(tmpDir);
             }
         }
     }
 
     @Test
     @DisplayName("Regression test for hiero-ledger/hiero-consensus-node/issues/18235")
-    void testSnapshotHalfEmptyChunks() throws IOException {
+    void testSnapshotHalfEmptyChunks(@TempDir Path testDir) throws IOException {
         try (final LongList longList = createLongList(200, 10000, 0)) {
             longList.updateValidRange(500, 1100);
             longList.put(599, 1599); // chunk 2
             longList.put(1050, 2050); // chunk 5
             longList.put(900, 1900); // chunk 4
             longList.put(700, 1700); // chunk 3
-            final Path tmpDir = Files.createTempDirectory("testSnapshotHalfEmptyChunks");
-            final Path tmpFile = tmpDir.resolve("snapshot");
-            longList.writeToFile(tmpFile);
-            try (final LongList restored = createLongList(tmpFile, 200, 10000, 0)) {
+            final Path snapshot = testDir.resolve("snapshot");
+            longList.writeToFile(snapshot);
+            try (final LongList restored = createLongList(snapshot, 200, 10000, 0)) {
                 assertEquals(1700, restored.get(700));
                 assertEquals(2050, restored.get(1050));
                 assertEquals(1900, restored.get(900));
                 assertEquals(1599, restored.get(599));
                 // Make sure chunk 3 doesn't have any values carried over from chunk 2
                 assertEquals(0, restored.get(799));
-            } finally {
-                Files.delete(tmpFile);
-                Files.delete(tmpDir);
             }
         }
     }
@@ -646,11 +618,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 list.put(i, i + 1000);
             }
             final AtomicInteger counter = new AtomicInteger(0);
-            list.forEach(
-                    (l, v) -> {
-                        counter.incrementAndGet();
-                    },
-                    () -> counter.get() < 42);
+            list.forEach((l, v) -> counter.incrementAndGet(), () -> counter.get() < 42);
             assertEquals(42, counter.get());
         }
     }
@@ -663,11 +631,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 list.put(i, i + 1000);
             }
             final AtomicInteger counter = new AtomicInteger(0);
-            list.forEach(
-                    (l, v) -> {
-                        counter.incrementAndGet();
-                    },
-                    null);
+            list.forEach((l, v) -> counter.incrementAndGet(), null);
             assertEquals(100, counter.get());
         }
     }
@@ -680,6 +644,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
      * {@code createInstance} is the function that constructs a new {@link AbstractLongList}.
      */
     public record LongListWriterFactory(String name, Supplier<AbstractLongList<?>> createInstance) {
+        @NonNull
         @Override
         public String toString() {
             return name;
@@ -693,6 +658,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
      * and longsPerChunk/capacity/reservedBufferSize encoded as a long array.
      */
     public record LongListReaderFactory(String name, BiFunction<Path, List<Long>, AbstractLongList<?>> createFromFile) {
+        @NonNull
         @Override
         public String toString() {
             return name;
@@ -703,22 +669,22 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
      * Factories (named suppliers) for creating different {@link AbstractLongList} implementations
      * with test configuration.
      */
-    static LongListWriterFactory heapWriterFactory = new LongListWriterFactory(
+    static final LongListWriterFactory heapWriterFactory = new LongListWriterFactory(
             LongListHeap.class.getSimpleName(), () -> new LongListHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
-    static LongListWriterFactory offHeapWriterFactory = new LongListWriterFactory(
+    static final LongListWriterFactory offHeapWriterFactory = new LongListWriterFactory(
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
-    static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
+    static final LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION));
-    static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, fileSystemManager));
+    static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
     /**
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
      * implementations from files.
      */
-    static LongListReaderFactory heapReaderFactory =
+    static final LongListReaderFactory heapReaderFactory =
             new LongListReaderFactory(LongListHeap.class.getSimpleName(), (file, a) -> {
                 try {
                     return new LongListHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
@@ -727,7 +693,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 }
             });
 
-    static LongListReaderFactory offHeapReaderFactory =
+    static final LongListReaderFactory offHeapReaderFactory =
             new LongListReaderFactory(LongListOffHeap.class.getSimpleName(), (file, a) -> {
                 try {
                     return new LongListOffHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
@@ -735,15 +701,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     throw new RuntimeException(e);
                 }
             });
-    static LongListReaderFactory diskReaderFactory =
+    static final LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListDisk(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListDisk(
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, fileSystemManager);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
-    static LongListReaderFactory segmentReaderFactory =
+    static final LongListReaderFactory segmentReaderFactory =
             new LongListReaderFactory(LongListSegment.class.getSimpleName(), (file, a) -> {
                 try {
                     return new LongListSegment(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
@@ -793,8 +760,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 // Validate the reconstructed list's attributes
                 assertEquals(writerList.capacity(), readerList.capacity(), "Capacity mismatch in reconstructed list.");
                 assertEquals(writerList.size(), readerList.size(), "Size mismatch in reconstructed list.");
-            } finally {
-                Files.delete(longListFile);
             }
         }
     }
@@ -826,8 +791,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 assertEquals(0, readerList.size(), "An empty list should have size 0");
                 assertEquals(-1, readerList.getMinValidIndex(), "For an empty list, minValidIndex should be -1");
                 assertEquals(-1, readerList.getMaxValidIndex(), "For an empty list, maxValidIndex should be -1");
-            } finally {
-                Files.delete(longListFile);
             }
         }
     }
@@ -861,11 +824,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
 
                 // Verify that writing the read list to a new file doesn't cause exceptions
                 assertDoesNotThrow(() -> {
-                    final Path longListFile2 = writeLongListToFileAndVerify(readerList, TEMP_FILE_NAME_2, tempDir);
-                    Files.delete(longListFile2);
+                    writeLongListToFileAndVerify(readerList, TEMP_FILE_NAME_2, tempDir);
                 });
-            } finally {
-                Files.delete(longListFile);
             }
         }
     }
@@ -899,9 +859,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     .apply(longListFile, List.of(1024L * 1024, Integer.MAX_VALUE + 100L, 256L * 1024))) {
                 // Validate that the large index is correctly reconstructed
                 assertEquals(1, readerList.get(bigIndex), "Value mismatch for the large index after reconstruction.");
-            } finally {
-                // Clean up the temporary file
-                Files.delete(longListFile);
             }
         }
     }
@@ -950,9 +907,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                             readerList.get(i),
                             "Mismatch in data for index " + i + " between writer and reader lists.");
                 }
-            } finally {
-                // Clean up the temporary file
-                Files.delete(longListFile);
             }
         }
     }
@@ -1001,9 +955,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                             readerList.get(i),
                             "Mismatch in data for index " + i + " between writer and reader lists.");
                 }
-            } finally {
-                // Clean up the temporary file
-                Files.delete(longListFile);
             }
         }
     }
@@ -1122,7 +1073,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             checkData(writerList);
 
             // Update the minimum valid index to exclude the lower half of the list
-            //noinspection UnnecessaryLocalVariable
             int newMinValidIndex = HALF_SAMPLE_SIZE;
             writerList.updateValidRange(newMinValidIndex, MAX_VALID_INDEX);
 
@@ -1191,9 +1141,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     // Validate the refilled list
                     checkData(zeroMinValidIndexList);
                 }
-            } finally {
-                // Clean up temporary files
-                Files.deleteIfExists(longListFile);
             }
         }
     }
@@ -1260,9 +1207,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 for (int i = startIndex; i <= endIndex; i++) {
                     assertEquals(i + 100, readerList.get(i), "Mismatch in value for index " + i);
                 }
-            } finally {
-                // Clean up the temporary file
-                Files.deleteIfExists(longListFile);
             }
         }
     }
@@ -1328,9 +1272,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                             readerList.get(i),
                             "Unexpected value in a loaded readerList, index=" + i);
                 }
-            } finally {
-                // Clean up the temporary file after the test
-                Files.deleteIfExists(longListFile);
             }
         }
     }
@@ -1373,9 +1314,27 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                             readerList.get(i),
                             "Unexpected value in a loaded readerList, index=" + i);
                 }
-            } finally {
-                // Clean up the temporary file after the test
-                Files.deleteIfExists(longListFile);
+            }
+        }
+    }
+
+    @RepeatedTest(100)
+    void concurrentPutTest() {
+        final int CHUNK_SIZE = 1000;
+        final int LIST_SIZE = CHUNK_SIZE * 128;
+        try (final LongList list = createLongList(CHUNK_SIZE, LIST_SIZE, 0)) {
+            final int THREADS = 8;
+            final int UPDATES = 1000;
+            final int size = THREADS * UPDATES;
+            list.updateValidRange(0, size - 1);
+            IntStream.range(0, THREADS).parallel().forEach(t -> {
+                for (int i = 0; i < UPDATES; i++) {
+                    final long v = t + i * THREADS;
+                    list.put(v, v + 1);
+                }
+            });
+            for (long v = 0; v < size; v++) {
+                assertEquals(v + 1, list.get(v));
             }
         }
     }
@@ -1437,10 +1396,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             throws IOException {
         final Path file = tempDir.resolve(fileName);
 
-        if (Files.exists(file)) {
-            Files.delete(file);
-        }
-
+        Files.deleteIfExists(file);
         longList.writeToFile(file);
 
         assertTrue(

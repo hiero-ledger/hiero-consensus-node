@@ -129,23 +129,8 @@ public class WorkingDirUtils {
         requireNonNull(workingDir);
         requireNonNull(network);
 
-        // If a previous run exists, archive it under a numbered sibling directory (e.g.
-        // "node0-run-1", "node0-run-2") so that every retry's logs, block streams, and record
-        // streams are preserved without overwriting each other. The CI upload globs cover all
-        // archived directories automatically because they use "**" patterns.
-        if (Files.exists(workingDir)) {
-            int runNumber = 1;
-            Path archivedDir;
-            do {
-                archivedDir = workingDir.resolveSibling(workingDir.getFileName() + "-run-" + runNumber);
-                runNumber++;
-            } while (Files.exists(archivedDir));
-            try {
-                Files.move(workingDir, archivedDir);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
+        // Clean up any existing directory structure
+        rm(workingDir);
         // Initialize the data folders
         WORKING_DIR_DATA_FOLDERS.forEach(folder ->
                 createDirectoriesUnchecked(workingDir.resolve(DATA_DIR).resolve(folder)));

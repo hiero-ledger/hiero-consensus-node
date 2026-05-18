@@ -22,6 +22,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -135,7 +137,7 @@ class HintsSubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        final var explicitKeys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
+        final var explicitKeys = new PreprocessedKeys(Bytes.wrap(new byte[49]), Bytes.wrap("VK"));
 
         subject.submitHintsVote(123L, explicitKeys);
 
@@ -199,6 +201,48 @@ class HintsSubmissionsTest {
         assertTrue(body.hasHintsPartialSignature());
         final var expectedBody = HintsPartialSignatureTransactionBody.newBuilder()
                 .constructionId(123L)
+                .message(msg)
+                .partialSignature(sig)
+                .build();
+        assertEquals(expectedBody, body.hintsPartialSignatureOrThrow());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void usesPlatformSignerForRsaSignature() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
+        final var msg = Bytes.wrap("M");
+        final var sig = Bytes.wrap("RSA");
+        given(gossip.sign(any(byte[].class))).willReturn(new Signature(SignatureType.RSA, sig));
+
+        subject.submitRsaSignature(msg);
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip)
+                .submitFuture(
+                        eq(AccountID.DEFAULT),
+                        eq(Instant.EPOCH),
+                        any(),
+                        captor.capture(),
+                        any(),
+                        anyInt(),
+                        anyInt(),
+                        any(),
+                        any());
+        final var spec = captor.getValue();
+        final var builder = TransactionBody.newBuilder();
+        spec.accept(builder);
+        final ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(gossip).sign(bytesCaptor.capture());
+        assertArrayEquals(msg.toByteArray(), bytesCaptor.getValue());
+        final var body = builder.build();
+        assertTrue(body.hasHintsPartialSignature());
+        final var expectedBody = HintsPartialSignatureTransactionBody.newBuilder()
+                .constructionId(RsaContext.CONSTRUCTION_ID)
                 .message(msg)
                 .partialSignature(sig)
                 .build();

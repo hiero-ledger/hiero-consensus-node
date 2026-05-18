@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
@@ -17,6 +15,8 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,16 +38,16 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -73,6 +73,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -148,6 +152,8 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
         final var selfId = commandLineArgs.localNodesToStart().stream()
                 .findFirst()
@@ -161,12 +167,11 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, metrics, time);
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
@@ -233,6 +238,10 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
                         migrationAlreadyApplied);
 
+        final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
+        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -248,7 +257,8 @@ public class ServicesMain {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera);
+                .withStaleEventCallback(hedera)
+                .withTransactionOffsetNanos(transactionOffsetNanos);
         final var platform = platformBuilder.build();
 
         platform.start();
@@ -304,34 +314,50 @@ public class ServicesMain {
     }
 
     /**
-     * Creates a canonical {@link Hedera} instance for the given node id and metrics.
+     * Constructs a new {@link Hedera} instance.
      *
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param configuration the configuration to use
+     * @param fileSystemManager the file system manager to use
+     * @param metrics the platform metric instance to use when creating the new instance of state
+     * @param time the time instance to use when creating the new instance of state
+     * @param selfId the node id of this node
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
         requireNonNull(configuration);
         requireNonNull(metrics);
         requireNonNull(time);
+        requireNonNull(selfId);
         return new Hedera(
                 ConstructableRegistry.getInstance(),
                 ServicesRegistryImpl::new,
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
+                selfId,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
-                (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
-                TssBlockHashSigner::new,
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                        rsaContext,
+                        rsaSignings,
+                        genesisNetworkSupplier),
+                (appContext, bootstrapConfig, genesisNetworkSupplier) -> new HistoryServiceImpl(
+                        metrics,
+                        ForkJoinPool.commonPool(),
+                        appContext,
+                        new HistoryLibraryImpl(),
+                        genesisNetworkSupplier),
+                DualBlockHashSigner::new,
                 configuration,
+                fileSystemManager,
                 metrics,
                 time);
     }
@@ -377,5 +403,20 @@ public class ServicesMain {
         }
         return blockInfo.votingCompletionDeadlineBlockNumber() > 0
                 && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
+    }
+
+    /**
+     * Calculates the minimum transaction offset in nanoseconds, taking into account the reserved system
+     * transaction time range and the maximum number of preceding records.
+     * @param config the configuration to use for the calculation
+     * @return the transaction offset in nanoseconds
+     */
+    @VisibleForTesting
+    public static int transactionOffsetNanos(@NonNull final Configuration config) {
+        final int reservedSystemTxnNanos =
+                config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
+        final int maxPrecedingRecords =
+                config.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
+        return reservedSystemTxnNanos + maxPrecedingRecords + 1;
     }
 }

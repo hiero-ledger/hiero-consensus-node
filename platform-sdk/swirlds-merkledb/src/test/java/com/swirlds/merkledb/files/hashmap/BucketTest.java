@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
-import static com.swirlds.merkledb.files.hashmap.HalfDiskHashMap.INVALID_VALUE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-@SuppressWarnings({"RedundantCast", "unchecked", "rawtypes"})
 class BucketTest {
 
     private enum KeyType {
@@ -36,26 +35,24 @@ class BucketTest {
         }
     }
 
-    @ParameterizedTest
-    @EnumSource(KeyType.class)
-    void canSetAndGetBucketIndex(KeyType keyType) {
-        final Bucket subject = new Bucket();
-        final int pretendIndex = 123;
-        subject.setBucketIndex(pretendIndex);
-        assertEquals(pretendIndex, subject.getBucketIndex(), "Should be able to get the set index");
+    @Test
+    void canSetAndGetBucketIndex() throws IOException {
+        try (Bucket subject = new Bucket()) {
+            final int pretendIndex = 123;
+            subject.setBucketIndex(pretendIndex);
+            assertEquals(pretendIndex, subject.getBucketIndex(), "Should be able to get the set index");
+        }
     }
 
     @ParameterizedTest
     @EnumSource(KeyType.class)
     void returnsNotFoundValueFromEmptyBucket(KeyType keyType) throws IOException {
-        final Bucket subject = new Bucket();
-        final long notFoundValue = 123;
-        final Bytes missingKey = keyType.keyConstructor.apply(321L);
-
-        assertEquals(
-                notFoundValue,
-                subject.findLeaf(missingKey.hashCode(), missingKey, notFoundValue),
-                "Should not find a path in an empty bucket");
+        try (Bucket subject = new Bucket()) {
+            final Bytes missingKey = keyType.keyConstructor.apply(321L);
+            assertNull(
+                    subject.findLeaf(missingKey, missingKey.hashCode()),
+                    "Should not find a value in an empty bucket");
+        }
     }
 
     @ParameterizedTest
@@ -179,94 +176,106 @@ class BucketTest {
         for (int i = 0; i < testKeys.length; i++) {
             testKeys[i] = keyType.keyConstructor.apply((long) (i + 10));
         }
-        // create a bucket
-        final Bucket bucket = new Bucket();
-        assertEquals(0, bucket.getBucketEntryCount(), "Check we start with empty bucket");
-        // insert keys and check
-        for (int i = 0; i < testKeys.length; i++) {
-            final Bytes key = testKeys[i];
-            bucket.putValue(key, key.hashCode(), keyType.getKeyAsLong(key) + 100);
-            assertEquals(i + 1, bucket.getBucketEntryCount(), "Check we have correct count");
-            // check that all keys added so far are there
-            for (int j = 0; j <= i; j++) {
-                checkKey(keyType, bucket, testKeys[j]);
+
+        try (final Bucket bucket = new Bucket()) {
+            assertEquals(0, bucket.getBucketEntryCount(), "Check we start with empty bucket");
+            // insert keys and check
+            for (int i = 0; i < testKeys.length; i++) {
+                final Bytes key = testKeys[i];
+                bucket.putValue(key, key.hashCode(), keyType.getKeyAsLong(key) + 100);
+                assertEquals(i + 1, bucket.getBucketEntryCount(), "Check we have correct count");
+                // check that all keys added so far are there
+                for (int j = 0; j <= i; j++) {
+                    checkKey(keyType, bucket, testKeys[j]);
+                }
+            }
+            assertEquals(testKeys.length, bucket.getBucketEntryCount(), "Check we have correct count");
+            // get raw bytes first to compare to
+            final int size = bucket.sizeInBytes();
+            final byte[] goodBytes = new byte[size];
+            final BufferedData bucketData = BufferedData.wrap(goodBytes);
+            bucket.writeTo(bucketData);
+            final String goodBytesStr = Arrays.toString(goodBytes);
+            // now test write to buffer
+            final BufferedData bbuf = BufferedData.allocate(size);
+            bucket.writeTo(bbuf);
+            bbuf.flip();
+            assertEquals(
+                    goodBytesStr,
+                    Arrays.toString(bbuf.getBytes(0, bbuf.length()).toByteArray()),
+                    "Expect bytes to match");
+
+            // create new bucket with good bytes and check it is the same
+            try (final Bucket bucket2 = new Bucket()) {
+                bucket2.readFrom(BufferedData.wrap(goodBytes));
+                assertEquals(bucket.toString(), bucket2.toString(), "Expect bucket toStrings to match");
+            }
+
+            // test clear
+            try (final Bucket bucket3 = new Bucket()) {
+                bucket.clear();
+                assertEquals(bucket3.toString(), bucket.toString(), "Expect bucket toStrings to match");
             }
         }
-        assertEquals(testKeys.length, bucket.getBucketEntryCount(), "Check we have correct count");
-        // get raw bytes first to compare to
-        final int size = bucket.sizeInBytes();
-        final byte[] goodBytes = new byte[size];
-        final BufferedData bucketData = BufferedData.wrap(goodBytes);
-        bucket.writeTo(bucketData);
-        final String goodBytesStr = Arrays.toString(goodBytes);
-        // now test write to buffer
-        final BufferedData bbuf = BufferedData.allocate(size);
-        bucket.writeTo(bbuf);
-        bbuf.flip();
-        assertEquals(
-                goodBytesStr, Arrays.toString(bbuf.getBytes(0, bbuf.length()).toByteArray()), "Expect bytes to match");
-
-        // create new bucket with good bytes and check it is the same
-        final Bucket bucket2 = new Bucket();
-        bucket2.readFrom(BufferedData.wrap(goodBytes));
-        assertEquals(bucket.toString(), bucket2.toString(), "Expect bucket toStrings to match");
-
-        // test clear
-        final Bucket bucket3 = new Bucket();
-        bucket.clear();
-        assertEquals(bucket3.toString(), bucket.toString(), "Expect bucket toStrings to match");
     }
 
     @Test
-    void toStringAsExpectedForBucket() {
-        final Bucket bucket = new Bucket();
+    void toStringAsExpectedForBucket() throws IOException {
+        try (final Bucket bucket = new Bucket()) {
+            final String emptyBucketRepr = "Bucket{bucketIndex=0, entryCount=0, size=5}";
+            assertEquals(emptyBucketRepr, bucket.toString(), "Empty bucket should represent as expected");
 
-        final String emptyBucketRepr = "Bucket{bucketIndex=0, entryCount=0, size=5}";
-        assertEquals(emptyBucketRepr, bucket.toString(), "Empty bucket should represent as expected");
+            final String bucketWithIndex0Repr = "Bucket{bucketIndex=0, entryCount=0, size=5}";
+            bucket.setBucketIndex(0);
+            assertEquals(bucketWithIndex0Repr, bucket.toString(), "Empty bucket should represent as expected");
 
-        final String bucketWithIndex0Repr = "Bucket{bucketIndex=0, entryCount=0, size=5}";
-        bucket.setBucketIndex(0);
-        assertEquals(bucketWithIndex0Repr, bucket.toString(), "Empty bucket should represent as expected");
+            final String bucketWithIndex1Repr = "Bucket{bucketIndex=1, entryCount=0, size=5}";
+            bucket.setBucketIndex(1);
+            assertEquals(bucketWithIndex1Repr, bucket.toString(), "Empty bucket should represent as expected");
 
-        final String bucketWithIndex1Repr = "Bucket{bucketIndex=1, entryCount=0, size=5}";
-        bucket.setBucketIndex(1);
-        assertEquals(bucketWithIndex1Repr, bucket.toString(), "Empty bucket should represent as expected");
-
-        final Bytes key = ExampleLongKey.longToKey(2056);
-        bucket.putValue(key, key.hashCode(), 5124);
-        bucket.setBucketIndex(0);
-        final String nonEmptyBucketRepr = "Bucket{bucketIndex=0, entryCount=1, size=31}";
-        assertEquals(nonEmptyBucketRepr, bucket.toString(), "Non-empty bucket represent as expected");
+            final Bytes key = ExampleLongKey.longToKey(2056);
+            bucket.putValue(key, key.hashCode(), 5124);
+            bucket.setBucketIndex(0);
+            final String nonEmptyBucketRepr = "Bucket{bucketIndex=0, entryCount=1, size=31}";
+            assertEquals(nonEmptyBucketRepr, bucket.toString(), "Non-empty bucket represent as expected");
+        }
     }
 
     @ParameterizedTest
     @EnumSource(KeyType.class)
     void emptyParsedBucketToBucketIndexZero(final KeyType keyType) throws IOException {
-        final Bucket inBucket = new ParsedBucket();
+        final BufferedData buf;
         final Bytes key1 = keyType.keyConstructor.apply(1L);
         final Bytes key2 = keyType.keyConstructor.apply(2L);
-        inBucket.setBucketIndex(0);
-        inBucket.putValue(key1, key1.hashCode(), 2);
-        inBucket.putValue(key2, key2.hashCode(), 1);
-        final BufferedData buf = BufferedData.allocate(inBucket.sizeInBytes());
-        inBucket.writeTo(buf);
-        buf.reset();
-        final Bucket outBucket = new Bucket();
-        outBucket.readFrom(buf);
-        outBucket.putValue(key1, key1.hashCode(), INVALID_VALUE);
-        outBucket.putValue(key2, key2.hashCode(), INVALID_VALUE);
-        assertDoesNotThrow(outBucket::getBucketIndex);
-        assertDoesNotThrow(outBucket::getBucketEntryCount);
-        assertEquals(0, outBucket.getBucketEntryCount());
-        assertEquals(0, outBucket.getBucketIndex());
+
+        try (final Bucket inBucket = new ParsedBucket()) {
+
+            inBucket.setBucketIndex(0);
+            inBucket.putValue(key1, key1.hashCode(), 2);
+            inBucket.putValue(key2, key2.hashCode(), 1);
+            buf = BufferedData.allocate(inBucket.sizeInBytes());
+            inBucket.writeTo(buf);
+            buf.reset();
+        }
+
+        try (final Bucket outBucket = new Bucket()) {
+            outBucket.readFrom(buf);
+            outBucket.putValue(key1, key1.hashCode(), INVALID_VALUE);
+            outBucket.putValue(key2, key2.hashCode(), INVALID_VALUE);
+            assertDoesNotThrow(outBucket::getBucketIndex);
+            assertDoesNotThrow(outBucket::getBucketEntryCount);
+            assertEquals(0, outBucket.getBucketEntryCount());
+            assertEquals(0, outBucket.getBucketIndex());
+        }
     }
 
     @ParameterizedTest
     @EnumSource(KeyType.class)
-    void parsedBucketPutIfEqual(final KeyType keyType) {
+    void parsedBucketPutIfEqual(final KeyType keyType) throws IOException {
         final Bytes key1 = keyType.keyConstructor.apply(1L);
-        final Bucket bucket = new ParsedBucket();
-        assertDoesNotThrow(() -> bucket.putLeaf(key1, key1.hashCode(), INVALID_VALUE, 1));
+        try (final Bucket bucket = new ParsedBucket()) {
+            assertDoesNotThrow(() -> bucket.putLeaf(key1, key1.hashCode(), INVALID_VALUE, 1));
+        }
     }
 
     @Test

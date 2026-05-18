@@ -308,7 +308,7 @@ class WritableHintsStoreImplTest {
                 HintsConstruction.newBuilder().constructionId(123L).build(),
                 HintsConstruction.newBuilder().constructionId(456L).build());
         final var verificationKey = Bytes.wrap("VK");
-        final var keys = new PreprocessedKeys(Bytes.EMPTY, verificationKey);
+        final var keys = new PreprocessedKeys(Bytes.wrap(new byte[49]), verificationKey);
         final var nodePartyIds = Map.of(1L, 2, 3L, 6);
         final var nodeWeights = Map.of(1L, 100L, 3L, 300L);
         assertNull(subject.getActiveVerificationKey());
@@ -477,7 +477,9 @@ class WritableHintsStoreImplTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 library,
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

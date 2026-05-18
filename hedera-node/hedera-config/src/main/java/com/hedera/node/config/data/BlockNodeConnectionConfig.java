@@ -9,7 +9,8 @@ import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
- * Configuration for Connecting to Block Nodes.
+ * Configuration for connecting to Block Nodes.
+ *
  * @param blockNodeConnectionFileDir the directory to get the block node configuration file
  * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed within a time frame
  * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
@@ -27,12 +28,19 @@ import java.time.Duration;
  * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
  * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
  * @param blockNodeStatusTimeout the timeout for retrieving block node server status (millisecond precision)
- * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 37748736 bytes (36 MB).
+ * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 131072000 bytes (125 MB).
  * @param connectionMonitorCheckIntervalMillis the amount of time (in milliseconds) between checking the health of block node connectivity
  * @param connectionStallThresholdMillis the amount of time needed to elapse (in milliseconds) between connection worker loop invocations before a connection is considered stalled
  * @param globalCoolDownSeconds the minimum amount of time (in seconds) between switching block node connections
  * @param basicNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for basic scenarios
  * @param extendedNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for extended scenarios
+ * @param wantedBlockExpirationMillis the maximum amount of time (in milliseconds) allowed to elapse between when a block node's
+ *                                    wanted block is determined versus when the streaming connection is created and uses the wanted block
+ * @param numBlocksBehindLowThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
+ *                                    via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in a basic cool down
+ * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
+ *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
+ * @param slowRequestThresholdMillis amount of time (in milliseconds) a request will take to send before it is considered slow (should be less than {@link #pipelineOperationTimeout()}
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -40,7 +48,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
         @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
-        @ConfigProperty(defaultValue = "1") @NodeProperty int maxBehindPublishersAllowed,
+        @ConfigProperty(defaultValue = "3") @NodeProperty int maxBehindPublishersAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherTimeFrame,
         @ConfigProperty(defaultValue = "5s") @NodeProperty Duration behindPublisherIgnorePeriod,
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
@@ -54,11 +62,15 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes,
         @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout,
-        @ConfigProperty(defaultValue = "37748736") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
+        @ConfigProperty(defaultValue = "131072000") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
         @ConfigProperty(defaultValue = "200") @Min(1) @NetworkProperty int connectionMonitorCheckIntervalMillis,
-        @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
+        @ConfigProperty(defaultValue = "500") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
         @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
-        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds) {
+        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds,
+        @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis,
+        @ConfigProperty(defaultValue = "20.0") @Min(0) @NetworkProperty double numBlocksBehindLowThreshold,
+        @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold,
+        @ConfigProperty(defaultValue = "250") @Min(1) @NetworkProperty long slowRequestThresholdMillis) {
 }
 // spotless:on

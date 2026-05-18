@@ -70,7 +70,7 @@ jobs:
       enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: "25"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:
@@ -107,26 +107,12 @@ jobs:
             exit 1
           fi
 
-  report-flaky-tests:
-    name: Report Flaky Tests
-    needs:
-      - detect-change-type
-      - mats-pr-checks
-    # Skip flaky test processing when the PR is a draft
-    if: ${{  !github.event.pull_request.draft && !cancelled() && always() }}
-    uses: ./.github/workflows/800-call-report-flaky-test.yaml
-    with:
-      workflow-context: pr-checks
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-
   report-summary:
     name: Report PR Check Summary
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
-      - report-flaky-tests
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0

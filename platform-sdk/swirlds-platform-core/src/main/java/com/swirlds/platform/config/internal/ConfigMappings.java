@@ -18,6 +18,9 @@ public final class ConfigMappings {
     private ConfigMappings() {}
 
     static final List<ConfigMapping> MAPPINGS = List.of(
+            new ConfigMapping("recycleBin.dirName", "fileSystemManager.recycleBinDir"),
+            new ConfigMapping("recycleBin.maximumFileAge", "fileSystemManager.recycleBinMaximumFileAge"),
+            new ConfigMapping("recycleBin.collectionPeriod", "fileSystemManager.recycleBinCollectionPeriod"),
             new ConfigMapping("gossip.connectionServerThreadPriority", "thread.threadPrioritySync"),
             new ConfigMapping("gossip.hangingThreadDuration", "hangingThreadDuration"),
             new ConfigMapping("consensus.roundsNonAncient", "state.roundsNonAncient"),

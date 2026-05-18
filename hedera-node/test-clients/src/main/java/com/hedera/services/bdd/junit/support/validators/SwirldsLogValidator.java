@@ -66,6 +66,7 @@ public class SwirldsLogValidator {
         private static final List<List<String>> PROBLEM_PATTERNS_TO_IGNORE = List.of(
                 List.of("PcesFileTracker", "No preconsensus event files"),
                 List.of("PcesFileTracker", "insufficient data to guarantee"),
+                List.of("BestEffortPcesFileCopy", "No preconsensus event files"),
                 List.of("OSHealthChecker"),
                 List.of("DefaultSignedStateSentinel", "Old signed state detected"));
 

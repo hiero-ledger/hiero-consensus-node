@@ -302,7 +302,7 @@ public class VirtualPipeline {
             throw new IllegalStateException("copies destroyed too many times");
         } else if (remainingCopies == 0) {
             // Let pipeline shutdown gracefully, e.g. complete any flushes in progress
-            shutdown(false);
+            shutdownAfterFinalWork();
         } else {
             scheduleWork();
         }
@@ -518,6 +518,29 @@ public class VirtualPipeline {
                 executorService.submit(() -> fireOnShutdown(false));
                 executorService.shutdown();
             }
+        }
+    }
+
+    /**
+     * Run one final lifecycle pass and then gracefully shut down the pipeline.
+     *
+     * <p>This is needed when the final copy is destroyed. Destroying the final copy can make older
+     * copies eligible for flush or merge, so shutting down immediately may abandon work that has just
+     * become possible.
+     */
+    private synchronized void shutdownAfterFinalWork() {
+        alive = false;
+        if (!executorService.isShutdown()) {
+            executorService.submit(() -> {
+                try {
+                    hashFlushMerge();
+                } catch (final Throwable e) { // NOSONAR: Must log since this is on the lifecycle thread.
+                    logger.error(EXCEPTION.getMarker(), "exception during final virtual pipeline work", e);
+                } finally {
+                    fireOnShutdown(false);
+                }
+            });
+            executorService.shutdown();
         }
     }
 

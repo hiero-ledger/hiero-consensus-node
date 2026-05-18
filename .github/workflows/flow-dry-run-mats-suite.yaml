@@ -86,7 +86,7 @@ jobs:
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
-      java-version: "25"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
     secrets:
@@ -96,14 +96,3 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  report-flaky-tests:
-    name: Report Flaky Tests
-    needs:
-      - mats-tests
-    if: ${{ !cancelled() && always() }}
-    uses: ./.github/workflows/800-call-report-flaky-test.yaml
-    with:
-      workflow-context: dry-run
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
