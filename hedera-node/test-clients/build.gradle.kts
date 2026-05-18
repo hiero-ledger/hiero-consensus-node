@@ -81,7 +81,7 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -275,7 +275,7 @@ tasks {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     // Isolate each subtask's working directory so logs are not overwritten
@@ -415,7 +415,7 @@ tasks.register<Test>("testSubprocess") {
 
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     // Isolate each subtask's working directory so logs are not overwritten
@@ -561,7 +561,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     // Isolate each subtask's working directory so logs are not overwritten
@@ -664,7 +664,7 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     // Isolate each subtask's working directory so logs are not overwritten
@@ -732,7 +732,7 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     // Isolate each subtask's working directory so logs are not overwritten

@@ -84,7 +84,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -94,6 +94,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -152,7 +153,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -162,6 +163,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -228,7 +230,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -238,6 +240,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -308,7 +311,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
 
       - name: Set Failure Mode
         id: set-failure-mode

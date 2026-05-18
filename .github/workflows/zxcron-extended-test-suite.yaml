@@ -46,7 +46,7 @@ jobs:
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
 
       - name: Set Parameters
         id: set-parameters
@@ -76,7 +76,7 @@ jobs:
       commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: "main"
@@ -320,7 +320,7 @@ jobs:
     if: ${{ needs.xts-execution.result == 'success' }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -387,7 +387,7 @@ jobs:
       !cancelled() }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: main
@@ -437,7 +437,7 @@ jobs:
 
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-ref: main
