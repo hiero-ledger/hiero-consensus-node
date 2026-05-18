@@ -948,7 +948,7 @@ class MerkleDbCompactionCoordinatorTest {
         for (int i = 1; i <= 2; i++) {
             final DataFileReader f = mockFileReader(i, 1, 100, 10 * 1024 * 1024);
             allFiles.add(f);
-            statsEntries.add(new StatsEntry(f, 10)); // d/a = 9.0 → eligible
+            statsEntries.add(new StatsEntry(f, 51)); // d/a ≈ 0.96 → eligible, but no absorption headroom
         }
 
         // 12 clean small files at level 1
