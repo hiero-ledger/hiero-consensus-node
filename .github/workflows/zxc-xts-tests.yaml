@@ -112,6 +112,9 @@ on:
       slack-tck-report-webhook:
         description: "Slack TCK Report Webhook"
         required: false
+      slack-test-webhook:
+        description: "Slack Test Webhook"
+        required: true
     outputs:
       failure-mode:
         description: "Indicates the failure mode of the workflow"
@@ -166,7 +169,7 @@ jobs:
       result-label: "Mirror Node Regression Panel Result"
       ref: ${{ inputs.ref }}
     secrets:
-      webhook: ${{ vars.SLACK_TEST_WEBHOOK }}
+      webhook: ${{ secrets.slack-test-webhook }}
 
   build:
     name: Compile and Spotless Check
