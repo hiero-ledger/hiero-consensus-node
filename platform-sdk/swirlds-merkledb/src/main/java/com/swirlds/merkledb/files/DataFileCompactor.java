@@ -2,11 +2,9 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
-import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
 import static com.swirlds.merkledb.files.DataFileCommon.logCompactStats;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -161,6 +159,29 @@ public class DataFileCompactor {
      */
     private final long indexSize;
 
+    /**
+     * Cumulative size in bytes of all output files produced during the current compaction run.
+     * Accumulated in {@link #finishCurrentCompactionFile()} each time an output file is finalized.
+     * Reset at the start of {@link #compactFiles}.
+     *
+     * <p>This field exists because output file sizes cannot be safely read from disk after
+     * {@code compactFiles} returns. When a snapshot interrupts compaction mid-flight,
+     * {@link #pauseCompaction()} finalizes the current output file, which becomes immediately
+     * visible to other tasks (it is completed and small). A concurrent task may pick it up,
+     * compact it, and delete it before the original compaction run finishes. If
+     * {@code compactSingleLevel} then tried to read the output file's size from disk via
+     * {@code getSizeOfFilesByPath}, it would fail with {@code NoSuchFileException}.
+     *
+     * <p>By capturing each output file's size in memory at finalization time (from
+     * {@link DataFileReader#getSize()}, which is cached), this field provides a safe
+     * alternative that does not depend on the output files still existing on disk.
+     *
+     * <p>Synchronized via {@link #snapshotCompactionLock} — all calls to
+     * {@code finishCurrentCompactionFile} (from both the compaction thread and the snapshot
+     * thread's {@code pauseCompaction}) hold this lock.
+     */
+    private long totalCompactedBytes;
+
     public DataFileCompactor(
             final DataFileCollection dataFileCollection,
             CASableLongIndex index,
@@ -224,7 +245,7 @@ public class DataFileCompactor {
      * @throws IOException          if there was a problem merging
      * @throws InterruptedException if the merge thread was interrupted
      */
-    public boolean compactSingleLevel(final List<DataFileReader> filesToCompact, final int targetLevel)
+    public boolean compactSingleLevel(@NonNull final List<DataFileReader> filesToCompact, final int targetLevel)
             throws IOException, InterruptedException {
         assert filesToCompactBelongToCollection(filesToCompact);
         if (filesToCompact.isEmpty()) {
@@ -251,10 +272,9 @@ public class DataFileCompactor {
             reportDurationMetricFunction.accept(targetLevel, tookMillis);
         }
 
-        final long compactedFilesSize = getSizeOfFilesByPath(newFilesCreated);
         if (reportSavedSpaceMetricFunction != null) {
             reportSavedSpaceMetricFunction.accept(
-                    targetLevel, (filesToCompactSize - compactedFilesSize) * UnitConstants.BYTES_TO_MEBIBYTES);
+                    targetLevel, (filesToCompactSize - totalCompactedBytes) * UnitConstants.BYTES_TO_MEBIBYTES);
         }
 
         reportFileSizeByLevel(dataFileCollection.getAllCompletedFiles());
@@ -315,6 +335,7 @@ public class DataFileCompactor {
         try {
             currentCompactionStartTime.set(Instant.now());
             newCompactedFiles.clear();
+            totalCompactedBytes = 0;
             startNewCompactionFile(targetCompactionLevel);
         } finally {
             snapshotCompactionLock.unlock();
@@ -403,46 +424,12 @@ public class DataFileCompactor {
             throws InterruptedException, IOException {
         return index.forEach(
                 (path, dataLocation) -> {
-                    if (!keyRange.withinRange(path)) {
-                        return;
-                    }
+                    if (!keyRange.withinRange(path)) return;
                     final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
-                    if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
-                        return;
-                    }
+                    if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) return;
                     final DataFileReader reader = readers[fileIndex - firstIndexInc];
-                    if (reader == null) {
-                        return;
-                    }
-                    final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
-                    // Take the lock. If a snapshot is started in a different thread, this call
-                    // will block until the snapshot is done. The current file will be flushed,
-                    // and current data file writer and reader will point to a new file
-                    snapshotCompactionLock.lock();
-                    try {
-                        final DataFileWriter newFileWriter = currentWriter.get();
-                        final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
-                        assert itemBytesWithTag != null;
-                        // Check if the index was changed while this thread was reading data. If
-                        // changed, there is no need to write the data as the following CAS call
-                        // would fail anyway
-                        if (index.get(path) == dataLocation) {
-                            long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
-                            // update the index
-                            index.putIfEqual(path, dataLocation, newLocation);
-                        }
-                    } catch (final IOException z) {
-                        logger.error(
-                                EXCEPTION.getMarker(),
-                                "[{}] Failed to copy data item {} / {}",
-                                storeName,
-                                fileIndex,
-                                fileOffset,
-                                z);
-                        throw z;
-                    } finally {
-                        snapshotCompactionLock.unlock();
-                    }
+                    if (reader == null) return;
+                    compactSingleItem(path, dataLocation, reader);
                 },
                 this::notInterrupted);
     }
@@ -451,6 +438,8 @@ public class DataFileCompactor {
      * Compacts files with HDHM bucket deduplication. Iterates only the lower half of the
      * index. For mirrored entries (both halves point to the same location), the data is
      * written once and both index entries are updated to point to the same new location.
+     *
+     * This method implies that the index starts with 0. If this is not the case, the method is not applicable.
      *
      * @return {@code true} if all items were processed without interruption
      */
@@ -515,26 +504,15 @@ public class DataFileCompactor {
         final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(oldLocation);
         snapshotCompactionLock.lock();
         try {
-            if (interruptFlag) {
-                return 0;
-            }
             final DataFileWriter newFileWriter = currentWriter.get();
             final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
-            if (itemBytesWithTag == null) {
-                // If the index still points to this location, the item is live but unreadable
-                assert index.get(key) != oldLocation
-                        : "Failed to read live data item at " + DataFileCommon.dataLocationToString(oldLocation);
-                return 0;
+            assert itemBytesWithTag != null;
+            if (index.get(key) == oldLocation) {
+                final long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
+                index.putIfEqual(key, oldLocation, newLocation);
+                return newLocation;
             }
-            // Check if the index was changed while this thread was reading data
-            if (index.get(key) != oldLocation) {
-                return 0;
-            }
-            final long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
-            if (!index.putIfEqual(key, oldLocation, newLocation)) {
-                return 0;
-            }
-            return newLocation;
+            return 0;
         } finally {
             snapshotCompactionLock.unlock();
         }
@@ -591,6 +569,7 @@ public class DataFileCompactor {
         } else {
             reader.updateMetadata(writer.getMetadata());
             reader.setFileCompleted();
+            totalCompactedBytes += reader.getSize();
             logger.info(
                     MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
         }

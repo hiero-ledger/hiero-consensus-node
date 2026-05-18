@@ -403,47 +403,6 @@ class GarbageScannerDeadAliveRatioTest {
             assertNotNull(stats.garbageFileStats()[4]);
             assertEquals(7, stats.garbageFileStats()[4].aliveItems());
         }
-
-        @Test
-        @DisplayName("Files with compactionInProgress flag are excluded from scan results")
-        void filesWithCompactionInProgressAreExcluded() {
-            final DataFileReader normalFile = mockFileReader(1, 0, 100, 1000);
-            final DataFileReader flaggedFile = mockFileReader(2, 0, 100, 1000);
-            when(flaggedFile.isCompactionInProgress()).thenReturn(true);
-
-            final LongList index = mockIndexWithEntries(locationsForFile(1, 30), locationsForFile(2, 30));
-
-            final DataFileCollection fileCollection = mock(DataFileCollection.class);
-            when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(normalFile, flaggedFile));
-
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
-
-            final IndexedGarbageFileStats stats = scanner.scan();
-
-            // Only normalFile should be in the stats — flaggedFile is invisible
-            assertEquals(1, stats.garbageFileStats().length);
-            assertNotNull(stats.garbageFileStats()[0]);
-            assertEquals(30, stats.garbageFileStats()[0].aliveItems());
-        }
-
-        @Test
-        @DisplayName("All files flagged produces empty stats array")
-        void allFilesFlaggedProducesEmptyStats() {
-            final DataFileReader file1 = mockFileReader(1, 0, 100, 1000);
-            final DataFileReader file2 = mockFileReader(2, 0, 100, 1000);
-            when(file1.isCompactionInProgress()).thenReturn(true);
-            when(file2.isCompactionInProgress()).thenReturn(true);
-
-            final LongList index = mockIndexWithEntries(locationsForFile(1, 50), locationsForFile(2, 50));
-
-            final DataFileCollection fileCollection = mock(DataFileCollection.class);
-            when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
-
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
-
-            final IndexedGarbageFileStats stats = scanner.scan();
-            assertEquals(0, stats.garbageFileStats().length);
-        }
     }
 
     // ========================================================================
@@ -499,7 +458,6 @@ class GarbageScannerDeadAliveRatioTest {
         when(reader.getIndex()).thenReturn(fileIndex);
         when(reader.getMetadata()).thenReturn(metadata);
         when(reader.getSize()).thenReturn(sizeBytes);
-        when(reader.isCompactionInProgress()).thenReturn(false);
         return reader;
     }
 }
