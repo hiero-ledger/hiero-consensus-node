@@ -170,6 +170,11 @@ larger redesign out of scope for this decision.
 - **Implicit contract.** The requirement that execution may block this call during freeze is a
   behavioral expectation on a method whose name does not advertise it. This must be documented
   alongside the method so future maintainers do not "fix" the blocking as a perceived bug.
+- **Logic runs on the critical "handle" thread.** `onSealConsensusRound` is invoked on the handle
+  thread, so the blocking logic sits directly on the critical path. The only
+  round on which it is intended to block is the freeze round — which is acceptable because that
+  is the last round handled before shutdown — but any bug or performance degradation that causes
+  the block to engage on a non-freeze round could have severe consequences for node performance.
 
 ### Neutral
 
