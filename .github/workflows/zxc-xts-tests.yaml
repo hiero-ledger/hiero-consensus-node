@@ -170,6 +170,7 @@ jobs:
       ref: ${{ inputs.ref }}
     secrets:
       webhook: ${{ secrets.slack-test-webhook }}
+      slack-api-token: ${{ secrets.slack-api-token }}
 
   build:
     name: Compile and Spotless Check
