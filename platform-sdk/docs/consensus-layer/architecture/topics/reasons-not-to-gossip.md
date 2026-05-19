@@ -204,12 +204,14 @@ ranges are accurate at last review and may shift with refactors.
   [`RpcPeerHandler.java`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/shadowgraph/RpcPeerHandler.java)
   `#checkForPeriodicActions` (lines 189–192) via
   `#isSyncCooldownComplete()`.
-- Rationale: [TBD: question for engineer — In `RpcPeerHandler.checkForPeriodicActions`,
-  a per-peer cooldown gates fresh sync initiation. What scenario
-  motivated this — letting the local intake pipeline drain, spreading
-  load across peers, avoiding duplicate work after a recent successful
-  sync, or something else? What value of `rpcSleepAfterSync` is in use
-  and what symptom appeared with shorter values?]
+- Rationale: when broadcast is enabled, broadcast is the primary
+  channel for event propagation and sync runs periodically as a backup
+  for events that broadcast missed. The cooldown enforces this
+  cadence — without it, sync would run back-to-back and overlap
+  broadcast, since in the window between sending our tipset and
+  receiving the peer's response the peer may broadcast events to us
+  that the sync has already marked as missing, causing duplicate
+  transmission.
 
 ### Peer still sending events
 
