@@ -10,7 +10,7 @@ plugins {
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
 // Detect available resources and scale JVM settings accordingly
-class TestResourceArgumentsProvider() : CommandLineArgumentProvider {
+class TestResourceArgumentsProvider : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> {
         val logger =
             org.slf4j.LoggerFactory.getLogger(TestResourceArgumentsProvider::class.java) as Logger
