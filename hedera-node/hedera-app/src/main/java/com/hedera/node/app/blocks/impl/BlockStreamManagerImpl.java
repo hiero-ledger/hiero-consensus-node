@@ -465,6 +465,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
+            log.info("Block {} opened", blockNumber);
             obs.onBlockInit(blockNumber, System.nanoTime());
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }

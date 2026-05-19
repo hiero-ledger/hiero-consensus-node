@@ -165,6 +165,8 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         metrics.recordHeaderSentToBlockEndSentLatency(headerSentToEndSentNanos);
 
         stats.aggregate();
+
+        log.info("{}", stats);
     }
 
     @Override
@@ -205,7 +207,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         // determine the seconds tick
         final long nanosTick = System.nanoTime();
         final long thresholdSecondTick = toSecondTick(nanosTick) - 2; // skip the most recent 2 seconds since they may still be in flight
-        final long thresholdNanosTick = NANOS_PER_SECOND * thresholdSecondTick;
+        final long thresholdNanosTick = (NANOS_PER_SECOND * thresholdSecondTick) + initialNanosTick;
 
         // collect all stats older than the calculated second tick
         final Map<Long, ThroughputBucket> localThroughputBuckets = new HashMap<>();
@@ -265,13 +267,18 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         final BigDecimal itemsPerSecondSent_bytes = round(totalItemsSent.sum.get() / (numberOfSeconds * 1.0D));
 
         output.append("  Throughput {\n");
-        output.append("    (Seconds:").append(numberOfSeconds).append(")\n");
-        output.append("(Name:ItemsCreated)(Unit:COUNT_PER_SECOND)(Avg:").append(itemsPerSecondCreated_count.toPlainString()).append(")\n");
-        output.append("(Name:ItemsCreated)(Unit:BYTES_PER_SECOND)(Avg:").append(itemsPerSecondCreated_bytes.toPlainString()).append(")\n");
-        output.append("(Name:ItemsSent)(Unit:COUNT_PER_SECOND)(Avg:").append(itemsPerSecondSent_count.toPlainString()).append(")\n");
-        output.append("(Name:ItemsSent)(Unit:BYTES_PER_SECOND)(Avg:").append(itemsPerSecondSent_bytes.toPlainString()).append(")\n");
-        output.append("}");
+        output.append("    [(Seconds:").append(numberOfSeconds).append(")]\n");
+        output.append("    [(Name:ItemsCreatedTotal)(Unit:COUNT)(Sum:").append(totalItemsCreated.count.get()).append(")");
+        output.append("(Unit:BYTES)(Sum:").append(totalItemsCreated.sum.get()).append(")]\n");
+        output.append("    [(Name:ItemsCreatedPerSecond)(Unit:COUNT)(Avg:").append(itemsPerSecondCreated_count.toPlainString()).append(")");
+        output.append("(Unit:BYTES)(Avg:").append(itemsPerSecondCreated_bytes.toPlainString()).append(")]\n");
+        output.append("    [(Name:ItemsSentTotal)(Unit:COUNT)(Sum:").append(totalItemsSent.count.get()).append(")");
+        output.append("(Unit:BYTES)(Sum:").append(totalItemsSent.sum.get()).append(")]\n");
+        output.append("    [(Name:ItemsSentPerSecond)(Unit:COUNT)(Avg:").append(itemsPerSecondSent_count.toPlainString()).append(")");
+        output.append("(Unit:BYTES)(Avg:").append(itemsPerSecondSent_bytes.toPlainString()).append(")]\n");
+        output.append("  }");
 
+        output.append("}");
         log.info("{}", output);
     }
 
@@ -305,7 +312,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         sb.append("    ").append(stats.itemIdleProbe).append("\n");
         sb.append("    ").append(stats.itemSendLatencyProbe).append("\n");
         sb.append("    ").append(stats.itemSizeProbe).append("\n");
-        sb.append("}");
+        sb.append("  }");
     }
 
     private BigDecimal round(final double d) {
@@ -376,6 +383,23 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
         boolean isAcked() {
             return ackedNanosTick.get() != -1;
+        }
+
+        @Override
+        public String toString() {
+            return "BlockStats{" +
+                    "blockNumber=" + blockNumber +
+                    ", initNanosTick=" + initNanosTick +
+                    ", openedNanosTick=" + openedNanosTick +
+                    ", closedNanosTick=" + closedNanosTick +
+                    ", ackedNanosTick=" + ackedNanosTick +
+                    ", proofCreatedNanosTick=" + proofCreatedNanosTick +
+                    ", proofAddedNanosTick=" + proofAddedNanosTick +
+                    ", footerNanosTick=" + footerNanosTick +
+                    ", headerSentNanosTicks=" + headerSentNanosTicks +
+                    ", endSentNanosTicks=" + endSentNanosTicks +
+                    ", items=" + items.size() +
+                    '}';
         }
     }
 
