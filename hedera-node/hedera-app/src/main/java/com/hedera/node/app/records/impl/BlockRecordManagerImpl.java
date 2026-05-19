@@ -92,6 +92,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private static final Logger logger = LogManager.getLogger(BlockRecordManagerImpl.class);
 
     private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
+    private static final BlockRecordManager.Lifecycle NO_OP_BLOCK_LIFECYCLE = new BlockRecordManager.Lifecycle() {
+        @Override
+        public void onOpenBlock(@NonNull final State state) {
+            // No-op
+        }
+
+        @Override
+        public void onCloseBlock(@NonNull final State state) {
+            // No-op
+        }
+    };
 
     private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
@@ -125,6 +136,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final int recordFileVersion;
     private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
     private final BlockHashSigner blockHashSigner;
+    private final BlockRecordManager.Lifecycle blockLifecycle;
 
     /**
      * Supplier of a fresh {@link BlockItemWriter} (in practice a {@code GrpcBlockItemWriter}) used to forward
@@ -215,6 +227,32 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger) {
+        this(
+                configProvider,
+                state,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
+                initTrigger,
+                NO_OP_BLOCK_LIFECYCLE);
+    }
+
+    public BlockRecordManagerImpl(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final State state,
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final InitTrigger initTrigger,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -224,6 +262,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
         this.wrbWriterSupplier = requireNonNull(wrbWriterSupplier);
         this.blockHashSigner = requireNonNull(blockHashSigner);
+        this.blockLifecycle = requireNonNull(blockLifecycle);
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.streamMode = blockStreamConfig.streamMode();
@@ -444,6 +483,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
+                blockLifecycle.onOpenBlock(state);
                 quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
             }
 
@@ -894,6 +934,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
         }
 
+        if (streamMode == RECORDS) {
+            blockLifecycle.onCloseBlock(state);
+        }
         final var recordFileHashFuture = streamFileProducer.finishCurrentBlock();
         observeRecordFileHash(closedBlockNo, recordFileHashFuture);
         if (streamMode == RECORDS) {
