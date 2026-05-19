@@ -395,7 +395,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public void setCode(final ContractID contractID, @NonNull final Bytes code) {
         requireNonNull(contractID);
-        contractStateStore.putBytecode(contractID, new Bytecode(tuweniToPbjBytes(requireNonNull(code))));
+        requireNonNull(code);
+        contractStateStore.putBytecode(contractID, new Bytecode(tuweniToPbjBytes(code)));
+        // Keep the per-frame current-code cache consistent with the freshly written
+        // bytecode; otherwise a subsequent getCode/getCodeHash for the same contract
+        // in this frame would return the stale (typically empty) value cached during
+        // contract creation, breaking e.g. bytecode-sidecar externalization.
+        if (contractID.equals(lastCodeContract)) {
+            lastCode = code;
+            lastCodeHash = null;
+        }
     }
 
     /**
