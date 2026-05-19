@@ -66,6 +66,7 @@ tasks.register<JavaExec>("runTestClient") {
     description = "Run a test client via -PtestClient=<Class>"
 
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    mainModule = application.mainModule
     mainClass = providers.gradleProperty("testClient")
 }
 
