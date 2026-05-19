@@ -306,8 +306,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
                 seededFromMigration = true;
                 logger.info(
-                        "Seeded live wrapped-record hash chain from migration result"
-                                + " (leafCount={}, prevHash={})",
+                        "Seeded live wrapped-record hash chain from migration result" + " (leafCount={}, prevHash={})",
                         initialLeafCount,
                         initialPrevHash);
             }
