@@ -387,6 +387,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         this.prevWrappedRecordBlockHashes.leafCount(),
                         this.previousWrappedRecordBlockRootHash);
             }
+            logger.info(
+                    "Persisted live wrapped record block root hash (as of block {}): {}",
+                    this.lastBlockInfo.lastBlockNumber(),
+                    this.previousWrappedRecordBlockRootHash);
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
