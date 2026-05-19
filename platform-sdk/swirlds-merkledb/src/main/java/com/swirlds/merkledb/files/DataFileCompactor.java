@@ -362,7 +362,7 @@ public class DataFileCompactor {
         try {
             final KeyRange keyRange = dataFileCollection.getValidKeyRange();
             if (deduplicateMirroredEntries) {
-                allDataItemsProcessed = compactWithDedup(keyRange, firstIndexInc, lastIndexExc, readers);
+                allDataItemsProcessed = compactWithDedup(index, keyRange, firstIndexInc, lastIndexExc, readers);
             } else {
                 allDataItemsProcessed = compactWithNoDedup(index, keyRange, firstIndexInc, lastIndexExc, readers);
             }
@@ -429,7 +429,7 @@ public class DataFileCompactor {
                     if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) return;
                     final DataFileReader reader = readers[fileIndex - firstIndexInc];
                     if (reader == null) return;
-                    compactSingleItem(path, dataLocation, reader);
+                    compactSingleItem(index, path, dataLocation, reader);
                 },
                 this::notInterrupted);
     }
@@ -444,7 +444,11 @@ public class DataFileCompactor {
      * @return {@code true} if all items were processed without interruption
      */
     private boolean compactWithDedup(
-            final KeyRange keyRange, final int firstIndexInc, final int lastIndexExc, final DataFileReader[] readers)
+            @NonNull CASableLongIndex index,
+            @NonNull final KeyRange keyRange,
+            final int firstIndexInc,
+            final int lastIndexExc,
+            @NonNull final DataFileReader[] readers)
             throws IOException {
 
         final long halfSize = indexSize / 2;
@@ -464,7 +468,7 @@ public class DataFileCompactor {
                 if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
                     final DataFileReader reader = readers[fileIndex - firstIndexInc];
                     if (reader != null) {
-                        newLocationLow = compactSingleItem(i, locationLow, reader);
+                        newLocationLow = compactSingleItem(index, i, locationLow, reader);
                     }
                 }
             }
@@ -481,7 +485,7 @@ public class DataFileCompactor {
                     if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
                         final DataFileReader reader = readers[fileIndex - firstIndexInc];
                         if (reader != null) {
-                            compactSingleItem(i + halfSize, locationHigh, reader);
+                            compactSingleItem(index, i + halfSize, locationHigh, reader);
                         }
                     }
                 }
@@ -494,12 +498,14 @@ public class DataFileCompactor {
      * Reads a data item from the old file, writes it to the current compaction output file,
      * and atomically updates the index entry.
      *
+     * @param index       the index to update
      * @param key         the index key
      * @param oldLocation the current data location in the old file
      * @param reader      the reader for the old file
      * @return the new data location, or 0 if the CAS failed or the item could not be read
      */
-    private long compactSingleItem(final long key, final long oldLocation, final DataFileReader reader)
+    private long compactSingleItem(
+            @NonNull final CASableLongIndex index, final long key, final long oldLocation, final DataFileReader reader)
             throws IOException {
         final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(oldLocation);
         snapshotCompactionLock.lock();
