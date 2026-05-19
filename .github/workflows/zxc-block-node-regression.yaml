@@ -57,10 +57,10 @@ jobs:
           checkout-fetch-depth: "0"
           checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
-          java-version: "25.0.2"
           java-distribution: "temurin"
-          setup-gradle: "true"
-          gradle-cache-read-only: "false"
+          java-version: "25.0.2"
+          setup-gradle: true
+          gradle-cache-read-only: false
           setup-node: "true"
           node-version: "22"
 

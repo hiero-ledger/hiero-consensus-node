@@ -42,8 +42,6 @@ jobs:
           checkout-fetch-depth: "0"
           checkout-ref: ${{ steps.validate.outputs.build-tag }}
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
-          setup-java: "false"
-          setup-gradle: "false"
           setup-node: "true"
           node-version: "20"
 
