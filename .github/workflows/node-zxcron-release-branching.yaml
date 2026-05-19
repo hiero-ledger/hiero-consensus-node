@@ -196,14 +196,14 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout: "true"
+          checkout: true
           checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
-          checkout-fetch-depth: "0"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-          setup-java: "true"
-          java-version: "25.0.2"
+          checkout-fetch-depth: 0
+          setup-java: true
           java-distribution: "temurin"
-          setup-gradle: "true"
+          java-version: "25.0.2"
+          setup-gradle: true
 
       - name: Install Semantic Version Tools
         run: |

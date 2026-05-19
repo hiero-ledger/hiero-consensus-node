@@ -52,17 +52,16 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout: "true"
+          checkout: true
           checkout-ref: "${{ inputs.ref || '' }}"
-          checkout-fetch-depth: "0"
-          checkout-token: "${{ secrets.access-token }}"
-          setup-java: "true"
-          java-distribution: "temurin"
-          java-version: "25.0.2"
+          checkout-fetch-depth: 0
+          setup-java: true
+          java-distribution: temurin
+          java-version: 25.0.2
           setup-gradle: true
           gradle-cache-read-only: false
-          setup-node: "true"
-          node-version: "22"
+          setup-node: true
+          node-version: 22
 
       # Get version for the checked out hiero-consensus-node
       - name: Get Version of Checkout CN Codebase

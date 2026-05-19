@@ -21,15 +21,15 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout: "true"
-          checkout-fetch-depth: "1"
+          checkout: true
+          checkout-fetch-depth: 1
           checkout-token: "${{ github.token }}"
           setup-java: "true"
           java-distribution: "temurin"
           java-version: "25.0.2"
-          setup-gradle: "true"
-          setup-node: "true"
-          node-version: "20"
+          setup-gradle: true
+          setup-node: true
+          node-version: 20
 
       - name: Compile
         run: ./gradlew assemble

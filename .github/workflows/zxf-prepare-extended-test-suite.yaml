@@ -37,8 +37,8 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout-fetch-depth: "0"
-          checkout-ref: "main"
+          checkout-fetch-depth: 0
+          checkout-ref: main
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Validate Input Ref
@@ -67,9 +67,9 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
+          checkout-fetch-depth: 0
           checkout-ref: ${{inputs.ref }}
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
-          checkout-fetch-depth: "0"
 
       - name: Import GPG Key
         id: gpg_importer

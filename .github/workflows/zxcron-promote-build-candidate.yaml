@@ -37,13 +37,10 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout: "true"
-          checkout-ref: "main"
-          checkout-fetch-depth: "0"
+          checkout: true
+          checkout-ref: main
+          checkout-fetch-depth: 0
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-          setup-java: "false"
-          setup-gradle: "false"
-          setup-node: "false"
 
       - name: Find Build Candidates
         id: find-build-candidates

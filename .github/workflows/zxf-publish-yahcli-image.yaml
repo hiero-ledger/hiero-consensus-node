@@ -59,14 +59,14 @@ jobs:
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          checkout: "true"
+          checkout: true
           checkout-ref: "${{ inputs.ref || github.ref }}"
-          checkout-fetch-depth: "1"
           checkout-token: "${{ github.token }}"
-          setup-java: "true"
-          java-version: "${{ inputs.java-version || '25.0.2' }}"
+          setup-java: true
           java-distribution: "${{ inputs.java-distribution || 'temurin' }}"
-          setup-gradle: "true"
+          java-version: "${{ inputs.java-version || '25.0.2' }}"
+          setup-gradle: true
+          gradle-version: ${{ inputs.gradle-version || 'wrapper'}}
 
       - name: Resolve Version
         id: resolve-version
