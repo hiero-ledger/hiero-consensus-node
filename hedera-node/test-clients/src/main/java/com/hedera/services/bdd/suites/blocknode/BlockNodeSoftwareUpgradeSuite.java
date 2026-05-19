@@ -38,12 +38,17 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This suite is for testing consensus node software upgrade scenarios regarding streaming to block nodes
+ * Software-upgrade tests for consensus nodes streaming to block nodes.
  */
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
 
+    /**
+     * Runs three back-to-back FREEZE_UPGRADE cycles on a 4-node network sharing one REAL block node (BN0).
+     * After each upgrade, asserts CN0 reselects BN0 within 3 minutes via the
+     * {@code "Selected new block node for streaming: localhost:<port>"} log line.
+     */
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -184,57 +189,16 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     }
 
     /**
-     * Tests software upgrade behavior when one consensus node is stuck in {@link PlatformStatus#CHECKING}
-     * due to its dedicated block node not sending acknowledgements (back-pressure).
+     * Upgrade with CN0 stuck in {@link PlatformStatus#CHECKING} because BN0 stopped acknowledging (back-pressure).
      *
-     * <p>Sequence (CN_n = consensus node n on configVersion v; BN_n = block node n):
-     * <pre>
-     *   CN0(v0)   CN1(v0)   CN2(v0)   CN3(v0)   BN0   BN1   BN2   BN3   client/test
-     *     |         |         |         |        |     |     |     |        |
-     *     |---ACK---|---------|---------|--------|-----|-----|-----|        |  (steady state)
-     *     |         |         |         |        |     |     |     |        |
-     *     |   prepareFakeUpgrade() [PREPARE_UPGRADE reaches consensus]      |
-     *     |         |         |         |        |     |     |     |        |
-     *     |         |         |         |       (X) BN0 shut down by test   |
-     *     |         |         |         |        :     |     |     |        |
-     *     |--buffer fills (no ACKs)-----|--------:-----|-----|-----|        |
-     *     |->CHECKING (back-pressure enabled)    :     |     |     |        |
-     *     |         |         |         |        :     |     |     |        |
-     *     |         |  freezeUpgrade() submitted via CN1                    |
-     *     |   (CN0 cannot ACK freeze — stuck in CHECKING)                   |
-     *     |         |->FREEZE_COMPLETE   |         |     |     |     |      |
-     *     |         |         |->FREEZE_COMPLETE   |     |     |     |      |
-     *     |         |         |         |->FREEZE_COMPLETE     |     |      |
-     *     |         |    shutdown CN1/CN2/CN3      |     |     |     |      |
-     *     |       restart CN1(v1)/CN2(v1)/CN3(v1)  |     |     |     |      |
-     *     |         |         |         |        (BN0 restarted by test)   |
-     *     |<--ACKs resumed--------------|---------|     |     |     |      |
-     *     |->buffer drains, back-pressure released |     |     |     |      |
-     *     |         |->CHECKING (does NOT reach ACTIVE — gossip with v0 CN0 unviable)
-     *     |         |         |->CHECKING         |     |     |     |      |
-     *     |         |         |         |->CHECKING     |     |     |     |
-     *     |         |         |         |              shutdown CN0        |
-     *     |       restart CN0(v1)                  |     |     |     |     |
-     *     |->REPLAYING_EVENTS (loads pre-freeze state from disk)            |
-     *     |->state hash disagrees with v1 peers                             |
-     *     |->CATASTROPHIC_FAILURE                  |     |     |     |     |
-     * </pre>
-     *
-     * <p>Outcomes captured by the assertions:
+     * <p>Assertions:
      * <ul>
-     *   <li>BN0 shutdown ⇒ CN0 buffer saturates and CN0 reaches {@code CHECKING}. ✓</li>
-     *   <li>FREEZE_UPGRADE submitted via CN1 ⇒ CN1/CN2/CN3 reach {@code FREEZE_COMPLETE}; CN0 does not. ✓</li>
-     *   <li>BN0 restart ⇒ back-pressure released and CN0 receives {@code BlockAcknowledgement}s
-     *       (no buffered-data loss). ✓</li>
-     *   <li>CN1/CN2/CN3 restart on the new config version: they finish {@code REPLAYING_EVENTS} and
-     *       enter {@code CHECKING} but do NOT transition to {@code ACTIVE} while CN0 is still
-     *       running on the old version. User transactions submitted through any of them hang.</li>
-     *   <li>Operator recovery attempt — restart CN0 on the new config version: CN0 loads its
-     *       persisted pre-freeze state, replays events, and ends up signing a state hash that
-     *       disagrees with the upgraded peers. The platform declares {@code CATASTROPHIC_FAILURE}.
-     *       The {@code waitForAny(ACTIVE, CATASTROPHIC_FAILURE)} assertion records whichever
-     *       outcome the platform produces. To fully recover the cluster the operator would need a
-     *       separate state-sync / reconnect path that wipes CN0's local state before restart.</li>
+     *   <li>BN0 down ⇒ CN0 buffer saturates, CN0 reaches {@code CHECKING}.</li>
+     *   <li>FREEZE_UPGRADE via CN1 ⇒ CN1/CN2/CN3 reach {@code FREEZE_COMPLETE}; CN0 does not.</li>
+     *   <li>BN0 restart ⇒ back-pressure released, CN0 receives {@code BlockAcknowledgement}s (no buffered-data loss).</li>
+     *   <li>CN0 restarted on new config version ⇒ replays pre-freeze state, hash disagrees with upgraded peers.
+     *       {@code waitForAny(ACTIVE, CATASTROPHIC_FAILURE)} records the outcome. Full recovery requires
+     *       a state-sync/reconnect path that wipes CN0's local state first.</li>
      * </ul>
      */
     @HapiTest
