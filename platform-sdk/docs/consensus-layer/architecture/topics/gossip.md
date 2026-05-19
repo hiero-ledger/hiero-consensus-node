@@ -12,9 +12,9 @@ Gossip is the subsystem that exchanges events with other peers. It owns the per-
 
 Gossip owns:
 
-- **Event propagation between peers** — Sync (legacy) and RPC Sync (current) protocols carry events across connections.
+- **Event propagation between peers** — RPC Sync protocols carry events across connections.
 - **The peer protocol stack** — Heartbeat, RPC, and Reconnect protocols sharing the same connection.
-- **Fair sync selection** — limiting concurrent syncs and rotating through peers so no peer is starved.
+- **Fair sync selection** — limiting concurrent syncs and rotating through peers so no peer is starved (currently disabled).
 - **Simple broadcast** — pushing self-events to all connected peers, layered on the RPC sync connection.
 
 Gossip does **not** own:
@@ -33,7 +33,7 @@ The legacy network layer negotiates one of three protocols on each connection. O
 
 ### RPC
 
-`RpcProtocol` (`platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcProtocol.java`) is the factory for the per-peer RPC pipeline. Once selected, it holds the connection and multiplexes sync, ping, and broadcast messages over it; it only releases the connection when the reconnect protocol needs to take over.
+`RpcProtocol` (`platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcProtocol.java`) is the factory for the per-peer RPC pipeline. Once selected, it holds the connection and multiplexes two layered subsystems — sync (see [RPC sync](#rpc-sync)) and broadcast (see [Simple broadcast](#simple-broadcast)) — plus ping/keepalive messages. It only releases the connection when the reconnect protocol needs to take over.
 
 ### Reconnect (gossip-side)
 
