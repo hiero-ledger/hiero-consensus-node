@@ -172,27 +172,29 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      * from its default {@code app.state.rsaBootstrapFilePath} without any config override.
      */
     private static Path prepareStateDir(final String rsaBootstrapJson) {
-        final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
-        final Path stateDir;
-        if (scopeRoot == null) {
-            stateDir = Path.of("build", "block-node", BLOCK_NODE_VERSION, "node")
-                    .toAbsolutePath()
-                    .normalize();
-        } else {
-            stateDir = scopeRoot
-                    .resolve("block-node")
-                    .resolve(BLOCK_NODE_VERSION)
-                    .resolve("node")
-                    .toAbsolutePath()
-                    .normalize();
+        synchronized (PLUGINS_LOCK) {
+            final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
+            final Path stateDir;
+            if (scopeRoot == null) {
+                stateDir = Path.of("build", "block-node", BLOCK_NODE_VERSION, "node")
+                        .toAbsolutePath()
+                        .normalize();
+            } else {
+                stateDir = scopeRoot
+                        .resolve("block-node")
+                        .resolve(BLOCK_NODE_VERSION)
+                        .resolve("node")
+                        .toAbsolutePath()
+                        .normalize();
+            }
+            try {
+                Files.createDirectories(stateDir);
+                Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
+            } catch (final IOException e) {
+                throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
+            }
+            return stateDir;
         }
-        try {
-            Files.createDirectories(stateDir);
-            Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
-        }
-        return stateDir;
     }
 
     private static void downloadIfMissing(final HttpClient client, final String url, final Path destination)
