@@ -299,10 +299,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             Bytes initialPrevHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
             List<Bytes> initialIntermediates = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
             long initialLeafCount = this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
+            boolean seededFromMigration = false;
             if (initialLeafCount == 0 && !this.lastBlockInfo.votingComplete() && migrationResult != null) {
                 initialPrevHash = migrationResult.previousWrappedRecordBlockRootHash();
                 initialIntermediates = migrationResult.wrappedIntermediatePreviousBlockRootHashes();
                 initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
+                seededFromMigration = true;
                 logger.info(
                         "Seeded live wrapped-record hash chain from migration result"
                                 + " (leafCount={}, prevHash={})",
@@ -314,6 +316,35 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             this.prevWrappedRecordBlockHashes =
                     new IncrementalStreamingHasher(sha384DigestOrThrow(), intermediateHashes, initialLeafCount);
             this.previousWrappedRecordBlockRootHash = initialPrevHash;
+
+            // When a state is saved mid-voting, the migrationWrappedHashes queue in BlockInfo
+            // holds per-block (consensusTimestampHash, outputItemsTreeRootHash) entries that the
+            // vote handler will replay on top of the migration baseline once voting completes
+            // (see MigrationRootHashVoteHandler.handle). On restart from such a state we must
+            // replay the same queue locally so the live hasher matches what the vote will agree
+            // on; otherwise blocks closed before voting completes would chain from the migration
+            // baseline only and diverge from the network.
+            final var queuedHashes = this.lastBlockInfo.migrationWrappedHashes();
+            if (seededFromMigration && !queuedHashes.isEmpty()) {
+                for (final MigrationWrappedHashes queued : queuedHashes) {
+                    final var allPrevBlocksRootHash = Bytes.wrap(this.prevWrappedRecordBlockHashes.computeRootHash());
+                    final var blockRootHash = computeWrappedRecordBlockRootHash(
+                            this.previousWrappedRecordBlockRootHash,
+                            allPrevBlocksRootHash,
+                            WrappedRecordFileBlockHashes.newBuilder()
+                                    .consensusTimestampHash(queued.consensusTimestampHash())
+                                    .outputItemsTreeRootHash(queued.outputItemsTreeRootHash())
+                                    .build());
+                    this.prevWrappedRecordBlockHashes.addNodeByHash(blockRootHash.toByteArray());
+                    this.previousWrappedRecordBlockRootHash = blockRootHash;
+                }
+                logger.info(
+                        "Replayed {} queued migration wrapped-hash entries on live hasher"
+                                + " (final leafCount={}, prevHash={})",
+                        queuedHashes.size(),
+                        this.prevWrappedRecordBlockHashes.leafCount(),
+                        this.previousWrappedRecordBlockRootHash);
+            }
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
