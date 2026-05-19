@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -87,6 +88,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     private Supplier<ExecutorService> blockingIoExecutorSupplier;
     private BlockNodeConfigService blockNodeConfigService;
     private ConfigProvider configProvider;
+    private BlockStreamingObs streamingObs;
 
     @TempDir
     Path tempDir;
@@ -109,13 +111,16 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         selfNodeInfo = mock(NodeInfo.class);
         when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
         when(selfNodeInfo.nodeId()).thenReturn(NODE_ID);
+        streamingObs = mock(BlockStreamingObs.class);
+
         connectionManager = new BlockNodeConnectionManager(
                 configProvider,
                 bufferService,
                 metrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
 
         // Clear any nodes that might have been loaded
         blockNodes().clear();

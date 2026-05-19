@@ -12,6 +12,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -20,7 +21,13 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.FunctionalitySetConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
-import com.hedera.node.config.data.*;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
+import com.hedera.node.config.data.StakingConfig;
+import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.HederaFunctionalitySet;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -303,6 +310,41 @@ public final class NoOpDependencies {
 
         @Override
         public void start() {}
+    }
+
+    public static class NoOpBlockStreamObs implements BlockStreamingObs {
+        @Override
+        public void onBlockInit(final long blockNumber, final long nanosTick) { }
+
+        @Override
+        public void onBlockOpen(final long blockNumber, final long nanosTick) { }
+
+        @Override
+        public void onBlockItemAdd(final long blockNumber, final int itemIndex, final long nanosTick, final int sizeInBytes) {}
+
+        @Override
+        public void onBlockItemSend(final long blockNumber, final int itemIndexStart, final int itemIndexEnd, final long startNanosTick, final long endNanosTick) { }
+
+        @Override
+        public void onBlockEndSend(final long blockNumber, final long startNanosTick, final long endNanosTick) { }
+
+        @Override
+        public void onBlockClose(final long blockNumber, final long nanosTick) { }
+
+        @Override
+        public void onBlockAcked(final long blockNumber, long nanosTick) { }
+
+        @Override
+        public void onBlockProofCreate(final long blockNumber, final long nanosTick) { }
+
+        @Override
+        public void onBlockProofAdd(long blockNumber, final long nanosTick) { }
+
+        @Override
+        public void onBlockHeaderSend(final long blockNumber, final long startNanosTick, final long endNanosTick) { }
+
+        @Override
+        public void onBlockFooterCreate(final long blockNumber, final long nanosTick) { }
     }
 
     /** Creates a minimal ConfigProvider */

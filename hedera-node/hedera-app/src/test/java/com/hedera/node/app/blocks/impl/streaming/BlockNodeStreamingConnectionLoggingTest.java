@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockEndRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
@@ -79,6 +80,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         blockingIoExecutor = Executors.newSingleThreadExecutor();
         final BlockNodeClientFactory clientFactory = mock(BlockNodeClientFactory.class);
         requestPipeline = mock(Pipeline.class);
+        final BlockStreamingObs streamingObs = mock(BlockStreamingObs.class);
 
         final BlockStreamPublishServiceClient client = mock(BlockStreamPublishServiceClient.class);
         when(clientFactory.createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString()))
@@ -94,7 +96,8 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
                 blockingIoExecutor,
                 null,
                 clientFactory,
-                0L);
+                0L,
+                streamingObs);
 
         logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
     }

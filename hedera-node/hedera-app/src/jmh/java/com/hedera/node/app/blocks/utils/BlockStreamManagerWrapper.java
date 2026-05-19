@@ -120,7 +120,8 @@ public class BlockStreamManagerWrapper {
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
-                new NoOpDependencies.NoOpMetrics());
+                new NoOpDependencies.NoOpMetrics(),
+                new NoOpDependencies.NoOpBlockStreamObs());
 
         manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }
