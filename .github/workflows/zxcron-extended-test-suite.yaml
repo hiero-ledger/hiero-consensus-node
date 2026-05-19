@@ -250,15 +250,6 @@ jobs:
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
-  xts-not-needed:
-    name: Report no XTS candidate tag is found
-    needs:
-      - fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'false' }}
-    steps:
-      - name: debug print
-        run: echo "xts-tag-exists is false"
-
   xts-execution:
     name: Execute XTS
     needs:
@@ -674,3 +665,17 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
+
+  report-not-needed:
+    name: Report no XTS candidate tag is found
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'false' }}
+    uses: ./.github/workflows/zxc-slack-notify.yaml
+    with:
+      header-text: "XTS - eXtended Test Suite "
+      result: "No candidate was found"
+      result-label: "No XTS Candidate Tag Found "
+      ref: ${{ inputs.ref }}
+    secrets:
+      webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
