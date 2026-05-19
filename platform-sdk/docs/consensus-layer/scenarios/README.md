@@ -1,13 +1,32 @@
-# Scenarios
+# Scenarios — Index
 
-Per-file scenario entries. Each captures an edge case, near-miss, or historical incident with timeline, evidence, and (where known) mitigation. Catalog grows over time via Diagnostician/Workbench handoffs (manually curated, not auto-fed).
+Per-file records of edge cases, near-misses, and historical incidents, each with
+**setup → sequence → observable signature → mitigation**, marked for how far it has
+been verified.
 
-## Naming convention
+This is the catalog of incident and edge-case knowledge that the team otherwise
+carries as undocumented war stories. Entries are independent and self-contained: one
+scenario per file, with its own timeline, signature, and (where known) mitigation.
+Many entries may share an observable signature — they are linked by the `symptoms`
+tag, not nested. The catalog grows by **manual curation only** (war-story interviews,
+Diagnostician/Workbench handoffs); nothing auto-feeds it.
 
-`SCN-NNN-short-slug.md`, where `NNN` is zero-padded to three digits. Cross-references from other files use the ID only (e.g., "See SCN-012").
+- Entry format: see `FORMAT.md`.
+- Allowed symptom values: see top-level `symptoms.md` (`SYM-NNN`), shared with `heuristics/`.
+- Consumed by: Diagnostician (signature match), Workbench (scenario reconstruction),
+  Test Scaffold Generator (verification handoff), Change Reviewer, Tutor.
+
+Entries are born `draft` and never reach `verified` on reasoning alone — only a real
+instance or a reproducing test gets them there. Treat `status` and `verification` as
+load-bearing.
 
 ## Index
 
-|         ID         | Title | Topics | Summary |
-|--------------------|-------|--------|---------|
-| _(no entries yet)_ |       |        |         |
+| ID      | Title                                      | Symptoms  | Topics                          | Verification   | Status |
+|---------|--------------------------------------------|-----------|---------------------------------|----------------|--------|
+| _none yet_ |                                         |           |                                 |                |        |
+
+<!--
+Row convention, one line per entry, kept in SCN-NNN order:
+| SCN-NNN | Title from entry frontmatter | SYM-NNN[, SYM-NNN] | topic-slug[, topic-slug] | observed\|test-reproduced\|reasoned-only | draft\|reviewed\|verified |
+-->
