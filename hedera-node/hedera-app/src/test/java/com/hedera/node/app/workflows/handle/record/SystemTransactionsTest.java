@@ -496,6 +496,7 @@ class SystemTransactionsTest {
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
+        verify(startupNetworks).clearCachedNetworks();
     }
 
     @Test
