@@ -325,23 +325,39 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     /**
      * Collects block file paths from the active block-stream directory plus any sibling preview
-     * archive populated by cutover (see {@code V0740BlockStreamSchema} and issue 25424).
-     * Active-dir paths are listed first so dedup-by-block-number prefers them over archived copies.
+     * archive populated by cutover (see {@code V0740BlockStreamSchema} and issue 25424). When
+     * cutover happened, the active dir holds authoritative post-cutover blocks numbered from the
+     * cutover block onward, while the archive holds the entire pre-cutover stream — which may run
+     * past the cutover block number because cutover synchronizes the block stream number to the
+     * record stream's last block. Anything archived at or above the first active block number is
+     * a transient pre-cutover overshoot that doesn't continue the post-cutover chain, so we drop
+     * it; only archived blocks strictly below the active range chain cleanly into the post-cutover
+     * suffix. Active-dir paths are listed first so dedup-by-block-number prefers them over any
+     * archived copies of the same number.
      */
     private static List<Path> collectBlockPaths(@NonNull final Path activeDir) {
-        final var paths = new ArrayList<Path>();
-        final var dirsToScan = new ArrayList<Path>();
-        dirsToScan.add(activeDir);
-        final Path archiveDir = activeDir.resolveSibling(activeDir.getFileName() + "-preview-archive");
-        if (Files.isDirectory(archiveDir)) {
-            dirsToScan.add(archiveDir);
+        final var activePaths = new ArrayList<Path>();
+        try (final var stream = Files.walk(activeDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(activePaths::add);
+        } catch (Exception ignore) {
+            // Empty or unreadable active dir falls through; archive (if any) is still consulted.
         }
-        for (final var dir : dirsToScan) {
-            try (final var stream = Files.walk(dir)) {
-                stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(paths::add);
-            } catch (Exception ignore) {
-                // Skip dirs we can't walk; an empty or absent archive is normal pre-cutover
-            }
+        final Path archiveDir = activeDir.resolveSibling(activeDir.getFileName() + "-preview-archive");
+        if (!Files.isDirectory(archiveDir)) {
+            return activePaths;
+        }
+        final long minActiveBlockNumber = activePaths.stream()
+                .mapToLong(BlockStreamAccess::extractBlockNumber)
+                .filter(n -> n >= 0)
+                .min()
+                .orElse(Long.MAX_VALUE);
+        final var paths = new ArrayList<Path>(activePaths);
+        try (final var stream = Files.walk(archiveDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                    .filter(p -> BlockStreamAccess.extractBlockNumber(p) < minActiveBlockNumber)
+                    .forEach(paths::add);
+        } catch (Exception ignore) {
+            // Skip if we can't walk the archive; absence is normal pre-cutover.
         }
         return paths;
     }
