@@ -5,7 +5,9 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -15,6 +17,7 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -42,6 +45,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -167,6 +171,44 @@ public final class NoOpDependencies {
 
         @Override
         public void destroy() {}
+    }
+
+    /** Minimal {@link com.hedera.node.app.spi.info.NodeInfo} stub — {@code nodeId()} returns 0, everything else throws. */
+    public static class NoOpNodeInfo implements NodeInfo {
+        @Override
+        public long nodeId() {
+            return 0L;
+        }
+
+        @Override
+        public AccountID accountId() {
+            throw new UnsupportedOperationException("NoOpNodeInfo.accountId() not implemented");
+        }
+
+        @Override
+        public long weight() {
+            return 0L;
+        }
+
+        @Override
+        public Bytes sigCertBytes() {
+            return Bytes.EMPTY;
+        }
+
+        @Override
+        public List<ServiceEndpoint> gossipEndpoints() {
+            return List.of();
+        }
+
+        @Override
+        public @NonNull List<ServiceEndpoint> hapiEndpoints() {
+            return List.of();
+        }
+
+        @Override
+        public boolean declineReward() {
+            return false;
+        }
     }
 
     /** Creates a real QuiescenceController with disabled quiescence for benchmarking */

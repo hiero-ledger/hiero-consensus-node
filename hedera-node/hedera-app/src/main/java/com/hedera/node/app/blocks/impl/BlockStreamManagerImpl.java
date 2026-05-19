@@ -56,6 +56,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -135,6 +136,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final RunningHashManager runningHashManager;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
+    private final NodeInfo selfNodeInfo;
     private final QuiescenceCommands quiescenceCommands;
 
     // The status of pending work
@@ -236,6 +238,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final QuiescenceController quiescenceController,
+            @NonNull final NodeInfo selfNodeInfo,
             @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
@@ -244,6 +247,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.quiescenceController = requireNonNull(quiescenceController);
+        this.selfNodeInfo = requireNonNull(selfNodeInfo);
         this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
@@ -820,11 +824,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
                 DiskStartupNetworks.writeNetworkInfo(
-                        state,
-                        exportPath,
-                        infoTypes,
-                        configProvider.getConfiguration(),
-                        platform.getSelfId().id());
+                        state, exportPath, infoTypes, configProvider.getConfiguration(), selfNodeInfo.nodeId());
             }
 
             // Clear the eventIndexInBlock map for the next block

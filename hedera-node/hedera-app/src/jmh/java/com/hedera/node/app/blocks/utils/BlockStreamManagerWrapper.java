@@ -117,6 +117,7 @@ public class BlockStreamManagerWrapper {
                 configProvider,
                 NoOpDependencies.createBenchmarkBoundaryStateChangeListener(configProvider),
                 quiescenceController,
+                new NoOpDependencies.NoOpNodeInfo(),
                 new QuiescenceCommands(new NoOpDependencies.NoOpPlatform(), new NoOpMetrics()),
                 NoOpDependencies.createNoOpInitialStateHash(),
                 SemanticVersion.DEFAULT,

@@ -62,6 +62,7 @@ import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -205,6 +206,9 @@ class BlockStreamManagerImplTest {
     private QuiescenceController quiescenceController;
 
     @Mock
+    private NodeInfo selfNodeInfo;
+
+    @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
@@ -278,6 +282,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -303,6 +308,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -1615,6 +1621,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -1651,6 +1658,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -1702,6 +1710,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -1748,6 +1757,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -1790,6 +1800,7 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 quiescenceController,
+                selfNodeInfo,
                 quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
