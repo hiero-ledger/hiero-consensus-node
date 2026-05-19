@@ -45,6 +45,24 @@ import java.util.stream.Stream;
  * may have a consensus time that lies outside the "typical" block boundary.
  */
 public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
+    /**
+     * Lifecycle hooks for record stream block boundaries.
+     */
+    interface Lifecycle {
+        /**
+         * Called when a record stream block is opened.
+         *
+         * @param state the state at the start of the block
+         */
+        void onOpenBlock(@NonNull State state);
+
+        /**
+         * Called when a record stream block is closed.
+         *
+         * @param state the state at the end of the block
+         */
+        void onCloseBlock(@NonNull State state);
+    }
 
     /**
      * Inform {@link BlockRecordManager} of the new consensus time at the beginning of a new transaction. This should
