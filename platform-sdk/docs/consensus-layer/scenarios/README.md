@@ -22,9 +22,9 @@ load-bearing.
 
 ## Index
 
-| ID      | Title                                      | Symptoms  | Topics                          | Verification   | Status |
-|---------|--------------------------------------------|-----------|---------------------------------|----------------|--------|
-| _none yet_ |                                         |           |                                 |                |        |
+|     ID     | Title | Symptoms | Topics | Verification | Status |
+|------------|-------|----------|--------|--------------|--------|
+| _none yet_ |       |          |        |              |        |
 
 <!--
 Row convention, one line per entry, kept in SCN-NNN order:

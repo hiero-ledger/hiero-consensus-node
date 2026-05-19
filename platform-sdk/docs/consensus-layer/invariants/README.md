@@ -25,9 +25,9 @@ marks a known correctness gap, not a stale entry.
 
 ## Index
 
-| ID      | Title                                                       | Class     | Topics                                          | Status      |
-|---------|-------------------------------------------------------------|-----------|-------------------------------------------------|-------------|
-| _none yet_ |                                                          |           |                                                 |             |
+|     ID     | Title | Class | Topics | Status |
+|------------|-------|-------|--------|--------|
+| _none yet_ |       |       |        |        |
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:

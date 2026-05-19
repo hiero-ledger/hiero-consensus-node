@@ -27,9 +27,9 @@ load-bearing — a `retired` rule must not be enforced by review, and a
 
 ## Index
 
-| ID      | Title                                                       | Class       | Topics                                          | Status      |
-|---------|-------------------------------------------------------------|-------------|-------------------------------------------------|-------------|
-| _none yet_ |                                                          |             |                                                 |             |
+|     ID     | Title | Class | Topics | Status |
+|------------|-------|-------|--------|--------|
+| _none yet_ |       |       |        |        |
 
 <!--
 Row convention, one line per entry, kept in RUL-NNN order:

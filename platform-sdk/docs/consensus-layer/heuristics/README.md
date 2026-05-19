@@ -16,9 +16,9 @@ Treat `status` as load-bearing.
 
 ## Index
 
-| ID      | Title                                                       | Symptoms  | Topics                                          | Status      |
-|---------|-------------------------------------------------------------|-----------|-------------------------------------------------|-------------|
-| _none yet_ |                                                          |           |                                                 |             |
+|     ID     | Title | Symptoms | Topics | Status |
+|------------|-------|----------|--------|--------|
+| _none yet_ |       |          |        |        |
 
 <!--
 Row convention, one line per entry, kept in HEU-NNN order:

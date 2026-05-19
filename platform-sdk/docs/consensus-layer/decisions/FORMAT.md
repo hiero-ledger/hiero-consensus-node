@@ -19,13 +19,13 @@ and one-line summaries lives in `decisions/README.md`.
 ADRs do not carry YAML frontmatter. The queryable metadata lives as a row in the
 `decisions/README.md` index table. Every new ADR adds exactly one row:
 
-| Column | Content |
-|---|---|
-| `ID` | Markdown link to the file, label is the bare ID (e.g., `[ADR-007](ADR-007-...md)`). |
-| `Title` | The same descriptive title used in the document's `# ADR:` heading. |
-| `Date` | ISO `YYYY-MM-DD` of the decision (the day it was accepted or last materially changed). |
-| `Status` | One of `Proposed`, `Accepted`, `Superseded`, `Deprecated`. Matches the body's `## Status`. |
-| `Summary` | One or two sentences capturing what was decided and why, readable on its own. |
+|  Column   |                                          Content                                           |
+|-----------|--------------------------------------------------------------------------------------------|
+| `ID`      | Markdown link to the file, label is the bare ID (e.g., `[ADR-007](ADR-007-...md)`).        |
+| `Title`   | The same descriptive title used in the document's `# ADR:` heading.                        |
+| `Date`    | ISO `YYYY-MM-DD` of the decision (the day it was accepted or last materially changed).     |
+| `Status`  | One of `Proposed`, `Accepted`, `Superseded`, `Deprecated`. Matches the body's `## Status`. |
+| `Summary` | One or two sentences capturing what was decided and why, readable on its own.              |
 
 Field discipline:
 
