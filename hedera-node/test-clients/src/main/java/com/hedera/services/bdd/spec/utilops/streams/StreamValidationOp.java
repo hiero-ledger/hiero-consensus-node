@@ -397,6 +397,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 }
             }
         }
+        log.warn(
+                "No proof-bearing block found for block #{} across {} dir(s): {}",
+                BlockStreamAccess.extractBlockNumber(relativePath),
+                otherDirs.size(),
+                otherDirs);
         return null;
     }
 

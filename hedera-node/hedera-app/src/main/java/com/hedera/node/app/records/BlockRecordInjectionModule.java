@@ -95,7 +95,7 @@ public abstract class BlockRecordInjectionModule {
                 wrbWriterSupplier,
                 blockHashSigner,
                 initTrigger,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration.result());
     }
 
     @Provides

@@ -136,9 +136,17 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
 
         // Step 3: archive preview block files out of the active block directory so that
         // (a) the post-cutover writer/pending-block recovery doesn't see them, and
-        // (b) downstream tools (e.g. EventHashBlockStreamValidator) can still resolve
-        //     cross-block parent event hashes for events emitted while FREEZING.
+        // (b) post-cutover events that descend from events emitted while FREEZING can still
+        //     resolve their cross-block parent event hashes. PCES re-applies those events on
+        //     restart and needs the parent hash to be discoverable somewhere; deleting the
+        //     preview files made that lookup fail. EventHashBlockStreamValidator only surfaces
+        //     the same problem from the test side. The archive sits under a sibling directory
+        //     so the active dir stays clean for the new writer while parent-hash resolution
+        //     still has the data.
         // See https://github.com/hiero-ledger/hiero-consensus-node/issues/25424.
+        // Files are written once (cutover is gated by previewStreamOverwritten) and not
+        // pruned automatically — operators are expected to remove the archive directory
+        // after the upgrade has been verified.
         final var cutoverConfig = ctx.appConfig();
         final var blockDirPath = blockDirFor(cutoverConfig);
         final Path archiveRoot = blockDirPath.resolveSibling(blockDirPath.getFileName() + "-preview-archive");

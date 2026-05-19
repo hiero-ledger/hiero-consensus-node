@@ -203,10 +203,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
      * @param initTrigger The init trigger
-     * @param wrappedRecordBlockHashMigration Migration whose {@code result()} (when present) seeds
-     *        the live wrapped-record hash chain so it matches the chain that will be agreed by
-     *        {@link com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler} once voting
-     *        completes.
      */
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
@@ -230,9 +226,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 wrbWriterSupplier,
                 blockHashSigner,
                 initTrigger,
-                new WrappedRecordBlockHashMigration());
+                null);
     }
 
+    /**
+     * Construct BlockRecordManager with an optional pre-computed wrapped-record block hash
+     * migration result that seeds the live wrapped-record hash chain so it matches the chain
+     * that will be agreed by {@link com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler}
+     * once voting completes.
+     */
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
             @NonNull final State state,
@@ -244,7 +246,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger,
-            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
+            @Nullable final WrappedRecordBlockHashMigration.Result migrationResult) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -297,18 +299,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             Bytes initialPrevHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
             List<Bytes> initialIntermediates = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
             long initialLeafCount = this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
-            if (initialLeafCount == 0 && !this.lastBlockInfo.votingComplete()) {
-                final var migrationResult = wrappedRecordBlockHashMigration.result();
-                if (migrationResult != null) {
-                    initialPrevHash = migrationResult.previousWrappedRecordBlockRootHash();
-                    initialIntermediates = migrationResult.wrappedIntermediatePreviousBlockRootHashes();
-                    initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
-                    logger.info(
-                            "Seeded live wrapped-record hash chain from migration result"
-                                    + " (leafCount={}, prevHash={})",
-                            initialLeafCount,
-                            initialPrevHash);
-                }
+            if (initialLeafCount == 0 && !this.lastBlockInfo.votingComplete() && migrationResult != null) {
+                initialPrevHash = migrationResult.previousWrappedRecordBlockRootHash();
+                initialIntermediates = migrationResult.wrappedIntermediatePreviousBlockRootHashes();
+                initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
+                logger.info(
+                        "Seeded live wrapped-record hash chain from migration result"
+                                + " (leafCount={}, prevHash={})",
+                        initialLeafCount,
+                        initialPrevHash);
             }
             final var intermediateHashes =
                     initialIntermediates.stream().map(Bytes::toByteArray).toList();
