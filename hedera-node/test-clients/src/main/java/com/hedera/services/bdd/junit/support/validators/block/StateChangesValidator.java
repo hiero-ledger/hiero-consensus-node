@@ -96,6 +96,7 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -332,7 +333,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        final var hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent());
+        final var hedera = ServicesMain.newHedera(
+                platformConfig, fileSystemManager, metrics, Time.getCurrent(), NodeId.FIRST_NODE_ID);
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();
         this.state = stateLifecycleManager.copyMutableState();
