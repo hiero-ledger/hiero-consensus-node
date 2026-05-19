@@ -37,6 +37,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.roster.NodeSignature;
 import com.hedera.hapi.node.state.roster.RosterSignatures;
@@ -57,7 +58,9 @@ import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -82,10 +85,12 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase {
     private static final Bytes LEGACY_RECORD_FILE_HASH = Bytes.wrap("legacy-record-file-hash");
@@ -2078,5 +2083,169 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
                 .commit();
+    }
+
+    private void seedRequiredStateMidVoting(
+            final AppTestBase.App app, final List<MigrationWrappedHashes> queuedHashes) {
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
+                                .migrationWrappedHashes(queuedHashes)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+    }
+
+    @Test
+    void seedsLiveHasherFromMigrationResultWhenStateUnvoted() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            seedRequiredStateMidVoting(app, List.of());
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationPrevHash = Bytes.fromHex("ab".repeat(48));
+            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                    migrationPrevHash, List.of(Bytes.fromHex("cd".repeat(48))), 2L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // construction triggers seeding branch
+            }
+
+            assertTrue(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Seeded live wrapped-record hash chain from migration result")));
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void replaysQueuedMigrationWrappedHashesOnInit() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            final var queued = List.of(
+                    new MigrationWrappedHashes(
+                            1L, Bytes.fromHex("11".repeat(48)), Bytes.fromHex("22".repeat(48))),
+                    new MigrationWrappedHashes(
+                            2L, Bytes.fromHex("33".repeat(48)), Bytes.fromHex("44".repeat(48))));
+            seedRequiredStateMidVoting(app, queued);
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                    Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // construction triggers seed + replay
+            }
+
+            assertTrue(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Replayed 2 queued migration wrapped-hash entries")));
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void doesNotSeedFromMigrationResultWhenVotingComplete() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            seedRequiredState(app); // votingComplete=true
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                    Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // votingComplete=true → seed branch skipped
+            }
+
+            assertFalse(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Seeded live wrapped-record hash chain from migration result")));
+        } finally {
+            logCaptor.stopCapture();
+        }
     }
 }
