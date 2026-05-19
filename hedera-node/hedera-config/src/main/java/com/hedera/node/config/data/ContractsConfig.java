@@ -164,4 +164,7 @@ public record ContractsConfig(
         boolean metricsSmartContractSecondaryEnabled,
 
         @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "false") @NetworkProperty
-        boolean useBonnevilleEVM) {}
+        boolean useBonnevilleEVM,
+
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty
+        long sizeLimit) {}
