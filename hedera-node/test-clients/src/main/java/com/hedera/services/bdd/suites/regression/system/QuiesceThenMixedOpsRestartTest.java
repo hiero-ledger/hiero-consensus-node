@@ -109,22 +109,26 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 // --- Cycle 3: the cycle that pre-fix could not produce ---
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                // The desync bug fenced here would, pre-fix, silently drop the direct BREAK_QUIESCENCE → QUIESCE
-                // transition emitted by the manager after the first cycle (because
-                // `BlockStreamManagerImpl.lastQuiescenceCommand` would be stuck at QUIESCE across the
-                // heartbeat-emitted BREAK_QUIESCENCE, so the manager's CAS to QUIESCE became a no-op).
+                // The desync bug fenced here would, pre-fix, silently drop every QUIESCE transition emitted
+                // by the manager after the first one (because `BlockStreamManagerImpl.lastQuiescenceCommand`
+                // would be stuck at QUIESCE across the heartbeat-emitted BREAK_QUIESCENCE — the manager's CAS
+                // to QUIESCE became a permanent no-op).
                 //
-                // "to BREAK_QUIESCENCE" proves the wake path was hit in cycle 3; "from BREAK_QUIESCENCE to QUIESCE"
-                // proves the direct edge fired — the exact transition pre-fix would silently drop. Both patterns
-                // must appear in the timeframe, which begins after two prior cycles so no boot-time or
-                // earlier-cycle transition can satisfy the assertion.
+                // "to BREAK_QUIESCENCE" proves the wake path was hit in cycle 3. "to QUIESCE" proves the cycle
+                // closed via *some* path — either the direct edge BREAK_QUIESCENCE→QUIESCE (fast local timing)
+                // or the indirect BREAK_QUIESCENCE→DONT_QUIESCE→QUIESCE (CI timing where the manager polls
+                // during the brief pipeline-non-zero window between ingest and block sign). Both are legal
+                // and both fail to emit if issues exist, since the regression suppresses the final
+                // CAS-to-QUIESCE either way. Asserting the strict direct edge would over-fence on CI hardware.
+                // The window begins after two prior cycles so no boot-time or earlier-cycle transition can
+                // satisfy the assertion.
                 assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
                         sleepStart::get,
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         "to BREAK_QUIESCENCE",
-                        "from BREAK_QUIESCENCE to QUIESCE"));
+                        "to QUIESCE"));
     }
 
     /**
