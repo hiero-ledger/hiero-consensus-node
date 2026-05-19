@@ -328,7 +328,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 // Determine block node mode from system property, default to REAL
                 final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                         .map(BlockNodeMode::valueOf)
-                        .orElse(BlockNodeMode.SIMULATOR);
+                        .orElse(BlockNodeMode.REAL);
                 log.info(
                         "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
                         writerMode,
