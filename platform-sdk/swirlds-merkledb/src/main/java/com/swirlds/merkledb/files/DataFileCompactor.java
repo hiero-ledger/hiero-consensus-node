@@ -3,6 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.files.DataFileCommon.NON_EXISTENT_DATA_LOCATION;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
 import static com.swirlds.merkledb.files.DataFileCommon.logCompactStats;
@@ -423,13 +424,19 @@ public class DataFileCompactor {
             DataFileReader[] readers)
             throws InterruptedException, IOException {
         return index.forEach(
-                (path, dataLocation) -> {
-                    if (!keyRange.withinRange(path)) return;
+                (key, dataLocation) -> {
+                    if (!keyRange.withinRange(key)) {
+                        return;
+                    }
                     final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
-                    if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) return;
+                    if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
+                        return;
+                    }
                     final DataFileReader reader = readers[fileIndex - firstIndexInc];
-                    if (reader == null) return;
-                    compactSingleItem(index, path, dataLocation, reader);
+                    if (reader == null) {
+                        return;
+                    }
+                    compactSingleItem(index, key, dataLocation, reader);
                 },
                 this::notInterrupted);
     }
@@ -453,31 +460,34 @@ public class DataFileCompactor {
 
         final long halfSize = indexSize / 2;
 
-        for (long i = 0; i < halfSize; i++) {
+        for (long key = 0; key < halfSize; key++) {
             if (interruptFlag) {
                 return false;
             }
 
-            final long locationLow = index.get(i);
-            final long locationHigh = index.get(i + halfSize);
-
             // Process lower half entry
+            final long locationLow = index.get(key);
             long newLocationLow = 0;
-            if (locationLow != 0 && keyRange.withinRange(i)) {
+            if (locationLow != 0 && keyRange.withinRange(key)) {
                 final int fileIndex = DataFileCommon.fileIndexFromDataLocation(locationLow);
                 if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
                     final DataFileReader reader = readers[fileIndex - firstIndexInc];
                     if (reader != null) {
-                        newLocationLow = compactSingleItem(index, i, locationLow, reader);
+                        // newLocationLow is either 0 (the data item was not copied to a new location) or new location.
+                        // Note that even if CAS in `compactSingleItem` fails, and the low index points to a different
+                        // location,
+                        // newLocatiomLow may be used below (for i + halfSize case)
+                        newLocationLow = compactSingleItem(index, key, locationLow, reader);
                     }
                 }
             }
 
             // Process upper half entry
-            if (locationHigh != 0 && keyRange.withinRange(i + halfSize)) {
+            final long locationHigh = index.get(key + halfSize);
+            if (locationHigh != 0 && keyRange.withinRange(key + halfSize)) {
                 if (locationHigh == locationLow && newLocationLow != 0) {
                     // Mirrored, lower succeeded → update index only, no data write
-                    index.putIfEqual(i + halfSize, locationHigh, newLocationLow);
+                    index.putIfEqual(key + halfSize, locationHigh, newLocationLow);
                 } else {
                     // Either have different locations or mirrored but lower CAS
                     // failed → process independently
@@ -485,7 +495,7 @@ public class DataFileCompactor {
                     if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
                         final DataFileReader reader = readers[fileIndex - firstIndexInc];
                         if (reader != null) {
-                            compactSingleItem(index, i + halfSize, locationHigh, reader);
+                            compactSingleItem(index, key + halfSize, locationHigh, reader);
                         }
                     }
                 }
@@ -508,6 +518,8 @@ public class DataFileCompactor {
             @NonNull final CASableLongIndex index, final long key, final long oldLocation, final DataFileReader reader)
             throws IOException {
         final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(oldLocation);
+        // Even if the thread is interrupted, make sure the new compacted file is properly closed
+        // and is included to future compactions
         snapshotCompactionLock.lock();
         try {
             final DataFileWriter newFileWriter = currentWriter.get();
@@ -518,7 +530,8 @@ public class DataFileCompactor {
                 index.putIfEqual(key, oldLocation, newLocation);
                 return newLocation;
             }
-            return 0;
+            // the index was changed while this thread was reading data
+            return NON_EXISTENT_DATA_LOCATION;
         } finally {
             snapshotCompactionLock.unlock();
         }

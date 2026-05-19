@@ -286,12 +286,17 @@ class MerkleDbCompactionCoordinator {
         }
 
         // Filter scan results against current file collection
-        final Set<DataFileReader> currentFiles = new HashSet<>(fileCollection.getAllCompletedFiles());
-        final List<GarbageFileStats> fileStats = stats.getNonNullGarbageStats().stream()
-                .filter(fs -> currentFiles.contains(fs.fileReader))
-                .toList();
-        if (fileStats.isEmpty()) {
+        final Set<GarbageFileStats> filteredStats = new HashSet<>();
+        final Map<DataFileReader, GarbageFileStats> fileStatsByReader = stats.getNonNullGarbageStatsByReader();
+        if (fileStatsByReader.isEmpty()) {
             return;
+        }
+
+        for (DataFileReader completedFile : fileCollection.getAllCompletedFiles()) {
+            final GarbageFileStats fs = fileStatsByReader.get(completedFile);
+            if (fs != null) {
+                filteredStats.add(fs);
+            }
         }
 
         final double gcRateThreshold = config.gcRateThreshold();
@@ -305,7 +310,7 @@ class MerkleDbCompactionCoordinator {
         final Map<Integer, List<DataFileReader>> eligibleByLevel = new HashMap<>();
         final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
         final Set<Integer> allLevels = new TreeSet<>();
-        for (final GarbageFileStats fs : fileStats) {
+        for (final GarbageFileStats fs : filteredStats) {
             final int level = fs.compactionLevel();
             if (fs.deadToAliveRatio() > gcRateThreshold) {
                 eligibleByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
@@ -328,8 +333,8 @@ class MerkleDbCompactionCoordinator {
             final Set<DataFileReader> levelAssigned = new HashSet<>();
 
             // --- Compaction ----
-            final List<DataFileReader> eligible = eligibleByLevel.getOrDefault(level, List.of());
-            if (!eligible.isEmpty()) {
+            if (eligibleByLevel.containsKey(level)) {
+                final List<DataFileReader> eligible = eligibleByLevel.get(level);
                 final List<List<DataFileReader>> groups = splitIntoGroups(eligible, maxProjectedBytes, stats);
 
                 // Phase 2: for each group, absorb additional files from the shared remaining pool

@@ -19,6 +19,8 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
 import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -261,8 +263,8 @@ class GarbageScannerDeadAliveRatioTest {
     class IndexedGarbageFileStatsTests {
 
         @Test
-        @DisplayName("getNonNullGarbageStats filters out null gaps")
-        void getNonNullGarbageStatsFiltersNulls() {
+        @DisplayName("getNonNullGarbageStatsByReader filters out null gaps")
+        void getNonNullGarbageStatsByReaderFiltersNulls() {
             final DataFileReader file1 = mockFileReader(1, 0, 100, 1000);
             final DataFileReader file5 = mockFileReader(5, 0, 100, 1000);
 
@@ -273,7 +275,7 @@ class GarbageScannerDeadAliveRatioTest {
 
             // Array has 5 elements (indices 1..5), 3 are null gaps
             assertEquals(5, stats.garbageFileStats().length);
-            final List<GarbageFileStats> nonNull = stats.getNonNullGarbageStats();
+            final Map<DataFileReader, GarbageFileStats> nonNull = stats.getNonNullGarbageStatsByReader();
             assertEquals(2, nonNull.size());
         }
 
