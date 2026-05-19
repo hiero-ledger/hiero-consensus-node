@@ -286,7 +286,6 @@ jobs:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
 
-
       - name: Install Python Virtual Environment
         run: |
           echo "::group::Aptitude Update"
