@@ -17,6 +17,7 @@ import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeO
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.keccak256HashOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
@@ -46,8 +47,8 @@ import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -82,11 +83,24 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *   <li>{@code liveValueCache} memoises {@link #getStorageValue} results; refreshed in-place by
  *       {@link #setStorageValue} and cleared by {@link #invalidateReadCaches()} when a child frame
  *       commits writes through the underlying state.</li>
- *   <li>The {@code lastCode*} fields cache the most recently fetched bytecode and code hash for the
- *       current frame's executing contract.</li>
+ *   <li>{@code codeCache} memorises bytecode and code hashes per {@link ContractID}; Tuweni bytecode
+ *       is populated lazily when {@link #getCode(ContractID)} is called after a hash-only lookup.</li>
+ *   <li>{@code delegationCodeHashCache} memorises EIP-7702 delegation indicator hashes per
+ *       {@link AccountID}.</li>
  * </ul>
  */
 public class DispatchingEvmFrameState implements EvmFrameState {
+    /**
+     * Per-contract bytecode and code-hash cache entry for the current frame.
+     *
+     * @param pbjCode {@code null} when no bytecode exists in state; otherwise the PBJ bytecode
+     * @param tuweniCode lazily populated Tuweni bytecode; {@code null} until {@link #getCode(ContractID)} needs it
+     * @param hash the code hash for this contract's bytecode in state
+     */
+    private record CodeCacheEntry(
+            @Nullable com.hedera.pbj.runtime.io.buffer.Bytes pbjCode,
+            @Nullable Bytes tuweniCode,
+            @NonNull Hash hash) {}
     /**
      * Default value for the key of hollow accounts
      */
@@ -100,24 +114,22 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     final ContractStateStore contractStateStore;
 
     /**
-     * Shared mutable probe used for {@link HashMap#get(Object)} lookups against {@link #slotKeyCache},
+     * Shared mutable probe used for {@link ConcurrentHashMap#get(Object)} lookups against {@link #slotKeyCache},
      * {@link #originalValueCache}, and {@link #liveValueCache}. On a cache miss callers must store an
      * immutable {@link SlotLookupKey#copy()} as the map key.
      */
     private final SlotLookupKey probeKey = new SlotLookupKey();
 
-    private final HashMap<SlotLookupKey, SlotKey> slotKeyCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final HashMap<SlotLookupKey, UInt256> originalValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final HashMap<SlotLookupKey, UInt256> liveValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-
-    @Nullable
-    private ContractID lastCodeContract;
-
-    @Nullable
-    private Bytes lastCode;
-
-    @Nullable
-    private Hash lastCodeHash;
+    private final Map<SlotLookupKey, SlotKey> slotKeyCache =
+            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> originalValueCache =
+            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> liveValueCache =
+            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<ContractID, CodeCacheEntry> codeCache =
+            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<AccountID, Hash> delegationCodeHashCache =
+            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
 
     /**
      * @param nativeOperations   the Hedera native operation
@@ -297,13 +309,26 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public @NonNull Bytes getCode(@NonNull final ContractID contractID) {
         requireNonNull(contractID);
-        if (lastCode != null && contractID.equals(lastCodeContract)) {
-            return lastCode;
+        final var cached = codeCache.get(contractID);
+        if (cached != null) {
+            if (cached.tuweniCode() != null) {
+                return cached.tuweniCode();
+            }
+            final var tuweniCode = tuweniCodeFromPbj(cached.pbjCode());
+            codeCache.put(contractID, new CodeCacheEntry(cached.pbjCode(), tuweniCode, cached.hash()));
+            return tuweniCode;
         }
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
-        final Bytes code = numberedBytecode == null ? Bytes.EMPTY : pbjToTuweniBytes(numberedBytecode.code());
-        cacheCurrentCode(contractID, code, null);
-        return code;
+        if (numberedBytecode == null) {
+            final var entry = new CodeCacheEntry(null, Bytes.EMPTY, Hash.EMPTY);
+            codeCache.put(contractID, entry);
+            return Bytes.EMPTY;
+        }
+        final var pbjCode = numberedBytecode.code();
+        final var tuweniCode = tuweniCodeFromPbj(pbjCode);
+        final var hash = keccak256HashOf(pbjCode == null ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY : pbjCode);
+        codeCache.put(contractID, new CodeCacheEntry(pbjCode, tuweniCode, hash));
+        return tuweniCode;
     }
 
     /**
@@ -319,37 +344,44 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public @NonNull Hash getCodeHash(@NonNull final ContractID contractID) {
         requireNonNull(contractID);
-        if (lastCodeHash != null && contractID.equals(lastCodeContract)) {
-            return lastCodeHash;
+        final var cached = codeCache.get(contractID);
+        if (cached != null) {
+            return cached.hash();
         }
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
-        final Hash hash;
         if (numberedBytecode == null) {
-            hash = Hash.EMPTY;
-            cacheCurrentCode(
-                    contractID, lastCode != null && contractID.equals(lastCodeContract) ? lastCode : null, hash);
-        } else {
-            final var code = pbjToTuweniBytes(numberedBytecode.code());
-            hash = new Code(code).getCodeHash();
-            cacheCurrentCode(contractID, code, hash);
+            codeCache.put(contractID, new CodeCacheEntry(null, null, Hash.EMPTY));
+            return Hash.EMPTY;
         }
+        final var pbjCode = numberedBytecode.code();
+        final var safePbjCode = pbjCode == null ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY : pbjCode;
+        final var hash = keccak256HashOf(safePbjCode);
+        codeCache.put(contractID, new CodeCacheEntry(pbjCode, null, hash));
         return hash;
     }
 
-    private void cacheCurrentCode(
-            @NonNull final ContractID contractID, @Nullable final Bytes code, @Nullable final Hash hash) {
-        if (!contractID.equals(lastCodeContract)) {
-            lastCodeContract = contractID;
-            lastCode = code;
-            lastCodeHash = hash;
-        } else {
-            if (code != null) {
-                lastCode = code;
-            }
-            if (hash != null) {
-                lastCodeHash = hash;
-            }
+    /**
+     * Returns the code hash for an EIP-7702 delegation indicator account, cached for the life of this frame.
+     *
+     * @param accountId the Hedera account id
+     * @param delegationAddress the delegation target address bytes from account state
+     * @return the code hash
+     */
+    public @NonNull Hash getDelegationCodeHash(
+            @NonNull final AccountID accountId,
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+        requireNonNull(accountId);
+        requireNonNull(delegationAddress);
+        if (delegationAddress.length() == 0) {
+            return Code.EMPTY_CODE.getCodeHash();
         }
+        return delegationCodeHashCache.computeIfAbsent(
+                accountId, _ -> keccak256HashOf(ProxyEvmAccount.createDelegationIndicatorPJB(delegationAddress)));
+    }
+
+    private static @NonNull Bytes tuweniCodeFromPbj(
+            @Nullable final com.hedera.pbj.runtime.io.buffer.Bytes pbjCode) {
+        return pbjCode == null ? Bytes.EMPTY : pbjToTuweniBytes(pbjCode);
     }
 
     /**
@@ -396,15 +428,13 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public void setCode(final ContractID contractID, @NonNull final Bytes code) {
         requireNonNull(contractID);
         requireNonNull(code);
-        contractStateStore.putBytecode(contractID, new Bytecode(tuweniToPbjBytes(code)));
-        // Keep the per-frame current-code cache consistent with the freshly written
-        // bytecode; otherwise a subsequent getCode/getCodeHash for the same contract
-        // in this frame would return the stale (typically empty) value cached during
-        // contract creation, breaking e.g. bytecode-sidecar externalization.
-        if (contractID.equals(lastCodeContract)) {
-            lastCode = code;
-            lastCodeHash = null;
-        }
+        final var pbjCode = tuweniToPbjBytes(code);
+        contractStateStore.putBytecode(contractID, new Bytecode(pbjCode));
+        // Keep the per-frame code cache consistent with the freshly written bytecode;
+        // otherwise a subsequent getCode/getCodeHash in this frame would return a stale
+        // value cached during contract creation, breaking e.g. bytecode-sidecar externalization.
+        final var hash = code.isEmpty() ? Code.EMPTY_CODE.getCodeHash() : Hash.hash(code);
+        codeCache.put(contractID, new CodeCacheEntry(pbjCode, code, hash));
     }
 
     /**
@@ -711,15 +741,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      *
      * <p>Clears caches whose entries can be invalidated by a child frame committing writes through
-     * the underlying {@link ContractStateStore}: the live slot-value cache and the current-code
-     * cache. The {@link SlotKey} flyweight cache and the original-value cache are content-addressed
-     * and tx-stable respectively, so they are kept.
+     * the underlying {@link ContractStateStore}: the live slot-value cache, the code cache, and the
+     * delegation code-hash cache. The {@link SlotKey} flyweight cache and the original-value cache
+     * are content-addressed and tx-stable respectively, so they are kept.
      */
     @Override
     public void invalidateReadCaches() {
         liveValueCache.clear();
-        lastCodeContract = null;
-        lastCode = null;
-        lastCodeHash = null;
+        codeCache.clear();
+        delegationCodeHashCache.clear();
     }
 }

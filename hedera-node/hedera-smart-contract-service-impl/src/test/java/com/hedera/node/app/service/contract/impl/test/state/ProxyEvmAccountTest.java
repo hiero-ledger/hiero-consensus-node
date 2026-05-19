@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -27,13 +29,18 @@ class ProxyEvmAccountTest {
     private static final Account ACCOUNT = mock(Account.class);
 
     @Mock
-    private DispatchingEvmFrameState state;
+    private HederaNativeOperations nativeOperations;
 
     @Mock
+    private ContractStateStore contractStateStore;
+
+    private DispatchingEvmFrameState state;
+
     private ProxyEvmAccount subject;
 
     @BeforeEach
     void setUp() {
+        state = new DispatchingEvmFrameState(nativeOperations, contractStateStore);
         subject = new ProxyEvmAccount(ACCOUNT, state);
         when(ACCOUNT.accountId())
                 .thenReturn(AccountID.newBuilder().accountNum(ACCOUNT_NUM).build());

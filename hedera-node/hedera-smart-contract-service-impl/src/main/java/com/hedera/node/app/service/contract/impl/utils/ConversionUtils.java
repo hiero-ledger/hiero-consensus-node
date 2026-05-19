@@ -49,9 +49,12 @@ import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.bouncycastle.jcajce.provider.digest.Keccak;
+import org.hyperledger.besu.evm.Code;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -826,6 +829,21 @@ public class ConversionUtils {
             return Bytes.EMPTY;
         }
         return Bytes.wrap(clampedBytes(bytes, 0, Integer.MAX_VALUE));
+    }
+
+    /**
+     * Returns the keccak256 hash of the given PBJ bytecode without copying to Tuweni or wrapping in Besu {@link Code}.
+     *
+     * @param bytes the PBJ bytecode
+     * @return the code hash
+     */
+    public static @NonNull Hash keccak256HashOf(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        if (bytes.length() == 0) {
+            return Code.EMPTY_CODE.getCodeHash();
+        }
+        final MessageDigest digest = new Keccak.Digest256();
+        bytes.writeTo(digest);
+        return Hash.wrap(Bytes32.wrap(digest.digest()));
     }
 
     /**
