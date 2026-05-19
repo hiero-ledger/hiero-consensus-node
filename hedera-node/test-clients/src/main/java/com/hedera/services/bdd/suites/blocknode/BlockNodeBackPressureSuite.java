@@ -53,7 +53,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(1)
@@ -88,7 +90,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(2)
@@ -135,36 +139,56 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {1},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {2},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {3},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(3)
