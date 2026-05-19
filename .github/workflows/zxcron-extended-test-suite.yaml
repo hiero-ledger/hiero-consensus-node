@@ -250,6 +250,16 @@ jobs:
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
+  xts-not-needed:
+    name: Report no XTS candidate tag is found
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.outputs.xts-tag-exists == 'false' }}
+    steps:
+      - name: debug print
+        run: echo "xts-tag-exists is false"
+
+
   xts-execution:
     name: Execute XTS
     needs:
