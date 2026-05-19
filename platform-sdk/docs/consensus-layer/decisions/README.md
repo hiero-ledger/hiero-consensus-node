@@ -8,6 +8,6 @@ Per-file ADRs. Each ADR records context, decision, alternatives considered, and 
 
 ## Index
 
-|         ID         | Title | Date | Status | Summary |
-|--------------------|-------|------|--------|---------|
-| _(no entries yet)_ |       |      |        |         |
+| ID                                                | Title                                                                             | Date       | Status   | Summary                                                                                                                                                            |
+|---------------------------------------------------|-----------------------------------------------------------------------------------|------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [ADR-003](ADR-003-remove-pces-recovery-method.md) | Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot | 2026-05-19 | Accepted | The platform no longer carries a built-in offline ISS-recovery entry point. When recovery is needed, a one-off driver is written against the platform of the day. |

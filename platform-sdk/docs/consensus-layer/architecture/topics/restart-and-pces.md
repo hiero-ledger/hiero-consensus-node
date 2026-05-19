@@ -8,11 +8,14 @@ last_reviewed: TBD
 
 ## Responsibilities
 
-This topic owns the preconsensus event stream (PCES) — how the platform persists self-events before exposing them to gossip, how PCES files are replayed at restart, and the offline procedure for recovering from a network-wide ISS by replaying PCES on top of a known-good signed state.
+This topic owns the preconsensus event stream (PCES) — how the platform persists every validated event in topological
+order so the in-memory hashgraph can be rebuilt after a crash, how PCES files are replayed at restart, and the offline
+procedure for recovering from a network-wide ISS by replaying PCES on top of a known-good signed state.
 
 Owns:
 
-- The inline-PCES write path: persistence of self-events before they enter the gossip pipeline.
+- The PCES write path and its durability model.
+- The persisted-before-observed invariant for consensus, gossip, and parent selection.
 - Restart-time replay of PCES files into the intake pipeline.
 - The offline ISS-recovery procedure (replay-on-top-of-state, dump fixed state to disk).
 
@@ -22,84 +25,146 @@ Does not own:
 - Freeze and upgrade orchestration — see `freeze-and-upgrade.md`.
 - On-disk signed-state layout and lifecycle — see `signed-state-management.md`.
 
-## Inline PCES (write path)
+## Write path
 
-A self-event must be persisted to disk before it is gossiped. If a node gossips a self-event and crashes before the event reaches stable storage, on restart the node will not know the event existed and may build a new self-event on the same parent — a hashgraph branch. Branches are an attack on consensus and are punishable; honest nodes must not branch. The inline-PCES write path enforces the rule that gossip never sees a self-event the local store does not.
+PCES exists so that consensus can recover its in-memory state after a crash. Events live in the hashgraph in memory; if
+every node in the network crashes simultaneously, every node loses every non-ancient event it has not yet written down.
+Replaying PCES at startup is what rebuilds the hashgraph so consensus can resume. For this to work, PCES must persist
+every validated, deduplicated event in topological order — not only self-events. The writer's input is the event-intake
+module's validated-events output (`PlatformWiring.java:78-81`), so every event that survives intake validation is
+written.
 
-The PCES writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire only after the write is complete. The writer interface is `InlinePcesWriter` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the default implementation is `DefaultInlinePcesWriter` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java:58`). Whether a `sync()` is forced after the write is governed by the `event.preconsensus.inlinePcesSyncOption` config (`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java:91`). When set to `EVERY_SELF_EVENT`, every self-event causes the buffer to be flushed to disk before the writer returns; the dispatch site is `DefaultInlinePcesWriter.java:77-84`. The enum is defined in `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java:15`.
+The writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire
+only after the write completes. The interface is `InlinePcesWriter` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the
+default implementation is `DefaultInlinePcesWriter` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java:58`).
+`writeEvent` writes the event to the current mutable file unconditionally (`DefaultInlinePcesWriter.java:71-75`); the
+underlying file writer is either a `PcesFileChannelWriter` (Linux default) or `PcesOutputStreamFileWriter` (macOS
+default, where `FileChannel` is ~150× slower).
 
-The "persisted before gossip" invariant is enforced at the wiring layer rather than inside the writer. The writer's output wire is soldered to the gossip module's input via an `INJECT` ordering so that gossip cannot observe a self-event before the corresponding write completes:
+### Persisted-before-observed (consensus, gossip, parent selection)
+
+No downstream component sees an event before the writer has written it. The writer's output wire is soldered to
+consensus, gossip, and the event creator's parent-selection input:
 
 ```text
-// platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:90-93
+// platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:86-96
+// Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
+// reach consensus with events that might be lost due to a crash
+writtenEventOutputWire.solderTo(components.hashgraphModule().eventInputWire());
+
 // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
 // where an event is created, gossipped, and then the node crashes before the event is persisted.
 // After restart, a node will not be aware of this event, so it can create a branch
 writtenEventOutputWire.solderTo(components.gossipModule().eventToGossipInputWire(), INJECT);
+
+// Avoid using events as parents before they are persisted
+writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInputWire());
 ```
 
-The same `writtenEventOutputWire` is also soldered to the consensus pipeline (`PlatformWiring.java:88`) and to the event creator's parent-selection input (`PlatformWiring.java:96`), so consensus and parent selection likewise see only persisted self-events.
+The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied
+specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
+gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
+build a new self-event on the same self-parent — a hashgraph branch. Branches are an attack on consensus and are
+punishable; honest nodes must not branch. Persisting self-events before they reach gossip eliminates that gap.
 
-> **Delta vs. inlinePces.md:** the source doc states that `EVERY_SELF_EVENT` "is the default behavior". The current default for `inlinePcesSyncOption` is `DONT_SYNC` (`PcesConfig.java:91`). [TBD: question for engineer — is the inlinePces.md claim stale, or do production deployments override the `DONT_SYNC` default to `EVERY_SELF_EVENT` via configuration?]
+Before the inline write, branching after a self-only crash was mitigated by having a restarting node sit in the
+`OBSERVING` status — gossiping but not creating events — for a configurable window, giving it time to pick up any of its
+own self-events that the network still held but it had lost. The inline write is now the primary anti-branching
+mechanism: a self-event the network has seen is, by construction, already on the local disk. The `OBSERVING` status
+remains in the platform but is no longer the load-bearing defense against branching.
+
+### Durability model
+
+"Persisted" here means the event's bytes have been handed to the OS, not that `fsync()` has returned. The
+`event.preconsensus.inlinePcesSyncOption` config (
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java:91`, enum at
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java:15`) defaults to
+`DONT_SYNC`: no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java:77-84`). `EVERY_EVENT` and
+`EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
+
+Strong-enough durability is provided by a JVM shutdown hook in `CommonPcesWriter` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java:136-150`)
+that runs `currentMutableFile.sync()` followed by `close()` when the JVM exits. Under graceful shutdown — `SIGTERM`,
+`System.exit`, normal exit — every event in the OS buffer is flushed to disk before the process terminates.
+
+The residual failure mode is loss of host power or `SIGKILL`: the shutdown hook does not run, and any events still in
+the OS buffer at the moment of failure are not on disk after restart. This risk is accepted. No event loss in this
+window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide loss of an
+in-flight keystone is recoverable.
+
+> **Delta vs. inlinePces.md:** the source doc states that `EVERY_SELF_EVENT` "is the default behavior". The current
+> default for `inlinePcesSyncOption` is `DONT_SYNC` (`PcesConfig.java:91`); production deployments use `DONT_SYNC` and
+> rely on the OS buffer plus the shutdown-hook sync for durability. The `EVERY_SELF_EVENT` claim is stale.
+>
+> **Delta vs. inlinePces.md:** the source doc frames PCES around the "self-events before gossip" rule. That rule is one
+> invariant the write path enforces, but the primary purpose of PCES is to persist every validated event in topological
+> order so consensus can recover after a crash — including the network-wide simultaneous crash case where every node loses
+> its in-memory hashgraph. The "persisted before consensus" guarantee applies to every event, not only self-events; the
+> self-event/gossip wiring is the specific case that also closes the anti-branching gap.
 
 ## Restart sequence
 
-Restart has two phases. State load and replay-bound derivation happen during `SwirldsPlatform` construction, before `start()` is called. Replay-then-gossip happens inside `start()`.
+Restart has two phases. State load and replay-bound derivation happen during `SwirldsPlatform` construction, before
+`start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
 
-1. **Load the initial signed state.** The latest signed state is loaded from disk during platform construction (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:150` — `blocks.initialState().get()`).
-2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (`SwirldsPlatform.java:257`); `pcesReplayLowerBound` is set to the initial ancient threshold of the loaded state (`SwirldsPlatform.java:285`). For a genesis start, both are 0.
-3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the platform coordinator (`SwirldsPlatform.java:353-355`).
-4. **Replay PCES.** `platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)` (`SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done.
-5. **Start gossip.** Only after replay completes does `platformCoordinator.startGossip()` run (`SwirldsPlatform.java:358`). Gossip never observes a partially-replayed state.
+1. **Load the initial signed state.** The latest signed state is loaded from disk during platform construction (
+   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:150` —
+   `blocks.initialState().get()`).
+2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
+   `SwirldsPlatform.java:257`); `pcesReplayLowerBound` is set to the initial ancient threshold of the loaded state (
+   `SwirldsPlatform.java:285`). For a genesis start, both are 0.
+3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the platform coordinator (
+   `SwirldsPlatform.java:353-355`).
+4. **Replay PCES.** `platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)` (
+   `SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done.
+5. **Start gossip; event creation remains off.** Only after replay completes does `platformCoordinator.startGossip()`
+   run (`SwirldsPlatform.java:358`). Neither gossip nor event creation observes a partially-replayed state: gossip
+   because it is started here, and event creation because it is gated on platform status. See `event-creation.md` (TBD) for the gating details.
 
 ## Replay
 
-PCES replay reuses the platform's normal intake pipeline; the only difference at replay time is that events come from on-disk PCES files rather than gossip.
+PCES replay reuses the platform's normal intake pipeline; the only difference at replay time is that events come from
+on-disk PCES files rather than gossip.
 
-- **Entry point.** `PcesModule.replayPcesEvents(lowerBound, startingRound)` (`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/PcesModule.java:71`); the default implementation in `DefaultPcesModule.replayPcesEvents` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/DefaultPcesModule.java:149`) delegates to `PcesCoordinator.replayPcesEvents` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java:69`).
-- **Read side.** `PcesFileTracker.getEventIterator(...)` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java:147`) opens an iterator over the PCES files for the requested round window. The coordinator injects this iterator into the replayer's input wire.
-- **Emit side.** `PcesReplayer.replayPces(...)` (`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java:147`) drives the iterator and forwards each event onto its output wire (`PcesReplayer.java:169-186`); from there the event flows through the same intake pipeline that gossip-delivered events use.
-- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java:172`, implementation at `:206-214`) before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (`PcesConfig.java:88`). See `health-monitor-and-backpressure.md` for the health-monitor mechanism. [TBD: question for engineer — is the throttle applied only at the emit side, or does the read side also pause when the model is unhealthy?]
+- **Entry point.** `PcesModule.replayPcesEvents(lowerBound, startingRound)` (
+  `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/PcesModule.java:71`); the default implementation
+  in `DefaultPcesModule.replayPcesEvents` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/DefaultPcesModule.java:149`) delegates
+  to `PcesCoordinator.replayPcesEvents` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java:69`).
+- **Read side.** `PcesFileTracker.getEventIterator(...)` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java:147`) opens
+  an iterator over the PCES files for the requested round window. The coordinator injects this iterator into the
+  replayer's input wire.
+- **Emit side.** `PcesReplayer.replayPces(...)` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java:147`) drives
+  the iterator and forwards each event onto its output wire (`PcesReplayer.java:169-186`); from there the event flows
+  through the same intake pipeline that gossip-delivered events use.
+- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java:172`, implementation at `:206-214`)
+  before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (
+  `PcesConfig.java:88`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
+  current one is exhausted (`PcesMultiFileIterator.java:70`), and `PcesFileIterator` reads one event at a time from a
+  `BufferedInputStream` (`PcesFileIterator.java:38-39, 56-83`) — files are read just in time. While
+  `waitUntilHealthy()` blocks, the iterator does not advance, no further events are read, and no new files are opened;
+  read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
+  health-monitor mechanism.
 
-## Offline disaster-recovery procedure
+## Offline ISS recovery
 
-Used when a network-wide ISS prevents the network from making progress on its own (no supermajority agrees on a single state). The procedure replays PCES on top of a known-good signed state from before the ISS, producing a fixed signed state that operators distribute to all nodes.
-
-> **Delta vs. pces-disaster-recovery.md:** the source doc references `SwirldsPlatform.performPcesRecovery()`. That method has been removed from `SwirldsPlatform`; there is no current bootstrap entry point that drives the recovery procedure end-to-end. [TBD: question for engineer — with `performPcesRecovery()` gone, what is the supported way to drive ISS recovery today? A patched `SwirldsPlatform.start()`, a separate driver class, or something else?]
->
-> **Delta vs. pces-disaster-recovery.md:** the source doc references `SwirldsPlatform.replayPreconsensusEvents()`. That method does not exist. The current replay entry point is `PcesModule.replayPcesEvents(pcesReplayLowerBound, startingRound)` (`SwirldsPlatform.java:357`).
-
-### Prerequisites
-
-- A production signed state from before the ISS divergence.
-- The PCES files covering the period from the loaded state's round (minus the non-ancient round window) through the point of failure.
-
-### Procedure shape
-
-The recovery driver must reuse the platform's normal startup minus gossip, then dump the resulting state.
-
-1. **Bring up the platform without gossip.** Perform the same construction-time work as a normal start, then run only the first three lines of `SwirldsPlatform.start()` (`SwirldsPlatform.java:353-355`: recycle bin, metrics, platform coordinator). Do **not** call `platformCoordinator.startGossip()` at line 358.
-2. **Run replay.** Call `PcesModule.replayPcesEvents(pcesReplayLowerBound, startingRound)` (`SwirldsPlatform.java:357`). The replayer drains the PCES iterator into the intake pipeline; consensus is reached and transactions handle as during normal startup.
-3. **Capture the resulting state.** Acquire the latest immutable state via the `latestImmutableStateNexus` (`SwirldsPlatform.java:114`; interface `SignedStateNexus.getState(reason)` at `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/SignedStateNexus.java:24`). The result is a `ReservedSignedState` (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java:23`) that must be closed when done.
-4. **Mark and dump.** On the underlying `SignedState`, call `markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE)` (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java:38`); construct a `StateDumpRequest` via `StateDumpRequest.create(...)` (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/StateDumpRequest.java:28`); hand it to `PlatformCoordinator.dumpStateToDisk(request)` (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java:199`); block on `request.waitForFinished()` so the process does not exit before the on-disk write completes.
-5. **Close the last record file with the execution team.** Coordinate so that the execution-side block stream aligns with the dumped state's last consensus round. This is critical for ensuring the block stream is consistent with the recovered state.
-6. **Distribute and restart.** Copy the recovered state to all nodes; restart the network from it.
-
-### Implementation notes
-
-- `pcesReplayLowerBound` is the initial ancient threshold from the loaded state, or 0 for genesis (`SwirldsPlatform.java:285`).
-- `startingRound` is the last consensus round in the loaded state (`SwirldsPlatform.java:257`).
-- After injecting the PCES iterator, the replay code flushes pipeline events to ensure all replayed transactions are processed before signaling that replay is complete.
-- The blocking `StateDumpRequest.waitForFinished()` is essential — without it the JVM may exit before the on-disk write finishes, leaving an incomplete recovery state.
+A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
+from before the divergence and distributing the resulting fixed state to all nodes. The platform does not carry a
+built-in entry point for this; a one-off driver is written at the moment of need. See ADR-003 for the decision, the
+recipe any driver must follow, and the record/block-file coordination with the execution team.
 
 ## Cross-references
 
-- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`, `event-intake.md`, `health-monitor-and-backpressure.md`.
+- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+  `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
-- **Invariants:** [TBD: INV-NNN once the `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
-- **Decisions:** [TBD: ADR-NNN once the `decisions/` catalog populates].
+- **Invariants:** [TBD: INV-NNN once the
+  `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
+- **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
 - **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].
 
-## Future state (sidebar)
-
-The [Consensus-Layer.md](../../../proposals/consensus-layer/Consensus-Layer.md) proposal places state-saving and lifecycle on the Execution side of the consensus/execution boundary. The current ISS-recovery procedure achieves the state dump by mutating platform startup directly inside the consensus-node bootstrap, which conflicts with that split. Aligning the recovery driver with the proposed boundary is out of scope for this topic; it should be revisited when the lifecycle-ownership move lands.
