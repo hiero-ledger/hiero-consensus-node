@@ -18,6 +18,8 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
@@ -41,6 +43,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -80,6 +83,7 @@ class DiskStartupNetworksTest {
     private StoreMetricsServiceImpl storeMetricsService;
 
     private static final long ROUND_NO = 666L;
+    private static final int JUST_OVER_DEFAULT_JSON_SIZE_LIMIT = 4 * 1024 * 1024 + 1;
 
     private static Network NETWORK;
 
@@ -122,6 +126,39 @@ class DiskStartupNetworksTest {
         putJsonAt(GENESIS_NETWORK_JSON);
         final var network = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
         assertThat(network).isEqualTo(NETWORK);
+    }
+
+    @Test
+    void cachesAvailableGenesisNetworkUntilCleared() throws IOException {
+        givenConfig();
+        putJsonAt(GENESIS_NETWORK_JSON);
+        final var cachedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+        final var updatedNetwork =
+                NETWORK.copyBuilder().ledgerId(Bytes.wrap("updated-ledger-id")).build();
+        putJsonAt(GENESIS_NETWORK_JSON, updatedNetwork);
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(cachedNetwork);
+
+        subject.clearCachedNetworks();
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(updatedNetwork);
+    }
+
+    @Test
+    void findsAvailableGenesisNetworkWithLargeTssProof() throws IOException {
+        givenConfig();
+        final var network = NETWORK.copyBuilder()
+                .tssMetadata(TssMetadata.newBuilder()
+                        .activeProofConstruction(HistoryProofConstruction.newBuilder()
+                                .targetProof(HistoryProof.newBuilder()
+                                        .uncompressedWrapsProof(
+                                                Bytes.wrap(new byte[JUST_OVER_DEFAULT_JSON_SIZE_LIMIT])))))
+                .build();
+        putJsonAt(GENESIS_NETWORK_JSON, network);
+
+        final var loadedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+
+        assertThat(loadedNetwork).isEqualTo(network);
     }
 
     @Test
@@ -246,9 +283,13 @@ class DiskStartupNetworksTest {
     }
 
     private void putJsonAt(@NonNull final String fileName) throws IOException {
+        putJsonAt(fileName, NETWORK);
+    }
+
+    private void putJsonAt(@NonNull final String fileName, @NonNull final Network network) throws IOException {
         final var loc = tempDir.resolve(fileName);
         try (final var fout = Files.newOutputStream(loc)) {
-            Network.JSON.write(NETWORK, new WritableStreamingData(fout));
+            Network.JSON.write(network, new WritableStreamingData(fout));
         }
     }
 
