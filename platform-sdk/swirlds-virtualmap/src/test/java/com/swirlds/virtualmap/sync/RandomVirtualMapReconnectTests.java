@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.reconnect;
+package com.swirlds.virtualmap.sync;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
-import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import com.swirlds.virtualmap.internal.reconnect.VirtualMapReconnectTestBase;
 import com.swirlds.virtualmap.test.fixtures.sync.MerkleTestUtils;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -23,13 +27,20 @@ import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-@DisplayName("Random VirtualMap Tests")
+// This class tests reconnect with real database so dependency on merkeldb module is required
+// FUTURE WORK: think about extracting it as integration test
+@DisplayName("Random VirtualMap MerkleDb Reconnect Tests")
 class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
     // used to convert between key as long to key as String
@@ -37,9 +48,30 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     public static final String LETTERS = "abcdefghijklmnopqrstuvwxyz";
     public static final int ZZZZZ = 26 * 26 * 26 * 26 * 26; // key value corresponding to five Z's (plus 1)
 
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager(@TempDir Path tempDir) {
+        fileSystemManager = new FileSystemManager(tempDir);
+    }
+
+    @AfterEach
+    void verifyDatabases() {
+        assertAllDatabasesClosed();
+    }
+
     @Override
     protected VirtualDataSourceBuilder createBuilder() {
-        return new InMemoryBuilder();
+        // Set initial capacity to a low value to reduce memory usage in tests. If needed,
+        // the data source (HDHM bucket index) will be resized automatically
+        return new MerkleDbDataSourceBuilder(
+                ConfigurationBuilder.create()
+                        .withConfigDataType(MerkleDbConfig.class)
+                        .withConfigDataType(VirtualMapConfig.class)
+                        .withConfigDataType(ReconnectConfig.class)
+                        .build(),
+                fileSystemManager,
+                1_000_000);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {
@@ -70,24 +102,6 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             value += (word.charAt(position) - 'a');
         }
         return value;
-    }
-
-    @Test
-    @DisplayName("Random Operations")
-    void keyToWordAndBackTest() {
-        assertEquals("aaaaa", keyToWord(0), "incorrect value from keyToWord(0)");
-        assertEquals("aaaab", keyToWord(1), "incorrect value from keyToWord(1)");
-        assertEquals("aaaaz", keyToWord(25), "incorrect value from keyToWord(25)");
-        assertEquals("aaaba", keyToWord(26), "incorrect value from keyToWord(26)");
-        assertEquals("wordl", keyToWord(10311117), "incorrect value from keyToWord(26)");
-        assertEquals("zzzzz", keyToWord(ZZZZZ - 1), "incorrect value from keyToWord(ZZZZZ - 1)");
-
-        assertEquals(0, wordToKey("aaaaa"), "incorrect value from wordToKey(aaaaa)");
-        assertEquals(1, wordToKey("aaaab"), "incorrect value from wordToKey(aaaab)");
-        assertEquals(25, wordToKey("aaaaz"), "incorrect value from wordToKey(aaaaz)");
-        assertEquals(26, wordToKey("aaaba"), "incorrect value from wordToKey(aaaba)");
-        assertEquals(10311117, wordToKey("wordl"), "incorrect value from wordToKey(wordl)");
-        assertEquals(ZZZZZ - 1, wordToKey("zzzzz"), "incorrect value from keyToWord(zzzzz)");
     }
 
     /**
@@ -131,29 +145,21 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     }
 
     private static Stream<Arguments> buildArguments() {
-        final List<Arguments> arguments = new ArrayList<>();
-
+        List<Arguments> arguments = new ArrayList<>();
         arguments.add(Arguments.of(
                 new RandomOperationsConfig("Small tree, random operations", 100, 200, 100, 10, 3, 1, 1, 1)));
-
         arguments.add(Arguments.of(
                 new RandomOperationsConfig("Medium tree, random operations", 1_000, 2_000, 1_000, 100, 3, 1, 1, 1)));
-
         arguments.add(Arguments.of(
                 new RandomOperationsConfig("Medium tree, many insertions", 1_000, 2_000, 1_000, 100, 3, 2, 1, 1)));
-
         arguments.add(Arguments.of(
                 new RandomOperationsConfig("Medium tree, many updates", 1_000, 2_000, 1_000, 100, 3, 1, 2, 1)));
-
         arguments.add(Arguments.of(new RandomOperationsConfig(
                 "Large tree, random operations", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 1)));
-
         arguments.add(Arguments.of(
                 new RandomOperationsConfig("Large tree, many deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 2)));
-
         arguments.add(Arguments.of(new RandomOperationsConfig(
                 "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10)));
-
         return arguments.stream();
     }
 
@@ -219,6 +225,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
             if (operation > 0 && operation % config.operationsPerCopy() == 0) {
                 copiesQueue.add(teacherMap);
+                teacherMap.enableFlush();
                 teacherMap = teacherMap.copy();
                 if (copiesQueue.size() > config.maxCopiesInMemory()) {
                     final VirtualMap oldestCopy = copiesQueue.remove();
@@ -255,5 +262,29 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         teacherMap.release();
         learnerMap.release();
         copy.release();
+    }
+
+    /**
+     * 	#5926: Virtual map hashing goes into infinite loop after reconnect
+     */
+    @Test
+    @DisplayName("#5926 regression test")
+    void regression05926() throws Exception {
+        final VirtualMap copy = teacherMap.copy();
+        teacherMap.reserve();
+        learnerMap.reserve();
+
+        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+
+        // Create a copy of the resulting map
+        final VirtualMap afterCopy = afterMap.copy();
+        // Enforce computing the hash of its root node
+        assertNotNull(afterCopy.getHash());
+
+        copy.release();
+        teacherMap.release();
+        learnerMap.release();
+        afterMap.release();
+        afterCopy.release();
     }
 }
