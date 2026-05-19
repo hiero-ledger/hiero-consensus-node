@@ -26,13 +26,14 @@ jobs:
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          checkout: "true"
+          setup-java: "false"
+          setup-gradle: "false"
+          setup-node: "false"
 
       - name: Read Trigger Time
         id: time
@@ -81,13 +82,14 @@ jobs:
 
     if: ${{ needs.check-trigger.outputs.triggered == 'true' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          checkout: "true"
+          setup-java: "false"
+          setup-gradle: "false"
+          setup-node: "false"
 
       - name: Branch Creation Check
         id: branch-creation
@@ -104,16 +106,16 @@ jobs:
 
     if: ${{ needs.check-branch.outputs.branch-create == 'true' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          setup-java: "false"
+          setup-gradle: "false"
+          setup-node: "false"
 
       - name: Create Branch
         id: branch
@@ -199,23 +201,19 @@ jobs:
 
     if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ needs.check-branch.outputs.branch-name }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: 25.0.2
+          checkout: "true"
+          checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          setup-java: "true"
+          java-version: "25.0.2"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          setup-node: "false"
 
       - name: Install Semantic Version Tools
         run: |
