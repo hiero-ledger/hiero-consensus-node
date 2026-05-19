@@ -6,7 +6,10 @@ networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
 
+#enable Latency Metrics
 blockNode.globalCoolDownSeconds=1
 blockNode.basicNodeCoolDownSeconds=1
 blockNode.extendedNodeCoolDownSeconds=1
 blockNode.connectionStallThresholdMillis=5000
+
+staking.periodMins=360

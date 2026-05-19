@@ -72,7 +72,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.13.2
+  NLG_VERSION: 0.14.1
 
 jobs:
   longevity-tests-start:
@@ -280,7 +280,6 @@ jobs:
           wait: 120s
 
       - name: Install Solo
-        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -288,6 +287,7 @@ jobs:
           solo --version
 
       - name: Build Solo
+        if: false
         run: |
           set +x
           set +e
