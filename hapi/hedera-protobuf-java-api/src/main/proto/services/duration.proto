@@ -24,6 +24,7 @@ option java_multiple_files = true;
  * It is RECOMMENDED that this message be used whenever an amount of time,
  * rather than a specific point in time, is needed.
  */
+// <<<pbj.cacheable = 16384>>>
 message Duration {
     /**
      * The number of seconds for this duration.

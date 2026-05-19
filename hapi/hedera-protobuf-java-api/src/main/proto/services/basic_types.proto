@@ -83,6 +83,7 @@ message RealmID {
  * consists of a combination of shard number, realm number, and entity number.
  * Each of these numbers is unique within its scope (shard > realm > entity).
  */
+// <<<pbj.cacheable = 16384>>>
 message TokenID {
     /**
      * A whole number shard identifier.
@@ -197,6 +198,7 @@ enum BlockHashAlgorithm {
  * If the account `alias` field is not set for an Account, the `long_zero` alias
  * SHALL be the account alias.
  */
+// <<<pbj.cacheable = 16384>>>
 message AccountID {
     /**
      * A whole number shard identifier.
@@ -231,6 +233,7 @@ message AccountID {
  * An identifier for a unique token (or "NFT"), used by both contract
  * and token services.
  */
+// <<<pbj.cacheable = 16384>>>
 message NftID {
     /**
      * A token identifier.<br/>
@@ -248,6 +251,7 @@ message NftID {
 /**
  * An identifier for a File within the network.
  */
+// <<<pbj.cacheable = 16384>>>
 message FileID {
     /**
      * A whole number shard identifier.
@@ -268,6 +272,7 @@ message FileID {
 /**
  * An identifier for a smart contract within the network.
  */
+// <<<pbj.cacheable = 16384>>>
 message ContractID {
     /**
      * A whole number shard identifier.
@@ -1047,6 +1052,7 @@ enum TokenPauseStatus {
  * To ensure adequate performance and transaction security, key nesting is
  * limited to at most fifteen(15) levels.
  */
+// <<<pbj.cacheable = 16384>>>
 message Key {
     oneof key {
         /**
