@@ -783,10 +783,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());
         previousWrappedRecordBlockRootHash = requireNonNull(blockRootHash);
-        logger.info(
-                "Persisted live wrapped record block root hash (as of block {}): {}",
-                justFinishedBlockNumber,
-                blockRootHash);
 
         // If enabled, forward the WRB items to a GrpcBlockItemWriter so they reach the BlockBufferService
         // and onward to block nodes. The block is left open until the RSA signature-list future can complete
