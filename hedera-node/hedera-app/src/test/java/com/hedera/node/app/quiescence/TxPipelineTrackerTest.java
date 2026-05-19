@@ -15,6 +15,7 @@ import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransaction
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -31,7 +32,7 @@ class TxPipelineTrackerTest {
 
     @BeforeEach
     void setUp() {
-        tracker = new TxPipelineTracker(new NoOpMetrics());
+        tracker = new TxPipelineTracker(InstantSource.system(), new NoOpMetrics());
     }
 
     @Nested
@@ -40,7 +41,7 @@ class TxPipelineTrackerTest {
         @Test
         @DisplayName("Constructor initializes with zero counts")
         void constructorInitializesWithZeroCounts() {
-            final var newTracker = new TxPipelineTracker(new NoOpMetrics());
+            final var newTracker = new TxPipelineTracker(InstantSource.system(), new NoOpMetrics());
             assertEquals(0, newTracker.estimateTxPipelineCount());
         }
     }

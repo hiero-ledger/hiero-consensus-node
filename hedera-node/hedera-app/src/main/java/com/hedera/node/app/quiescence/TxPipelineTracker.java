@@ -8,8 +8,11 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -34,14 +37,43 @@ public class TxPipelineTracker {
     private final AtomicInteger inFlightCount = new AtomicInteger();
 
     private final Counter underflowCounter;
+    private final InstantSource time;
+    /**
+     * Wall-clock instant of the most recent observed transaction activity. Read by the
+     * {@link QuiescenceController} grace period so that activity recorded between successive controller
+     * polls is not lost when the counts return to zero before the next poll. Updated on ingest
+     * (incrementPreFlight, incrementInFlight) and on cross-node activity reported through
+     * {@link #recordActivity()}.
+     */
+    private final AtomicReference<Instant> lastActivityAt;
 
     @Inject
-    public TxPipelineTracker(@NonNull final Metrics metrics) {
+    public TxPipelineTracker(@NonNull final InstantSource time, @NonNull final Metrics metrics) {
+        this.time = requireNonNull(time);
+        this.lastActivityAt = new AtomicReference<>(time.instant());
         this.underflowCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("quiescence", "inflightUnderflow")
                         .withDescription("Times countLanded() saw a self-created relevant tx with no matching "
                                 + "in-flight increment on this node. Routinely non-zero (per-node tracker, txs "
                                 + "ingested here may land in peer events). High rate = cross-node drift signal"));
+    }
+
+    /**
+     * Returns the wall-clock instant of the most recent observed transaction activity. The
+     * {@link QuiescenceController} compares this against {@code now} and the configured grace period to
+     * decide whether to delay reporting {@link QuiescenceCommand#QUIESCE}.
+     */
+    public @NonNull Instant lastActivityAt() {
+        return lastActivityAt.get();
+    }
+
+    /**
+     * Updates {@link #lastActivityAt} to the current instant. Called by paths outside ingest (e.g. the
+     * controller on a pre-handled relevant transaction, or on a platform-status anchor) so cross-node
+     * activity counts toward the grace period.
+     */
+    public void recordActivity() {
+        lastActivityAt.set(time.instant());
     }
 
     /**
@@ -55,6 +87,7 @@ public class TxPipelineTracker {
      * Called when a transaction is beginning ingest checks.
      */
     public void incrementPreFlight() {
+        lastActivityAt.set(time.instant());
         preFlightCount.incrementAndGet();
     }
 
@@ -69,6 +102,7 @@ public class TxPipelineTracker {
      * Called when this node submits a quiescence-relevant transaction to the network.
      */
     public void incrementInFlight() {
+        lastActivityAt.set(time.instant());
         inFlightCount.incrementAndGet();
     }
 

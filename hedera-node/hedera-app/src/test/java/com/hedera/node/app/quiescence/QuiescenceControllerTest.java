@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -39,7 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class QuiescenceControllerTest {
-    private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3));
+    private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3), Duration.ZERO);
     private static final TransactionBody TXN_TRANSFER = TransactionBody.newBuilder()
             .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
             .build();
@@ -61,7 +62,13 @@ class QuiescenceControllerTest {
         time = new FakeTime();
         quiescenceCommands = Mockito.mock(QuiescenceCommands.class);
         controller = new QuiescenceController(
-                CONFIG, time::now, pendingTransactions::get, quiescenceCommands, new NoOpMetrics());
+                CONFIG,
+                time::now,
+                pendingTransactions::get,
+                time::now,
+                () -> {},
+                quiescenceCommands,
+                new NoOpMetrics());
     }
 
     @Test
@@ -382,9 +389,11 @@ class QuiescenceControllerTest {
         controller.onPreHandle(createTransactions(TXN_TRANSFER));
         controller.platformStatusUpdate(PlatformStatus.RECONNECT_COMPLETE);
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)),
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
                 time::now,
                 pendingTransactions::get,
+                time::now,
+                () -> {},
                 quiescenceCommands,
                 new NoOpMetrics());
 
@@ -425,9 +434,11 @@ class QuiescenceControllerTest {
     void inProgressBlockTransactionWhenDisabled() {
         // Given - quiescence is disabled
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)),
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
                 time::now,
                 pendingTransactions::get,
+                time::now,
+                () -> {},
                 quiescenceCommands,
                 new NoOpMetrics());
         final ConsensusTransaction consensusTxn = createConsensusTransaction(time.now());
@@ -504,9 +515,11 @@ class QuiescenceControllerTest {
     void switchTrackerWhenDisabled() {
         // Given - quiescence is disabled
         controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(3)),
+                new QuiescenceConfig(false, Duration.ofSeconds(3), Duration.ZERO),
                 time::now,
                 pendingTransactions::get,
+                time::now,
+                () -> {},
                 quiescenceCommands,
                 new NoOpMetrics());
 
@@ -550,6 +563,92 @@ class QuiescenceControllerTest {
         assertTrue(finished2, "Should finalize block 2");
         assertTrue(finished3, "Should finalize block 3");
         assertEquals(QUIESCE, controller.getQuiescenceStatus());
+    }
+
+    /**
+     * Grace-period fence: when both counts are zero, the controller must hold off on {@code QUIESCE} until
+     * the configured grace period has elapsed since the most recent observed activity. This prevents short
+     * inter-transaction gaps from putting the network to sleep — without the grace period, the next user
+     * transaction would wake the network and consensus time would jump forward, bulk-expiring receipts in
+     * {@code RecordCacheImpl.purgeExpiredReceiptEntries}.
+     */
+    @Test
+    void gracePeriodDelaysQuiesceAfterActivity() {
+        final AtomicReference<Instant> activityClock = new AtomicReference<>(time.now());
+        final Runnable record = () -> activityClock.set(time.now());
+        controller = new QuiescenceController(
+                new QuiescenceConfig(true, Duration.ofSeconds(3), Duration.ofSeconds(5)),
+                time::now,
+                pendingTransactions::get,
+                activityClock::get,
+                record,
+                quiescenceCommands,
+                new NoOpMetrics());
+
+        // Boot anchor: activity clock starts at time.now(); within the grace period, status is DONT_QUIESCE.
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Pre-grace: even with zero pipeline, controller should not yet report QUIESCE");
+
+        // Advance past the grace period — now QUIESCE is allowed.
+        time.tick(Duration.ofSeconds(6));
+        assertEquals(
+                QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Post-grace with no activity: controller should report QUIESCE");
+
+        // Fresh activity (e.g. pre-handle of a relevant tx) re-anchors the grace period.
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
+        // Drain the pipeline so the next status check is zero-zero again.
+        final var blockTracker = controller.startingBlock(1);
+        requireNonNull(blockTracker).blockTransaction(createTransaction(TXN_TRANSFER));
+        blockTracker.finishedHandlingTransactions();
+        controller.blockFullySigned(1);
+
+        // Activity clock was just refreshed by onPreHandle; the grace period restarts.
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Fresh pre-handle activity should reset the grace period");
+
+        time.tick(Duration.ofSeconds(6));
+        assertEquals(QUIESCE, controller.getQuiescenceStatus(), "After grace re-elapses, controller should re-quiesce");
+    }
+
+    /**
+     * Grace-period fence: {@code platformStatusUpdate(ACTIVE)} must anchor the activity clock so the grace
+     * period starts fresh at the moment the node becomes an active participant. Without this anchor, the
+     * activity clock would carry the time spent in pre-ACTIVE phases and the controller could quiesce
+     * before the node has been exercised at all.
+     */
+    @Test
+    void activeStatusAnchorsGracePeriod() {
+        final AtomicReference<Instant> activityClock = new AtomicReference<>(time.now());
+        final Runnable record = () -> activityClock.set(time.now());
+        controller = new QuiescenceController(
+                new QuiescenceConfig(true, Duration.ofSeconds(3), Duration.ofSeconds(5)),
+                time::now,
+                pendingTransactions::get,
+                activityClock::get,
+                record,
+                quiescenceCommands,
+                new NoOpMetrics());
+
+        // Simulate a long pre-ACTIVE phase: the controller's notion of "now" has advanced but
+        // platformStatusUpdate(ACTIVE) hasn't fired yet.
+        time.tick(Duration.ofSeconds(30));
+        assertEquals(
+                QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Without an ACTIVE anchor, the grace period has long since elapsed");
+
+        // ACTIVE fires → grace period re-anchors.
+        controller.platformStatusUpdate(PlatformStatus.ACTIVE);
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "ACTIVE must re-anchor the grace period so the node can be exercised before quiescing");
     }
 
     private ConsensusTransaction createConsensusTransaction(@NonNull final Instant consensusTime) {

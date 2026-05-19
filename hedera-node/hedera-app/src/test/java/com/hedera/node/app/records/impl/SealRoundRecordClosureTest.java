@@ -123,9 +123,12 @@ class SealRoundRecordClosureTest extends AppTestBase {
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
         when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
         final var controller = new QuiescenceController(
-                new com.hedera.node.config.data.QuiescenceConfig(false, java.time.Duration.ofSeconds(5)),
+                new com.hedera.node.config.data.QuiescenceConfig(
+                        false, java.time.Duration.ofSeconds(5), java.time.Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());

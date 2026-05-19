@@ -72,6 +72,7 @@ import java.io.BufferedOutputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -130,9 +131,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -198,9 +201,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -354,9 +359,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -417,9 +424,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -485,9 +494,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -554,9 +565,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -631,9 +644,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -702,9 +717,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -769,9 +786,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -840,9 +859,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -928,9 +949,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1020,9 +1043,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1093,9 +1118,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1162,9 +1189,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1220,9 +1249,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1283,9 +1314,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1356,9 +1389,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1441,9 +1476,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1531,9 +1568,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1601,9 +1640,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1673,9 +1714,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1821,9 +1864,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1902,9 +1947,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -1956,9 +2003,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var recordFileHashFuture = new CompletableFuture<Bytes>();
         final var producer = new FakeStreamProducer(recordFileHashFuture);
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -2055,9 +2104,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
@@ -2116,9 +2167,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
-                new QuiescenceConfig(false, Duration.ofSeconds(5)),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
+                Instant::now,
+                () -> {},
                 mock(QuiescenceCommands.class),
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());

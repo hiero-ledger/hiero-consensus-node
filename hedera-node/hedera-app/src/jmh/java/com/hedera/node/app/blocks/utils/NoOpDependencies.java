@@ -176,6 +176,8 @@ public final class NoOpDependencies {
                 config,
                 Instant::now,
                 () -> 0L,
+                Instant::now,
+                () -> {},
                 new QuiescenceCommands(new NoOpPlatform(), new NoOpMetrics()),
                 new NoOpMetrics());
     }

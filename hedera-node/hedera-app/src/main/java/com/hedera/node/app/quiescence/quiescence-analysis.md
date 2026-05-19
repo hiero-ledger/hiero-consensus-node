@@ -29,6 +29,7 @@ if !config.enabled || pipelineTransactionCount < 0: return DONT_QUIESCE  // disa
 if pipelineTransactionCount > 0:                    return DONT_QUIESCE  // pipeline busy
 if nextTct != null && (nextTct - tctDuration) < now: return DONT_QUIESCE // TCT close
 if pendingTransactionCount() > 0:                   return BREAK_QUIESCENCE
+if (now - lastActivityAt) < gracePeriod:            return DONT_QUIESCE  // within grace
 return QUIESCE
 ```
 
@@ -37,8 +38,15 @@ Inputs:
 - `pipelineTransactionCount` — relevant transactions that have entered `Hedera.onPreHandle` but have not yet been included in a fully-signed block. Maintained by the controller itself.
 - `pendingTransactionCount` (a `LongSupplier` wired to `TxPipelineTracker.estimateTxPipelineCount`) — the number of transactions this node accepted at ingest but has not yet seen land in either a pre-handled event or a stale event.
 - `nextTct` (Target Consensus Time) — the earliest "must-wake-up" instant the node knows about: next stake-period boundary, earliest scheduled-transaction second, or freeze time. Discovered by `TctProbe` and pushed in by `QuiescedHeartbeat`.
+- `lastActivityAt` (a `Supplier<Instant>` wired to `TxPipelineTracker.lastActivityAt`) — wall-clock instant of the most recent observed transaction activity. Updated on `incrementPreFlight` / `incrementInFlight` (local ingest), on `QuiescenceController.onPreHandle` when relevant transactions are observed (cross-node), and on `platformStatusUpdate(ACTIVE)` / `platformStatusUpdate(RECONNECT_COMPLETE)` anchors. **Not** updated on `blockFullySigned` — blocks are produced every `blockPeriod` regardless of user traffic, so doing so would keep the grace period perpetually refreshed and prevent quiescence from ever firing.
 
 "Relevant transaction" excludes `StateSignatureTransaction` and `HintsPartialSignature` (`QuiescenceUtils.isRelevantTransaction`), since those are pre-consensus housekeeping; we should not stay awake on their account.
+
+### Grace period
+
+Without the grace period, the controller transitions to `QUIESCE` the instant the pipeline drains to zero. The platform's event creator then stops producing events. When the next user transaction arrives — possibly seconds or minutes later — the platform wakes and creates a fresh event whose consensus timestamp tracks current wall-clock. **Consensus time jumps forward by the idle duration**, and any code path that runs against the freshly-advanced consensus time can mass-act on stale state. Concretely, `RecordCacheImpl.purgeExpiredReceiptEntries` (RecordCacheImpl.java:398) computes `earliestValidStart = consensusTimestamp - transactionMaxValidDuration` and bulk-expires any receipts whose `validStart` is before that threshold. After a quiescence wake-up, receipts that were submitted seconds before the sleep are now several minutes "in the past" relative to consensus time and get evicted, surfacing as `RECORD_NOT_FOUND` to any subsequent `GetTxnRecord` query.
+
+The `gracePeriod` config knob (default `5s`) holds the controller in `DONT_QUIESCE` for that duration after the most recent observed activity. Short inter-transaction gaps no longer put the network to sleep; the time-jump-and-bulk-expiry pattern only fires after a real idle stretch.
 
 ## 4. Components
 

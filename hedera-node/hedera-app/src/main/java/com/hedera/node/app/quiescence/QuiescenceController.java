@@ -9,6 +9,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
@@ -38,6 +40,8 @@ public class QuiescenceController {
     private final QuiescenceConfig config;
     private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
+    private final Supplier<Instant> lastActivityAt;
+    private final Runnable recordActivity;
     private final QuiescenceCommands quiescenceCommands;
     private final Counter disabledCounter;
 
@@ -61,6 +65,13 @@ public class QuiescenceController {
      * @param time                    the time source
      * @param pendingTransactionCount a supplier that provides the number of transactions submitted to the node but not
      *                                yet included put into an event
+     * @param lastActivityAt          supplier of the wall-clock instant of the most recent observed transaction
+     *                                activity; the grace-period check in {@link #getQuiescenceStatus()} compares this
+     *                                against {@code now} to decide whether to delay reporting
+     *                                {@link QuiescenceCommand#QUIESCE}
+     * @param recordActivity          callback invoked by the controller when it observes transaction activity that
+     *                                originated outside of local ingest (cross-node {@code onPreHandle}, platform-status
+     *                                anchors); routes through the same activity clock so the grace period is consistent
      * @param quiescenceCommands      collaborator that owns the canonical {@code lastCommand} and the platform-level
      *                                dispatch; the controller relays {@code RECONNECT_COMPLETE} resets through it
      * @param metrics                 metrics registry; the controller publishes a {@code quiescence.disabled} counter
@@ -70,11 +81,15 @@ public class QuiescenceController {
             @NonNull final QuiescenceConfig config,
             @NonNull final InstantSource time,
             @NonNull final LongSupplier pendingTransactionCount,
+            @NonNull final Supplier<Instant> lastActivityAt,
+            @NonNull final Runnable recordActivity,
             @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final Metrics metrics) {
         this.config = requireNonNull(config);
         this.time = requireNonNull(time);
         this.pendingTransactionCount = requireNonNull(pendingTransactionCount);
+        this.lastActivityAt = requireNonNull(lastActivityAt);
+        this.recordActivity = requireNonNull(recordActivity);
         this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.disabledCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("quiescence", "disabled")
@@ -98,7 +113,15 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
+            final long relevant = QuiescenceUtils.countRelevantTransactions(transactions.iterator());
+            if (relevant > 0) {
+                // Pre-handle of a relevant transaction is activity that counts toward the grace period, even
+                // on nodes that didn't see local ingest for the transaction. Without this, a node that only
+                // receives cross-node events would never refresh its activity clock and would quiesce as soon
+                // as its pipeline count drained.
+                recordActivity.run();
+                pipelineTransactionCount.addAndGet(relevant);
+            }
         } catch (final Exception e) {
             disableQuiescence(e);
         }
@@ -267,7 +290,13 @@ public class QuiescenceController {
      * @param platformStatus the new platform status
      */
     public void platformStatusUpdate(@NonNull final PlatformStatus platformStatus) {
-        if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
+        if (platformStatus == PlatformStatus.ACTIVE) {
+            // Anchor the grace period to the moment the node becomes an active participant. Without this, the
+            // activity clock would carry the wall-clock time spent in pre-ACTIVE phases (REPLAYING_EVENTS,
+            // OBSERVING, CHECKING) and the grace period could already be expired the instant the controller
+            // first reports — letting the network quiesce before it has had a chance to be exercised.
+            recordActivity.run();
+        } else if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
             // Setting pipelineTransactionCount to 0 re-enables the controller (see isDisabled()), so the other
             // fields are cleared first. A concurrent getQuiescenceStatus() reader between the re-enable and the
             // nextTct/tracker clears would self-correct on the next poll; the handle workflow is paused during
@@ -276,6 +305,9 @@ public class QuiescenceController {
             nextTct.set(null);
             inProgressBlockTracker = null;
             pipelineTransactionCount.set(0);
+            // Re-anchor the grace period at the reconnect boundary so a long reconnect doesn't leave the
+            // controller with a stale activity instant that would immediately satisfy the grace check.
+            recordActivity.run();
             quiescenceCommands.resetForReconnect();
         }
     }
@@ -304,6 +336,14 @@ public class QuiescenceController {
         }
         if (pendingTransactionCount.getAsLong() > 0) {
             return QuiescenceCommand.BREAK_QUIESCENCE;
+        }
+        // Both counts are zero. Hold off on QUIESCE until the configured grace period has elapsed since the
+        // most recent observed activity; otherwise report DONT_QUIESCE so the platform keeps producing events.
+        // This prevents short inter-transaction gaps from putting the network to sleep — without the grace
+        // period, the next user transaction would wake the network and consensus time would jump forward,
+        // bulk-expiring entries in the record cache (see docs/quiescence-analysis.md).
+        if (Duration.between(lastActivityAt.get(), time.instant()).compareTo(config.gracePeriod()) < 0) {
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         return QuiescenceCommand.QUIESCE;
     }
