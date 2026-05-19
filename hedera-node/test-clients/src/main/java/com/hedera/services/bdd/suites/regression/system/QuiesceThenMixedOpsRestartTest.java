@@ -84,9 +84,11 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
      *       the boot-time transition cannot satisfy it.</li>
      *   <li><b>Cycle 3:</b> a third {@code cryptoTransfer}; a third sleep. With the fix, this cycle produces
      *       the same {@code BREAK_QUIESCENCE → QUIESCE} sequence as cycles 1 and 2.</li>
-     *   <li><b>Assert</b> that {@code "to BREAK_QUIESCENCE"} and {@code "from BREAK_QUIESCENCE to QUIESCE"}
-     *       both appear in node 0's log within 20 s of {@code sleepStart}. Pre-fix this would fail because
-     *       the third {@code QUIESCE} transition would never be emitted.</li>
+     *   <li><b>Assert</b> that {@code "to BREAK_QUIESCENCE"} and {@code "to QUIESCE"} both appear in node 0's
+     *       log within 20 s of {@code sleepStart}. Pre-fix this would fail because the third {@code QUIESCE}
+     *       transition would never be emitted — neither the direct {@code BREAK→QUIESCE} edge (fast local
+     *       timing) nor the indirect {@code BREAK→DONT→QUIESCE} (CI timing) gets past the manager's
+     *       CAS-suppressed final {@code QUIESCE} dispatch.</li>
      * </ol>
      *
      * <p>This is the HAPI-level analogue of the {@code QuiescenceCommandsTest.updateRoundTripQuiesceBreakQuiesceQuiesce}
@@ -147,9 +149,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
      *       heartbeat will discover.</li>
      *   <li><b>Read the schedule's expiry timestamp</b> via {@code getScheduleInfo} for later assertion bounds.</li>
      *   <li><b>Sleep for {@code 2 * tctDuration}</b> (~10 s) to give the network time to settle and quiesce.</li>
-     *   <li><b>Assert the full wake-up cycle in node 0's log</b> within 30 s of {@code sleepStart}: both
-     *       {@code "to BREAK_QUIESCENCE"} (proving the wake path was hit) and
-     *       {@code "from BREAK_QUIESCENCE to QUIESCE"}.</li>
+     *   <li><b>Assert the wake-up cycle in node 0's log</b> within 30 s of {@code sleepStart}: both
+     *       {@code "to BREAK_QUIESCENCE"} (proving the wake path was hit) and {@code "to QUIESCE"}
+     *       (proving the cycle closed via either the direct edge or the indirect path).</li>
      *   <li><b>Sleep for {@code 4 * tctDuration}</b> (~20 s) to let the scheduled txn's expiry approach and fire.
      *       During this window the heartbeat discovers the schedule's expiry as a TCT, the controller transitions to
      *       {@code DONT_QUIESCE} as wall-clock approaches the TCT, and the scheduled txn executes.</li>
@@ -193,19 +195,20 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                // Tightened from a single "to QUIESCE" substring to assert the full wake-up cycle.
                 // "to BREAK_QUIESCENCE" proves a user transaction landed on a quiescent node and exercised the
-                // break-quiescence path; "from BREAK_QUIESCENCE to QUIESCE" proves the cycle closed — the exact
-                // regression case the heartbeat→manager desync bug used to silently drop. Both patterns fire
-                // multiple times per test in healthy runs (see hgcaa.log), so the assertion is robust; together
-                // they fail loudly if either edge of the state machine stops working.
+                // break-quiescence path. "to QUIESCE" proves the cycle closed via *some* path — either the
+                // direct edge BREAK_QUIESCENCE→QUIESCE (fast local timing) or the indirect
+                // BREAK_QUIESCENCE→DONT_QUIESCE→QUIESCE (CI timing, where the manager polls during the brief
+                // pipeline-non-zero window between ingest and block sign). Both are legal and both fail to
+                // emit on the problematic codebase, since the heartbeat→manager desync suppresses the final
+                // CAS-to-QUIESCE either way. Asserting the strict direct edge over-fences on CI hardware.
                 assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
                         sleepStart::get,
                         Duration.ofSeconds(30),
                         Duration.ofSeconds(30),
                         "to BREAK_QUIESCENCE",
-                        "from BREAK_QUIESCENCE to QUIESCE"),
+                        "to QUIESCE"),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
