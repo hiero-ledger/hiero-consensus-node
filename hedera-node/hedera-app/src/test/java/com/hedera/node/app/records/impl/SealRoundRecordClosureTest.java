@@ -20,6 +20,7 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
@@ -82,6 +83,30 @@ class SealRoundRecordClosureTest extends AppTestBase {
         verify(ctx.producer, times(1)).finishCurrentBlock();
     }
 
+    @Test
+    void recordsModeInvokesBlockLifecycleOnOpenAndClose() {
+        final var ctx = newContext("RECORDS");
+        final var firstCons = Instant.ofEpochSecond(2_000L, 10);
+
+        ctx.manager.startUserTransaction(firstCons, ctx.state);
+        verify(ctx.lifecycle).onOpenBlock(ctx.state);
+
+        ctx.manager.closeCurrentRecordFileIfConsTimeElapsed(ctx.state, firstCons.plusSeconds(2));
+        verify(ctx.lifecycle).onCloseBlock(ctx.state);
+    }
+
+    @Test
+    void bothModeDoesNotInvokeRecordBlockLifecycle() {
+        final var ctx = newContext("BOTH");
+        final var firstCons = Instant.ofEpochSecond(2_000L, 10);
+
+        ctx.manager.startUserTransaction(firstCons, ctx.state);
+        ctx.manager.closeCurrentRecordFileIfOpen(ctx.state);
+
+        verify(ctx.lifecycle, times(0)).onOpenBlock(ctx.state);
+        verify(ctx.lifecycle, times(0)).onCloseBlock(ctx.state);
+    }
+
     private Context newContext(final String streamMode) {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
@@ -133,6 +158,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 new NoOpMetrics());
         final var heartbeat = new QuiescedHeartbeat(controller, mock(QuiescenceCommands.class), new NoOpMetrics());
         final Supplier<BlockItemWriter> wrbSupplier = () -> Mockito.mock(BlockItemWriter.class);
+        final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
 
         final var manager = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -144,10 +170,14 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
                 blockHashSigner,
-                InitTrigger.RESTART);
-        return new Context(manager, producer, app.workingStateAccessor().getState());
+                InitTrigger.RESTART,
+                lifecycle);
+        return new Context(manager, producer, app.workingStateAccessor().getState(), lifecycle);
     }
 
     private record Context(
-            BlockRecordManagerImpl manager, BlockRecordStreamProducer producer, com.swirlds.state.State state) {}
+            BlockRecordManagerImpl manager,
+            BlockRecordStreamProducer producer,
+            com.swirlds.state.State state,
+            BlockRecordManager.Lifecycle lifecycle) {}
 }

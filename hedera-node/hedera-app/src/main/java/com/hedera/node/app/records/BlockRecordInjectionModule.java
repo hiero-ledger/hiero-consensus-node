@@ -16,6 +16,7 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThread
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -77,7 +78,8 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final BlockHashSigner blockHashSigner,
-            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier) {
+            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
@@ -92,7 +94,25 @@ public abstract class BlockRecordInjectionModule {
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
                 blockHashSigner,
-                initTrigger);
+                initTrigger,
+                blockLifecycle);
+    }
+
+    @Provides
+    @Singleton
+    public static BlockRecordManager.Lifecycle provideBlockRecordManagerLifecycle(
+            @NonNull final NodeFeeManager nodeFeeManager) {
+        return new BlockRecordManager.Lifecycle() {
+            @Override
+            public void onOpenBlock(@NonNull final State state) {
+                nodeFeeManager.onOpenBlock(state);
+            }
+
+            @Override
+            public void onCloseBlock(@NonNull final State state) {
+                nodeFeeManager.onCloseBlock(state);
+            }
+        };
     }
 
     @Provides

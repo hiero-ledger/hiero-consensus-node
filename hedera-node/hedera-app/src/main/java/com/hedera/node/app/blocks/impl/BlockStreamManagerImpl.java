@@ -125,6 +125,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ForkJoinPool executor;
     private final String diskNetworkExportFile;
     private final DiskNetworkExport diskNetworkExport;
+    private final boolean diskNetworkExportTss;
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -261,6 +262,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
+        this.diskNetworkExportTss = networkAdminConfig.diskNetworkExportTss();
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
@@ -808,11 +810,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
+                final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
+                if (diskNetworkExportTss) {
+                    log.warn("Including dev-only TSS private key material in exported network info");
+                    infoTypes.add(InfoType.TSS);
+                }
                 log.info(
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
+                DiskStartupNetworks.writeNetworkInfo(
+                        state,
+                        exportPath,
+                        infoTypes,
+                        configProvider.getConfiguration(),
+                        platform.getSelfId().id());
             }
 
             // Clear the eventIndexInBlock map for the next block

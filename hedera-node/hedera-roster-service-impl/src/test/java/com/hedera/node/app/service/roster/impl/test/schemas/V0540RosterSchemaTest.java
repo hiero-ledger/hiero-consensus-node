@@ -26,6 +26,7 @@ import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.hiero.consensus.roster.WritableRosterStore;
@@ -70,6 +71,9 @@ class V0540RosterSchemaTest {
 
     @Mock
     private Predicate<Roster> canAdopt;
+
+    @Mock
+    private Consumer<Network> onOverrideNetwork;
 
     @Mock
     private State state;
@@ -158,6 +162,7 @@ class V0540RosterSchemaTest {
 
     @Test
     void restartSetsActiveRosterFromOverrideIfPresent() {
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, onOverrideNetwork);
         given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(ctx.roundNumber()).willReturn(ROUND_NO);
@@ -171,6 +176,7 @@ class V0540RosterSchemaTest {
 
         verify(rosterStore).putActiveRoster(ROSTER, ROUND_NO + 1L);
         verify(startupNetworks).setOverrideRound(ROUND_NO);
+        verify(onOverrideNetwork).accept(NETWORK);
         verify(onAdopt).accept(ROSTER, ROSTER);
     }
 
