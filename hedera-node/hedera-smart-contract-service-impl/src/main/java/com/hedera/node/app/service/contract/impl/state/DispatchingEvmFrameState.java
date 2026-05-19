@@ -16,8 +16,8 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.keccak256HashOf;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
@@ -48,12 +48,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
@@ -120,16 +120,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     private final SlotLookupKey probeKey = new SlotLookupKey();
 
-    private final Map<SlotLookupKey, SlotKey> slotKeyCache =
-            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> originalValueCache =
-            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> liveValueCache =
-            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<ContractID, CodeCacheEntry> codeCache =
-            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<AccountID, Hash> delegationCodeHashCache =
-            new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, SlotKey> slotKeyCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> originalValueCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> liveValueCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<ContractID, CodeCacheEntry> codeCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<AccountID, Hash> delegationCodeHashCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
 
     /**
      * @param nativeOperations   the Hedera native operation
@@ -379,8 +374,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 accountId, _ -> keccak256HashOf(ProxyEvmAccount.createDelegationIndicatorPJB(delegationAddress)));
     }
 
-    private static @NonNull Bytes tuweniCodeFromPbj(
-            @Nullable final com.hedera.pbj.runtime.io.buffer.Bytes pbjCode) {
+    private static @NonNull Bytes tuweniCodeFromPbj(@Nullable final com.hedera.pbj.runtime.io.buffer.Bytes pbjCode) {
         return pbjCode == null ? Bytes.EMPTY : pbjToTuweniBytes(pbjCode);
     }
 

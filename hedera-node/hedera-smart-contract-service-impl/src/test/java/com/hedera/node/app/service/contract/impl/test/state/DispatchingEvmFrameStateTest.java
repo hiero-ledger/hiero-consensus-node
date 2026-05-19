@@ -271,7 +271,8 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void getCodeHashIsCachedAcrossContractsWithinFrame() {
-        final var bBytecode = Bytecode.newBuilder().code(Bytes.wrap("other-code")).build();
+        final var bBytecode =
+                Bytecode.newBuilder().code(Bytes.wrap("other-code")).build();
         given(contractStateStore.getBytecode(A_CONTRACT_ID)).willReturn(SOME_PRETEND_BYTECODE);
         given(contractStateStore.getBytecode(B_CONTRACT_ID)).willReturn(bBytecode);
 
@@ -333,8 +334,7 @@ class DispatchingEvmFrameStateTest {
     @Test
     void getDelegationCodeHashIsCachedWithinFrame() {
         final var delegationAddress = Bytes.fromHex("0000000000000000000000000000000000000001");
-        final var expectedHash =
-                keccak256HashOf(ProxyEvmAccount.createDelegationIndicatorPJB(delegationAddress));
+        final var expectedHash = keccak256HashOf(ProxyEvmAccount.createDelegationIndicatorPJB(delegationAddress));
 
         final var first = subject.getDelegationCodeHash(A_ACCOUNT_ID, delegationAddress);
         final var second = subject.getDelegationCodeHash(A_ACCOUNT_ID, delegationAddress);
