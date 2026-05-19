@@ -81,7 +81,7 @@ Each peer walks ancestors of its tips, filtering by the remote peer's `ancientTh
 
 ## Simple broadcast
 
-Layered on the RPC pipeline, simple broadcast pushes each self-event to every connected peer as soon as it is created, using the `BROADCAST_EVENT` message type. The send site is `GossipRpcSender.sendBroadcastEvent(GossipEvent)`. Sync runs at a reduced cadence in parallel as a fallback for missed broadcasts and for nodes that are temporarily disconnected.
+Layered on the RPC pipeline, simple broadcast pushes each self-event to every connected peer as soon as it has been durably persisted through the PCES writer, using the `BROADCAST_EVENT` message type. (Self-events are routed through PCES before reaching gossip to avoid branching on restart — see the durability rule in [reasons-not-to-gossip.md](reasons-not-to-gossip.md).) The send site is `GossipRpcSender.sendBroadcastEvent(GossipEvent)`. Sync runs at a reduced cadence in parallel as a fallback for missed broadcasts and for nodes that are temporarily disconnected.
 
 `RpcOverloadMonitor` (`platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcOverloadMonitor.java`) enforces the simple-backpressure rule per peer:
 
@@ -93,6 +93,8 @@ When either trips, broadcast is paused for `BroadcastConfig.pauseOnLag` (default
 Broadcast remains disabled until the initial sync with a peer completes, so newly connected nodes catch up via sync first.
 
 ## Fair sync selector
+
+**Currently disabled.** With the default `sync.fairMaxConcurrentSyncs = -1`, `SyncGuardFactory.create()` returns `NoopSyncGuard`, which authorizes every outgoing sync. Each `RpcPeerHandler` independently attempts syncs with its assigned peer subject only to the other guards in [reasons-not-to-gossip.md](reasons-not-to-gossip.md), so the network operates as a full mesh (every node periodically syncs with every other node). The remainder of this section describes what the selector enforces when enabled.
 
 Permits alone do not guarantee fairness: with many peers and few permits, the same peers can be picked repeatedly while others starve. The fair selector sits inside the RPC sync layer to enforce two limits when choosing the next peer to sync with.
 
@@ -109,7 +111,7 @@ See [../../tunables.md](../../tunables.md) for the cross-topic catalog of gossip
 
 ## Backpressure interaction
 
-Gossip permits, queue-overflow signalling, and the global health-monitor feedback loop are documented in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md). Gossip consumes those signals (e.g., `RpcOverloadMonitor` pauses broadcast under overload, `SyncConfig.permitsRevokedPerSecond` reduces sync permits when the system is unhealthy) but does not own the policies. No duplicated detail here — see the linked topic.
+Gossip permits, queue-overflow signalling, and the global health-monitor feedback loop are documented in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md). Gossip consumes those signals (e.g., `RpcOverloadMonitor` pauses broadcast under overload, `SyncConfig.permitsRevokedPerSecond` reduces sync permits when the system is unhealthy) but does not own the policies. Backpressure is also catalogued — alongside every other rule that reduces or stops gossip — in [reasons-not-to-gossip.md](reasons-not-to-gossip.md). No duplicated detail here — see the linked topics.
 
 ## Cross-references
 
