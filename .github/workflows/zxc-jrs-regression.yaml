@@ -185,7 +185,6 @@ jobs:
           node-version: "18"
           gradle-version: ${{ inputs.gradle-version }}
 
-
       - name: Determine JRS Parameters
         id: jrs-parameters
         env:

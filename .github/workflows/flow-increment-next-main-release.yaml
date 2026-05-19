@@ -37,7 +37,7 @@ jobs:
           java-version: "25.0.2"
           java-distribution: "temurin"
           setup-gradle: "true"
-          gradle-cache-disabled: 'true'
+          gradle-cache-disabled: "true"
 
       - name: Import GPG Key
         id: gpg_importer

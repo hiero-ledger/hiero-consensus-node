@@ -39,7 +39,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
           checkout: "true"
-          checkout-fetch-depth: '0'
+          checkout-fetch-depth: "0"
           checkout-ref: ${{ steps.validate.outputs.build-tag }}
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
           setup-java: "false"
@@ -75,7 +75,6 @@ jobs:
           # Export to Github output and Github summary
           echo "build-tag=${build_tag}" >> ${GITHUB_OUTPUT}
           echo "Build Tag to Release: ${build_tag}" >> ${GITHUB_STEP_SUMMARY}
-
 
       - name: Import GPG Key
         uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
