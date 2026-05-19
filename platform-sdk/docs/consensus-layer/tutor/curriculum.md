@@ -28,7 +28,7 @@ entries:
       - architecture/topics/gossip.md
       - architecture/topics/hashgraph.md
       - architecture/topics/signed-state-management.md
-    status: not_started
+    status: drafted
   - id: pass1-02-node-falls-behind
     index: 2
     pass: 1
