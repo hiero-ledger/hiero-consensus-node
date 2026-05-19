@@ -83,9 +83,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
-import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.Test;
@@ -2168,10 +2168,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                     .build();
             final var queued = List.of(
-                    new MigrationWrappedHashes(
-                            1L, Bytes.fromHex("11".repeat(48)), Bytes.fromHex("22".repeat(48))),
-                    new MigrationWrappedHashes(
-                            2L, Bytes.fromHex("33".repeat(48)), Bytes.fromHex("44".repeat(48))));
+                    new MigrationWrappedHashes(1L, Bytes.fromHex("11".repeat(48)), Bytes.fromHex("22".repeat(48))),
+                    new MigrationWrappedHashes(2L, Bytes.fromHex("33".repeat(48)), Bytes.fromHex("44".repeat(48))));
             seedRequiredStateMidVoting(app, queued);
 
             final var state = requireNonNullState(app.workingStateAccessor().getState());
@@ -2180,8 +2178,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
             final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                    Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+            final var migrationResult =
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2223,8 +2221,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
             final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                    Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+            final var migrationResult =
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
