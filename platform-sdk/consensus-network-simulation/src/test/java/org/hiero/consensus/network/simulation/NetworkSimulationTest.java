@@ -110,6 +110,6 @@ public class NetworkSimulationTest {
             stats.record(engineOutputs);
         }
         final Duration timePassed = Duration.between(start, creatorNetwork.getPlatformContext().getTime().now());
-        stats.print(tick, nodes, timePassed);
+        stats.print(nodes, timePassed);
     }
 }

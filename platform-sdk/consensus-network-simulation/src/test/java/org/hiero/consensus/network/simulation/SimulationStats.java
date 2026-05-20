@@ -27,19 +27,12 @@ class SimulationStats {
                 .forEach(c2cs::add);
     }
 
-    void print(final Duration tick, final int nodes, final Duration timePassed) {
+    void print(final int nodes, final Duration timePassed) {
         final double averageC2C = c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
         final Duration max = c2cs.stream().max(Comparator.naturalOrder()).orElse(Duration.ZERO);
-        System.out.println("Delay(μs)  Nodes avgC2C(μs) maxC2C(μs)  ev/sec");
-        System.out.printf("%,9d %6d %,10d %,10d %,7d %n",
-                tick.toNanos() / 1000,
-                nodes,
-                (long) averageC2C / 1000,
-                toMicros(max),
-                (long) (numEvents / ((double) timePassed.toMillis() / 1000)));
-    }
-
-    private static long toMicros(final Duration d) {
-        return d.getSeconds() * 1_000_000L + d.getNano() / 1_000L;
+        System.out.printf("Num nodes: %d%n", nodes);
+        System.out.printf("Avg C2C:   %s%n", Duration.ofNanos((long)averageC2C));
+        System.out.printf("Max C2C:   %s%n", max);
+        System.out.printf("Ev/sec:    %,d%n", (long) (numEvents / ((double) timePassed.toMillis() / 1000)));
     }
 }
