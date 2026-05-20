@@ -356,18 +356,27 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     @Override
-    public void validateBlocks(@NonNull final List<Block> blocks) {
+    public void validateBlocks(@NonNull final List<Block> allBlocks) {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
         var incrementalBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
 
-        // If cutover is enabled, first process preview blocks for state changes and hash chain
-        if (cutoverEnabled == CutoverEnabled.YES && preservedPreviewBlocksDir != null) {
-            logger.info("Cutover enabled, reading preserved preview blocks from {}", preservedPreviewBlocksDir);
-            final var previewBlocks =
-                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
-            logger.info("Read {} preview blocks", previewBlocks.size());
+        // Cutover splits the input into a preview prefix (pre-cutover blocks surfaced through
+        // StreamValidationOp's walk of the *-preview-archive sibling) and a post-cutover suffix.
+        // Locate the boundary at the first block whose BlockInfo update flips
+        // previewStreamOverwritten=true; V0740BlockStreamSchema sets that flag exactly once and
+        // only on the boundary block, so a single linear scan is enough.
+        final int cutoverBoundaryIndex = findCutoverBoundaryIndex(allBlocks);
+        final List<Block> previewBlocks = cutoverBoundaryIndex > 0
+                ? List.copyOf(allBlocks.subList(0, cutoverBoundaryIndex))
+                : List.of();
+        final List<Block> blocks = cutoverBoundaryIndex >= 0
+                ? List.copyOf(allBlocks.subList(cutoverBoundaryIndex, allBlocks.size()))
+                : allBlocks;
+
+        if (!previewBlocks.isEmpty()) {
+            logger.info("Replaying {} pre-cutover preview blocks from input stream", previewBlocks.size());
 
             for (final var block : previewBlocks) {
                 // Apply state changes from preview blocks to build up state
@@ -1283,5 +1292,25 @@ public class StateChangesValidator implements BlockStreamValidator {
             return "invalid signature over rotation message " + Bytes.wrap(rotationMessage);
         }
         return "<N/A";
+    }
+
+    /**
+     * Returns the index in the input block list of the first block whose BlockInfo singleton
+     * update has {@code previewStreamOverwritten=true}, or {@code -1} when no cutover boundary
+     * is present. {@link com.hedera.node.app.blocks.schemas.V0740BlockStreamSchema} sets that flag
+     * exactly once and only on the cutover boundary block, so the first hit identifies the start
+     * of the post-cutover suffix.
+     */
+    private static int findCutoverBoundaryIndex(@NonNull final List<Block> blocks) {
+        for (int i = 0; i < blocks.size(); i++) {
+            final var bi = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(blocks.get(i)),
+                    SingletonUpdateChange::blockInfoValue,
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+            if (bi != null && bi.previewStreamOverwritten()) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
