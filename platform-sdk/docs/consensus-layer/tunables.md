@@ -3,10 +3,8 @@
 Catalog of consensus-layer configurable parameters, referenced from other KB
 entries by ID (`TUN-NNN`). Single file, parallel to `symptoms.md`.
 
-A tunable here is **one `@ConfigProperty` of an `@ConfigData` record** in a
-consensus-layer module — that is, in any `platform-sdk/` module whose name
-starts with `consensus` or `base`, plus `swirlds-common` and
-`swirlds-platform-core`. Sections are grouped by record (one heading per
+A tunable here is **one `@ConfigProperty` of an `@ConfigData` record** in the
+consensus-layer module. Sections are grouped by record (one heading per
 class), in module then alphabetical order. Several records share a config
 prefix (`state.*`, `event.intake.wiring.*`, `event.creation.wiring.*`); each
 gets its own section so the source class is unambiguous.
