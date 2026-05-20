@@ -84,7 +84,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -153,7 +153,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -230,7 +230,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -311,7 +311,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode
