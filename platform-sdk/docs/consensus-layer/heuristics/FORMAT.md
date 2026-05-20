@@ -25,6 +25,7 @@ related:
 status: unvalidated                    # unvalidated | validated | retired
 confidence: medium                     # low | medium | high
 provenance: elicitation-2026-05-xx     # where this entry came from
+curated_by: Full Name (@github-handle) # the person responsible for this entry
 ---
 ```
 
@@ -41,6 +42,9 @@ Field discipline:
   high-confidence unvalidated entry is still unvalidated; `confidence` is advisory only.
 - **`provenance`** — traceability back to the source (elicitation session date, SCN ID,
   Diagnostician run), so a future reader can re-check the rule against its origin.
+- **`curated_by`** — the person responsible for this entry now. See
+  [LAYOUT.md](../LAYOUT.md#curator-and-decider-conventions) for the canonical
+  format and the distinction from `provenance`.
 
 ## Body
 
@@ -84,6 +88,7 @@ related:
 status: unvalidated
 confidence: medium
 provenance: ...
+curated_by: ...
 ---
 
 # HEU-NNN — Title
