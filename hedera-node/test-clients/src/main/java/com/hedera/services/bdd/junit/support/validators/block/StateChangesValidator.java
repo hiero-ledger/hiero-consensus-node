@@ -368,9 +368,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         // previewStreamOverwritten=true; V0740BlockStreamSchema sets that flag exactly once and
         // only on the boundary block, so a single linear scan is enough.
         final int cutoverBoundaryIndex = findCutoverBoundaryIndex(allBlocks);
-        final List<Block> previewBlocks = cutoverBoundaryIndex > 0
-                ? List.copyOf(allBlocks.subList(0, cutoverBoundaryIndex))
-                : List.of();
+        final List<Block> previewBlocks =
+                cutoverBoundaryIndex > 0 ? List.copyOf(allBlocks.subList(0, cutoverBoundaryIndex)) : List.of();
         final List<Block> blocks = cutoverBoundaryIndex >= 0
                 ? List.copyOf(allBlocks.subList(cutoverBoundaryIndex, allBlocks.size()))
                 : allBlocks;
