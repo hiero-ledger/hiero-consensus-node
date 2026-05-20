@@ -299,7 +299,6 @@ jobs:
       !cancelled() && always() }}
 
     steps:
-    steps:
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0

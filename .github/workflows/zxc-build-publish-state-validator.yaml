@@ -54,11 +54,8 @@ jobs:
           checkout-fetch-depth: 0
           checkout-ref: ${{ inputs.ref || github.sha }}
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-
-      - name: Set up Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
+          setup-java: "true"
+          java-distribution: "temurin"
           java-version: "25.0.2"
 
       - name: Set up Gradle
