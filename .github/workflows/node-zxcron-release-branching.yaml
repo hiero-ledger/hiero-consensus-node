@@ -28,9 +28,10 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Read Trigger Time
         id: time
@@ -81,9 +82,10 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Branch Creation Check
         id: branch-creation
@@ -102,7 +104,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
           checkout: "true"
           checkout-fetch-depth: "0"
@@ -194,16 +196,16 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # v1.0.10
         with:
-          checkout: true
+          checkout: "true"
           checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: 0
-          setup-java: true
+          setup-java: "true"
           java-distribution: "temurin"
           java-version: "25.0.2"
-          setup-gradle: true
+          setup-gradle: "true"
 
       - name: Install Semantic Version Tools
         run: |
