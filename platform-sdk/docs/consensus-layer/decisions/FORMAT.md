@@ -28,12 +28,12 @@ related:
   heuristics: []                       # optional; heuristics affected by this
   rules: []                            # optional; rules introduced or retired by this
 status: accepted                       # proposed | accepted | superseded | deprecated
-date: 2026-05-08                       # decision date, ISO YYYY-MM-DD
+date: 2026-05-xx                       # decision date, ISO YYYY-MM-DD
 deciders:                              # people responsible for the decision
-  - Michael Heinrichs (@netopyr)
-  - Kelly Greco (@poulok)
-curated_by: Kelly Greco (@poulok)      # who maintains this entry
-provenance: design-session-2026-05-08  # optional; source discussion if recorded
+  - Full Name (@github-handle)
+  - Full Name (@github-handle)
+curated_by: Full Name (@github-handle) # who maintains this entry
+provenance: design-session-2026-05-xx  # optional; source discussion if recorded
 ---
 ```
 
