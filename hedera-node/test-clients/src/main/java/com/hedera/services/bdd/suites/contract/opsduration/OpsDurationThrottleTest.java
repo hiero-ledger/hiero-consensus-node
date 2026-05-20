@@ -38,20 +38,20 @@ public class OpsDurationThrottleTest {
     private static final String OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND =
             "contracts.opsDurationThrottleUnitsFreedPerSecond";
 
-    private static final long DEFAULT_OPS_DURATION_CAPACITY = 10000000;
+    private static final long DEFAULT_OPS_DURATION_CAPACITY = 500_000_000;
 
-    private SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
+    public static SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
         return overridingAllOf(Map.of(
                 THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(true),
                 OPS_DURATION_THROTTLE_CAPACITY, Long.toString(DEFAULT_OPS_DURATION_CAPACITY),
                 OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND, Long.toString(0)));
     }
 
-    private SpecOperation disableOpsDurationThrottle() {
+    public static SpecOperation disableOpsDurationThrottle() {
         return overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(false));
     }
 
-    private void restoreDefaults(HapiSpec spec) {
+    public static void restoreDefaults(HapiSpec spec) {
         allRunFor(
                 spec,
                 restoreDefault(THROTTLE_THROTTLE_BY_OPS_DURATION),

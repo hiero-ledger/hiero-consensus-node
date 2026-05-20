@@ -164,4 +164,7 @@ public record ContractsConfig(
         boolean metricsSmartContractSecondaryEnabled,
 
         @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "false") @NetworkProperty
-        boolean useBonnevilleEVM) {}
+        boolean useBonnevilleEVM,
+
+        @ConfigProperty(value = "token.associations.maxLen", defaultValue = "10") @NetworkProperty
+        int tokenAssociationsMaxLen) {}

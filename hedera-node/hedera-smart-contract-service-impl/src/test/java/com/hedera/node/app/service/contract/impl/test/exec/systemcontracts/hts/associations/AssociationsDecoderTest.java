@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_H
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -20,7 +21,11 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator;
+import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.ContractsConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -28,6 +33,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class AssociationsDecoderTest {
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private ContractsConfig contractsConfig;
+
     @Mock
     private AddressIdConverter addressIdConverter;
 
@@ -60,8 +72,11 @@ class AssociationsDecoderTest {
         final var encoded = AssociationsTranslator.ASSOCIATE_ONE
                 .encodeCallWithArgs(OWNER_HEADLONG_ADDRESS, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
                 .array();
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
         given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
@@ -76,8 +91,11 @@ class AssociationsDecoderTest {
                         OWNER_HEADLONG_ADDRESS,
                         new Address[] {NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, FUNGIBLE_TOKEN_HEADLONG_ADDRESS})
                 .array();
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
         given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
@@ -87,10 +105,29 @@ class AssociationsDecoderTest {
     }
 
     @Test
+    void associateManyLimit() {
+        final var encoded = AssociationsTranslator.ASSOCIATE_MANY
+                .encodeCallWithArgs(
+                        OWNER_HEADLONG_ADDRESS,
+                        Stream.generate(() -> FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
+                                .limit(11)
+                                .toArray(Address[]::new))
+                .array();
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
+        given(attempt.inputBytes()).willReturn(encoded);
+        assertThrows(HandleException.class, () -> subject.decodeAssociateMany(attempt));
+    }
+
+    @Test
     void dissociateOneWorks() {
         final var encoded = AssociationsTranslator.DISSOCIATE_ONE
                 .encodeCallWithArgs(OWNER_HEADLONG_ADDRESS, NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
                 .array();
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
@@ -107,6 +144,9 @@ class AssociationsDecoderTest {
                         OWNER_HEADLONG_ADDRESS,
                         new Address[] {NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, FUNGIBLE_TOKEN_HEADLONG_ADDRESS})
                 .array();
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
@@ -115,6 +155,22 @@ class AssociationsDecoderTest {
         final var body = subject.decodeDissociateMany(attempt);
         assertDissociationPresent(body, OWNER_ID, FUNGIBLE_TOKEN_ID);
         assertDissociationPresent(body, OWNER_ID, NON_FUNGIBLE_TOKEN_ID);
+    }
+
+    @Test
+    void dissociateManyLimit() {
+        final var encoded = AssociationsTranslator.DISSOCIATE_MANY
+                .encodeCallWithArgs(
+                        OWNER_HEADLONG_ADDRESS,
+                        Stream.generate(() -> FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
+                                .limit(11)
+                                .toArray(Address[]::new))
+                .array();
+        given(attempt.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.tokenAssociationsMaxLen()).willReturn(10);
+        given(attempt.inputBytes()).willReturn(encoded);
+        assertThrows(HandleException.class, () -> subject.decodeDissociateMany(attempt));
     }
 
     private void givenConvertible(@NonNull final Address address, @NonNull final AccountID id) {
