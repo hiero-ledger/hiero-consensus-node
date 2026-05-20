@@ -31,7 +31,7 @@ closed and written to disk aligned with the end of the resulting signed state.
 ## Decision
 
 **Remove `SwirldsPlatform.performPcesRecovery()` and `SwirldsPlatform.replayPreconsensusEvents()` from the platform.**
-Do not maintain a built-in, on-by-default entry point for offline ISS recovery. When an ISS recovery is required, the
+Do not maintain a built-in entry point for offline ISS recovery. When an ISS recovery is required, the
 consensus team writes a one-off driver at the moment of need, reusing the public components already exercised by
 normal startup, and coordinates with the execution team to align the record/block stream with the resulting signed
 state (see Step 5 below).
@@ -42,9 +42,13 @@ clearly enough that a present engineer can write it correctly under pressure.
 
 ### Prerequisites
 
+The three artifacts below should all be taken from the **same node**. This is not strictly required, but it is the
+easiest path — using artifacts from one node sidesteps any cross-node-consistency reasoning during recovery. Unless there are other factors in play, it's best to select the node with the most PCES events or the node that advanced the furthest in consensus time.
+
 - A production signed state from before the ISS divergence.
 - The PCES files covering the period from the loaded state's round (minus the non-ancient round window) through the
   point of failure.
+- The record/block files covering through the point of failure.
 
 ### Steps
 
@@ -67,10 +71,9 @@ clearly enough that a present engineer can write it correctly under pressure.
    hand it to `PlatformCoordinator.dumpStateToDisk(request)`
    (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java:199`); block
    on `request.waitForFinished()` so the process does not exit before the on-disk write completes.
-5. **Close the last record file with the execution team.** Coordinate so that the execution-side block stream aligns
-   with the dumped state's last consensus round. This is critical for ensuring the block stream is consistent with the
-   recovered state.
-6. **Distribute and restart.** Copy the recovered state to all nodes; restart the network from it.
+5. **Close the last record or block file with the execution team.** Coordinate so that the execution-side block stream aligns
+   with the dumped state's last consensus round. This is critical because it must be distributed along with the signed state.
+6. **Distribute and restart.** Copy the recovered state, block files, and PCES to all nodes; restart the network from it.
 
 ### Implementation notes
 
@@ -81,6 +84,15 @@ clearly enough that a present engineer can write it correctly under pressure.
   processed before signaling that replay is complete.
 - The blocking `StateDumpRequest.waitForFinished()` is essential — without it the JVM may exit before the on-disk
   write finishes, leaving an incomplete recovery state.
+
+## Temporary Nature
+
+This ADR — both the decision and the recipe it carries — is **temporary, pending block nodes going live**. Once block
+nodes operate as the network-level source of truth for state, every node can be reset to a state the network has
+already agreed on, eliminating the need for the offline replay-on-top-of-state procedure entirely. At that point,
+network-wide ISS recovery reduces to "reset all nodes to the block-node-agreed state" — there is no glue code to
+write, no record/block-file alignment to coordinate, and no PCES replay to drive. This ADR (including its recipe)
+should be revisited and likely retired when block nodes go live.
 
 ## Consequences
 
@@ -163,3 +175,4 @@ See **Decision** above.
 ## Authors / Deciders
 
 - Kelly Greco (@poulok)
+- Lazar Petrovic (@lpetrovic05)

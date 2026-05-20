@@ -167,4 +167,3 @@ recipe any driver must follow, and the record/block-file coordination with the e
   `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
 - **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
 - **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].
-
