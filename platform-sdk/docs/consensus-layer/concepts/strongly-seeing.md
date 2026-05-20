@@ -18,12 +18,18 @@ between *y* and *x*.
 
 ## Mechanics
 
-Strongly-seeing is computed as a memoized walk over the DAG.
-`lastSee(x, m)` returns the most recent event by member *m* that is an
-ancestor of *x*. `stronglySeeP(x, m)` returns the canonical witness in
-the parent round that the lastSee chains agree on, when a super-majority
-of weight does agree. The relation is the gating condition for round
-bumps and for fame voting.
+Strongly-seeing is computed as a memoized walk over the hashgraph.
+`lastSee(x, m)` returns the most recent event by member *m* that is
+an ancestor of *x*. For each creator `m₂`, the *path through `m₂`*
+resolves to a particular witness by `m`: `seeThru(x, m, m₂)` walks
+from `x` to the latest event by `m₂` in `x`'s ancestors, then back
+along self-parents to the first witness by `m` in that event's
+round-created. Call this the *canonical witness by `m` via
+path-`m₂`* — the witness by `m` that the path-`m₂` resolution
+points to. `stronglySeeP(x, m)` returns the canonical witness in
+`x`'s parent round that a super-majority weight of paths agree on,
+when such agreement exists; otherwise null. The relation is the
+gating condition for round bumps and for fame voting.
 
 ## Example
 

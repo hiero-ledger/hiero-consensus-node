@@ -23,9 +23,6 @@ dependencies {
     protobuf("org.hiero.block-node:protobuf-sources")
 }
 
-// Workaround for https://github.com/google/protobuf-gradle-plugin/issues/812
-tasks.sourcesJar { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }
-
 sourceSets {
     val protoApiSrc = layout.projectDirectory.dir("../hedera-protobuf-java-api/src/main/proto")
     main {

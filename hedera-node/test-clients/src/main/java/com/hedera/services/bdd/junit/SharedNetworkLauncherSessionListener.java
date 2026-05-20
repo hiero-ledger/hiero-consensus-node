@@ -325,17 +325,15 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 // Determine block node mode from system property, default to REAL
                 final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                         .map(BlockNodeMode::valueOf)
-                        .orElse(BlockNodeMode.REAL);
+                        .orElse(BlockNodeMode.SIMULATOR);
                 log.info(
                         "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
                         writerMode,
                         blockNodeMode);
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                blockNodeNetwork.getBlockNodeModeById().put(0L, blockNodeMode);
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), blockNodeMode);
-                    blockNodeNetwork
-                            .getBlockNodeIdsBySubProcessNodeId()
-                            .put(node.getNodeId(), new long[] {node.getNodeId()});
+                    blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                     blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                 });
                 blockNodeNetwork.start();
