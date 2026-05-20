@@ -4,17 +4,14 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.UncheckedIOException;
-import java.nio.BufferOverflowException;
+
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.BitSet;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 
 // Bonneville Code object.  Immutable bare byte array.  Cached, hashed and
 // interned.  Cheap hash is used because the prior caching spends all its time
@@ -26,7 +23,7 @@ import org.hyperledger.besu.evm.Code;
 // removing a CodeV2 at random - hot ones will just re-install.
 
 // spotless:off
-public class CodeV2 extends Code implements WritableSequentialData {
+public class CodeV2 extends OutputStream {
 
     private static final ConcurrentHashMap<CodeV2, CodeV2> CODES = new ConcurrentHashMap<>();
 
@@ -41,10 +38,6 @@ public class CodeV2 extends Code implements WritableSequentialData {
     // "Good enough" non-secure fast Hashcode, computed once
     private int _hash;
 
-    public CodeV2(Bytes byteCode, Hash codeHash) {
-        super(byteCode, codeHash);
-    }
-
     // Return an empty CodeV2, from the FREE list if possible
     private static CodeV2 atomicGetFree() {
         // Under lock, pull from the free list
@@ -52,7 +45,7 @@ public class CodeV2 extends Code implements WritableSequentialData {
             if( !FREE.isEmpty() )
                 return FREE.removeLast();
         }
-        return new CodeV2(null, null);
+        return new CodeV2();
     }
 
     // Put an unused CodeV2 back to the FREE list and return the winner
@@ -163,21 +156,18 @@ public class CodeV2 extends Code implements WritableSequentialData {
     }
 
     // --------------------------------------
-    // Become a WritableSequentialData, so PBJ Bytes can hand us the byte[] directly.
+    // Become an OutputStream, so PBJ Bytes can hand us the byte[] directly.
     @Override
-    public void writeBytes(@NonNull final byte[] src, final int offset, final int length)
-            throws BufferOverflowException, UncheckedIOException {
-        _codes = src;             // Direct byte[].  We promise not to modify!!!
-        _off = offset;
-        _len = length;
+    public void write(byte[] b, int off, int len) {
+        _codes = b;             // Direct byte[].  We promise not to modify!!!
+        _off = off;
+        _len = len;
     }
 
-    @Override public void writeByte(byte b) throws BufferOverflowException, UncheckedIOException { throw new TODO(); }
-    @Override public long capacity() { throw new TODO(); }
-    @Override public long position() { throw new TODO(); }
-    @Override public long limit() { throw new TODO(); }
-    @Override public void limit(long limit) { throw new TODO(); }
-    @Override public void skip(long count) throws UncheckedIOException { throw new TODO(); }
+    @Override public void write(byte[] b) { throw new TODO(); }
+    @Override public void close(        ) { throw new TODO(); }
+    @Override public void flush(        ) { throw new TODO(); }
+    @Override public void write(int i   ) { throw new TODO(); }
 
     // --------------------------------------
     // Called at least by CustomContractCreationProcessor for CODE_SUCCESS with
@@ -185,23 +175,13 @@ public class CodeV2 extends Code implements WritableSequentialData {
     // of CCCP (which is already on my TODO-list)
     private Bytes _bytes;
 
-    @Override public Bytes getBytes() {
+    public Bytes getBytes() {
         return _bytes == null ? (_bytes = Bytes.wrap(_codes,_off,_len)) : _bytes;
     }
 
     private Hash _kekhash;
-    @Override public Hash getCodeHash() {
+    public Hash getCodeHash() {
         return _kekhash == null ? (_kekhash = Hash.hash(getBytes())) : _kekhash;
     }
-
-    @Override public int getSize() { return _len; }
-
-    @Override public boolean isJumpDestInvalid(int dst) {
-        // return !jumpValid(dst); // Obvious execution strat, but still hoping never called
-        throw new TODO();
-    }
-    @Override public String prettyPrint() { throw new TODO(); }
-    @Override public long[] getJumpDestBitMask() { throw new TODO(); }
-    @Override public void setJumpDestBitMask(long[] jumpDestBitMask) { throw new TODO(); }
 }
 // spotless:on

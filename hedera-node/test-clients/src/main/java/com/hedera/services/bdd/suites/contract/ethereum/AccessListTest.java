@@ -32,6 +32,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,6 +74,8 @@ public class AccessListTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
+        // TODO Glib: investigate accessList discount with BonnevilleEVM
+        //  lifecycle.overrideInClass(Map.of("contracts.evm.UseBonnevilleEVM", "true"));
         lifecycle.doAdhoc(
                 callerContract.getInfo(),
                 payer.getInfo(),
