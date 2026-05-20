@@ -221,8 +221,6 @@ jobs:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
-      slack-test-webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
 
   xts-otter-tests:
     name: XTS Otter Tests

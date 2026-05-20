@@ -680,4 +680,4 @@ jobs:
       result-label: "No XTS Candidate Tag Found "
       ref: ${{ inputs.ref }}
     secrets:
-      webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+      webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
