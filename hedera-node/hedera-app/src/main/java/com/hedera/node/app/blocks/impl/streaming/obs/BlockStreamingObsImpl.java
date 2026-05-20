@@ -10,8 +10,6 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
@@ -19,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -166,7 +165,28 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
         stats.aggregate();
 
-        log.info("{}", stats);
+        final StringBuilder sb = new StringBuilder();
+
+        sb.append("BlockTimingData {\n");
+        sb.append("  [(Name:Block#").append(stats.blockNumber).append(")(Unit:NANOS)");
+        sb.append("(I2O:").append(stats.initToOpen()).append(")"); // I2O = Init-2-Open
+        sb.append("(O2Pc:").append(stats.openToProofCreated()).append(")"); // O2Pc = Open-2-Proof Created
+        sb.append("(O2Pa:").append(stats.openToProofAdded()).append(")"); // O2Pa = Open-2-Proof Added
+        sb.append("(O2C:").append(stats.openToClose()).append(")"); // O2C = Open-2-Close
+        sb.append("(O2Es:").append(stats.openToEndSent()).append(")"); // O2E = Open-2-End Sent
+        sb.append("(O2A:").append(stats.openToAck()).append(")"); // O2A = Open-2-Ack
+        sb.append("(E2A:").append(stats.endSentToAck()).append(")"); // E2A = End-2-Ack
+        sb.append("(C2A:").append(stats.closedToAck()).append(")"); // C2A = Close-2-Ack
+        sb.append("(Hp2A:").append(stats.headerProducedToAck()).append(")"); // Hp2A = Header Produced-2-Ack
+        sb.append("(Hs2Es:").append(stats.headerSentToEndSent()).append(")"); // Hs2Es = Header Sent-2-End Sent
+        sb.append("(Hs2A:").append(stats.headerSentToAck()).append(")"); // Hs2A = Header Sent-2-Ack
+        sb.append("]\n");
+        sb.append("  ").append(stats.itemIdleProbe).append("\n");
+        sb.append("  ").append(stats.itemSendLatencyProbe).append("\n");
+        sb.append("  ").append(stats.itemSizeProbe).append("\n");
+        sb.append("}");
+
+        log.info("{}", sb);
     }
 
     @Override
@@ -212,6 +232,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         // collect all stats older than the calculated second tick
         final Map<Long, ThroughputBucket> localThroughputBuckets = new HashMap<>();
         final Iterator<Map.Entry<Long, ThroughputBucket>> throughputBucketsIt = throughputBuckets.entrySet().iterator();
+
         while (throughputBucketsIt.hasNext()) {
             final Map.Entry<Long, ThroughputBucket> entry = throughputBucketsIt.next();
             if (entry.getKey() <= thresholdSecondTick) {
@@ -220,21 +241,16 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
             }
         }
 
-        final SortedMap<Long, BlockStats> localBlockStats = new TreeMap<>();
+        final BlockStatsAggregation blockAggregation = new BlockStatsAggregation();
         final Iterator<Map.Entry<Long, BlockStats>> blockStatsIt = blockStats.entrySet().iterator();
+
         while (blockStatsIt.hasNext()) {
             final Map.Entry<Long, BlockStats> entry = blockStatsIt.next();
             final BlockStats stats = entry.getValue();
             if (stats.isAcked() && stats.initNanosTick <= thresholdNanosTick) {
                 blockStatsIt.remove();
-                localBlockStats.put(entry.getKey(), entry.getValue());
+                blockAggregation.add(stats);
             }
-        }
-
-        // append block stats to output
-        for (final BlockStats bStats : localBlockStats.values()) {
-            appendBlockStatistics(output, bStats);
-            output.append("\n");
         }
 
         // append throughput data to output
@@ -251,8 +267,8 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
                 latestSecondTick = bucket.secondTick;
             }
 
-            totalItemsCreated.add(bucket.itemsCreated.count.get(), bucket.itemsCreated.sum.get());
-            totalItemsSent.add(bucket.itemsSent.count.get(), bucket.itemsSent.sum.get());
+            totalItemsCreated.add(bucket.itemsCreated.count.sum(), bucket.itemsCreated.sum.sum());
+            totalItemsSent.add(bucket.itemsSent.count.sum(), bucket.itemsSent.sum.sum());
         }
 
         long numberOfSeconds = latestSecondTick - earliestSecondTick;
@@ -261,19 +277,19 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
             numberOfSeconds = 1;
         }
 
-        final BigDecimal itemsPerSecondCreated_count = round(totalItemsCreated.count.get() / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsPerSecondCreated_bytes = round(totalItemsCreated.sum.get() / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsPerSecondSent_count = round(totalItemsSent.count.get() / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsPerSecondSent_bytes = round(totalItemsSent.sum.get() / (numberOfSeconds * 1.0D));
+        final BigDecimal itemsPerSecondCreated_count = round(totalItemsCreated.count.sum() / (numberOfSeconds * 1.0D));
+        final BigDecimal itemsPerSecondCreated_bytes = round(totalItemsCreated.sum.sum() / (numberOfSeconds * 1.0D));
+        final BigDecimal itemsPerSecondSent_count = round(totalItemsSent.count.sum() / (numberOfSeconds * 1.0D));
+        final BigDecimal itemsPerSecondSent_bytes = round(totalItemsSent.sum.sum() / (numberOfSeconds * 1.0D));
 
         output.append("  Throughput {\n");
         output.append("    [(Seconds:").append(numberOfSeconds).append(")]\n");
-        output.append("    [(Name:ItemsCreatedTotal)(Unit:COUNT)(Sum:").append(totalItemsCreated.count.get()).append(")");
-        output.append("(Unit:BYTES)(Sum:").append(totalItemsCreated.sum.get()).append(")]\n");
+        output.append("    [(Name:ItemsCreatedTotal)(Unit:COUNT)(Sum:").append(totalItemsCreated.count.sum()).append(")");
+        output.append("(Unit:BYTES)(Sum:").append(totalItemsCreated.sum.sum()).append(")]\n");
         output.append("    [(Name:ItemsCreatedPerSecond)(Unit:COUNT)(Avg:").append(itemsPerSecondCreated_count.toPlainString()).append(")");
         output.append("(Unit:BYTES)(Avg:").append(itemsPerSecondCreated_bytes.toPlainString()).append(")]\n");
-        output.append("    [(Name:ItemsSentTotal)(Unit:COUNT)(Sum:").append(totalItemsSent.count.get()).append(")");
-        output.append("(Unit:BYTES)(Sum:").append(totalItemsSent.sum.get()).append(")]\n");
+        output.append("    [(Name:ItemsSentTotal)(Unit:COUNT)(Sum:").append(totalItemsSent.count.sum()).append(")");
+        output.append("(Unit:BYTES)(Sum:").append(totalItemsSent.sum.sum()).append(")]\n");
         output.append("    [(Name:ItemsSentPerSecond)(Unit:COUNT)(Avg:").append(itemsPerSecondSent_count.toPlainString()).append(")");
         output.append("(Unit:BYTES)(Avg:").append(itemsPerSecondSent_bytes.toPlainString()).append(")]\n");
         output.append("  }");
@@ -282,44 +298,40 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         log.info("{}", output);
     }
 
-    private void appendBlockStatistics(final StringBuilder sb, final BlockStats stats) {
-        final long initToOpenNanos = stats.openedNanosTick.get() - stats.initNanosTick;
-        final long openToCloseNanos = stats.closedNanosTick.get() - stats.openedNanosTick.get();
-        final long openToEndSentNanos = stats.endSentNanosTicks.get().end - stats.openedNanosTick.get();
-        final long openToAckNanos = stats.ackedNanosTick.get() - stats.openedNanosTick.get();
-        final long closedToAckNanos = stats.ackedNanosTick.get() - stats.closedNanosTick.get();
-        final long headerProducedToAckNanos = stats.ackedNanosTick.get() - stats.headerSentNanosTicks.get().start;
-        final long headerSentToAckNanos = stats.ackedNanosTick.get() - stats.headerSentNanosTicks.get().end;
-        final long endSentToAckNanos = stats.ackedNanosTick.get() - stats.endSentNanosTicks.get().end;
-        final long headerSentToEndSentNanos = stats.endSentNanosTicks.get().end - stats.headerSentNanosTicks.get().end;
-        final long openToProofAddedNanos = stats.proofAddedNanosTick.get() - stats.openedNanosTick.get();
-        final long openToProofCreatedNanos = stats.proofCreatedNanosTick.get() - stats.openedNanosTick.get();
-
-        sb.append("  BlockTimingData {\n");
-        sb.append("    [(Name:Block#").append(stats.blockNumber).append(")(Unit:NANOS)");
-        sb.append("(I2O:").append(initToOpenNanos).append(")"); // I2O = Init-2-Open
-        sb.append("(O2Pc:").append(openToProofCreatedNanos).append(")"); // O2Pc = Open-2-Proof Created
-        sb.append("(O2Pa:").append(openToProofAddedNanos).append(")"); // O2Pa = Open-2-Proof Added
-        sb.append("(O2C:").append(openToCloseNanos).append(")"); // O2C = Open-2-Close
-        sb.append("(O2Es:").append(openToEndSentNanos).append(")"); // O2E = Open-2-End Sent
-        sb.append("(O2A:").append(openToAckNanos).append(")"); // O2A = Open-2-Ack
-        sb.append("(E2A:").append(endSentToAckNanos).append(")"); // E2A = End-2-Ack
-        sb.append("(C2A:").append(closedToAckNanos).append(")"); // C2A = Close-2-Ack
-        sb.append("(Hp2A:").append(headerProducedToAckNanos).append(")"); // Hp2A = Header Produced-2-Ack
-        sb.append("(Hs2Es:").append(headerSentToEndSentNanos).append(")"); // Hs2Es = Header Sent-2-End Sent
-        sb.append("(Hs2A:").append(headerSentToAckNanos).append(")"); // Hs2A = Header Sent-2-Ack
-        sb.append("]\n");
-        sb.append("    ").append(stats.itemIdleProbe).append("\n");
-        sb.append("    ").append(stats.itemSendLatencyProbe).append("\n");
-        sb.append("    ").append(stats.itemSizeProbe).append("\n");
-        sb.append("  }");
-    }
-
     private BigDecimal round(final double d) {
         return BigDecimal.valueOf(d).setScale(3, RoundingMode.HALF_EVEN);
     }
 
     // ----------------
+
+    private static class BlockStatsAggregation {
+        private final LongProbe initToOpen = new LongProbe("BlockInitToOpen", ObsUnit.NANOS);
+        private final LongProbe openToClose = new LongProbe("BlockOpenToClose", ObsUnit.NANOS);
+        private final LongProbe openToEndSent = new LongProbe("BlockOpenToEndSent", ObsUnit.NANOS);
+        private final LongProbe openToAck = new LongProbe("BlockOpenToAck", ObsUnit.NANOS);
+        private final LongProbe closedToAck = new LongProbe("BlockClosedToAck", ObsUnit.NANOS);
+        private final LongProbe headerProducedToAck = new LongProbe("BlockHeaderProducedToAck", ObsUnit.NANOS);
+        private final LongProbe headerSentToAck = new LongProbe("BlockHeaderSentToAck", ObsUnit.NANOS);
+        private final LongProbe endSentToAck = new LongProbe("BlockEndSentToAck", ObsUnit.NANOS);
+        private final LongProbe headerSentToEndSent = new LongProbe("BlockHeaderSentToEndSent", ObsUnit.NANOS);
+        private final LongProbe openToProofAdded = new LongProbe("BlockOpenToProofAdded", ObsUnit.NANOS);
+        private final LongProbe openToProofCreated = new LongProbe("BlockOpenToProofCreated", ObsUnit.NANOS);
+
+
+        void add(final BlockStats blockStats) {
+            initToOpen.add(blockStats.initToOpen());
+            openToClose.add(blockStats.openToClose());
+            openToEndSent.add(blockStats.openToEndSent());
+            openToAck.add(blockStats.openToAck());
+            closedToAck.add(blockStats.closedToAck());
+            headerProducedToAck.add(blockStats.headerProducedToAck());
+            headerSentToAck.add(blockStats.headerSentToAck());
+            endSentToAck.add(blockStats.endSentToAck());
+            headerSentToEndSent.add(blockStats.headerSentToEndSent());
+            openToProofAdded.add(blockStats.openToProofAdded());
+            openToProofCreated.add(blockStats.openToProofCreated());
+        }
+    }
 
     private static class ThroughputBucket {
         private final long secondTick;
@@ -332,17 +344,17 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     }
 
     private static class SummingCounter {
-        private final AtomicLong count = new AtomicLong(0);
-        private final AtomicLong sum = new AtomicLong(0);
+        private final LongAdder count = new LongAdder();
+        private final LongAdder sum = new LongAdder();
 
         void add(final long value) {
-            count.incrementAndGet();
-            sum.addAndGet(value);
+            count.increment();
+            sum.add(value);
         }
 
         void add(final long countVal, final long sumVal) {
-            count.addAndGet(countVal);
-            sum.addAndGet(sumVal);
+            count.add(countVal);
+            sum.add(sumVal);
         }
     }
 
@@ -379,6 +391,50 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
             itemIdleProbe.aggregate();
             itemSendLatencyProbe.aggregate();
             itemSizeProbe.aggregate();
+        }
+
+        long initToOpen() {
+            return openedNanosTick.get() - initNanosTick;
+        }
+
+        long openToClose() {
+            return closedNanosTick.get() - openedNanosTick.get();
+        }
+
+        long openToEndSent() {
+            return endSentNanosTicks.get().end() - openedNanosTick.get();
+        }
+
+        long openToAck() {
+            return ackedNanosTick.get() - openedNanosTick.get();
+        }
+
+        long closedToAck() {
+            return ackedNanosTick.get() - closedNanosTick.get();
+        }
+
+        long headerProducedToAck() {
+            return ackedNanosTick.get() - headerSentNanosTicks.get().start();
+        }
+
+        long headerSentToAck() {
+            return ackedNanosTick.get() - headerSentNanosTicks.get().end();
+        }
+
+        long endSentToAck() {
+            return ackedNanosTick.get() - endSentNanosTicks.get().end();
+        }
+
+        long headerSentToEndSent() {
+            return endSentNanosTicks.get().end() - headerSentNanosTicks.get().end();
+        }
+
+        long openToProofAdded() {
+            return proofAddedNanosTick.get() - openedNanosTick.get();
+        }
+
+        long openToProofCreated() {
+            return proofCreatedNanosTick.get() - openedNanosTick.get();
         }
 
         boolean isAcked() {
