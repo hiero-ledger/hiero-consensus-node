@@ -48,6 +48,8 @@ Without the grace period, the controller transitions to `QUIESCE` the instant th
 
 The `gracePeriod` config knob (default `5s`) holds the controller in `DONT_QUIESCE` for that duration after the most recent observed activity. Short inter-transaction gaps no longer put the network to sleep; the time-jump-and-bulk-expiry pattern only fires after a real idle stretch.
 
+The grace period is also the lever that lets bundles tune *whether* `QUIESCE` is ever actually entered in their environment. The concurrent HAPI subtasks (`hapiTestMisc`, `hapiTestMiscRecords`, `hapiTestTimeConsuming`, `hapiTestAtomicBatch`) raise it to `30s` so the controller never crosses into `QUIESCE` during the boot-up gap before parallel specs start submitting — once they do, continuous ingest activity keeps the grace check satisfied indefinitely. The Serial variants and the dedicated quiescence subtask keep the 5s default and exercise the wake-up cycle for real.
+
 ## 4. Components
 
 |                  Class                  |                Layer                 |                                                                                       Role                                                                                        |

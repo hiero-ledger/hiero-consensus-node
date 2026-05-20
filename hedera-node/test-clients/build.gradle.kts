@@ -220,12 +220,20 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestWrapsDownload" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
+        // Concurrent subtasks (hapiTestMisc, hapiTestMiscRecords, hapiTestTimeConsuming,
+        // hapiTestAtomicBatch) keep quiescence.enabled=true but with a 30s grace period (vs the 5s
+        // default). Rationale: these run ~50 specs in parallel against a shared network. The only
+        // window where quiescence can actually fire is the boot-up gap before any test starts
+        // submitting — once specs are running, continuous ingest refreshes lastActivityAt and the
+        // controller stays in DONT_QUIESCE indefinitely. A 30s grace period covers the boot-up gap
+        // and avoids the wake-up storm that pushed individual tx receipts past the test client's
+        // hard-coded 90s status.wait.timeout.ms cutoff.
         "hapiTestMisc" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,quiescence.gracePeriod=30s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,quiescence.gracePeriod=30s,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
         // Superseded by the entry below which adds tss.initialCrsParties=8; the original
@@ -240,7 +248,7 @@ val prCheckPropOverrides =
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,quiescence.gracePeriod=30s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestMiscRecordsSerial" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestSimpleFees" to
@@ -248,7 +256,7 @@ val prCheckPropOverrides =
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
         "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,quiescence.gracePeriod=30s,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestQuiescence" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
