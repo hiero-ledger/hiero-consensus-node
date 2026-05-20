@@ -8,6 +8,9 @@ open module com.swirlds.virtualmap {
     // Currently, exported only for tests.
     exports com.swirlds.virtualmap.internal.merkle;
     exports com.swirlds.virtualmap.config;
+    exports com.swirlds.virtualmap.sync;
+    exports com.swirlds.virtualmap.sync.stats;
+    exports com.swirlds.virtualmap.sync.streams;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
