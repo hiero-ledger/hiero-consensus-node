@@ -30,6 +30,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +39,8 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
@@ -325,20 +328,23 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 // Determine block node mode from system property, default to REAL
                 final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                         .map(BlockNodeMode::valueOf)
-                        .orElse(BlockNodeMode.SIMULATOR);
+                        .orElse(BlockNodeMode.REAL);
                 log.info(
                         "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
                         writerMode,
                         blockNodeMode);
-                BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                final SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
+                final BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
                 blockNodeNetwork.getBlockNodeModeById().put(0L, blockNodeMode);
                 network.nodes().forEach(node -> {
                     blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                     blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                 });
+                if (blockNodeMode == BlockNodeMode.REAL) {
+                    blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
+                }
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
-                SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
                 subProcessNetwork.setBlockNodeMode(blockNodeMode);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
@@ -348,5 +354,20 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
             }
         }
+    }
+
+    public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {
+        final var sb = new StringBuilder("{\"nodeAddress\": [");
+        boolean first = true;
+        for (final Map.Entry<NodeId, KeysAndCerts> entry : nodeKeys.entrySet()) {
+            if (!first) sb.append(", ");
+            first = false;
+            final String hexKey = HexFormat.of()
+                    .formatHex(entry.getValue().sigKeyPair().getPublic().getEncoded());
+            sb.append("{\"nodeId\": ").append(entry.getKey().id());
+            sb.append(", \"RSAPubKey\": \"").append(hexKey).append("\"}");
+        }
+        sb.append("]}");
+        return sb.toString();
     }
 }
