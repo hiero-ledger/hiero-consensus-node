@@ -519,19 +519,22 @@ public class DataFileCompactor {
             @NonNull final CASableLongIndex index, final long key, final long oldLocation, final DataFileReader reader)
             throws IOException {
         final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(oldLocation);
-        // Even if the thread is interrupted, make sure the new compacted file is properly closed
-        // and is included to future compactions
+        // Take the lock. If a snapshot is started in a different thread, this call
+        // will block until the snapshot is done. The current file will be flushed,
+        // and current data file writer and reader will point to a new file
         snapshotCompactionLock.lock();
         try {
             final DataFileWriter newFileWriter = currentWriter.get();
             final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
             assert itemBytesWithTag != null;
+            // Check if the index was changed while this thread was reading data. If
+            // changed, there is no need to write the data as the following CAS call
+            // would fail anyway
             if (index.get(key) == oldLocation) {
                 final long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
                 index.putIfEqual(key, oldLocation, newLocation);
                 return newLocation;
             }
-            // the index was changed while this thread was reading data
             return NON_EXISTENT_DATA_LOCATION;
         } finally {
             snapshotCompactionLock.unlock();
