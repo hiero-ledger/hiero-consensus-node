@@ -5,16 +5,19 @@ of the form **context → decision → consequences**.
 
 This is the catalog of choices the team has deliberately made and wants future
 readers to understand without re-deriving the reasoning. Entries are
-independent and self-contained: one decision per entry. ADRs are linked to each
-other by ID (e.g., a `Superseded by` pointer in the body), not nested.
+independent and self-contained: one decision per entry. ADRs are linked to
+each other via the `related.decisions` field in frontmatter (e.g., a successor
+named under `related.decisions` for a `superseded` entry), not nested.
 
 - Entry format: see `FORMAT.md`.
+- Allowed `topics` values: see top-level `topics.md` (when established).
 
-Entries are born `Proposed` and become `Accepted` once the deciders have signed
-off. `Superseded` marks a decision replaced by a later ADR (name the successor
-in the body); `Deprecated` marks one that no longer applies because the
-underlying code or design has changed but no replacement decision exists. Treat
-`Status` as load-bearing — keep the row here and the body's `## Status` in sync.
+Entries are born `proposed` and become `accepted` once the deciders have
+signed off. `superseded` marks a decision replaced by a later ADR (name the
+successor under `related.decisions`); `deprecated` marks one that no longer
+applies because the underlying code or design has changed but no replacement
+decision exists. Treat `status` as load-bearing — keep the row here and the
+frontmatter `status:` in sync.
 
 ## Index
 
@@ -26,5 +29,5 @@ underlying code or design has changed but no replacement decision exists. Treat
 
 <!--
 Row convention, one line per entry, kept in ADR-NNN order:
-| [ADR-NNN](ADR-NNN-short-slug.md) | Title from entry's `# ADR:` heading | YYYY-MM-DD | Proposed|Accepted|Superseded|Deprecated | One or two sentences capturing what was decided and why. |
+| [ADR-NNN](ADR-NNN-short-slug.md) | Title from entry frontmatter | topic-slug[, topic-slug] | YYYY-MM-DD | proposed|accepted|superseded|deprecated | One or two sentences capturing what was decided and why. |
 -->
