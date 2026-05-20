@@ -287,7 +287,8 @@ public class DataFileCompactor {
                 filesToCompactSize,
                 newFilesCreated,
                 targetLevel,
-                dataFileCollection);
+                dataFileCollection,
+                totalCompactedBytes);
         logger.info(
                 MERKLE_DB.getMarker(),
                 "[{}] Finished compaction {} files / {} in {} ms",
