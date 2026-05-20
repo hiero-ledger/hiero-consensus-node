@@ -487,11 +487,21 @@ public class StateChangesValidator implements BlockStreamValidator {
                         "Cutover enabled but first post-cutover block has no BlockInfo with wrapped hashes");
             }
 
-            // Update startOfStateHash to reflect state after processing all preview blocks
-            final var previewState = state;
+            // Adopt the boundary block's footer.startOfBlockStateRootHash as our start-of-state
+            // hash for the first post-cutover block. Preview-only replay cannot land on the
+            // post-migration state hash (V0740BlockStreamSchema overwrites BlockStreamInfo at
+            // restart, before block #N publishes). Block #N's own state_changes carry the
+            // migration deltas, so the test's mutable state catches up to production by the
+            // end of #N; only the START-of-state hash needs the boundary override.
+            final var boundaryFooter = firstPostCutoverBlock.items().stream()
+                    .filter(BlockItem::hasBlockFooter)
+                    .findFirst()
+                    .map(BlockItem::blockFooterOrThrow)
+                    .orElseThrow(() -> new AssertionError(
+                            "First post-cutover block has no BlockFooter — cannot derive start-of-state hash"));
+            startOfStateHash = boundaryFooter.startOfBlockStateRootHash();
             this.state = stateLifecycleManager.copyMutableState();
-            startOfStateHash = requireNonNull(previewState.getRoot().getHash()).getBytes();
-            logger.info("State hash after preview blocks: {}", startOfStateHash.toHex());
+            logger.info("Adopted start-of-state hash from cutover boundary footer: {}", startOfStateHash.toHex());
         }
 
         final int n = blocks.size();
