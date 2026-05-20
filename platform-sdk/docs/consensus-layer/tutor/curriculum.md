@@ -39,7 +39,7 @@ entries:
       - architecture/topics/reconnect.md
       - architecture/topics/signed-state-management.md
       - architecture/topics/event-intake.md
-    status: not_started
+    status: drafted
   - id: pass1-03-coordinated-upgrade
     index: 3
     pass: 1
@@ -51,7 +51,7 @@ entries:
       - architecture/topics/restart-and-pces.md
       - architecture/topics/event-creator.md
       - architecture/topics/gossip.md
-    status: not_started
+    status: drafted
   - id: pass1-04-event-creation-under-stress
     index: 4
     pass: 1
@@ -62,7 +62,7 @@ entries:
       - architecture/topics/health-monitor-and-backpressure.md
       - architecture/topics/event-intake.md
       - architecture/topics/gossip.md
-    status: not_started
+    status: drafted
 
   # Cluster 0 — Wiring Framework Foundation
   - id: c0-01-task-schedulers-and-queues
