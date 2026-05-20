@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
-
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Base64;
