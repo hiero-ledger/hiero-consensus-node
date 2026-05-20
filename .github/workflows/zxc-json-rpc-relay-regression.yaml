@@ -201,105 +201,14 @@ jobs:
 
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-rpc-relay-lin-sm
     needs:
       - json-rpc-relay-regression
     if: ${{ always() }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          egress-policy: audit
-
-      - name: Build Slack Payload Message
-        id: payload
-        run: |
-          COLOR="#FF0000"
-          if [[ "${{ needs.json-rpc-relay-regression.result }}" == "success" ]]; then
-            COLOR="#00FF00"
-          elif [[ "${{ needs.json-rpc-relay-regression.result }}" == "cancelled" ]]; then
-            COLOR="#555555"
-          fi
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "${COLOR}",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":vertical_traffic_light: Hiero Consensus Node - JSON-RPC Relay Regression Test Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*JSON-RPC Relay Regression Panel was executed. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "JSON-RPC Relay Regression Panel Result"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.json-rpc-relay-regression.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
-
-      - name: Report Status to Detailed Test Reports Channel
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.slack-detailed-report-webhook }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+    uses: ./.github/workflows/zxc-slack-notify.yaml
+    with:
+      header-text: "Hiero Consensus Node - JSON-RPC Relay Regression Test Report"
+      result: ${{ needs.json-rpc-relay-regression.result }}
+      result-label: "JSON-RPC Relay Regression Panel Result"
+      ref: ${{ inputs.ref }}
+    secrets:
+      webhook: ${{ secrets.slack-detailed-report-webhook }}

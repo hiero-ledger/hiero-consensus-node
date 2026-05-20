@@ -112,6 +112,9 @@ on:
       slack-tck-report-webhook:
         description: "Slack TCK Report Webhook"
         required: false
+      slack-test-webhook:
+        description: "Slack Test Webhook"
+        required: true
     outputs:
       failure-mode:
         description: "Indicates the failure mode of the workflow"
