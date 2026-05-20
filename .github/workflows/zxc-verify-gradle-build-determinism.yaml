@@ -135,10 +135,12 @@ jobs:
       os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
         with:
-          egress-policy: audit
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
 
       - name: Set OS Matrix
         id: set-matrix
