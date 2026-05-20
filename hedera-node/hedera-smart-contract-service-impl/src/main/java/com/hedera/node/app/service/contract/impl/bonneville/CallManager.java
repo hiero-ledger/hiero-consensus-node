@@ -17,6 +17,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
@@ -270,7 +271,7 @@ public abstract class CallManager {
             .sender(sender)
             .value(value)
             .apparentValue(value)
-            .code(code)
+            .code(Code.EMPTY_CODE)
             .isStatic(isStatic)
             .completer(child0 -> {})
             .build();

@@ -74,8 +74,6 @@ public class AccessListTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        // TODO Glib: investigate accessList discount with BonnevilleEVM
-        //  lifecycle.overrideInClass(Map.of("contracts.evm.UseBonnevilleEVM", "true"));
         lifecycle.doAdhoc(
                 callerContract.getInfo(),
                 payer.getInfo(),
