@@ -1,4 +1,4 @@
-# ADR-003: Remove `SwirldsPlatform.performPcesRecovery()` and Drive Offline ISS Recovery On the Spot
+# ADR: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
 
 ## Status
 
@@ -7,8 +7,8 @@ Accepted
 ## Context
 
 A network-wide ISS (Inconsistent State Signature) can leave the network unable to make progress — no supermajority
-agrees on a single state, so the network cannot continue on its own. Recovery requires producing a fixed signed state
-from before the divergence, replaying the relevant PCES on top of it, dumping the result, and distributing that fixed
+agrees on a single state, so the network cannot continue on its own. Recovery requires starting with a fixed signed state
+from before the divergence, replaying the relevant PCES on top of it, dumping the resulting state, and distributing that fixed
 state back to all nodes.
 
 Historically, `SwirldsPlatform` carried two methods intended to support this flow:
@@ -16,28 +16,29 @@ Historically, `SwirldsPlatform` carried two methods intended to support this flo
 - `SwirldsPlatform.performPcesRecovery()` — a bootstrap entry point that wired up the recovery procedure end-to-end.
 - `SwirldsPlatform.replayPreconsensusEvents()` — an older replay entry point.
 
-Both have been removed. The replay entry point was superseded by
+Neither method had automated test coverage. The replay entry point was effectively superseded by
 `PcesModule.replayPcesEvents(pcesReplayLowerBound, startingRound)`
-(`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:357`), which is now the
-single, supported replay path. `performPcesRecovery()` was removed because **it had no automated tests** —
-recovery-time code that has never been exercised in CI is more dangerous than no code at all. A subtle regression in an
-untested recovery method would only surface during an emergency, at which point operators have no margin to diagnose
-and fix it.
+(`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java:357`), which is exercised
+by every normal startup. The recovery bootstrap was not exercised by anything: it sat in `SwirldsPlatform` as code that
+might or might not still work, and any regression in it would only surface during an emergency, at which point
+operators have no margin to diagnose and fix it.
 
-ISS-recovery events are also rare and not on a hot path. The platform team can write the small amount of glue code
-needed at the moment recovery is invoked, against the platform state of the day, with engineers present.
+ISS-recovery events are also rare and not on a hot path. The consensus team can write the small amount of glue code
+needed at the moment recovery is invoked, against the platform state of the day, with engineers present. Recovery is
+not a consensus-only operation: the execution team must also be involved to ensure the final record/block file is
+closed and written to disk aligned with the end of the resulting signed state.
 
 ## Decision
 
-**Remove `SwirldsPlatform.performPcesRecovery()` (and `replayPreconsensusEvents()`) from the platform.** Do not
-maintain a built-in, on-by-default entry point for offline ISS recovery.
+**Remove `SwirldsPlatform.performPcesRecovery()` and `SwirldsPlatform.replayPreconsensusEvents()` from the platform.**
+Do not maintain a built-in, on-by-default entry point for offline ISS recovery. When an ISS recovery is required, the
+consensus team writes a one-off driver at the moment of need, reusing the public components already exercised by
+normal startup, and coordinates with the execution team to align the record/block stream with the resulting signed
+state (see Step 5 below).
 
-When an ISS recovery is required, the platform team writes a one-off driver at the moment of need. The driver reuses
-the public components already exercised in normal startup — `PcesModule.replayPcesEvents`, `SignedStateNexus`,
-`PlatformCoordinator.dumpStateToDisk` — and stitches them together for the recovery flow. This ADR records the
-constraints any such driver must satisfy.
-
-## Procedure for an on-the-spot recovery driver
+The recipe below records the minimum constraints any such driver must satisfy. It is included in the Decision because
+it *is* the mechanism: the decision to not ship recovery code only holds up if the path that replaces it is documented
+clearly enough that a present engineer can write it correctly under pressure.
 
 ### Prerequisites
 
@@ -105,10 +106,26 @@ constraints any such driver must satisfy.
 
 - The replay path itself (`PcesModule.replayPcesEvents`) is exercised by normal startup, so the most complex piece of
   the recovery flow remains covered. The pieces removed were only the bootstrap glue.
+- **Future-state expectation.** The
+  [`Consensus-Layer.md`](../../proposals/consensus-layer/Consensus-Layer.md) proposal places state-saving and
+  lifecycle on the Execution side of the consensus/execution boundary. The recipe above achieves the state dump by
+  mutating platform startup directly inside the consensus-node bootstrap, which conflicts with that split. Aligning
+  the on-the-spot driver with the proposed boundary is out of scope for this ADR and should be revisited when the
+  lifecycle-ownership move lands; until then, a recovery driver written today follows the recipe above.
 
 ## Alternatives Considered
 
-### 1. Keep `performPcesRecovery()` and add tests
+### 1. Status quo — keep `performPcesRecovery()` as-is
+
+Leave both methods in `SwirldsPlatform` untouched, untested, and unmaintained.
+
+**Rejected because:**
+
+- An untested recovery code path is worse than no code path: a regression hides until an incident exposes it, at which
+  point operators must debug recovery code under time pressure.
+- The method's surface drifts with startup and state-management refactors; without tests, drift is invisible.
+
+### 2. Keep `performPcesRecovery()` and add tests
 
 Retain the existing method and invest in CI coverage that exercises it end-to-end.
 
@@ -116,11 +133,10 @@ Retain the existing method and invest in CI coverage that exercises it end-to-en
 
 - Realistic end-to-end recovery tests are expensive to build and maintain (state file fixtures, PCES file fixtures,
   coordination with execution-side block-file alignment).
-- The method's surface drifts with startup and state-management changes; tests would need ongoing maintenance to keep
-  pace.
-- Even with tests, the method is invoked so rarely that operators would still need to relearn it at incident time.
+- Even with tests, the method is invoked so rarely that operators would still need to relearn it at incident time —
+  the testing investment buys regression coverage but not operator readiness.
 
-### 2. Maintain a separate recovery driver module
+### 3. Maintain a separate recovery driver module
 
 Extract the recovery flow into its own module with its own owner, kept in lockstep with platform changes.
 
@@ -129,25 +145,20 @@ Extract the recovery flow into its own module with its own owner, kept in lockst
 - Creates a parallel artifact that must track platform internals it does not otherwise depend on.
 - Same drift and staleness risk as keeping the method, plus the cost of a new module boundary.
 
-### 3. Remove the method; write on the spot (selected)
+### 4. Remove the methods; write on the spot (selected)
 
 See **Decision** above.
 
-## Future state
-
-The [Consensus-Layer.md](../../proposals/consensus-layer/Consensus-Layer.md) proposal places state-saving and
-lifecycle on the Execution side of the consensus/execution boundary. The current recovery procedure achieves the state
-dump by mutating platform startup directly inside the consensus-node bootstrap, which conflicts with that split.
-Aligning an on-the-spot recovery driver with the proposed boundary is out of scope for this ADR; it should be
-revisited when the lifecycle-ownership move lands.
-
 ## References
 
-- Related: [`restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the architecture topic that owns the
-  PCES write/replay path; carries a one-line pointer back to this ADR.
-- Related: [`../../core/pces-disaster-recovery.md`](../../core/pces-disaster-recovery.md) — the older source doc whose
-  procedure has been migrated into this ADR. The references in that doc to `SwirldsPlatform.performPcesRecovery()` and
+- [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the architecture topic
+  that owns the PCES write/replay path; carries a one-line pointer back to this ADR for the recovery procedure.
+- [`../../core/pces-disaster-recovery.md`](../../core/pces-disaster-recovery.md) — the older source doc whose recipe
+  has been migrated into this ADR. References in that doc to `SwirldsPlatform.performPcesRecovery()` and
   `SwirldsPlatform.replayPreconsensusEvents()` are stale.
+- [`../../proposals/consensus-layer/Consensus-Layer.md`](../../proposals/consensus-layer/Consensus-Layer.md) — the
+  proposal that moves state-saving and lifecycle to the Execution side; relevant context for any future revision of
+  the recovery driver, as noted under **Neutral** consequences.
 
 ## Authors / Deciders
 
