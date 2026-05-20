@@ -10,20 +10,20 @@ For the structural contract — file naming, ID conventions, catalog formats, th
 
 ## What's here
 
-|      Path       | Contents |
-|-----------------|----------|
+|      Path       |                                                                                Contents                                                                                 |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `architecture/` | Topic-organized lens on the consensus layer: `overview.md`, one file per topic in `topics/`, and module-boundary APIs in `interfaces/`. The recommended starting point. |
-| `concepts/`     | Foundational mental models — hashgraph DAG, rounds and witnesses, strongly-seeing, judges, birth round, voting, coin rounds, event lifecycle, stale events. |
-| `glossary.md`   | Consensus-specific vocabulary. |
-| `symptoms.md`   | Controlled vocabulary of observable symptoms (`SYM-NNN`), referenced by `scenarios/` and `heuristics/`. |
-| `tunables.md`   | Catalog of configurable parameters with effects, ranges, and fragility. |
-| `decisions/`    | Per-file ADRs (`ADR-NNN`) — why a load-bearing choice was made and what was considered. |
-| `invariants/`   | Per-file design-guaranteed properties (`INV-NNN`) — claims that hold under any correct implementation. |
-| `rules/`        | Per-file implementation-true properties (`RUL-NNN`) — claims that hold for the code as it stands, anchored to a verifying commit. |
-| `scenarios/`    | Per-file edge cases, near-misses, and historical incidents (`SCN-NNN`) with timeline, observable signature, and mitigation. |
-| `heuristics/`   | Per-file diagnostic patterns (`HEU-NNN`): observable symptom → suspected cause → validation. |
-| `delta-map/`    | Per-topic status of current code vs. proposed design — done, partial, not started, or divergent. |
-| `tutor/`        | Curriculum content for learners new to the consensus layer. |
+| `concepts/`     | Foundational mental models — hashgraph DAG, rounds and witnesses, strongly-seeing, judges, birth round, voting, coin rounds, event lifecycle, stale events.             |
+| `glossary.md`   | Consensus-specific vocabulary.                                                                                                                                          |
+| `symptoms.md`   | Controlled vocabulary of observable symptoms (`SYM-NNN`), referenced by `scenarios/` and `heuristics/`.                                                                 |
+| `tunables.md`   | Catalog of configurable parameters with effects, ranges, and fragility.                                                                                                 |
+| `decisions/`    | Per-file ADRs (`ADR-NNN`) — why a load-bearing choice was made and what was considered.                                                                                 |
+| `invariants/`   | Per-file design-guaranteed properties (`INV-NNN`) — claims that hold under any correct implementation.                                                                  |
+| `rules/`        | Per-file implementation-true properties (`RUL-NNN`) — claims that hold for the code as it stands, anchored to a verifying commit.                                       |
+| `scenarios/`    | Per-file edge cases, near-misses, and historical incidents (`SCN-NNN`) with timeline, observable signature, and mitigation.                                             |
+| `heuristics/`   | Per-file diagnostic patterns (`HEU-NNN`): observable symptom → suspected cause → validation.                                                                            |
+| `delta-map/`    | Per-topic status of current code vs. proposed design — done, partial, not started, or divergent.                                                                        |
+| `tutor/`        | Curriculum content for learners new to the consensus layer.                                                                                                             |
 
 ## Finding your way
 

@@ -13,16 +13,16 @@ One file per topic, eleven topics total. Each file states the topic's status, th
 
 ## Index
 
-| Topic | Status | Summary |
-|---|---|---|
-| `wiring-framework.md` | not started | |
-| `gossip.md` | not started | |
-| `event-intake.md` | not started | |
-| `event-creator.md` | not started | |
-| `hashgraph.md` | not started | |
-| `health-monitor-and-backpressure.md` | not started | |
-| `reasons-not-to-gossip.md` | not started | |
-| `signed-state-management.md` | not started | |
-| `restart-and-pces.md` | not started | |
-| `freeze-and-upgrade.md` | not started | |
-| `reconnect.md` | not started | |
+|                Topic                 |   Status    | Summary |
+|--------------------------------------|-------------|---------|
+| `wiring-framework.md`                | not started |         |
+| `gossip.md`                          | not started |         |
+| `event-intake.md`                    | not started |         |
+| `event-creator.md`                   | not started |         |
+| `hashgraph.md`                       | not started |         |
+| `health-monitor-and-backpressure.md` | not started |         |
+| `reasons-not-to-gossip.md`           | not started |         |
+| `signed-state-management.md`         | not started |         |
+| `restart-and-pces.md`                | not started |         |
+| `freeze-and-upgrade.md`              | not started |         |
+| `reconnect.md`                       | not started |         |
