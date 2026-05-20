@@ -107,9 +107,9 @@ Selected. See **Decision** above.
 
 ## References
 
-- Related: [`pces-disaster-recovery.md`](../core/pces-disaster-recovery.md) — describes the recovery
+- Related: [`pces-disaster-recovery.md`](../../core/pces-disaster-recovery.md) — describes the recovery
   procedure that consumes PCES files alongside a signed state.
-- Related: [`signed-state-snapshot-spec.md`](../core/signed-state-snapshot-spec.md) — describes the
+- Related: [`signed-state-snapshot-spec.md`](../../core/signed-state-snapshot-spec.md) — describes the
   on-disk layout of a signed state directory, including its PCES sub-tree.
 
 ## Authors / Deciders

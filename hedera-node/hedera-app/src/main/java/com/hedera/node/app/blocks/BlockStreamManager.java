@@ -88,10 +88,8 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. For migration scenarios, the last
-     * block hash should be the migrated block hash from {@link BlockStreamService#migratedLastBlockHash()}.
-     * In all other cases, this value should be null, and the method should calculate it from the intermediate
-     * subtree states.
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use
      * @param lastBlockHash the hash of the last block

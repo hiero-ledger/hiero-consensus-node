@@ -306,6 +306,35 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testLoadConfiguration_unknownFieldsIgnored() throws Throwable {
+        // Forward-compat: unknown/removed fields must not fail the parse.
+        writeConfig("""
+                {
+                    "topLevelUnknownField": 42,
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 1,
+                            "futureFieldFromNewerVersion": "ignored"
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.versionNumber()).isEqualTo(1L);
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.address()).isEqualTo("localhost");
+        assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
+        assertThat(nodeConfig.priority()).isEqualTo(1);
+    }
+
+    @Test
     void testLoadConfiguration_emptyConfigs() throws Throwable {
         // write an empty config file
         writeConfig("""

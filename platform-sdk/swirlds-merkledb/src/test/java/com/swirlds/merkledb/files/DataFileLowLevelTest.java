@@ -31,12 +31,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-@SuppressWarnings("SameParameterValue")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DataFileLowLevelTest {
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     static Path tempFileDir;
 
@@ -125,16 +123,11 @@ class DataFileLowLevelTest {
                 "test_" + testType.name(), tempFileDir, DATA_FILE_INDEX, TEST_START, INITIAL_COMPACTION_LEVEL);
         LongArrayList listOfDataItemLocations = new LongArrayList(ITEMS_SIZE);
         for (int i = 0; i < ITEMS_SIZE; i++) {
-            long[] dataValue;
-            switch (testType) {
-                default:
-                case fixed:
-                    dataValue = new long[] {i, i + 10_000};
-                    break;
-                case variable:
-                    dataValue = getVariableSizeDataForI(i);
-                    break;
-            }
+            long[] dataValue =
+                    switch (testType) {
+                        case variable -> getVariableSizeDataForI(i);
+                        default -> new long[] {i, i + 10_000};
+                    };
 
             listOfDataItemLocations.add(storeDataItem(writer, dataValue));
         }

@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -28,7 +29,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
@@ -134,6 +138,7 @@ public class BlockStreamRecoveryWorkflow {
                         getPlatformContext().getFileSystemManager());
 
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
+        validateNoMissingBlocks(blockStreamDirectory);
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow = new BlockStreamRecoveryWorkflow(
                 stateLifecycleManager, targetRound, outputPath, expectedHash, roundsPerSecond);
@@ -155,6 +160,12 @@ public class BlockStreamRecoveryWorkflow {
         final RateLimiter rateLimiter = roundsPerSecond < Integer.MAX_VALUE
                 ? new RateLimiter(platformContext.getTime(), roundsPerSecond)
                 : null;
+
+        // Progress reporting: percentage-based when targetRound is known, count-based otherwise
+        final boolean bounded = targetRound != DEFAULT_TARGET_ROUND;
+        final ProgressReporter progress = bounded
+                ? new ProgressReporter("Block stream recovery", targetRound - initRound)
+                : new ProgressReporter("Block stream recovery", 1); // unbounded fallback
 
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
@@ -193,6 +204,11 @@ public class BlockStreamRecoveryWorkflow {
                         // requestAndTrigger() always succeeds .
                         rateLimit(rateLimiter);
                         currentRound.incrementAndGet();
+                        if (bounded) {
+                            progress.advance(1);
+                        } else {
+                            progress.advanceUnbounded(1);
+                        }
                     }
                 }
 
@@ -244,6 +260,58 @@ public class BlockStreamRecoveryWorkflow {
             throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
                     .formatted(expectedRootHash, rootHash));
         }
+    }
+
+    /**
+     * Validates that block files in the given directory form a contiguous sequence with no gaps.
+     * This provides an early, descriptive failure when block files are missing from the directory,
+     * rather than deferring to a cryptic hash mismatch or an unclear round-number error later in
+     * the workflow.
+     *
+     * @param blockStreamDirectory the directory containing block stream files
+     * @throws IOException if an I/O error occurs while listing files
+     * @throws RuntimeException if missing block files are detected
+     */
+    private static void validateNoMissingBlocks(@NonNull final Path blockStreamDirectory) throws IOException {
+        final List<Long> blockNumbers;
+        try (var stream = Files.walk(blockStreamDirectory)) {
+            blockNumbers = stream.filter(p -> BlockStreamAccess.isBlockFile(p, false))
+                    .map(BlockStreamAccess::extractBlockNumber)
+                    .filter(n -> n != -1)
+                    .sorted()
+                    .toList();
+        }
+
+        if (blockNumbers.size() < 2) {
+            return;
+        }
+
+        final List<Long> missingBlocks = new ArrayList<>();
+        for (int i = 1; i < blockNumbers.size(); i++) {
+            final long prev = blockNumbers.get(i - 1);
+            final long curr = blockNumbers.get(i);
+            for (long missing = prev + 1; missing < curr; missing++) {
+                missingBlocks.add(missing);
+            }
+        }
+
+        if (!missingBlocks.isEmpty()) {
+            throw new RuntimeException(("Block stream directory is missing %d block file(s). "
+                            + "First present block = %d, last present block = %d. Missing blocks: %s")
+                    .formatted(
+                            missingBlocks.size(),
+                            blockNumbers.getFirst(),
+                            blockNumbers.getLast(),
+                            missingBlocks.size() <= 20
+                                    ? missingBlocks.toString()
+                                    : missingBlocks.subList(0, 20) + " ... (" + missingBlocks.size() + " total)"));
+        }
+
+        log.info(
+                "Block file contiguity validated: {} block files present, range [{}, {}]",
+                blockNumbers.size(),
+                blockNumbers.getFirst(),
+                blockNumbers.getLast());
     }
 
     /**

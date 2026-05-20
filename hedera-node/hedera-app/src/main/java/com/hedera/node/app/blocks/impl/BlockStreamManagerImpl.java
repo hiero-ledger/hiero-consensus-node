@@ -126,6 +126,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ForkJoinPool executor;
     private final String diskNetworkExportFile;
     private final DiskNetworkExport diskNetworkExport;
+    private final boolean diskNetworkExportTss;
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -263,6 +264,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
+        this.diskNetworkExportTss = networkAdminConfig.diskNetworkExportTss();
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
@@ -808,11 +810,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
+                final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
+                if (diskNetworkExportTss) {
+                    log.warn("Including dev-only TSS private key material in exported network info");
+                    infoTypes.add(InfoType.TSS);
+                }
                 log.info(
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
+                DiskStartupNetworks.writeNetworkInfo(
+                        state,
+                        exportPath,
+                        infoTypes,
+                        configProvider.getConfiguration(),
+                        platform.getSelfId().id());
             }
 
             // Clear the eventIndexInBlock map for the next block
@@ -1434,33 +1446,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {
-        Instant earliestEventTimestamp = null;
         for (final ConsensusEvent consensusEvent : round) {
-            // Find the earliest event timestamp in the round (possibly needed later)
-            if (earliestEventTimestamp == null) {
-                final var eventTimestamp = consensusEvent.getConsensusTimestamp();
-                if (eventTimestamp != null
-                        && eventTimestamp.isAfter(Instant.EPOCH)
-                        && eventTimestamp.isBefore(round.getConsensusTimestamp())) {
-                    earliestEventTimestamp = eventTimestamp;
-                }
-            }
-
-            // Iterate through the transactions in the event to find the first consensus timestamp. If found, return it
-            // immediately.
-            final var consensusIt = consensusEvent.consensusTransactionIterator();
-            if (consensusIt.hasNext()) {
-                return consensusIt.next().getConsensusTimestamp();
+            final var eventTimestamp = consensusEvent.getConsensusTimestamp();
+            if (eventTimestamp != null && eventTimestamp.isAfter(Instant.EPOCH)) {
+                return eventTimestamp;
             }
         }
-
-        // If the round has no transactions, but we found an earliest event timestamp, return the earliest event
-        // timestamp
-        if (earliestEventTimestamp != null) {
-            return earliestEventTimestamp;
-        }
-
-        // If the round has no event timestamps, return the round's timestamp
+        // No events with valid timestamps; fall back to round's consensus timestamp
         return round.getConsensusTimestamp();
     }
 
