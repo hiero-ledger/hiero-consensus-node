@@ -72,7 +72,7 @@ entries:
     title: Task schedulers and queues
     source_topics:
       - architecture/topics/wiring-framework.md
-    status: not_started
+    status: drafted
   - id: c0-02-soldering-and-wires
     index: 6
     pass: 2
