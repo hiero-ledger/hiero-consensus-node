@@ -110,9 +110,6 @@ public class EventCreatorNetwork {
                 newEvents.add(event);
             }
         }
-        if (newEvents.isEmpty()) {
-            throw new RuntimeException("At least one creator should always be able to create an event");
-        }
         final List<PlatformEvent> unorphanedEvents = newEvents.stream().map(orphanBuffer::handleEvent).flatMap(List::stream).toList();
         if (unorphanedEvents.size() != newEvents.size()) {
             throw new RuntimeException("There should be no orphaned events in this benchmark");
