@@ -62,6 +62,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     private final Bytes expectedRootHashBytes;
     private final Path pathToNode0SwirldsLog;
 
+    @Nullable
+    private final Path preservedPreviewBlocksDir;
+
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
 
     private Instant lastStateChangesTime;
@@ -118,13 +121,24 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        return new BinaryStateChangesValidator(rootHash, node0.getExternalPath(SWIRLDS_LOG));
+        final var preservedDir =
+                node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
+        final var preservedPreviewBlocksDir = Files.isDirectory(preservedDir) ? preservedDir : null;
+        return new BinaryStateChangesValidator(rootHash, node0.getExternalPath(SWIRLDS_LOG), preservedPreviewBlocksDir);
     }
 
     public BinaryStateChangesValidator(
             @NonNull final Bytes expectedRootHashBytes, @NonNull final Path pathToNode0SwirldsLog) {
+        this(expectedRootHashBytes, pathToNode0SwirldsLog, null);
+    }
+
+    public BinaryStateChangesValidator(
+            @NonNull final Bytes expectedRootHashBytes,
+            @NonNull final Path pathToNode0SwirldsLog,
+            @Nullable final Path preservedPreviewBlocksDir) {
         this.expectedRootHashBytes = requireNonNull(expectedRootHashBytes);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
+        this.preservedPreviewBlocksDir = preservedPreviewBlocksDir;
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
@@ -136,9 +150,16 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Beginning binary replay validation of expected root hash {}", expectedRootHashBytes);
-        // Preview blocks reach this validator through the input list (StreamValidationOp walks the
-        // *-preview-archive sibling produced at cutover, see issue 25424). Skip the separate read
-        // of the JumpstartFileSuite preserved-preview copy to avoid double-applying state changes.
+        if (preservedPreviewBlocksDir != null) {
+            logger.info("Cutover detected — replaying preserved preview blocks from {}", preservedPreviewBlocksDir);
+            final var previewBlocks =
+                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
+            logger.info(
+                    "Replaying {} preserved preview blocks before {} post-cutover blocks",
+                    previewBlocks.size(),
+                    blocks.size());
+            applyBlocks(previewBlocks);
+        }
         applyBlocks(blocks);
         logger.info("Summary of binary-applied changes by state:\n{}", stateChangesSummary);
 

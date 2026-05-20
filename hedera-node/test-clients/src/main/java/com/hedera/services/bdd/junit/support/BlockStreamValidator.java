@@ -36,6 +36,20 @@ public interface BlockStreamValidator {
         }
 
         /**
+         * Returns true if this validator wants pre-cutover preview blocks (archived by
+         * {@link com.hedera.node.app.blocks.schemas.V0740BlockStreamSchema} into a
+         * {@code *-preview-archive} sibling at cutover) included in its input list. Defaults
+         * to {@code false} — only validators that consume the event chain across the cutover
+         * boundary (e.g. {@link com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator})
+         * need them. Other validators receive only the active (post-cutover) blocks; if they
+         * need pre-cutover content for state replay, they read it from the test harness's
+         * {@code preservedPreviewBlocks} snapshot instead.
+         */
+        default boolean wantsArchiveBlocks() {
+            return false;
+        }
+
+        /**
          * Creates a new {@link BlockStreamValidator} for the given {@link HapiSpec}.
          * @param spec the spec
          * @return the validator

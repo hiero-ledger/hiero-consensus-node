@@ -58,6 +58,11 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         }
 
         @Override
+        public boolean wantsArchiveBlocks() {
+            return true;
+        }
+
+        @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
             final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
