@@ -281,6 +281,7 @@ jobs:
       hedera-tests-enabled: true
       use-branch-for-slack-channel: false
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+      java-version: ${{ inputs.java-distribution }}
     secrets:
       access-token: ${{ secrets.platform-access-token }}
       jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
@@ -292,7 +293,6 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
       grafana-agent-username: ${{ secrets.grafana-agent-username }}
       grafana-agent-password: ${{ secrets.grafana-agent-password }}
-      java-version: ${{ inputs.java-distribution }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
