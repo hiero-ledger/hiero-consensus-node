@@ -89,14 +89,14 @@ jobs:
         id: gradle-integration-tests
         run: ${GRADLE_EXEC} testIntegration
 
-#      - name: Publish Integration Test Report
-#        id: publish-test-report
-#        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
-#        with:
-#          check_name: "Node: Integration Test Results"
-#          json_thousands_separator: ","
-#          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
-#          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+      #      - name: Publish Integration Test Report
+      #        id: publish-test-report
+      #        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+      #        with:
+      #          check_name: "Node: Integration Test Results"
+      #          json_thousands_separator: ","
+      #          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
+      #          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Integration Test Report Artifacts
         id: upload-test-report-artifacts
