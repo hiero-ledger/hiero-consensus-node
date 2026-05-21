@@ -53,7 +53,7 @@ tasks:
       - task: "solo:keys"
       - task: "solo:network:deploy"
       - task: "solo:node:setup"
-      - task: "start"
+      #- task: "start"
 
   destroy:
     cmds:

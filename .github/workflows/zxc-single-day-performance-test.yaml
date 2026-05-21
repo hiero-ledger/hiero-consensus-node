@@ -585,12 +585,41 @@ jobs:
           done
           sleep 30
 
-      - name: Start CNs
+      - name: Deploy CNs
         run: |
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
           task installCNs
+
+      - name: Generate RSARoster
+        run: |
+          genesisFile=$(find $HOME/.solo -type f -name 'genesis-network.json')
+          bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+          jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+
+      - name: Update BlockNodes
+        run: |
+
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "mkdir -p /opt/hiero/block-node/node"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
+              ${pod}:/opt/hiero/block-node/node/rsa-bootstrap-roster.json
+
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "find /opt/hiero/block-node/data -type f -exec rm -f {} \;" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "nohup bash /opt/hiero/block-node/app*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+          done
+
+      - name: Start CNs
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          task start
 
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
