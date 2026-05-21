@@ -23,7 +23,7 @@ jobs:
         with:
           checkout: "true"
           checkout-fetch-depth: 1
-          checkout-token: "${{ github.token }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-distribution: "temurin"
           java-version: "25.0.2"

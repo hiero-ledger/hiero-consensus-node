@@ -63,7 +63,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
           checkout-fetch-depth: "0"
 
       - name: Resolve Workflow Reference
