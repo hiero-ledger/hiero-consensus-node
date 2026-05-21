@@ -6,7 +6,7 @@ on:
       ref:
         description: "The commit sha, tag, or branch to check out"
         type: string
-      branch_name:
+      branch-name:
         type: string
         description: "The branch name, for JRS Panel output"
       enable-timing-sensitive-test-suite:
@@ -141,7 +141,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -160,7 +160,7 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "25"
+      java-version: "25.0.2"
       java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -262,7 +262,7 @@ jobs:
     with:
       custom-job-name: "${{ inputs.custom-job-label }} Abbrev Update Test"
       ref: ${{ needs.commit-info.outputs.sha }}
-      branch-name: ${{ inputs.branch_name }}
+      branch-name: ${{ inputs.branch-name }}
       hedera-tests-enabled: true
       use-branch-for-slack-channel: false
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
@@ -362,7 +362,7 @@ jobs:
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode
