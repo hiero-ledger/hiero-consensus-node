@@ -50,7 +50,7 @@ and output wires. It does not hold algorithm state itself.
 orchestrates one `addEvent` cycle. Its fields are the module's working
 state at runtime:
 
-- `linker: ConsensusLinker` — attaches parent events to each incoming event (instead of a parent descriptor).
+- `linker: ConsensusLinker` — creates a wrapper that holds consensus metadata and attaches parent events to each incoming event (instead of a parent descriptor).
 - `consensus: Consensus` (impl
   [`ConsensusImpl`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java))
   — the core consensus algorithm that calculates round / witness / fame / judge state.

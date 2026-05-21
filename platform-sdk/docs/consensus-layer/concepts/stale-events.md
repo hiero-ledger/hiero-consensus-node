@@ -11,7 +11,7 @@ last_reviewed: TBD
 
 A *stale event* in current code is an event that was admitted to the
 hashgraph and then aged past the ancient threshold without ever
-reaching consensus on this node. By definition, a stale event did
+reaching consensus. By definition, a stale event did
 not reach consensus and never will — its transactions are not part
 of the consensus order anywhere in the network. Stale is a *fate*,
 not one of the [event lifecycle](event-lifecycle.md) states: the
@@ -32,11 +32,20 @@ guarantee that every node sees the
 same stale set; the stale-events output is a local-observation
 stream.
 
-The fate matters mostly for self-events. Their transactions never
-became part of the consensus order, so the application can resubmit
-them on a fresh self-event. Stale reports for events authored by
-other creators are informational; the local node does not own those
-transactions.
+The fate matters in two distinct cases. First, for self-events: the
+transactions never became part of the consensus order, so the
+application can resubmit them on a fresh self-event. Stale reports for
+events authored by other creators are informational at this level —
+the local node does not own their transactions.
+
+Second, for any event — self- or peer-authored — that has already been
+routed to Execution's prehandle, the stale outcome must be reported
+through to Execution as well.
+This routing requirement is critical under
+[quiescence](../architecture/topics/quiescence.md). An event that was
+dropped as ancient before ever reaching prehandle does not need to be
+reported; only events Execution already saw on the prehandle path need
+a corresponding stale notification.
 
 ## Mechanics
 

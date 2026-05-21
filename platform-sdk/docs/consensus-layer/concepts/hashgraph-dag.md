@@ -12,7 +12,7 @@ last_reviewed: TBD
 The hashgraph is, formally, a directed acyclic graph (DAG) whose
 vertices are events and whose edges are parent references. Each event
 has at most one *self-parent* (the previous event by the same
-creator) and one or more *other-parents* (events by peers that the
+creator) and zero or more *other-parents* (events by peers that the
 creator just gossiped with). The data model supports an arbitrary
 number of other-parents; the current default configuration caps it at
 one (`EventCreationConfig.maxOtherParents` defaults to `1`), but the

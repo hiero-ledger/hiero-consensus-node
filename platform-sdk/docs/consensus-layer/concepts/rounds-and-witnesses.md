@@ -9,15 +9,22 @@ last_reviewed: TBD
 
 ## Definition
 
-Each event has two distinct round quantities. Keeping them separate
-matters because one of them is mutable during the algorithm's working
-phase and the other is not.
+For the purposes of the consensus algorithm, each event has two
+distinct round quantities. Keeping them separate matters because one of
+them is mutable during the algorithm's working phase and the other is
+not. (Events also carry a third round value, *birth round*, stamped at
+creation and used for ancient filtering and roster lookup rather than
+by the consensus algorithm itself — see [`birth-round.md`](birth-round.md).)
 
-- *Round-created* — the round in which an event was created, computed
-  from the event's parents and the strongly-seeing relationship over
-  prior witnesses. Round-created is a property of the event in the
-  hashgraph but is not final: it can be **recalculated** as earlier
-  rounds decide, and an event's round-created may change.
+- *Round-created* — also called *voting round*; the latter is the
+  more accurate name, because this value is not the wall-clock round
+  during which the event was created but a temporary per-event round
+  number computed for the sole purpose of identifying witnesses and
+  electing judges. It is derived from the event's parents and the
+  strongly-seeing relationship over prior witnesses. It is a property
+  of the event in the hashgraph but is not final: it can be
+  **recalculated** as earlier rounds decide, and an event's
+  round-created may change.
 - *Round-received* (also called the *consensus round*; both terms
   refer to the same quantity, and different parts of the code and
   these docs use both interchangeably) — the round in which the event
@@ -61,7 +68,7 @@ still has any witness whose fame is undecided; the code calls this
 `ConsensusRounds.getElectionRoundNumber`, and `isElectionRound(r)`
 is just `getElectionRoundNumber() == r`. Any round whose
 round-created is strictly greater than the election round is a
-*voting round*. All voting rounds are labelled the same way, but
+*voting round*. All voting rounds are labeled the same way, but
 they play different roles depending on how far they are above the
 election round:
 

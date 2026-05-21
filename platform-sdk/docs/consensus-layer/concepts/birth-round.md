@@ -10,18 +10,33 @@ last_reviewed: TBD
 ## Definition
 
 An event's *birth round* is a round number stamped on the event when
-its creator builds it: the round the creator is
-currently working on reaching consensus for. Birth round is immutable per event and travels
-with it through gossip, intake, and consensus.
+its creator builds it: the *pending consensus round* — the round the
+creator is currently working on reaching consensus for, equal to the
+latest decided consensus round + 1. Birth round is immutable per event
+and travels with it through gossip, intake, and consensus.
 
 ## Mechanics
 
 The hashgraph uses birth round to decide what enters and stays in the
-DAG. Events whose birth round is below the current ancient threshold
+DAG. Because events are given a birth round equal to the creator's pending consensus round at the time of creation, it
+must be possible to reach consensus on the previous round using events that already exist in the network. Events whose
+birth round is below the current ancient threshold
 are dropped (treated as ancient). Events whose birth round exceeds the
 current pending consensus round are buffered and released later when
 the window advances. Birth round is also the key the linker uses to
 window-retain non-ancient events.
+
+## Roster lookup
+
+Birth round identifies the roster against which an event is validated.
+The active roster can change on round boundaries — in principle on
+every round, though today it changes only at upgrade, which is itself a
+round boundary. The roster for an event's birth round defines the valid
+set of event creators and their weights at that round. Because birth
+round is fixed at creation, an event authored by a member that later
+leaves the network remains valid against the roster of its birth round;
+an event purporting to be authored by that member at a later birth
+round, after the member's removal, would not be valid.
 
 ## Parent invariant
 
@@ -42,7 +57,8 @@ off from the rest of the graph.
 The invariant is enforced upstream of event creation. The event
 creator runs incoming events through its own `FutureEventBuffer`
 configured with `FutureEventBufferingOption.EVENT_BIRTH_ROUND`
-([`DefaultEventCreationManager.java`](../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java)).
+([
+`DefaultEventCreationManager.java`](../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java)).
 Any event whose birth round is above the local node's
 *desired event birth round* (the birth round it would stamp on a new
 event right now) is held in the buffer and not registered with the
@@ -94,7 +110,8 @@ generation + 1) to play the same role.
 ## Cross-references
 
 - Architectural lens:
-  [`../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
+  [
+  `../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
 - Sibling concept:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md).
 - Glossary entry: [`../glossary.md`](../glossary.md).

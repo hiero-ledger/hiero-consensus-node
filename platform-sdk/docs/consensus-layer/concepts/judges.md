@@ -10,9 +10,13 @@ last_reviewed: TBD
 ## Definition
 
 A *judge* in a decided round *r* is the unique famous witness for some
-creator in *r*. The judges of round *r* jointly fix the round-received
-of every event that is an ancestor of all of them: those events reach
-consensus in round *r*.
+creator in *r*. Unpacked: a [witness](rounds-and-witnesses.md) (the
+first event by a creator in a round) that has been voted
+[famous](voting.md), with the [deterministic merge](branching.md)
+collapsing the case where a branched creator has more than one famous
+witness in the round. The judges of round *r* jointly fix the
+round-received of every event that is an ancestor of all of them:
+those events reach consensus in round *r*.
 
 ## Mechanics
 
@@ -53,6 +57,8 @@ duplicating the question here.
   [`../architecture/topics/hashgraph.md`](../architecture/topics/hashgraph.md).
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
+  [`voting.md`](voting.md),
+  [`branching.md`](branching.md),
   [`strongly-seeing.md`](strongly-seeing.md),
   [`coin-rounds.md`](coin-rounds.md).
 - Glossary entry: [`../glossary.md`](../glossary.md).

@@ -8,21 +8,22 @@ The topic-organized lens on the consensus layer. Each topic file describes the t
 
 ## Topics
 
-One file per topic, in `topics/`. Eleven topics total.
+One file per topic, in `topics/`. Twelve topics total.
 
-|                 Topic File                  |              Topic              | Summary |
-|---------------------------------------------|---------------------------------|---------|
-| `topics/wiring-framework.md`                | Wiring framework                |         |
-| `topics/gossip.md`                          | Gossip                          |         |
-| `topics/event-intake.md`                    | Event intake                    |         |
-| `topics/event-creator.md`                   | Event creator                   |         |
-| `topics/hashgraph.md`                       | Hashgraph                       |         |
-| `topics/health-monitor-and-backpressure.md` | Health monitor and backpressure |         |
-| `topics/reasons-not-to-gossip.md`           | Reasons not to gossip           |         |
-| `topics/signed-state-management.md`         | Signed state management         |         |
-| `topics/restart-and-pces.md`                | Restart and PCES                |         |
-| `topics/freeze-and-upgrade.md`              | Freeze and upgrade              |         |
-| `topics/reconnect.md`                       | Reconnect                       |         |
+|                 Topic File                  |              Topic              |                            Summary                             |
+|---------------------------------------------|---------------------------------|----------------------------------------------------------------|
+| `topics/wiring-framework.md`                | Wiring framework                |                                                                |
+| `topics/gossip.md`                          | Gossip                          |                                                                |
+| `topics/event-intake.md`                    | Event intake                    |                                                                |
+| `topics/event-creator.md`                   | Event creator                   |                                                                |
+| `topics/hashgraph.md`                       | Hashgraph                       |                                                                |
+| `topics/health-monitor-and-backpressure.md` | Health monitor and backpressure |                                                                |
+| `topics/reasons-not-to-gossip.md`           | Reasons not to gossip           |                                                                |
+| `topics/signed-state-management.md`         | Signed state management         |                                                                |
+| `topics/restart-and-pces.md`                | Restart and PCES                |                                                                |
+| `topics/freeze-and-upgrade.md`              | Freeze and upgrade              |                                                                |
+| `topics/reconnect.md`                       | Reconnect                       |                                                                |
+| `topics/quiescence.md`                      | Quiescence                      | Opt-in feature affecting stale-events routing to Execution.    |
 
 ## Interfaces
 
