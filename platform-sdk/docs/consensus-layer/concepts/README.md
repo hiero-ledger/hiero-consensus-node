@@ -1,6 +1,8 @@
 # Concepts
 
-Foundational definitions and canonical mental models. One file per concept (hashgraph DAG, rounds and witnesses, strongly-seeing, birth-round, etc.). Used by the Tutor curriculum to ground later content.
+Foundational definitions and canonical mental models. One file per concept — the ideas that need more than a glossary line to anchor, and that recur across multiple topics.
+
+Each concept file gives a precise definition, the mechanics, a worked example, the current-code location, and cross-references to topics and catalog entries that build on it. When an idea fits in a sentence it stays in `../glossary.md`; when it needs a page, it lives here.
 
 ## Index
 
