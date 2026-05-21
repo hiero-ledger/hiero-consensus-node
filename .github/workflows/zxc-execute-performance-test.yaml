@@ -59,11 +59,6 @@ on:
         default: "25.0.2"
         description: "Java JDK Version"
         type: string
-      java-distribution:
-        required: false
-        default: "temurin"
-        description: "Java JDK Distribution"
-        type: string
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}

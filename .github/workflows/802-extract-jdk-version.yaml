@@ -5,8 +5,7 @@ on:
   workflow_call:
     inputs:
       ref:
-        required: true
-        description: "The git ref to read the Chewie response from (branch, tag, or commit SHA)."
+        description: "The git ref to read gradle/toolchain-versions.properties from (branch, tag, or commit SHA)."
         type: string
         default: "main"
     secrets:
@@ -43,6 +42,10 @@ jobs:
         id: get-jdk-version
         run: |
           echo "::group::Extract JDK Version from Gradle Properties"
-          JDK_VERSION="$(cat ${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties | grep jdk | cut -d'=' -f2 | tr -d '[:space:]')"
+          JDK_VERSION="$(grep -E '^jdk=' "${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties" | head -n 1 | cut -d'=' -f2- | tr -d '[:space:]')"
+          if [[ -z "${JDK_VERSION}" ]]; then
+            echo "::error::Failed to parse 'jdk' from ${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties"
+            exit 1
+          fi
           echo "jdk-version=${JDK_VERSION}" | tee "${GITHUB_OUTPUT}"
           echo "::endgroup::"

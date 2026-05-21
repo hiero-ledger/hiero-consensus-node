@@ -64,9 +64,10 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
+    needs: fetch-xts-candidate
     uses: ./.github/workflows/802-extract-jdk-version.yaml
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 

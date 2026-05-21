@@ -24,28 +24,31 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/802-extract-jdk-version.yaml
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ inputs.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  next-main-release:
-    name: Increment Version File
+next-main-release:
+name: Increment Version File
     needs:
       - extract-jdk-version
-    runs-on: hl-cn-default-lin-sm
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-          checkout-fetch-depth: "0"
-          setup-java: "true"
+runs-on: hl-cn-default-lin-sm
+steps:
+- name: Prepare Runner
+id: prepare-runner
+uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+with:
+checkout: "true"
+checkout-ref: "${{ inputs.ref }}"
+checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+checkout-fetch-depth: "0"
+setup-java: "true"
           java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-          java-distribution: "temurin"
+java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-disabled: "true"
 

@@ -71,7 +71,7 @@ jobs:
           checkout-fetch-depth: 0
           setup-java: "true"
           java-distribution: "temurin"
-          java-version: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
