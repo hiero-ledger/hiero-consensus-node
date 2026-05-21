@@ -4,34 +4,57 @@ namespace System
 {
     public static class TimestampExtensions
     {
-		public static Timestamp ToProtoTimestamp(this TimeSpan timeSpan)
-		{
-			return DateTimeOffset.UtcNow.Add(timeSpan).ToProtoTimestamp();
-		}
-		public static TimestampSeconds ToProtoTimestampSeconds(this TimeSpan timeSpan)
-		{
-			return DateTimeOffset.UtcNow.Add(timeSpan).ToProtoTimestampSeconds();
-		}
+        public static DateTimeOffset ToDateTimeOffset(this Timestamp timestamp)
+        {
+            return DateTimeOffset.UnixEpoch
+                .AddSeconds(timestamp.Seconds)
+                .AddNanoseconds(timestamp.Nanos);
+        }
+        public static DateTimeOffset ToDateTimeOffset(this TimestampSeconds timestampSeconds)
+        {
+            return DateTimeOffset.UnixEpoch
+                .AddSeconds(timestampSeconds.Seconds);
+        }
 
-		public static DateTimeOffset ToDateTimeOffset(this Timestamp timestamp)
-		{
-			return DateTimeOffset.UnixEpoch
-				.AddSeconds(timestamp.Seconds)
-				.AddNanoseconds(timestamp.Nanos);
-		}
+        public static NodaTime.Instant ToNodaTimeInstant(this Timestamp timestamp)
+        {
+            return NodaTime.Instant
+                .FromUnixTimeSeconds(timestamp.Seconds)
+                .PlusNanoseconds(timestamp.Nanos);
+        }
+        public static NodaTime.Instant ToNodaTimeInstant(this TimestampSeconds timestampSeconds)
+        {
+            return NodaTime.Instant
+                .FromUnixTimeSeconds(timestampSeconds.Seconds);
+        }
 
-		public static DateTimeOffset ToDateTimeOffset(this TimestampSeconds timestampSeconds)
-		{
-			return DateTimeOffset.UnixEpoch
-				.AddSeconds(timestampSeconds.Seconds);
-		}
-		public static Timestamp ToProtoTimestamp(this DateTimeOffset dateTimeOffset)
-		{
-			return new Timestamp { Seconds = dateTimeOffset.ToUnixTimeSeconds(), Nanos = dateTimeOffset.Nanosecond };
-		}
-		public static TimestampSeconds ToProtoTimestampSeconds(this DateTimeOffset dateTimeOffset)
-		{
-			return new TimestampSeconds { Seconds = dateTimeOffset.ToUnixTimeSeconds() };
-		}
-	}
+        public static Timestamp ToProtoTimestamp(this DateTimeOffset dateTimeOffset)
+        {
+            return new Timestamp { Seconds = dateTimeOffset.ToUnixTimeSeconds(), Nanos = dateTimeOffset.Nanosecond };
+        }
+        public static Timestamp ToProtoTimestamp(this NodaTime.Instant instant)
+        {
+            (long seconds, int nanoseconds) = instant.ToUnixTimeSecondsAndNanoseconds();
+
+            return new Timestamp { Seconds = seconds, Nanos = nanoseconds };
+        }
+        public static Timestamp ToProtoTimestamp(this NodaTime.Duration instant, NodaTime.Instant? from = null)
+        {
+            from ??= NodaTime.SystemClock.Instance.GetCurrentInstant();
+            from = from.Value.Plus(instant);
+
+            (long seconds, int nanoseconds) = from.Value.ToUnixTimeSecondsAndNanoseconds();
+
+            return new Timestamp { Seconds = seconds, Nanos = nanoseconds };
+        }
+
+        public static TimestampSeconds ToProtoTimestampSeconds(this DateTimeOffset dateTimeOffset)
+        {
+            return new TimestampSeconds { Seconds = dateTimeOffset.ToUnixTimeSeconds() };
+        }
+        public static TimestampSeconds ToProtoTimestampSeconds(this NodaTime.Instant instant)
+        {
+            return new TimestampSeconds { Seconds = instant.ToUnixTimeSeconds() };
+        }
+    }
 }
