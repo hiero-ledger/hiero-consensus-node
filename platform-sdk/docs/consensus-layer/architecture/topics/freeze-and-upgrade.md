@@ -34,7 +34,7 @@ freeze-state save trigger, and the upgrade startup path that follows.
 - Does not own: the on-disk layout of a saved state (see
   [`signed-state-management.md`](signed-state-management.md)); the PCES
   replay procedure (see [`restart-and-pces.md`](restart-and-pces.md));
-  reconnect (see [`reconnect.md`](reconnect.md)); the Execution-side
+  the Execution-side
   transaction handler that produces a freeze transaction; the operator
   tooling that orchestrates the actual binary swap and JVM restart.
 
@@ -69,7 +69,7 @@ which re-arms the predicate; the predicate disarms only when
 `lastFrozenTime = freezeTime` is committed atomically with the
 freeze-state save. This ordering is what makes the trigger crash-safe:
 a crash before the freeze state reaches disk leaves the on-disk
-`lastFrozenTime` trailing `freezeTime`, so the freeze fires again on
+`lastFrozenTime` strictly before `freezeTime`, so the freeze fires again on
 restart once consensus re-crosses the timestamp.
 
 ## Freeze-time behaviour
@@ -173,8 +173,7 @@ which runs downstream of the handle thread (not on it); the resulting
 The steps below are anchored individually; there is no single
 orchestrator class.
 
-1. Execution writes `freezeTime` into the platform state via
-   `WritablePlatformStateStore#setFreezeTime` (see
+1. Execution sets `freezeTime` on the platform state (see
    [Trigger](#trigger)).
 2. The first consensus round whose timestamp falls in the freeze
    period is detected in
@@ -182,40 +181,32 @@ orchestrator class.
    The handler submits a `FreezePeriodEnteredAction(round)` and sets a
    `freezeRoundReceived` flag; subsequent rounds are then ignored by
    the same handler.
-3. In parallel,
-   [`FreezeRoundController`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/FreezeRoundController.java)`#filterAndModify`
-   keeps the first freeze round, discards any later rounds in the same
-   batch, rewrites the freeze round's birth round, and flips
-   `isFrozen = true` (see [Hashgraph](#hashgraph) for detail).
-4. Once `isFrozen`,
-   [`DefaultConsensusEngine`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)`#addEvent`
-   ignores all further events; no additional rounds will be produced.
-5. The signed state for the freeze round is marked as a freeze state
-   and saved via `DefaultSavedStateController#shouldSaveToDisk` →
-   `DefaultStateSnapshotManager#saveStateTask`; metadata records
-   `freezeState=true`. The save runs downstream of the handle thread,
-   not on it, but is guaranteed to happen after the handle thread has
-   finished its updates to the freeze state — including the
-   `lastFrozenTime` write (see [State save](#state-save)).
-6. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
-   when the freeze state has been written to disk. The transition
-   logic lives in
+3. In parallel, the hashgraph engine keeps the first freeze round,
+   discards any later rounds in the same batch, rewrites the freeze
+   round's birth round, and stops feeding further events into the
+   consensus algorithm — no additional rounds will be produced (see
+   [Hashgraph](#hashgraph)).
+4. The signed state for the freeze round is marked as a freeze state
+   and written to disk (see [State save](#state-save)).
+5. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
+   when the freeze state has been written. The transition logic lives
+   in
    [`FreezingStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezingStatusLogic.java)
    and the terminal status in
    [`FreezeCompleteStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezeCompleteStatusLogic.java).
-7. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
-   freeze state can be distributed to laggards; event creation is
-   blocked because neither `ACTIVE` nor `CHECKING` is reached again
-   (see [Event creation](#event-creation)).
+6. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
+   freeze state can be distributed to laggards; event creation does
+   not resume because neither `ACTIVE` nor `CHECKING` is reached again
+   (see [Gossip](#gossip) and [Event creation](#event-creation)).
 
-Steps 5 and 6 are sequenced by the handle thread itself: the same
+Steps 4 and 5 are sequenced by the handle thread itself: the same
 thread that applies the freeze round to the state creates the
 `SignedState` for it and hands the object down the pipeline. The freeze
-state cannot be saved to disk until it has been created and passed out
-of `DefaultTransactionHandler`, and the transition to `FREEZE_COMPLETE`
-is the response to the freeze state being written to
-disk. The crash-safety properties of the `lastFrozenTime` write across
-this sequence are covered in [Trigger](#trigger).
+state cannot be saved until it has been created and passed out of
+`DefaultTransactionHandler`, and the transition to `FREEZE_COMPLETE`
+is the response to the freeze state being written to disk. The
+crash-safety properties of the `lastFrozenTime` write across this
+sequence are covered in [Trigger](#trigger).
 
 After `FREEZE_COMPLETE`, JVM exit for the consensus node is triggered
 by the **Node Management Tool (NMT)**, an external operator tool that
