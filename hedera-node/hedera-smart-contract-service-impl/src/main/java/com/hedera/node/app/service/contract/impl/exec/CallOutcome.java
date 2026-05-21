@@ -227,7 +227,9 @@ public record CallOutcome(
         requireNonNull(idFactory);
         addCalledContractIfNotAborted(streamBuilder);
         // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
-        if (streamMode(context) != BLOCKS) {
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
+        if (streamMode != BLOCKS) {
             streamBuilder.contractCallResult(result);
         }
         // No-op for the RecordStreamBuilder
@@ -260,7 +262,9 @@ public record CallOutcome(
         requireNonNull(streamBuilder);
         requireNonNull(context);
         // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCreateResult.
-        if (streamMode(context) != BLOCKS) {
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
+        if (streamMode != BLOCKS) {
             streamBuilder.contractCreateResult(result);
         }
         streamBuilder
@@ -268,10 +272,6 @@ public record CallOutcome(
                 .createdEvmAddress(createdEvmAddress)
                 .evmCreateTransactionResult(txResult)
                 .withCommonFieldsSetFrom(this, context, idFactory);
-    }
-
-    private static com.hedera.node.config.types.StreamMode streamMode(@NonNull final HandleContext context) {
-        return context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
     }
 
     /**

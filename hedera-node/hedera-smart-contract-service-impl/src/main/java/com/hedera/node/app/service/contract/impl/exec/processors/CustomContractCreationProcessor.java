@@ -127,6 +127,7 @@ public class CustomContractCreationProcessor extends PublicContractCreationProce
             // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support addContractBytecode.
             final var streamMode =
                     configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
+
             if (streamMode != BLOCKS) {
                 if (validationRuleFailed) {
                     if (initcode != null) {
