@@ -124,15 +124,15 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-state-validator-uberjar:
-name: Build & Publish Hedera State Validator Uber JAR
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
     needs:
       - extract-jdk-version
-if: ${{ inputs.execute-state-validator-build == true }}
-uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
-with:
-ref: ${{ inputs.ref }}
-dry-run-enabled: "true"
+    if: ${{ inputs.execute-state-validator-build == true }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      dry-run-enabled: "true"
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
 
   xts-execution:
