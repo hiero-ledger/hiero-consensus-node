@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -642,12 +643,16 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        }
+        final var functionality = topLevelTxn.functionality();
+        final boolean isNodeSubmittedTransaction = functionality == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                || functionality == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+        if (streamMode != BLOCKS && startsNewRecordFile && !isNodeSubmittedTransaction) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
-        if (streamMode != BLOCKS) {
+        if (streamMode != BLOCKS && !isNodeSubmittedTransaction) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
         }
@@ -660,7 +665,9 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
-        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        if (!isNodeSubmittedTransaction) {
+            executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        }
 
         return true;
     }
@@ -876,7 +883,10 @@ public class HandleWorkflow {
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                if (parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                        && parentTxn.functionality() != HederaFunctionality.MIGRATION_ROOT_HASH_VOTE) {
+                    stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                }
                 logPreDispatch(parentTxn);
                 final var hollowAccountCompletionsDetails =
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
