@@ -165,9 +165,6 @@ See **Decision** above.
 
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the architecture topic
   that owns the PCES write/replay path; carries a one-line pointer back to this ADR for the recovery procedure.
-- [`../../core/pces-disaster-recovery.md`](../../core/pces-disaster-recovery.md) — the older source doc whose recipe
-  has been migrated into this ADR. References in that doc to `SwirldsPlatform.performPcesRecovery()` and
-  `SwirldsPlatform.replayPreconsensusEvents()` are stale.
 - [`../../proposals/consensus-layer/Consensus-Layer.md`](../../proposals/consensus-layer/Consensus-Layer.md) — the
   proposal that moves state-saving and lifecycle to the Execution side; relevant context for any future revision of
   the recovery driver, as noted under **Neutral** consequences.

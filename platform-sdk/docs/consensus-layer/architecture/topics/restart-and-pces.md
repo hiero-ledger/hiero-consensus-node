@@ -69,11 +69,10 @@ gossiped a self-event and crashed before it was written, on restart the node wou
 build a new self-event on the same self-parent — a hashgraph branch. Branches are an attack on consensus and are
 punishable; honest nodes must not branch. Persisting self-events before they reach gossip eliminates that gap.
 
-Before the inline write, branching after a self-only crash was mitigated by having a restarting node sit in the
-`OBSERVING` status — gossiping but not creating events — for a configurable window, giving it time to pick up any of its
-own self-events that the network still held but it had lost. The inline write is now the primary anti-branching
-mechanism: a self-event the network has seen is, by construction, already on the local disk. The `OBSERVING` status
-remains in the platform but is no longer the load-bearing defense against branching.
+The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
+node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
+of its own self-events that the network still holds. Under normal operation, the inline write keeps every gossipped
+self-event on local disk, so this fallback is not exercised.
 
 ### Durability model
 
@@ -94,16 +93,6 @@ the OS buffer at the moment of failure are not on disk after restart. This risk 
 window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide loss of an
 in-flight keystone is recoverable.
 
-> **Delta vs. inlinePces.md:** the source doc states that `EVERY_SELF_EVENT` "is the default behavior". The current
-> default for `inlinePcesSyncOption` is `DONT_SYNC` (`PcesConfig.java:91`); production deployments use `DONT_SYNC` and
-> rely on the OS buffer plus the shutdown-hook sync for durability. The `EVERY_SELF_EVENT` claim is stale.
->
-> **Delta vs. inlinePces.md:** the source doc frames PCES around the "self-events before gossip" rule. That rule is one
-> invariant the write path enforces, but the primary purpose of PCES is to persist every validated event in topological
-> order so consensus can recover after a crash — including the network-wide simultaneous crash case where every node loses
-> its in-memory hashgraph. The "persisted before consensus" guarantee applies to every event, not only self-events; the
-> self-event/gossip wiring is the specific case that also closes the anti-branching gap.
-
 ## Restart sequence
 
 Restart has two phases. State load and replay-bound derivation happen during `SwirldsPlatform` construction, before
@@ -118,10 +107,11 @@ Restart has two phases. State load and replay-bound derivation happen during `Sw
 3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the platform coordinator (
    `SwirldsPlatform.java:353-355`).
 4. **Replay PCES.** `platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound)` (
-   `SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done.
+   `SwirldsPlatform.java:357`) runs the replay synchronously; control does not return until replay is done. See
+   [Replay](#replay) for details.
 5. **Start gossip; event creation remains off.** Only after replay completes does `platformCoordinator.startGossip()`
    run (`SwirldsPlatform.java:358`). Neither gossip nor event creation observes a partially-replayed state: gossip
-   because it is started here, and event creation because it is gated on platform status. See `event-creation.md` (TBD) for the gating details.
+   because it is started here, and event creation because it is gated on platform status. See `event-creator.md` (TBD) for the gating details.
 
 ## Replay
 
