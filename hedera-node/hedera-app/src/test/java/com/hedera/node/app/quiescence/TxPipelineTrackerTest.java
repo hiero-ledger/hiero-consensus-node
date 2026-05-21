@@ -15,6 +15,12 @@ import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransaction
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metric;
+import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
@@ -357,6 +363,158 @@ class TxPipelineTrackerTest {
 
             // Should decrement only for the 2 relevant transactions
             assertEquals(2, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    @Nested
+    @DisplayName("Activity clock and underflow counter tests")
+    class ActivityClockTests {
+        /**
+         * The {@link TxPipelineTracker#lastActivityAt()} supplier is read by the
+         * {@link QuiescenceController} grace-period guard. The constructor must anchor the activity clock
+         * to {@code time.instant()} so the grace period starts running from process start, not from
+         * {@link Instant#EPOCH}.
+         */
+        @Test
+        @DisplayName("Constructor anchors lastActivityAt to time.instant()")
+        void constructorAnchorsLastActivityAtToTimeNow() {
+            final var initial = Instant.ofEpochSecond(1_700_000_000L);
+            final var clock = new MutableInstantSource(initial);
+            final var tracker = new TxPipelineTracker(clock, new NoOpMetrics());
+
+            assertEquals(initial, tracker.lastActivityAt());
+        }
+
+        /**
+         * {@link TxPipelineTracker#recordActivity()} is invoked by paths outside ingest (e.g. the controller
+         * on a pre-handled relevant cross-node tx, or on the {@code ACTIVE} status anchor) — verifying it
+         * refreshes the activity clock to {@code time.instant()} is what makes the grace period robust to
+         * those wake-ups.
+         */
+        @Test
+        @DisplayName("recordActivity refreshes lastActivityAt to the current instant")
+        void recordActivityRefreshesLastActivityAt() {
+            final var initial = Instant.ofEpochSecond(1_700_000_000L);
+            final var clock = new MutableInstantSource(initial);
+            final var tracker = new TxPipelineTracker(clock, new NoOpMetrics());
+
+            clock.advance(Duration.ofSeconds(42));
+            tracker.recordActivity();
+
+            assertEquals(initial.plusSeconds(42), tracker.lastActivityAt());
+        }
+
+        @Test
+        @DisplayName("incrementPreFlight refreshes lastActivityAt")
+        void incrementPreFlightRefreshesLastActivityAt() {
+            final var initial = Instant.ofEpochSecond(1_700_000_000L);
+            final var clock = new MutableInstantSource(initial);
+            final var tracker = new TxPipelineTracker(clock, new NoOpMetrics());
+
+            clock.advance(Duration.ofMillis(500));
+            tracker.incrementPreFlight();
+
+            assertEquals(initial.plusMillis(500), tracker.lastActivityAt());
+        }
+
+        @Test
+        @DisplayName("incrementInFlight refreshes lastActivityAt")
+        void incrementInFlightRefreshesLastActivityAt() {
+            final var initial = Instant.ofEpochSecond(1_700_000_000L);
+            final var clock = new MutableInstantSource(initial);
+            final var tracker = new TxPipelineTracker(clock, new NoOpMetrics());
+
+            clock.advance(Duration.ofMillis(750));
+            tracker.incrementInFlight();
+
+            assertEquals(initial.plusMillis(750), tracker.lastActivityAt());
+        }
+
+        /**
+         * {@code decrementPreFlight} is a hot-path ingest-finalize hook. It must not refresh the activity
+         * clock — only ingest <i>arrival</i> counts as activity for the grace period.
+         */
+        @Test
+        @DisplayName("decrementPreFlight does NOT refresh lastActivityAt")
+        void decrementPreFlightDoesNotRefreshLastActivityAt() {
+            final var initial = Instant.ofEpochSecond(1_700_000_000L);
+            final var clock = new MutableInstantSource(initial);
+            final var tracker = new TxPipelineTracker(clock, new NoOpMetrics());
+            tracker.incrementPreFlight();
+            final var afterIncrement = tracker.lastActivityAt();
+
+            clock.advance(Duration.ofSeconds(10));
+            tracker.decrementPreFlight();
+
+            assertEquals(afterIncrement, tracker.lastActivityAt(), "decrement must not bump the activity clock");
+        }
+
+        /**
+         * The underflow path inside {@code countLanded} routes through {@code decrementInFlightOrClamp},
+         * which increments the {@code quiescence.inflightUnderflow} counter. The counter is the operator
+         * signal for cross-node drift; this test asserts it's wired up correctly. A regression that
+         * silenced this counter would hide a useful diagnostic.
+         */
+        @Test
+        @DisplayName("countLanded increments inflightUnderflow counter when inFlight is zero")
+        void countLandedIncrementsUnderflowCounterWhenInFlightIsZero() {
+            final var counter = mock(Counter.class);
+            final var metrics = mock(Metrics.class);
+            // Argument here is MetricConfig — return our mock for any config the constructor passes.
+            when(metrics.getOrCreate(any())).thenReturn((Metric) counter);
+
+            final var tracker = new TxPipelineTracker(InstantSource.system(), metrics);
+
+            // Build a relevant tx and pass it to countLanded with inFlight==0 — the clamp branch fires.
+            final var txBody = createRelevantTransactionBody();
+            final var txInfo = createTransactionInfo(txBody);
+            final var preHandleResult = createPreHandleResult(txInfo);
+            final var transaction = createTransaction(preHandleResult);
+            tracker.countLanded(List.of(transaction).iterator());
+
+            verify(counter).increment();
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("countLanded does NOT increment underflow counter when inFlight is positive")
+        void countLandedDoesNotIncrementUnderflowCounterWhenInFlightPositive() {
+            final var counter = mock(Counter.class);
+            final var metrics = mock(Metrics.class);
+            when(metrics.getOrCreate(any())).thenReturn((Metric) counter);
+
+            final var tracker = new TxPipelineTracker(InstantSource.system(), metrics);
+            tracker.incrementInFlight();
+
+            final var txBody = createRelevantTransactionBody();
+            final var txInfo = createTransactionInfo(txBody);
+            final var preHandleResult = createPreHandleResult(txInfo);
+            final var transaction = createTransaction(preHandleResult);
+            tracker.countLanded(List.of(transaction).iterator());
+
+            verify(counter, never()).increment();
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    /**
+     * Minimal in-memory {@link InstantSource} that can be advanced by a {@link Duration}. Lets us drive
+     * {@link TxPipelineTracker#lastActivityAt()} assertions without relying on wall-clock progression.
+     */
+    private static final class MutableInstantSource implements InstantSource {
+        private Instant now;
+
+        MutableInstantSource(@NonNull final Instant initial) {
+            this.now = initial;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+
+        void advance(@NonNull final Duration delta) {
+            now = now.plus(delta);
         }
     }
 

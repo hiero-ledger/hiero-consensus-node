@@ -566,6 +566,33 @@ class QuiescenceControllerTest {
     }
 
     /**
+     * Defense-in-depth: an {@link Instant#EPOCH} TCT must NOT be treated as "already past" by the
+     * threshold check inside {@link QuiescenceController#getQuiescenceStatus()}. Without the
+     * {@code !tct.equals(Instant.EPOCH)} guard, {@code EPOCH.minus(tctDuration).isBefore(now)} is
+     * trivially true (EPOCH−3s is in 1970, before any sensible {@code now}), so the controller would
+     * force {@code DONT_QUIESCE} on every poll and the network could never quiesce. {@link TctProbe}
+     * is responsible for returning {@code null} when there is no real deadline, but the guard here
+     * protects against a future caller pushing {@code EPOCH} through {@code setNextTargetConsensusTime}.
+     */
+    @Test
+    void epochTctIsTreatedAsAbsentDeadline() {
+        // Reset to default CONFIG (gracePeriod=ZERO) so the only thing standing between us and QUIESCE
+        // is the EPOCH guard.
+        controller.setNextTargetConsensusTime(Instant.EPOCH);
+        assertEquals(
+                QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Instant.EPOCH must be treated as 'no deadline', not as a past-due deadline");
+
+        // Sanity-check the contrast: a real past-due TCT does force DONT_QUIESCE.
+        controller.setNextTargetConsensusTime(time.now().minusSeconds(60));
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "A real past-due (non-EPOCH) TCT must force DONT_QUIESCE");
+    }
+
+    /**
      * Grace-period fence: when both counts are zero, the controller must hold off on {@code QUIESCE} until
      * the configured grace period has elapsed since the most recent observed activity. This prevents short
      * inter-transaction gaps from putting the network to sleep — without the grace period, the next user

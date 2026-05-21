@@ -22,8 +22,10 @@ import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
@@ -148,8 +150,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
         when(producer.getRunningHash()).thenReturn(RUNNING_HASH);
         when(producer.finishCurrentBlock()).thenReturn(CompletableFuture.completedFuture(Bytes.EMPTY));
         final var controller = new QuiescenceController(
-                new com.hedera.node.config.data.QuiescenceConfig(
-                        false, java.time.Duration.ofSeconds(5), java.time.Duration.ZERO),
+                new QuiescenceConfig(false, Duration.ofSeconds(5), Duration.ZERO),
                 InstantSource.system(),
                 () -> 0,
                 Instant::now,

@@ -10,11 +10,16 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metric;
+import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
@@ -534,5 +539,34 @@ class QuiescedHeartbeatTest {
         assertDoesNotThrow(() -> captor.getValue().run());
         // Second tick — must not re-throw; must not leave anything in a partially-initialized state
         assertDoesNotThrow(() -> captor.getValue().run());
+    }
+
+    /**
+     * When a heartbeat tick throws, the {@code quiescence.heartbeatErrors} counter must increment so
+     * operators have visibility into unhandled exceptions inside the tick. The other exception-path tests
+     * use {@link NoOpMetrics} (whose counter is a no-op) and only verify the {@code update(DONT_QUIESCE)}
+     * side effect; this test wires a mock {@link Counter} through a mock {@link Metrics} so the
+     * counter-increment can be asserted directly.
+     */
+    @Test
+    void heartbeatErrorsCounterIsIncrementedOnTickException() {
+        final var counterMock = mock(Counter.class);
+        final var metricsMock = mock(Metrics.class);
+        when(metricsMock.getOrCreate(any())).thenReturn((Metric) counterMock);
+        final var subjectWithMockMetrics =
+                new QuiescedHeartbeat(quiescenceCommands, controller, scheduler, metricsMock);
+
+        given(probe.findTct()).willThrow(new RuntimeException("Probe failed"));
+        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subjectWithMockMetrics.start(Duration.ofSeconds(1), probe);
+
+        final var captor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler).scheduleAtFixedRate(captor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
+        assertDoesNotThrow(() -> captor.getValue().run());
+
+        verify(counterMock).increment();
+        verify(quiescenceCommands).update(DONT_QUIESCE);
     }
 }
