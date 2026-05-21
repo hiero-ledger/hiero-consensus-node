@@ -33,9 +33,23 @@ marks a known correctness gap, not a stale entry.
 | INV-004 | Honest hashgraphs share identical ancestor sub-DAGs for any shared event | agreement | hashgraph | [TBD] |
 | INV-005 | Every event in an honest hashgraph is creator-signed and parent-resolvable | integrity | hashgraph | [TBD] |
 | INV-006 | No event can strongly see both branches of a fork | safety | hashgraph | [TBD] |
-| INV-007 | Deterministic conclusions on the hashgraph are monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-007 | Every deterministic conclusion on the hashgraph is monotone and eventually agreed | determinism | hashgraph | [TBD] |
 | INV-008 | A fame decision, once made, never changes and is the same on every honest node | safety | hashgraph | [TBD] |
 | INV-009 | Fame is decided for every witness with probability 1 | liveness | hashgraph | [TBD] |
+| INV-010 | Ancestry is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-011 | Seeing is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-012 | Strongly-seeing is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-013 | An event's round assignment is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-014 | An event's witness status is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+| INV-015 | An event's round received is monotone and eventually agreed | determinism | hashgraph | [TBD] |
+
+INV-007 is the umbrella entry for the deterministic-conclusion meta-property
+named in the paper's §IV-C end. INV-010 through INV-015 are the per-component
+instantiations of that property. Two further components — fame and consensus
+order — are absorbed into INV-008 and INV-002 respectively rather than
+carrying their own splits, because the cross-node finality of each is already
+the entry's primary claim and the intra-node monotonicity follows from the
+same mechanism.
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:

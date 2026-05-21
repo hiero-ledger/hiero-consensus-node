@@ -10,7 +10,7 @@ related:
   heuristics: []
 status: "[TBD: confirm enforced in current implementation]"
 source: Baird & Luykx 2020, §IV-A / p. 3
-provenance: paper-extraction-2026-05-20
+provenance: paper-extraction-2026-05-20; cross-refs-updated-2026-05-21
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
@@ -49,4 +49,12 @@ votes on different nodes, and consensus order diverges.
 - Sits downstream of INV-005 (event authenticity): without
   authenticated, parent-resolvable events the hash-chain rigidity
   argument collapses.
+- Sibling to INV-010 (ancestry monotonicity). INV-004 establishes
+  that two honest nodes holding the same event hold the same
+  ancestor sub-DAG (cross-node identity); INV-010 establishes
+  that within a single node, once the ancestry relation is
+  concluded for a pair, it does not flip (intra-node
+  monotonicity). Together they ensure the ancestor predicate is
+  the same function on every honest node and that it is monotone
+  on each.
 - `status` is [TBD: confirm enforced in current implementation].

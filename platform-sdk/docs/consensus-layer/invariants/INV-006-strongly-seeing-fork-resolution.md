@@ -10,7 +10,7 @@ related:
   heuristics: []
 status: "[TBD: confirm enforced in current implementation]"
 source: Baird & Luykx 2020, §IV-C / p. 3
-provenance: paper-extraction-2026-05-20
+provenance: paper-extraction-2026-05-20; cross-refs-updated-2026-05-21
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
@@ -48,4 +48,10 @@ diverge, and consensus splits.
 - Depends on the >2n/3 honest assumption from the §III threat
   model. The property is a protocol guarantee given that
   assumption; weakening the assumption is out of scope.
+- Sibling to INV-012 (strongly-seeing monotonicity). This entry
+  constrains strongly-seeing across forks (no event strongly sees
+  both branches); INV-012 constrains strongly-seeing across time
+  (the conclusion never flips as the hashgraph grows). Together
+  they pin down strongly-seeing as both unambiguous on
+  fork-shaped inputs and permanent once concluded.
 - `status` is [TBD: confirm enforced in current implementation].
