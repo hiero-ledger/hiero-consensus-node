@@ -10,7 +10,9 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,8 +29,9 @@ import org.apache.logging.log4j.Logger;
 public class BlockStreamingObsImpl implements BlockStreamingObs {
     private static final Logger log = LogManager.getLogger(BlockStreamingObsImpl.class);
 
+    private static final int INTERVAL_SECONDS = 60;
     private static final long NANOS_PER_SECOND = TimeUnit.SECONDS.toNanos(1);
-    private static final int MAX_BUCKETS = 150;
+    private static final int MAX_BUCKETS = (INTERVAL_SECONDS * 2) + 10;
 
     private volatile boolean enhancedObservabilityEnabled;
     private final ConfigProvider configProvider;
@@ -36,7 +39,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     private final ConcurrentMap<Long, BlockStats> blockStats = new ConcurrentHashMap<>();
     // Map<SecondTick, ThroughputBucket>
     private final ConcurrentMap<Long, ThroughputBucket> throughputBuckets = new ConcurrentHashMap<>(MAX_BUCKETS);
-    private final AtomicLong latestBlockNumber = new AtomicLong(-1);
     private final long initialNanosTick;
 
     private final ScheduledExecutorService executorService;
@@ -47,7 +49,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         initialNanosTick = System.nanoTime();
 
         executorService = Executors.newSingleThreadScheduledExecutor();
-        executorService.schedule(new StatsTask(), 60, TimeUnit.SECONDS);
+        executorService.schedule(new StatsTask(), INTERVAL_SECONDS, TimeUnit.SECONDS);
         enhancedObservabilityEnabled = configProvider.getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .enhancedObservabilityEnabled();
@@ -63,7 +65,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
                 logStatistics();
             } finally {
-                executorService.schedule(new StatsTask(), 60, TimeUnit.SECONDS);
+                executorService.schedule(new StatsTask(), INTERVAL_SECONDS, TimeUnit.SECONDS);
             }
         }
     }
@@ -85,7 +87,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         }
 
         blockStats.put(blockNumber, new BlockStats(blockNumber, nanosTick));
-        latestBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
     }
 
     @Override
@@ -95,10 +96,8 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         }
 
         final BlockStats stats = blockStats.get(blockNumber);
-        if (stats != null) {
-            if (stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
-                getThroughputBucket(nanosTick).blocksOpened.increment();
-            }
+        if (stats != null && stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
+            getThroughputBucket(nanosTick).blocksOpened.increment();
         }
     }
 
@@ -246,7 +245,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
             // clear everything and exit
             blockStats.clear();
             throughputBuckets.clear();
-            latestBlockNumber.set(-1);
             return;
         }
 
@@ -572,6 +570,80 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
         long diff() {
             return end - start;
+        }
+    }
+
+    private static class StatisticsJoiner {
+        private final String name;
+        private final ObsUnit unit;
+        private final Queue<Statistics> statsQueue = new ConcurrentLinkedQueue<>();
+
+        public StatisticsJoiner(final String name, final ObsUnit unit) {
+            this.name = name;
+            this.unit = unit;
+        }
+
+        public void add(final Statistics statistics) {
+            if (unit != statistics.unit()) {
+                throw new IllegalArgumentException("Cannot add statistics with different unit");
+            }
+
+            statsQueue.add(statistics);
+        }
+
+        public Statistics statistics() {
+            long count = 0;
+            long total = 0;
+            long min = Long.MAX_VALUE;
+            long max = Long.MIN_VALUE;
+
+            for (final Statistics stats : statsQueue) {
+                count += stats.count();
+                total += stats.total();
+                if (min > stats.min()) {
+                    min = stats.min();
+                }
+                if (max < stats.max()) {
+                    max = stats.max();
+                }
+            }
+
+            if (count == 0) {
+                return Statistics.NIL;
+            }
+
+            final double avg = total / (count * 1.0D);
+            double stdDev = 0.0D;
+
+            for (final Statistics stats : statsQueue) {
+                final double d1 = stats.count() * Math.pow(stats.stdDev(), 2);
+                final double d2 = stats.count() * Math.pow(stats.avg() - avg, 2);
+                stdDev += d1 + d2;
+            }
+
+            stdDev = stdDev / count;
+            stdDev = Math.sqrt(stdDev);
+
+            return new Statistics(unit, count, total, min, max, avg, stdDev);
+        }
+
+        @Override
+        public String toString() {
+            String s = name;
+
+            s += " { (Unit:" + unit;
+
+            final Statistics statistics = statistics();
+
+            s += "|Samples:" + statistics.count();
+            s += "|Sum:" + statistics.total();
+            s += "|Min:" + statistics.min();
+            s += "|Max:" + statistics.max();
+            s += "|Avg:" + round(statistics.avg()).toPlainString();
+            s += "|StdDev:" + round(statistics.stdDev()).toPlainString();
+
+            s += ") }";
+            return s;
         }
     }
 }
