@@ -6,18 +6,20 @@ last_reviewed: TBD
 
 # Freeze and upgrade
 
-A freeze is a coordinated, network-wide pause: every node stops applying
+A freeze is a coordinated, network-wide halt: every node stops applying
 new rounds at the same consensus point, writes a marked signed state to
-disk, and continues gossiping only long enough to distribute signatures
-on that state. The freeze state is the handoff between the running
-process and a clean restart on (potentially) a new software version. In
-current code the freeze procedure is not owned by a single component;
-the trigger originates on the Execution side, the round-level cutoff
-lives in `consensus-hashgraph-impl`, the per-rule guards live across
-`consensus-event-creator-impl` and `consensus-gossip-impl`, and the
-state-save and status transitions live in `swirlds-platform-core`. This
-file documents the current shape and points each behavioural rule at
-the file that enforces it.
+disk, and remains halted until restarted. Gossip continues until the
+node shuts down; what stops is event creation, which is permitted after
+the freeze round only long enough for each node to emit the signature
+transactions on the freeze state. The freeze state is the handoff
+between the running process and a clean restart on (potentially) a new
+software version. In current code the freeze procedure is not owned by
+a single component; the trigger originates on the Execution side, the
+round-level cutoff lives in `consensus-hashgraph-impl`, the per-rule
+guards live across `consensus-event-creator-impl` and
+`consensus-gossip-impl`, and the state-save and status transitions live
+in `swirlds-platform-core`. This file documents the current behaviour
+and points each rule at the file that enforces it.
 
 ## Responsibilities
 
@@ -38,17 +40,11 @@ freeze-state save trigger, and the upgrade startup path that follows.
 
 ## Trigger
 
-The freeze signal originates on the Execution side. A freeze
-transaction (`FREEZE_ONLY`, `FREEZE_UPGRADE`, `TELEMETRY_UPGRADE`,
-`PREPARE_UPGRADE`, or `FREEZE_ABORT`) is dispatched to
-[`FreezeHandler`](../../../../../hedera-node/hedera-network-admin-service-impl/src/main/java/com/hedera/node/app/service/networkadmin/impl/handlers/FreezeHandler.java)`#handle`,
-which delegates to
-[`FreezeUpgradeActions`](../../../../../hedera-node/hedera-network-admin-service-impl/src/main/java/com/hedera/node/app/service/networkadmin/impl/handlers/FreezeUpgradeActions.java)`#scheduleFreezeOnlyAt`
-or `#scheduleFreezeUpgradeAt`. Both write a `freezeTime` timestamp into
-state via `WritableFreezeStore#freezeTime`. The same transaction stream
-populates the platform state's freeze fields through
-[`WritablePlatformStateStore`](../../../../consensus-platformstate/src/main/java/org/hiero/consensus/platformstate/WritablePlatformStateStore.java)`#setFreezeTime`
-and `#setLastFrozenTime`.
+The only input to the consensus layer is the value of `freezeTime` on
+the platform state, written by the Execution side via
+[`WritablePlatformStateStore`](../../../../consensus-platformstate/src/main/java/org/hiero/consensus/platformstate/WritablePlatformStateStore.java)`#setFreezeTime`.
+How Execution decides to set or clear that field is out of scope for
+this document.
 
 The consensus side reads those fields back out through
 [`PlatformStateAccessor`](../../../../consensus-platformstate/src/main/java/org/hiero/consensus/platformstate/PlatformStateAccessor.java)
@@ -63,19 +59,18 @@ interface; the live binding is built as a lambda in
 [`PlatformBuilder`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
 that closes over the mutable platform state.
 
-[TBD: question for engineer — `PlatformStateUtils#isInFreezePeriod`
-defines the freeze window in terms of `freezeTime` and `lastFrozenTime`.
-Who writes `lastFrozenTime`, when relative to the freeze-state save,
-and what is the intended contract — "exactly one freeze per `freezeTime`
-value", or "first freeze at-or-after `freezeTime` consumes the
-trigger, subsequent advancement of `freezeTime` re-arms"?]
-
-[TBD: question for engineer — `FreezeUpgradeActions` distinguishes
-freeze-only, freeze-upgrade, telemetry-upgrade, prepare-upgrade, and
-freeze-abort. From the consensus-layer point of view, do all five
-produce the same `freezeTime` write, or are there observable
-differences (e.g., what gets staged on disk before the freeze) that the
-consensus layer needs to be aware of?]
+`lastFrozenTime` is written by
+[`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#createSignedState`
+(via `PlatformStateUtils#updateLastFrozenTime`) before `copyMutableState`
+is called, so the `lastFrozenTime = freezeTime` write is committed to
+disk only as part of the freeze state itself. Execution always writes
+a new `freezeTime` strictly later than the recorded `lastFrozenTime`,
+which re-arms the predicate; the predicate disarms only when
+`lastFrozenTime = freezeTime` is committed atomically with the
+freeze-state save. This ordering is what makes the trigger crash-safe:
+a crash before the freeze state reaches disk leaves the on-disk
+`lastFrozenTime` trailing `freezeTime`, so the freeze fires again on
+restart once consensus re-crosses the timestamp.
 
 ## Freeze-time behaviour
 
@@ -85,38 +80,81 @@ Self-event creation is gated by platform status. In
 [`PlatformStatusRule`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java)`#isEventCreationPermitted`,
 status `FREEZING` permits creation only when the signature-transaction
 buffer is non-empty; otherwise creation is blocked. Creation is
-otherwise permitted only in `ACTIVE` and `CHECKING`. The intent
-documented on `PlatformStatus.FREEZING`
-([`PlatformStatus`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java))
-is that a node will not produce events after one carrying its
-"self signature for the freeze state". Detail in
-[`event-creator.md`](event-creator.md).
+otherwise permitted only in `ACTIVE` and `CHECKING`
+([`PlatformStatus`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java)).
+Detail in [`event-creator.md`](event-creator.md).
 
-[TBD: question for engineer — `PlatformStatusRule` permits creation in
-`FREEZING` whenever `signatureTransactionCheck.hasBufferedSignatureTransactions()`
-returns true. Is this rule "no new self-events after the freeze round,
-except a single signing event" or "as many signing events as the
-buffer holds, but no new application events"? What symptom would appear
-if this guard misregistered the buffer as non-empty after the freeze
-state was already signed?]
+The buffer-drain guard lets the node emit as many events as it needs to
+flush its required signature transactions on the freeze state, then
+stops. Creation cannot continue indefinitely after the freeze: once the
+freeze round is reached, consensus does not advance, so the non-ancient
+window does not advance and no events are purged from memory.
+Unbounded event creation in that state would exhaust memory; halting
+at signature-buffer drain is what keeps the freezing node bounded.
 
 ### Gossip
 
-Gossip continues throughout the freeze. The permit set
+Gossip continues throughout the freeze and into `FREEZE_COMPLETE`, with
+no behavioural difference between the two statuses. The permit set
 [`SyncStatusChecker`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/sync/protocol/SyncStatusChecker.java)`.STATUSES_THAT_PERMIT_SYNC`
-explicitly contains both `FREEZING` and `FREEZE_COMPLETE`, and
+explicitly contains both, and
 [`RpcPeerProtocol`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcPeerProtocol.java)`#shouldSwitchToRpc`
-gates only on that set — there is no separate freeze branch. Continuing
-to gossip in `FREEZE_COMPLETE` is intentional, so signatures on the
-freeze state can reach laggards. Detail in
+gates only on that set — there is no separate freeze branch. Gossip
+continues for three reasons: to send this node's event carrying its
+signature transactions on the freeze state and freeze block (see
+[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)
+for detail on the block signatures), to collect those signatures from
+peers, and to relay them to any peers that still need them. Detail in
 [`gossip.md`](gossip.md) and
 [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md).
 
-[TBD: question for engineer — `STATUSES_THAT_PERMIT_SYNC` admits both
-`FREEZING` and `FREEZE_COMPLETE`. Is there any gossip behavioural
-difference between the two (e.g., what events are sent, peer
-scoring, hold-down on falling-behind detection)? If not, what
-distinguishes the two statuses operationally?]
+### Hashgraph
+
+The hashgraph engine has two freeze-time behaviours, both in
+[`DefaultConsensusEngine`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)
+and the
+[`FreezeRoundController`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/FreezeRoundController.java)
+it owns.
+
+`FreezeRoundController#filterAndModify` runs on every batch of rounds
+the consensus algorithm produces, and does two things. First, if any
+round in the batch falls in the freeze period, every round after the
+first such round is dropped — a single added event can cause several
+rounds to reach consensus at once, but the freeze round must be the
+last round handled before the upgrade restart. Second, the freeze
+round's `EventWindow` is rewritten so that `newEventBirthRound` equals
+the freeze round number itself. Event creation reads
+`newEventBirthRound` from the latest `EventWindow` to assign birth
+rounds to new events, so under the rewrite any new events an honest
+node creates have birth round equal to the freeze round. This is
+required because birth round defines which roster validates an event:
+events with birth round at or before the freeze round must be
+validated against the roster that signed them — the one holding the
+membership, keys, and weights valid at creation time — while events
+with birth round after the freeze round are validated against the new
+roster the network adopts at `freezeRound + 1`. The rewrite is what
+keeps pre-upgrade events validating against the pre-upgrade roster,
+even when the new roster drops some of the nodes that signed them, and
+it gives the upgrade a clean boundary if the event format itself
+changes. See [`birth-round.md`](../concepts/birth-round.md) for detail
+on birth round values.
+
+Once `FreezeRoundController#isFrozen` is true, `addEvent` stops feeding
+events into the consensus algorithm. Events still pass through the
+future event buffer (FEB), and any event that is not a future event is
+returned to the caller as a preconsensus event so the application can
+prehandle it. This is the path freeze-block signature transactions take
+to reach the application after the freeze round (see
+[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)).
+
+The FEB only buffers events whose birth round is greater than the
+pending round. Once the freeze round reaches consensus the pending
+round is `freezeRound + 1`, and because consensus does not advance past
+the freeze round it stays there — so the FEB only buffers events with
+birth round ≥ `freezeRound + 2`. Honest nodes' post-freeze events
+have birth round equal to the freeze round (per the `EventWindow`
+rewrite above), so honest events always pass through the FEB
+immediately rather than being buffered.
 
 ### State save
 
@@ -127,38 +165,8 @@ which short-circuits the periodic-snapshot logic and uses the
 [`StateToDiskReason`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java)`.FREEZE_STATE`
 marker. The actual write happens in
 [`DefaultStateSnapshotManager`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/DefaultStateSnapshotManager.java)`#saveStateTask`,
-synchronously, and the resulting `StateSavingResult` carries the freeze
-flag downstream. The persisted
-[`SavedStateMetadata`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SavedStateMetadata.java)
-includes a `freezeState` field so that a freeze save can be recognized
-on the next boot. Detail in
-[`signed-state-management.md`](signed-state-management.md).
-
-[TBD: question for engineer — `DefaultSavedStateController#shouldSaveToDisk`
-relies on `signedState.isFreezeState()`. Where is that flag set on a
-`SignedState` — is it set inside `DefaultTransactionHandler#createSignedState`
-based on `freezeRoundReceived`, and is the flag durable across state
-reservations and copy-on-write?]
-
-### Health monitor / backpressure
-
-No freeze-specific behaviour on the health-monitor / backpressure
-surface is anchored in the current reading. See
-[`health-monitor-and-backpressure.md`](health-monitor-and-backpressure.md).
-
-[TBD: question for engineer — Is there any freeze-aware change in
-backpressure behaviour, or does the freeze halt naturally drain
-downstream queues without any topic-specific gating?]
-
-### PCES
-
-PCES write behaviour during freeze is not anchored in the current
-reading. See [`restart-and-pces.md`](restart-and-pces.md).
-
-[TBD: question for engineer — Does PCES write behaviour change at
-freeze (e.g., the last segment is rolled at the freeze round; no
-further events are written), and does the ordering between PCES roll
-and freeze-state save matter for upgrade-startup replay correctness?]
+which runs downstream of the handle thread (not on it); the resulting
+`StateSavingResult` carries the freeze flag further down the pipeline.
 
 ## Freeze procedure
 
@@ -166,9 +174,8 @@ The steps below are anchored individually; there is no single
 orchestrator class.
 
 1. Execution writes `freezeTime` into the platform state via
-   `WritablePlatformStateStore#setFreezeTime`, driven by a freeze
-   transaction processed by `FreezeHandler` /
-   `FreezeUpgradeActions` (see [Trigger](#trigger)).
+   `WritablePlatformStateStore#setFreezeTime` (see
+   [Trigger](#trigger)).
 2. The first consensus round whose timestamp falls in the freeze
    period is detected in
    [`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#handleConsensusRound`.
@@ -177,18 +184,19 @@ orchestrator class.
    the same handler.
 3. In parallel,
    [`FreezeRoundController`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/FreezeRoundController.java)`#filterAndModify`
-   keeps the first freeze round, modifies its `EventWindow` so the
-   birth round equals the latest consensus round (so that pre- and
-   post-upgrade events can be distinguished), discards any later
-   rounds in the same batch, and flips `isFrozen = true`.
+   keeps the first freeze round, discards any later rounds in the same
+   batch, rewrites the freeze round's birth round, and flips
+   `isFrozen = true` (see [Hashgraph](#hashgraph) for detail).
 4. Once `isFrozen`,
    [`DefaultConsensusEngine`](../../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java)`#addEvent`
    ignores all further events; no additional rounds will be produced.
 5. The signed state for the freeze round is marked as a freeze state
-   and saved synchronously via
-   `DefaultSavedStateController#shouldSaveToDisk` →
+   and saved via `DefaultSavedStateController#shouldSaveToDisk` →
    `DefaultStateSnapshotManager#saveStateTask`; metadata records
-   `freezeState=true` (see [State save](#state-save)).
+   `freezeState=true`. The save runs downstream of the handle thread,
+   not on it, but is guaranteed to happen after the handle thread has
+   finished its updates to the freeze state — including the
+   `lastFrozenTime` write (see [State save](#state-save)).
 6. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
    when the freeze state has been written to disk. The transition
    logic lives in
@@ -200,51 +208,41 @@ orchestrator class.
    blocked because neither `ACTIVE` nor `CHECKING` is reached again
    (see [Event creation](#event-creation)).
 
-[TBD: question for engineer — Steps 5 and 6 share an edge: the freeze
-state is saved by `DefaultStateSnapshotManager#saveStateTask`, then
-`StateWrittenToDiskAction(isFreezeState=true)` drives the status
-transition in `FreezingStatusLogic`. What is the precise ordering
-guarantee between the `lastFrozenTime` write, the freeze-state save,
-and the `FREEZE_COMPLETE` transition, and what symptom appears if the
-platform crashes between any two of those points?]
+Steps 5 and 6 are sequenced by the handle thread itself: the same
+thread that applies the freeze round to the state creates the
+`SignedState` for it and hands the object down the pipeline. The freeze
+state cannot be saved to disk until it has been created and passed out
+of `DefaultTransactionHandler`, and the transition to `FREEZE_COMPLETE`
+is the response to the freeze state being written to
+disk. The crash-safety properties of the `lastFrozenTime` write across
+this sequence are covered in [Trigger](#trigger).
 
-[TBD: question for engineer — `FreezeRoundController#modifyFreezeRound`
-sets the freeze round's birth round equal to its latest consensus round
-"in case some migration logic is needed". Is that migration logic a
-runtime concern of the next boot, a compatibility shim only, or
-something else? What concretely depends on the rewritten birth round?]
-
-[TBD: question for engineer — After `FREEZE_COMPLETE`, what triggers
-JVM exit / graceful shutdown for the upgrade? It is not visible in the
-consensus-layer or platform-core code anchored above; is the shutdown
-driven by node-operator orchestration, by code in the Hedera modules,
-or by something within the platform that has not yet been anchored?]
+After `FREEZE_COMPLETE`, JVM exit for the consensus node is triggered
+by the **Node Management Tool (NMT)**, an external operator tool that
+continuously monitors for a marker file written by the execution
+layer. The execution layer writes the marker only after the consensus
+layer reports `FREEZE_COMPLETE` (or, equivalently, after it receives
+the notification that the freeze state has been written to disk). Any
+further conditions the execution layer waits on before writing the
+marker are out of scope for this document.
 
 ## Upgrade startup
 
-On the next boot,
-[`StartupStateUtils`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/StartupStateUtils.java)`#loadStateFile`
-locates the latest saved state on disk and deserializes it; the
-`SavedStateMetadata#freezeState` flag preserved at save time tells the
-runtime whether that state was the result of a freeze. From the
-consensus-layer code reading, the boot-path branch that consumes that
-flag (to gate PCES replay, event creation, or reconnect) is not
-anchored cleanly. See [`restart-and-pces.md`](restart-and-pces.md) for
-the PCES side of the restart sequence.
+The consensus-layer boot path does not branch on whether the loaded
+state is a freeze state — startup from a freeze state follows exactly
+the same code path as any other startup, via
+[`StartupStateUtils`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/StartupStateUtils.java)`#loadStateFile`.
+The `SavedStateMetadata#freezeState` flag is preserved at save time,
+but the consensus layer's startup logic does not consult it.
 
-[TBD: question for engineer — Where does the boot path branch on
-`SavedStateMetadata#freezeState`? Specifically: (a) does PCES replay
-run on a freeze-state boot or is it skipped; (b) is event creation
-gated until something completes (status transition out of
-`STARTING_UP` / `OBSERVING`?); (c) is reconnect available pre-replay
-on a freeze-state boot?]
+What the freeze procedure guarantees is not a special boot path but a
+coordinated starting point: every node restarts from exactly the same
+state, which is what makes it safe to bring up a new software version
+that may interpret transactions or state differently than the prior
+one. This property is intended to be captured by a future invariant.
 
-[TBD: question for engineer — Once the runtime has loaded a freeze
-state and crossed into normal operation, the `lastFrozenTime` field on
-the platform state is what prevents `PlatformStateUtils#isInFreezePeriod`
-from re-firing on the same `freezeTime`. Is the post-restart write of
-`lastFrozenTime` the same path as the in-freeze write, and is there a
-window where a re-freeze could fire spuriously?]
+See [`restart-and-pces.md`](restart-and-pces.md) for the PCES side of
+the restart sequence.
 
 ## Cross-references
 
@@ -254,7 +252,6 @@ Topics:
 - [`restart-and-pces.md`](restart-and-pces.md)
 - [`event-creator.md`](event-creator.md)
 - [`gossip.md`](gossip.md)
-- [`health-monitor-and-backpressure.md`](health-monitor-and-backpressure.md)
 - [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md)
 - [`reconnect.md`](reconnect.md)
 
@@ -297,7 +294,7 @@ Pending catalogs:
 
 > **Historical note.** A prior document at
 > [`platform-sdk/docs/core/freeze/freeze.md`](../../../core/freeze/freeze.md)
-> describes a pre-Hiero shape of the freeze procedure that uses
+> describes a pre-Hiero version of the freeze procedure that uses
 > vocabulary (`DualState`, `SwirldState`, `transThrottle`,
 > `handleTransaction()`) that no longer exists in current code. It is
 > referenced here only because diagnosticians may search log archives
