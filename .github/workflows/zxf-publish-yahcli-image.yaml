@@ -24,7 +24,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25"
+        default: "25.0.2"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -56,7 +56,7 @@ jobs:
       docker-image-tag: ${{ steps.resolve-version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -70,7 +70,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ inputs.java-distribution || 'temurin' }}
-          java-version: ${{ inputs.java-version || '25' }}
+          java-version: ${{ inputs.java-version || '25.0.2' }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0

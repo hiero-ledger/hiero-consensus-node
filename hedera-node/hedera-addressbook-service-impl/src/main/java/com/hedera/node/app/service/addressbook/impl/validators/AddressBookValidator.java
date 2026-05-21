@@ -308,7 +308,11 @@ public class AddressBookValidator {
                 INVALID_REGISTERED_ENDPOINT_TYPE);
 
         // Type-specific validation
-        if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.GENERAL_SERVICE) {
+        if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.BLOCK_NODE) {
+            final var apis = endpoint.blockNodeOrThrow().endpointApi();
+            validateFalse(apis.isEmpty(), INVALID_REGISTERED_ENDPOINT);
+            validateFalse(apis.stream().distinct().count() != apis.size(), INVALID_REGISTERED_ENDPOINT);
+        } else if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.GENERAL_SERVICE) {
             final var desc = endpoint.generalServiceOrThrow().description();
             if (desc != null && !desc.isEmpty()) {
                 final var raw = desc.getBytes(StandardCharsets.UTF_8);

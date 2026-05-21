@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -38,11 +37,11 @@ class TipsetTrackerTests {
         assertThat(actual.size()).isEqualTo(expected.size());
 
         for (final RosterEntry address : roster.rosterEntries()) {
-            assertThat(actual.getTipGenerationForNode(NodeId.of(address.nodeId())))
+            assertThat(actual.getTipSequenceNumberForNode(NodeId.of(address.nodeId())))
                     .withFailMessage(
                             "Expected tip generation for node %s to be %s but was %s",
                             address.nodeId(), expected, actual)
-                    .isEqualTo(expected.getTipGenerationForNode(NodeId.of(address.nodeId())));
+                    .isEqualTo(expected.getTipSequenceNumberForNode(NodeId.of(address.nodeId())));
         }
     }
 
@@ -72,15 +71,6 @@ class TipsetTrackerTests {
 
             final NodeId creator = NodeId.of(
                     roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
-
-            // Assign an nGen value to every event, including self events. Tipsets should always
-            // have -1 for the self tips even if the event has a different nGen value.
-            final long nGen;
-            if (latestEvents.containsKey(creator)) {
-                nGen = latestEvents.get(creator).getNGen() + 1;
-            } else {
-                nGen = NonDeterministicGeneration.FIRST_GENERATION;
-            }
 
             birthRound += random.nextLong(0, 3) / 2;
 
@@ -113,7 +103,6 @@ class TipsetTrackerTests {
                     .setSelfParent(latestEvents.get(creator))
                     .setOtherParents(otherParents)
                     .setBirthRound(birthRound)
-                    .setNGen(nGen)
                     .build();
             latestEvents.put(creator, event);
 
@@ -123,11 +112,11 @@ class TipsetTrackerTests {
             } else {
                 newTipset = tracker.addPeerEvent(event);
             }
-            assertThat(newTipset.getTipGenerationForNode(selfId))
+            assertThat(newTipset.getTipSequenceNumberForNode(selfId))
                     .withFailMessage(String.format(
-                            "The generation should always be %s for the self node",
-                            NonDeterministicGeneration.GENERATION_UNDEFINED))
-                    .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
+                            "The sequence number should always be %s for the self node, got %s instead",
+                            PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER, newTipset.getTipSequenceNumberForNode(selfId)))
+                    .isEqualTo(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.
@@ -142,7 +131,7 @@ class TipsetTrackerTests {
             final Tipset expectedTipset = new Tipset(roster).merge(parentTipsets);
 
             if (!creator.equals(selfId)) {
-                expectedTipset.advance(creator, nGen);
+                expectedTipset.advance(creator, event.getSequenceNumber());
             }
 
             expectedTipsets.put(event.getDescriptor(), expectedTipset);

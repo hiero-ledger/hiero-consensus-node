@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +30,34 @@ public class BlockNodeOp extends UtilOp {
     private final Consumer<Long> lastVerifiedBlockConsumer;
     private final boolean sendBlockAcknowledgementsEnabled;
     private final boolean persistState;
+    private final long rangeStart;
+    private final long rangeEnd;
+    private final Consumer<Map<Long, RecordFileItem>> recordFileItemsConsumer;
+
+    private BlockNodeOp(
+            final long nodeIndex,
+            final BlockNodeAction action,
+            final EndOfStream.Code responseCode,
+            final long blockNumber,
+            final AtomicLong lastVerifiedBlockNumber,
+            final Consumer<Long> lastVerifiedBlockConsumer,
+            final boolean sendBlockAcknowledgementsEnabled,
+            final boolean persistState,
+            final long rangeStart,
+            final long rangeEnd,
+            final Consumer<Map<Long, RecordFileItem>> recordFileItemsConsumer) {
+        this.nodeIndex = nodeIndex;
+        this.action = action;
+        this.responseCode = responseCode;
+        this.blockNumber = blockNumber;
+        this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
+        this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
+        this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
+        this.persistState = persistState;
+        this.rangeStart = rangeStart;
+        this.rangeEnd = rangeEnd;
+        this.recordFileItemsConsumer = recordFileItemsConsumer;
+    }
 
     private BlockNodeOp(
             final long nodeIndex,
@@ -38,14 +68,18 @@ public class BlockNodeOp extends UtilOp {
             final Consumer<Long> lastVerifiedBlockConsumer,
             final boolean sendBlockAcknowledgementsEnabled,
             final boolean persistState) {
-        this.nodeIndex = nodeIndex;
-        this.action = action;
-        this.responseCode = responseCode;
-        this.blockNumber = blockNumber;
-        this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
-        this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
-        this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
-        this.persistState = persistState;
+        this(
+                nodeIndex,
+                action,
+                responseCode,
+                blockNumber,
+                lastVerifiedBlockNumber,
+                lastVerifiedBlockConsumer,
+                sendBlockAcknowledgementsEnabled,
+                persistState,
+                0L,
+                0L,
+                null);
     }
 
     @Override
@@ -180,6 +214,29 @@ public class BlockNodeOp extends UtilOp {
                         sendBlockAcknowledgementsEnabled);
                 controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
+            case ASSERT_BLOCK_HAS_RECORD_FILE:
+                if (!controller.hasReceivedRecordFileItem(nodeIndex, blockNumber)) {
+                    throw new AssertionError(String.format(
+                            "No RecordFileItem received for block %d by simulator %d. Received RecordFileItems for blocks: %s",
+                            blockNumber,
+                            nodeIndex,
+                            controller.getAllRecordFileItems(nodeIndex).keySet()));
+                }
+                break;
+            case ASSERT_NO_RECORD_FILES_IN_RANGE:
+                for (long n = rangeStart; n <= rangeEnd; n++) {
+                    if (controller.hasReceivedRecordFileItem(nodeIndex, n)) {
+                        throw new AssertionError(String.format(
+                                "Unexpected RecordFileItem received for block %d by simulator %d in range [%d, %d]",
+                                n, nodeIndex, rangeStart, rangeEnd));
+                    }
+                }
+                break;
+            case EXPOSE_RECORD_FILE_ITEMS:
+                if (recordFileItemsConsumer != null) {
+                    recordFileItemsConsumer.accept(controller.getAllRecordFileItems(nodeIndex));
+                }
+                break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node simulators");
         }
@@ -209,6 +266,14 @@ public class BlockNodeOp extends UtilOp {
             case SHUTDOWN:
                 controller.shutdownContainer(nodeIndex, persistState);
                 break;
+            case ASSERT_BLOCK_HAS_RECORD_FILE:
+            case ASSERT_NO_RECORD_FILES_IN_RANGE:
+            case EXPOSE_RECORD_FILE_ITEMS:
+                log.warn(
+                        "Action {} is not yet supported for BlockNodeMode.REAL (node {}); use BlockNodeMode.SIMULATOR for WRB content assertions",
+                        action,
+                        nodeIndex);
+                return false;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
         }
@@ -247,7 +312,13 @@ public class BlockNodeOp extends UtilOp {
         /** Get the last verified block number */
         GET_LAST_VERIFIED_BLOCK,
         /** Whether or not to send block acknowledgements */
-        UPDATE_SENDING_BLOCK_ACKS
+        UPDATE_SENDING_BLOCK_ACKS,
+        /** Assert that a {@link RecordFileItem} (WRB content) has been received for a specific block */
+        ASSERT_BLOCK_HAS_RECORD_FILE,
+        /** Assert that no {@link RecordFileItem}s have been received for any block in an inclusive range */
+        ASSERT_NO_RECORD_FILES_IN_RANGE,
+        /** Expose the map of received {@link RecordFileItem}s keyed by block number */
+        EXPOSE_RECORD_FILE_ITEMS
     }
 
     /**
@@ -365,6 +436,46 @@ public class BlockNodeOp extends UtilOp {
     public static UpdateSendingBlockAcknowledgementsBuilder updateSendingBlockAcknowledgements(
             final long nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
         return new UpdateSendingBlockAcknowledgementsBuilder(nodeIndex, sendBlockAcknowledgementsEnabled);
+    }
+
+    /**
+     * Creates a builder for asserting that a {@link RecordFileItem} (WRB content) has been received
+     * for a specific block by a block node simulator.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param blockNumber the block number to check
+     * @return a builder for the operation
+     */
+    public static AssertBlockHasRecordFileBuilder assertBlockHasRecordFile(
+            final long nodeIndex, final long blockNumber) {
+        return new AssertBlockHasRecordFileBuilder(nodeIndex, blockNumber);
+    }
+
+    /**
+     * Creates a builder for asserting that no {@link RecordFileItem}s have been received for any
+     * block in an inclusive range by a block node simulator.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param fromInclusive first block number (inclusive)
+     * @param toInclusive last block number (inclusive)
+     * @return a builder for the operation
+     */
+    public static AssertNoRecordFilesInRangeBuilder assertNoRecordFilesInRange(
+            final long nodeIndex, final long fromInclusive, final long toInclusive) {
+        return new AssertNoRecordFilesInRangeBuilder(nodeIndex, fromInclusive, toInclusive);
+    }
+
+    /**
+     * Creates a builder for exposing the map of received {@link RecordFileItem}s from a block node
+     * simulator, keyed by block number.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param consumer the consumer to receive the map of block number to RecordFileItem
+     * @return a builder for the operation
+     */
+    public static ExposeRecordFileItemsBuilder exposingRecordFileItems(
+            final long nodeIndex, final Consumer<Map<Long, RecordFileItem>> consumer) {
+        return new ExposeRecordFileItemsBuilder(nodeIndex, consumer);
     }
 
     /**
@@ -740,6 +851,110 @@ public class BlockNodeOp extends UtilOp {
                     lastVerifiedBlockConsumer,
                     true,
                     true);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for asserting a {@link RecordFileItem} has been received for a specific block.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class AssertBlockHasRecordFileBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final long blockNumber;
+
+        AssertBlockHasRecordFileBuilder(final long nodeIndex, final long blockNumber) {
+            this.nodeIndex = nodeIndex;
+            this.blockNumber = blockNumber;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex,
+                    BlockNodeAction.ASSERT_BLOCK_HAS_RECORD_FILE,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true,
+                    true,
+                    0L,
+                    0L,
+                    null);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for asserting that no {@link RecordFileItem}s have been received for any block in a range.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class AssertNoRecordFilesInRangeBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final long fromInclusive;
+        private final long toInclusive;
+
+        AssertNoRecordFilesInRangeBuilder(final long nodeIndex, final long fromInclusive, final long toInclusive) {
+            this.nodeIndex = nodeIndex;
+            this.fromInclusive = fromInclusive;
+            this.toInclusive = toInclusive;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex,
+                    BlockNodeAction.ASSERT_NO_RECORD_FILES_IN_RANGE,
+                    null,
+                    0,
+                    null,
+                    null,
+                    true,
+                    true,
+                    fromInclusive,
+                    toInclusive,
+                    null);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Builder for exposing the map of received {@link RecordFileItem}s keyed by block number.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class ExposeRecordFileItemsBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final Consumer<Map<Long, RecordFileItem>> consumer;
+
+        ExposeRecordFileItemsBuilder(final long nodeIndex, final Consumer<Map<Long, RecordFileItem>> consumer) {
+            this.nodeIndex = nodeIndex;
+            this.consumer = consumer;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex,
+                    BlockNodeAction.EXPOSE_RECORD_FILE_ITEMS,
+                    null,
+                    0,
+                    null,
+                    null,
+                    true,
+                    true,
+                    0L,
+                    0L,
+                    consumer);
         }
 
         @Override

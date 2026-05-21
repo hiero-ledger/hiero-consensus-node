@@ -44,6 +44,7 @@ with "conn" for identification.
 | `blockStream_conn_blockEndSentToAckLatency`        | Running average | Average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
 | `blockStream_conn_blockClosedToAckLatency`         | Running average | Average latency (ms) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
 | `blockStream_conn_pipelineOperationTimeoutCounter` | Counter         | Number of times a pipeline operation has occured                                                       |
+| `blockStream_conn_activeConnectionCount`           | Gauge (long)    | Current number of streaming connections that are active                                                |
 
 ## Connection Receive Metrics
 
@@ -82,7 +83,7 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_connSend_endStream_error`        | Counter         | Number of EndStream.Error requests sent                          |
 | `blockStream_connSend_endStream_tooFarBehind` | Counter         | Number of EndStream.TooFarBehind requests sent                   |
 | `blockStream_connSend_failure`                | Counter         | Number of requests sent to block nodes that failed               |
-| `blockStream_connSend_requestSendLatency`     | Running average | Average latency (ms) for a PublishStreamRequest to be sent       |
+| `blockStream_connSend_requestSendLatency`     | Running average | Average latency (μs) for a PublishStreamRequest to be sent       |
 | `blockStream_connSend_latestBlockEndOfBlock`  | Gauge (long)    | The latest block number for which an EndOfBlock request was sent |
 | `blockStream_connSend_streamingBlockNumber`   | Gauge (long)    | The current block number this connection is streaming            |
 | `blockStream_connSend_requestBytes`           | Running average | Average size in bytes of a PublishStreamRequest                  |

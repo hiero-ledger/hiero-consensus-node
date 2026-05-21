@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
@@ -8,13 +10,18 @@ import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -23,6 +30,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -35,12 +43,16 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -59,13 +71,17 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -196,14 +212,24 @@ class HandleWorkflowTest {
     void setUp() {
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
-        given(singletonState.get())
-                .willReturn(PlatformState.newBuilder()
+        lenient()
+                .when(singletonState.get())
+                .thenReturn(PlatformState.newBuilder()
                         .creationSoftwareVersion(
                                 SemanticVersion.newBuilder().minor(1).build())
                         .build());
-        given(state.getReadableStates(NAME)).willReturn(readableStates);
-        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
-                .willReturn(singletonState);
+        lenient().when(state.getReadableStates(NAME)).thenReturn(readableStates);
+        lenient()
+                .when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .thenReturn(singletonState);
+
+        // Mock BlockInfo readable state needed by handleRound's jumpstart voting check
+        final ReadableStates blockRecordReadableStates = mock(ReadableStates.class);
+        final ReadableSingletonState<BlockInfo> blockInfoSingleton = mock(ReadableSingletonState.class);
+        lenient().when(blockInfoSingleton.get()).thenReturn(BlockInfo.DEFAULT);
+        lenient().when(blockRecordReadableStates.getSingleton(BLOCKS_STATE_ID)).thenReturn((ReadableSingletonState)
+                blockInfoSingleton);
+        lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadableStates);
     }
 
     @Test
@@ -258,6 +284,31 @@ class HandleWorkflowTest {
                 .writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(BLOCK_TIME).build())
                         .build()));
+    }
+
+    @Test
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertNull(method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 
     @Test
@@ -490,14 +541,32 @@ class HandleWorkflowTest {
             @NonNull final StreamMode mode,
             @NonNull BlockStreamWriterMode streamWriterMode,
             @NonNull final List<StateChanges.Builder> migrationStateChanges) {
+        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, Map.of(), 1);
+    }
+
+    private void givenSubjectWith(
+            @NonNull final StreamMode mode,
+            @NonNull final BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges,
+            @NonNull final Map<String, String> configOverrides) {
+        givenSubjectWith(mode, streamWriterMode, migrationStateChanges, configOverrides, 1);
+    }
+
+    private void givenSubjectWith(
+            @NonNull final StreamMode mode,
+            @NonNull final BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges,
+            @NonNull final Map<String, String> configOverrides,
+            final int txnOffsetNanos) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
                 .withValue("blockStream.writerMode", "" + streamWriterMode)
                 .withValue("tss.hintsEnabled", "false")
-                .withValue("tss.historyEnabled", "false")
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+                .withValue("tss.historyEnabled", "false");
+        configOverrides.forEach(config::withValue);
+        final var hederaConfig = config.getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(hederaConfig, 1L));
+        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -530,7 +599,29 @@ class HandleWorkflowTest {
                 blockBufferService,
                 Map.of(),
                 quiescenceController,
-                nodeFeeManager);
+                nodeFeeManager,
+                txnOffsetNanos);
+    }
+
+    private void givenFreezeRoundPlatformState() {
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableSingletonState<PlatformState> readableSingletonState = mock(ReadableSingletonState.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<PlatformState> writableSingletonState = mock(WritableSingletonState.class);
+        final var freezeState = PlatformState.newBuilder()
+                .creationSoftwareVersion(SemanticVersion.newBuilder().minor(1).build())
+                .freezeTime(new Timestamp(NOW.getEpochSecond() - 1, NOW.getNano()))
+                .build();
+
+        given(state.getReadableStates(NAME)).willReturn(readableStates);
+        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn((ReadableSingletonState) readableSingletonState);
+        given(readableSingletonState.get()).willReturn(freezeState);
+
+        given(state.getWritableStates(NAME)).willReturn(writableStates);
+        given(writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn((WritableSingletonState) writableSingletonState);
+        given(writableSingletonState.get()).willReturn(freezeState);
     }
 
     @Test
@@ -556,8 +647,196 @@ class HandleWorkflowTest {
         verify(blockBufferService).ensureNewBlocksPermitted();
     }
 
+    @Test
+    void suppressesDuplicateTssReconcileErrorsUntilReset() {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+
+        try {
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+
+            assertEquals(1, logCaptor.errorLogs().size());
+            assertTrue(logCaptor.errorLogs().get(0).contains("trying to reconcile TSS state"));
+
+            invokeResetTssReconcileFailureSuppression();
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+
+            assertEquals(2, logCaptor.errorLogs().size());
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void logsDifferentTssReconcileErrorsIndependently() {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+
+        try {
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+            invokeLogTssReconcileFailure(differentTssReconcileFailure());
+
+            assertEquals(2, logCaptor.errorLogs().size());
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
     private void givenPositiveFreezeRound() {
         given(platformStateReadableSingletonState.get()).willReturn(platformState);
         given(platformState.latestFreezeRound()).willReturn(10L);
+    }
+
+    private void invokeLogTssReconcileFailure(@NonNull final Exception e) {
+        try {
+            final var method = HandleWorkflow.class.getDeclaredMethod("logTssReconcileFailure", Exception.class);
+            method.setAccessible(true);
+            method.invoke(subject, e);
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    private void invokeResetTssReconcileFailureSuppression() {
+        try {
+            final var method = HandleWorkflow.class.getDeclaredMethod("resetTssReconcileFailureSuppression");
+            method.setAccessible(true);
+            method.invoke(subject);
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    private static NullPointerException duplicateTssReconcileFailure() {
+        return new NullPointerException("boom");
+    }
+
+    private static IllegalStateException differentTssReconcileFailure() {
+        return new IllegalStateException("boom");
+    }
+
+    @Test
+    void freezeRoundSkipsWrappedHashWritesInBlocksMode() {
+        final var freezeEvent = mock(ConsensusEvent.class);
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(freezeEvent.getCreatorId()).willReturn(creatorId);
+        given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
+        given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(freezeEvent.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        givenFreezeRoundPlatformState();
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
+                        "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"),
+                1);
+
+        subject.handleRound(state, round, txns -> {});
+
+        verify(blockRecordManager, never()).endRound(state);
+        verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
+    }
+
+    /**
+     * The {@code nextTime} for the first scheduled transaction must equal
+     * {@code lastUsedConsensusTime + txnOffsetNanos}. This test uses {@code txnOffsetNanos = 104}
+     * (= reservedSystemTxnNanos=100 + maxPrecedingRecords=3 + 1) and confirms that
+     * {@code StakePeriodManager.setCurrentStakePeriodFor} — called at the top of the scheduling
+     * loop with {@code nextTime} — receives exactly {@code NOW.plusNanos(104)}.
+     *
+     * <p>Under the old formula, {@code nextTime = lastTime + (maxPrecedingRecords + 1) = NOW + 4},
+     * so a failure here would point to a regression to the old calculation.
+     */
+    @Test
+    void scheduledTxnNextTimeUsesTxnOffsetNanos() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        // EPOCH causes executionStart to be set to consensusNow, keeping the window simple
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        // lastTime = NOW → nextTime = NOW + txnOffsetNanos
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        // Minimal state setup for WritableEntityIdStoreImpl construction in executeAsManyScheduled.
+        // The entity-id states must implement CommittableWritableStates so the cast in
+        // doStreamingChangesInternal succeeds; getSingleton returns null (acceptable since the
+        // store's internals are never accessed — the scheduleService mock ignores the StoreFactory).
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+
+        // Iterator reports one pending txn; iter.next() returns null which triggers an NPE inside
+        // executeScheduled — caught by executeScheduledTransactions — after setCurrentStakePeriodFor
+        // has already been called with nextTime.
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+
+        // txnOffsetNanos=104; with defaults consTimeSeparationNanos=1000 and maxFollowingRecords=50:
+        // lastUsableTime = NOW + (1000 - 50 - 104) = NOW + 846, which is comfortably above nextTime.
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        subject.handleRound(state, round, txns -> {});
+
+        // Old formula: NOW + (maxPrecedingRecords + 1) = NOW + 4
+        // New formula: NOW + txnOffsetNanos = NOW + 104
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW.plusNanos(104)));
+    }
+
+    /**
+     * When {@code txnOffsetNanos} is large enough that
+     * {@code nextTime = lastUsedConsensusTime + txnOffsetNanos} exceeds
+     * {@code lastUsableTime = consensusNow + (consTimeSeparationNanos - maxFollowingRecords - txnOffsetNanos)},
+     * the scheduling loop must not execute any transactions at all.
+     *
+     * <p>Here {@code txnOffsetNanos = 951} with defaults
+     * {@code consTimeSeparationNanos=1000, maxFollowingRecords=50} gives
+     * {@code lastUsableTime = NOW - 1}, which is strictly before {@code nextTime = NOW + 951}.
+     */
+    @Test
+    void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true);
+        //        given(schedIter.purgeUntilNext()).willReturn(false);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+
+        // txnOffsetNanos=951; lastUsableTime = NOW + (1000 - 50 - 951) = NOW - 1 < nextTime = NOW + 951
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 951);
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The iterator was obtained (confirms we reached executeAsManyScheduled)
+        verify(scheduleService).executableTxns(any(), any(), any());
+        // But the loop body never entered — no scheduled txn was started
+        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
     }
 }

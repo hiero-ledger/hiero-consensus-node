@@ -6,7 +6,7 @@ import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.AccountTokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -87,6 +87,7 @@ public final class BlockStreamUtils {
             case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
             case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
             case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
+            case STATE_ID_WRAPS_PROVING_KEY_HASH -> "HistoryService.WRAPS_PROVING_KEY_HASH";
             case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
             case STATE_ID_WRAPS_MESSAGE_HISTORIES -> "HistoryService.WRAPS_MESSAGE_HISTORIES";
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
@@ -198,7 +199,7 @@ public final class BlockStreamUtils {
         };
     }
 
-    public static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
+    public static EntityIDPair pairFrom(@NonNull final AccountTokenAssociation tokenAssociation) {
         return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
     }
 }

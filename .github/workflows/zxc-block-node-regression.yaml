@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Block Node Explorer Regression"
+name: "ZXC: Block Node Regression"
 on:
   workflow_call:
     inputs:
@@ -42,13 +42,14 @@ env:
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
+  # Execute Block Node Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
+    timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -59,16 +60,12 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      # Get latest tag for the checked out hiero-consensus-node
-      - name: Get Latest Stable CN Tag
+      # Get version for the checked out hiero-consensus-node
+      - name: Get Version of Checkout CN Codebase
         run: |
-          git fetch --tags
-          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
-          if [[ -z "${LATEST_STABLE:-}" ]]; then
-            echo "No stable v*.*.* tags found."; exit 1
-          fi
-          echo "Latest stable tag: ${LATEST_STABLE}"
-          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+          RAW_VERSION=$(cat version.txt)
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_LATEST_TAG env var"
+          echo "CN_LATEST_TAG=${RAW_VERSION}" >> "$GITHUB_ENV"
 
       #  Checkout the block-node repository
       - name: Checkout Block-Node Code
@@ -146,14 +143,14 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25
+          java-version: 25.0.2
 
       # Set up the node environment
       # Version 20.18.0 is the recommended version for solo.
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22
 
       - name: Setup PNPM
         run: |
@@ -190,7 +187,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
+          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -200,7 +197,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@latest
+        run: npm install -g @hiero-ledger/solo@latest
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -237,6 +234,11 @@ jobs:
                     stream:
                       maxSubscribeAttempts: 10
                       responseTimeout: 10s
+            # custom image to support preview streams hash verification
+            image:
+              registry: docker.io
+              repository: xin323/importer-native
+              tag: 0.154.0-rc1-f65a7d8e8
           EOF
 
       - name: Print MN Override Values
@@ -260,10 +262,16 @@ jobs:
         run: |
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --pvcs true
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
+
+      - name: Show running pods and services and wait on BN readiness
+        run: |
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
 
       # port forwards
       - name: Solo Port forwards
@@ -345,6 +353,7 @@ jobs:
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
+        timeout-minutes: 30
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
@@ -400,7 +409,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-log
+          name: cn-logs
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
@@ -434,7 +443,7 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 

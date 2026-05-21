@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
@@ -36,8 +37,6 @@ public class LearnerPullVirtualTreeReceiveTask {
     // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
 
-    private final Runnable completeListener;
-
     private final Duration allMessagesReceivedTimeout;
 
     /**
@@ -55,34 +54,41 @@ public class LearnerPullVirtualTreeReceiveTask {
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
-            final AtomicLong expectedResponses,
-            final Runnable completeListener) {
+            final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;
         this.view = view;
         this.expectedResponses = expectedResponses;
-        this.completeListener = completeListener;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
+    /**
+     * Start the background thread that receives responses from the teacher.
+     */
     public void exec() {
         workGroup.execute(NAME, this::run);
     }
 
+    /**
+     * Main loop for the receiver thread. Reads responses from the async input stream,
+     * tracks reconnect statistics, and delegates to the learner view. Terminates when the
+     * stream signals completion via {@link Path#INVALID_PATH}.
+     */
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final PullVirtualTreeResponse response =
-                        in.readAnticipatedMessage(() -> new PullVirtualTreeResponse(view));
-                if (response == null) {
+                final byte[] responseBytes = in.readAnticipatedMessage();
+                if (responseBytes == null) {
                     if (!in.isAlive()) {
                         break;
                     }
                     Thread.sleep(0, 1);
                     continue;
                 }
-                final long path = response.getPath();
+                final PullVirtualTreeResponse response =
+                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+                final long path = response.path();
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }
@@ -101,7 +107,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                                     "Timed out waiting for view all remaining view messages to be processed");
                         }
                     }
-                    completeListener.run();
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
             }

@@ -8,10 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -23,7 +25,6 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,7 +35,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -49,16 +49,29 @@ class ReconnectHashListenerTest {
     void nullFlusherThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener(null),
+                () -> new ReconnectHashListener(null, mock(DataSourceHashChunkPreloader.class)),
                 "A null flusher should produce an NPE");
+    }
+
+    @Test
+    @DisplayName("Null hash chunk preloader throws")
+    void nullHashChunkPreloaderThrows() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new ReconnectHashListener(mock(ReconnectHashLeafFlusher.class), null),
+                "A null hash chunk preloader should produce an NPE");
     }
 
     @Test
     @DisplayName("Valid configurations create an instance")
     void goodLeafPaths() {
         final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
+        final VirtualDataSource dataSource = mock(VirtualDataSource.class);
+        when(dataSource.getHashChunkHeight()).thenReturn(6);
+        final DataSourceHashChunkPreloader preloader = new DataSourceHashChunkPreloader(dataSource);
+
         try {
-            new ReconnectHashListener(flusher);
+            new ReconnectHashListener(flusher, preloader);
         } catch (Exception e) {
             fail("Should have been able to create the instance", e);
         }
@@ -80,7 +93,10 @@ class ReconnectHashListenerTest {
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;
         final int last = 2 * size - 2;
-        final ReconnectHashListener listener = new ReconnectHashListener(flusher);
+
+        flusher.init(first, last);
+
+        final ReconnectHashListener listener = new ReconnectHashListener(flusher, new DataSourceHashChunkPreloader(ds));
         final VirtualHasher hasher = new VirtualHasher(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
             final long chunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
@@ -94,6 +110,8 @@ class ReconnectHashListenerTest {
                 first,
                 last,
                 listener);
+
+        flusher.finish();
 
         // Now validate that everything showed up the data source in ordered chunks
         final TreeSet<VirtualHashChunk> allFlushedChunks =
@@ -114,28 +132,11 @@ class ReconnectHashListenerTest {
             chunkId++;
         }
 
-        final TreeSet<VirtualLeafBytes> allLeafRecords =
-                new TreeSet<>(Comparator.comparingLong(VirtualLeafBytes::path));
-
-        for (List<VirtualLeafBytes> leafRecords : ds.leafRecords) {
-            allLeafRecords.addAll(leafRecords);
-        }
-
-        assertEquals(size, allLeafRecords.size(), "Some leaf records were not written!");
-        long expected = first;
-        for (VirtualLeafBytes rec : allLeafRecords) {
-            final long path = rec.path();
-            assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
-            expected++;
-        }
+        hasher.shutdown();
     }
 
     private VirtualLeafBytes leaf(long path) {
         return new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue(path).toBytes());
-    }
-
-    private Hash hash(long path) {
-        return CRYPTO.digestSync(("" + path).getBytes(StandardCharsets.UTF_8));
     }
 
     private static final class VirtualDataSourceSpy implements VirtualDataSource {
@@ -143,7 +144,6 @@ class ReconnectHashListenerTest {
         private final VirtualDataSource delegate;
 
         private final List<List<VirtualHashChunk>> internalRecords = new ArrayList<>();
-        private final List<List<VirtualLeafBytes>> leafRecords = new ArrayList<>();
 
         VirtualDataSourceSpy(VirtualDataSource delegate) {
             this.delegate = delegate;
@@ -166,7 +166,6 @@ class ReconnectHashListenerTest {
             final var ir = hashChunksToUpdate.toList();
             this.internalRecords.add(ir);
             final var lr = leafRecordsToAddOrUpdate.toList();
-            this.leafRecords.add(lr);
             delegate.saveRecords(
                     firstLeafPath, lastLeafPath, ir.stream(), lr.stream(), leafRecordsToDelete, isReconnectContext);
         }

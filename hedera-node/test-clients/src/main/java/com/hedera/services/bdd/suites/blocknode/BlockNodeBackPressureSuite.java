@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.RESTART_TO_ACTIVE_TIMEOUT;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -52,7 +53,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(1)
@@ -87,7 +90,9 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(2)
@@ -134,75 +139,98 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {1},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {2},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {3},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "5",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "5",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(3)
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
+                // Let the 4-node network stabilize before shutting down the block node
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
+                // With REAL block nodes (Docker containers), shutdown takes ~15s before the
+                // connection drops, then the buffer needs ~10s more to fill. Use 2min timeout.
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
-                        Duration.ofSeconds(30),
-                        Duration.ofSeconds(30),
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
+                waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.CHECKING),
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).startImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
                 sourcingContextual(
                         spec -> assertBlockNodeCommsLogContainsTimeframe(
                                 byNodeId(0),
                                 time::get,
-                                Duration.ofMinutes(1),
-                                Duration.ofMinutes(1),
+                                Duration.ofMinutes(2),
+                                Duration.ofMinutes(2),
                                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.ACTIVE),
+                waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.ACTIVE),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 blockNode(1).shutDownImmediately(),
                 waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING),
                 doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
+                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).startImmediately(),
                 blockNode(1).startImmediately(),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.ACTIVE));
+                waitForAny(allNodes(), RESTART_TO_ACTIVE_TIMEOUT, PlatformStatus.ACTIVE));
     }
 }

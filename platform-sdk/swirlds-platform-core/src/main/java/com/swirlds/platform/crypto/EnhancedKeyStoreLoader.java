@@ -7,7 +7,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.PathsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -59,13 +58,12 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
-import org.hiero.base.crypto.KeystorePasswordPolicy;
-import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.base.crypto.config.CryptoConfig_;
-import org.hiero.consensus.crypto.CertificateUtils;
-import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.base.crypto.CertificateUtils;
+import org.hiero.base.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -231,16 +229,9 @@ public class EnhancedKeyStoreLoader {
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL);
 
-        final String keyStorePassphrase =
-                configuration.getConfigData(CryptoConfig.class).keystorePassword();
+        final String keyStorePassphrase = CryptoUtils.getConfiguredKeystorePassword(configuration);
         final Path keyStoreDirectory =
                 configuration.getConfigData(PathsConfig.class).getKeysDirPath();
-
-        if (keyStorePassphrase == null || keyStorePassphrase.isBlank()) {
-            throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
-        }
-
-        KeystorePasswordPolicy.warnIfNonCompliant(CryptoConfig_.KEYSTORE_PASSWORD, keyStorePassphrase);
 
         return new EnhancedKeyStoreLoader(
                 keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes, rosterEntries);

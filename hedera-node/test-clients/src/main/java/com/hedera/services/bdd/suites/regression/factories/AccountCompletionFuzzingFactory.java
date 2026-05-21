@@ -102,7 +102,7 @@ public class AccountCompletionFuzzingFactory {
                             new RandomContractCallSignedBy(spec.registry(), accounts),
                             intPropOrElse("randomContractCall.bias", 0, props))
                     .withOp(
-                            new RandomHollowAccountDeletion(accounts),
+                            new RandomHollowAccountDeletion(spec.registry(), accounts),
                             intPropOrElse("randomAccountDeletion.bias", 0, props));
         };
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -171,11 +171,12 @@ public class TipsetEventCreator implements EventCreator {
 
         if (selfEvent) {
             if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
+                    || (this.lastSelfEvent.hasSequenceNumber()
+                            && this.lastSelfEvent.getSequenceNumber() < event.getSequenceNumber())) {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart (via PCES)
                 // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen value assigned by the orphan buffer.
+                // will have an sequence number value assigned by the orphan buffer.
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
                 tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
@@ -322,20 +323,21 @@ public class TipsetEventCreator implements EventCreator {
         if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
-            if (selflessParent == null) {
-                return null;
-            }
-            // if we already contain that event, everything is good
-            if (!contains(chosenBestParents, selflessParent)) {
-                // otherwise, replace the least important parent with one we have chosen to reduce selfishness
-                // please note in case of single-parent events, this will replace the only parent
-                chosenBestParents[chosenBestParents.length - 1] = selflessParent;
-                replacedBestParentForSelfishness = true;
+            // in ideal case, it shouldn't be null, but there is certain chance of tipset indices getting corrupted
+            // so we want to fall back to weight advancement
+            if (selflessParent != null) {
+                // if we already contain that event, everything is good
+                if (!contains(chosenBestParents, selflessParent)) {
+                    // otherwise, replace the least important parent with one we have chosen to reduce selfishness
+                    // please note in case of single-parent events, this will replace the only parent
+                    chosenBestParents[0] = selflessParent;
+                    replacedBestParentForSelfishness = true;
+                }
             }
         }
 
         for (int i = 0; i < chosenBestParents.length; i++) {
-            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
+            if (replacedBestParentForSelfishness && i == 0) {
                 tipsetMetrics
                         .getPityParentMetric(chosenBestParents[i].getCreatorId())
                         .cycle();
@@ -402,8 +404,8 @@ public class TipsetEventCreator implements EventCreator {
                     // for the advancement score to be zero. But in the interest in extreme caution,
                     // we check anyway, since it is very important never to create events with
                     // an advancement score of zero.
-                    zeroAdvancementWeightLogger.error(
-                            EXCEPTION.getMarker(),
+                    zeroAdvancementWeightLogger.warn(
+                            INVALID_EVENT_ERROR.getMarker(),
                             "selfishness score is {} but advancement score is zero for {}.\n{}",
                             selfishness,
                             possibleIgnoredNode,
@@ -416,8 +418,8 @@ public class TipsetEventCreator implements EventCreator {
             // Note: this should be impossible, since we will not enter this method in the first
             // place if there are no ignored nodes. But better to be safe than sorry, and returning null
             // is an acceptable way of saying "I can't create an event right now".
-            noParentFoundLogger.error(
-                    EXCEPTION.getMarker(), "failed to locate eligible ignored node to use as a parent");
+            noParentFoundLogger.warn(
+                    INVALID_EVENT_ERROR.getMarker(), "failed to locate eligible ignored node to use as a parent");
             return null;
         }
 

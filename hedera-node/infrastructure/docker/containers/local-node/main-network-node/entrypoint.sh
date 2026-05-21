@@ -48,5 +48,5 @@ id
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END USER IDENT   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo
 
-/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "data/lib/*"  com.swirlds.platform.Browser  > >(tee stdout.log) 2>&1
+/usr/bin/env java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "data/lib/*"  com.swirlds.platform.Browser  > >(tee stdout.log) 2>&1
 printf "java exit code %s" "${?}\n" >> stdout.log

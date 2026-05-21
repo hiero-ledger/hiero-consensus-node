@@ -10,7 +10,6 @@ import static org.hiero.consensus.state.signed.ReservedSignedState.createNullRes
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
@@ -28,8 +27,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
@@ -73,8 +72,8 @@ public final class StartupStateUtils {
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                        config.getConfigData(StateCommonConfig.class))
-                .getSavedStateFiles(actualMainClassName, selfId, swirldName);
+                        platformContext.getFileSystemManager(), actualMainClassName, selfId, swirldName)
+                .getSavedStateFiles();
         logStatesFound(savedStateFiles);
 
         if (savedStateFiles.isEmpty()) {
@@ -259,7 +258,7 @@ public final class StartupStateUtils {
                 final VirtualMapState stateCopy = stateLifecycleManager.copyMutableState();
                 final SignedState signedStateCopy = new SignedState(
                         platformContext.getConfiguration(),
-                        ConsensusCryptoUtils::verifySignature,
+                        CryptoUtils::verifySignature,
                         stateCopy,
                         "StartupStateUtils: copy loaded initial state",
                         false,
@@ -277,7 +276,7 @@ public final class StartupStateUtils {
         final VirtualMapState genesisState = stateLifecycleManager.copyMutableState();
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 genesisState,
                 "genesis state",
                 false,

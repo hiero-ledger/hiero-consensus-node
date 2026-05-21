@@ -3,7 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 
-import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -160,16 +159,6 @@ public class MerkleDbStatisticsUpdater {
     /** Increments count of hashes written during a flush*/
     void countFlushHashesWritten() {
         statistics.countFlushHashesWritten(1);
-    }
-
-    private static int updateOffHeapStat(final LongList longList, final IntConsumer updateFunction) {
-        if (longList instanceof OffHeapUser longListOffHeap) {
-            final int result = (int) (longListOffHeap.getOffHeapConsumption() * BYTES_TO_MEBIBYTES);
-            updateFunction.accept(result);
-            return result;
-        } else {
-            return 0;
-        }
     }
 
     private static int updateOffHeapStat(final OffHeapUser offHeapUser, final IntConsumer updateFunction) {

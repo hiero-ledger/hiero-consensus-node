@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -51,10 +50,11 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
@@ -86,6 +86,7 @@ import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_ASSOCIATE;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
@@ -160,7 +161,6 @@ class AtomicTokenServiceFeesSuite {
     private static final String ATOMIC_BATCH = "atomicBatch";
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for FT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForFT() {
         var receiver = "receiver";
@@ -202,7 +202,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for NFT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForNFT() {
         var receiver = "receiver";
@@ -252,12 +251,11 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> claimFungibleTokenAirdropBaseFee() {
         var nftSupplyKey = "nftSupplyKey";
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).payingWith(BATCH_OPERATOR),
                 // do pending airdrop
                 newKeyNamed(nftSupplyKey),
@@ -298,7 +296,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("cancel airdrop FT happy path")
     final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
         final var account = "account";
@@ -351,7 +348,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("cancel airdrop NFT happy path")
     final Stream<DynamicTest> cancelAirdropNftHappyPath() {
         var nftSupplyKey = "nftSupplyKey";
@@ -442,7 +438,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenNFTTransferChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonTokenRejectSetup(),
@@ -472,7 +467,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenFTTransferChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonTokenRejectSetup(),
@@ -505,7 +499,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenRejectFungibleChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonTokenRejectSetup(),
@@ -538,7 +531,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonTokenRejectNFTChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonTokenRejectSetup(),
@@ -585,7 +577,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCreationsCommonNoFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
         final var expectedCommonNoCustomFeesPriceUsd = 1.00;
@@ -624,7 +615,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCreationsCommonWithFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
         final var expectedCommonWithCustomFeesPriceUsd = 2.00;
@@ -655,7 +645,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonWithFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFungibleWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -668,7 +658,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCreationsUniqueNoFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
         final var expectedUniqueNoCustomFeesPriceUsd =
@@ -713,7 +702,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCreationsUniqueWithFeesHaveExpectedPrices() {
         final var civilian = "NonExemptPayer";
         final var expectedUniqueWithCustomFeesPriceUsd = 2.00;
@@ -747,7 +735,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "innerTxn",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateNftWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 3L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -760,7 +748,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseTokenOperationIsChargedExpectedFee() {
         final var htsAmount = 2_345L;
         final var targetToken = "immutableToken";
@@ -804,7 +791,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseFungibleMintOperationIsChargedExpectedFee() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
@@ -843,7 +829,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftMintOperationIsChargedExpectedFee() {
         final var standard100ByteMetadata = copyFromUtf8(
                 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
@@ -877,7 +862,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 1L,
+                                        TOKEN_MINT_NFT, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -888,7 +873,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nftMintsScaleLinearlyBasedOnNumberOfSerialNumbers() {
         final var expectedFee = 10 * EXPECTED_NFT_MINT_PRICE_USD;
         final var standard100ByteMetadata = copyFromUtf8(
@@ -936,7 +920,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 10L,
+                                        TOKEN_MINT_NFT, 10L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 1.0);
                     } else {
@@ -947,7 +931,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftBurnOperationIsChargedExpectedFee() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
@@ -975,7 +958,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 BASE_TXN,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                                txnSize -> expectedTokenBurnFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -1003,7 +986,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseGrantKycChargedAsExpected() {
         return hapiTest(flattened(
                 baseKycSetup(),
@@ -1031,7 +1013,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseRevokeKycChargedAsExpected() {
         return hapiTest(flattened(
                 baseKycSetup(),
@@ -1087,7 +1068,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftFreezeChargedAsExpected() {
         return hapiTest(flattened(
                 baseNftFreezeUnfreezeSetup(),
@@ -1115,7 +1095,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftFreezeUnfreezeChargedAsExpected() {
         return hapiTest(flattened(
                 baseNftFreezeUnfreezeSetup(),
@@ -1168,7 +1147,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonFreezeChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonFreezeUnfreezeSetup(),
@@ -1196,7 +1174,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseCommonUnfreezeChargedAsExpected() {
         return hapiTest(flattened(
                 baseCommonFreezeUnfreezeSetup(),
@@ -1236,7 +1213,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> basePauseHaveExpectedPrices() {
         final var expectedBaseFee = 0.001;
         final var token = "token";
@@ -1268,7 +1244,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseUnpauseHaveExpectedPrices() {
         final var expectedBaseFee = 0.001;
         final var token = "token";
@@ -1300,7 +1275,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> baseNftWipeOperationIsChargedExpectedFee() {
         return hapiTest(flattened(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
@@ -1336,7 +1310,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateTokenChargedAsExpected() {
         final var expectedUpdatePriceUsd = 0.001;
 
@@ -1372,7 +1345,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateNftChargedAsExpected() {
         final var expectedNftUpdatePriceUsd = 0.001 + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
@@ -1428,7 +1400,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteTokenChargedAsExpected() {
         final var expectedDeletePriceUsd = 0.001;
 
@@ -1475,7 +1446,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenAssociateChargedAsExpected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -1505,7 +1475,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenDissociateChargedAsExpected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -1538,7 +1507,6 @@ class AtomicTokenServiceFeesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
         final var expectedFee = 5 * TOKEN_UPDATE_NFT_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
@@ -1761,7 +1729,7 @@ class AtomicTokenServiceFeesSuite {
                 final int mintAmount, final List<Long> updateAmounts) {
             final var supplyKey = "supplyKey";
             return hapiTest(
-                    cryptoCreate(BATCH_OPERATOR).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                     newKeyNamed(supplyKey),
                     cryptoCreate(OWNER)
                             .balance(ONE_HUNDRED_HBARS)

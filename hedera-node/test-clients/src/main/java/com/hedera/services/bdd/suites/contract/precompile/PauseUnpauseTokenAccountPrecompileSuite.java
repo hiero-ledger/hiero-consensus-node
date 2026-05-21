@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -79,7 +78,6 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
     public static final String PAUSE_TX = "PauseTx";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> pauseFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         return hapiTest(
@@ -270,7 +268,6 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> unpauseNonFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         return hapiTest(

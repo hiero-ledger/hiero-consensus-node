@@ -7,8 +7,6 @@ public class TestTags {
         throw new UnsupportedOperationException("Utility class");
     }
 
-    public static final String MATS = "MATS";
-
     public static final String CRYPTO = "CRYPTO";
     public static final String SMART_CONTRACT = "SMART_CONTRACT";
     public static final String LONG_RUNNING = "LONG_RUNNING";
@@ -22,6 +20,7 @@ public class TestTags {
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
+    public static final String WRAPS_DOWNLOAD = "WRAPS_DOWNLOAD";
     public static final String CUTOVER = "CUTOVER";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient

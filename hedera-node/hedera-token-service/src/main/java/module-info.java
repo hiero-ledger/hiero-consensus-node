@@ -18,8 +18,8 @@ module com.hedera.node.app.service.token {
     requires transitive com.esaulpaugh.headlong;
     requires transitive org.apache.logging.log4j;
     requires com.hedera.node.app.hapi.utils;
-    requires com.swirlds.common;
     requires com.swirlds.state.api;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.event.stream;
     requires com.github.spotbugs.annotations;
 }
