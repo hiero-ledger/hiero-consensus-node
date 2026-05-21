@@ -4,8 +4,8 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
