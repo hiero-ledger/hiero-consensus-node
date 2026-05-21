@@ -26,7 +26,9 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,10 +96,39 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 null);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
         assertSame(subject, builder);
+    }
+
+    @Test
+    void skipsLegacyAddContractActionsWhenStreamModeIsBlocks() {
+        final Configuration blocksOnlyConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+        final var outcome = new CallOutcome(
+                ContractFunctionResult.newBuilder().gasUsed(1L).build(),
+                ResponseCodeEnum.SUCCESS,
+                ContractID.DEFAULT,
+                List.of(),
+                null,
+                null,
+                null,
+                EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
+                null,
+                null);
+        given(context.configuration()).willReturn(blocksOnlyConfig);
+
+        subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
+
+        // BlockStreamBuilder rejects addContractActions(ContractActions, boolean) with
+        // UnsupportedOperationException; the gate must skip that call when streamMode=BLOCKS.
+        // The concise `addActions(List<ContractAction>)` should still fire on every mode.
+        verify(subject, never()).addContractActions(any(), anyBoolean());
+        verify(subject).addActions(any());
     }
 }
