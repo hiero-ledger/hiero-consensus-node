@@ -61,7 +61,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || github.ref }}"
-          checkout-token: "${{ github.token }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-distribution: "${{ inputs.java-distribution || 'temurin' }}"
           java-version: "${{ inputs.java-version || '25.0.2' }}"
