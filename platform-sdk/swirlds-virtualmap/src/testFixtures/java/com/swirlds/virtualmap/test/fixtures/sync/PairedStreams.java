@@ -110,7 +110,7 @@ public class PairedStreams implements AutoCloseable {
             learnerSocket.close();
         } catch (IOException e) {
             // this is the test code, and we don't want the test to fail because of a close error
-            e.printStackTrace();
+            e.printStackTrace(System.err);
         }
     }
 
@@ -125,7 +125,7 @@ public class PairedStreams implements AutoCloseable {
             learnerSocket.close();
         } catch (IOException e) {
             // this is the test code, and we don't want the test to fail because of a close error
-            e.printStackTrace();
+            e.printStackTrace(System.err);
         }
     }
 }
