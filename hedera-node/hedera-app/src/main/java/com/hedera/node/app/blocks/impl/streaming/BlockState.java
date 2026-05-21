@@ -44,13 +44,13 @@ public class BlockState {
      */
     private long sizeBytes;
     /**
-     * The milliseconds from epoch when the block header was sent.
+     * The timestamp associated with when the block header was sent.
      */
-    private Long headerSentMs;
+    private volatile Instant headerSentTimestamp;
     /**
-     * The milliseconds from epoch when the block end was sent.
+     * The timestamp associated with when the block end was sent.
      */
-    private Long blockEndSentMs;
+    private volatile Instant blockEndSentTimestamp;
 
     /**
      * Create a new block state object.
@@ -119,7 +119,7 @@ public class BlockState {
      * @throws NullPointerException if the specified timestamp is null
      */
     public void closeBlock(@NonNull final Instant timestamp) {
-        closedTimestamp = requireNonNull(timestamp);
+        closedTimestamp = requireNonNull(timestamp, "timestamp must not be null");
     }
 
     /**
@@ -186,34 +186,34 @@ public class BlockState {
     }
 
     /**
-     * Sets the header sent milliseconds for this block.
-     * @param headerSentMs the milliseconds from epoch when the block header was sent
+     * Sets the timestamp when the block header was sent.
+     * @param headerSentTimestamp the timestamp when the block header was sent
      */
-    public void setHeaderSentMs(final long headerSentMs) {
-        this.headerSentMs = headerSentMs;
+    public void setHeaderSentTimestamp(@NonNull final Instant headerSentTimestamp) {
+        this.headerSentTimestamp = requireNonNull(headerSentTimestamp, "headerSentTimestamp must not be null");
     }
 
     /**
-     * Sets the block end sent milliseconds for this block.
-     * @param blockEndSentMs the milliseconds from epoch when the block end was sent
+     * Sets the timestamp when the block end was sent.
+     * @param blockEndSentTimestamp the timestamp when the block end was sent
      */
-    public void setBlockEndSentMs(final long blockEndSentMs) {
-        this.blockEndSentMs = blockEndSentMs;
+    public void setBlockEndSentTimestamp(@NonNull final Instant blockEndSentTimestamp) {
+        this.blockEndSentTimestamp = requireNonNull(blockEndSentTimestamp, "blockEndSentTimestamp must not be null");
     }
 
     /**
-     * Gets the header sent milliseconds for this block.
-     * @return the milliseconds from epoch when the block header was sent
+     * Gets the timestamp when the block header was sent.
+     * @return the timestamp when the block header was sent, or null if not yet sent
      */
-    public @Nullable Long getHeaderSentMs() {
-        return headerSentMs;
+    public @Nullable Instant getHeaderSentTimestamp() {
+        return headerSentTimestamp;
     }
 
     /**
-     * Gets the block end sent milliseconds for this block.
-     * @return the milliseconds from epoch when the block end was sent
+     * Gets the timestamp when the block end was sent.
+     * @return the timestamp when the block end was sent, or null if not yet sent
      */
-    public @Nullable Long getBlockEndSentMs() {
-        return blockEndSentMs;
+    public @Nullable Instant getBlockEndSentTimestamp() {
+        return blockEndSentTimestamp;
     }
 }

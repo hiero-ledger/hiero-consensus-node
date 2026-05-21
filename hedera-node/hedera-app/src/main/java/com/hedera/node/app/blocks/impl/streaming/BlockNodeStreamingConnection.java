@@ -334,7 +334,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
         // Record latencies for all acknowledged blocks
-        final long nowMs = System.currentTimeMillis();
+        final Instant now = Instant.now();
 
         final long previousAcknowledgedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
         final long lowestAvailableBlockInBuffer = blockBufferService.getEarliestAvailableBlockNumber();
@@ -348,23 +348,23 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (blockState != null) {
                     final Instant openedTimestamp = blockState.openedTimestamp();
                     if (openedTimestamp != null) {
-                        final long headerProducedToAckMs = nowMs - openedTimestamp.toEpochMilli();
-                        blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+                        final long headerProducedToAckMicros = durationMicros(openedTimestamp, now);
+                        blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMicros);
                     }
                     final Instant closedTimestamp = blockState.closedTimestamp();
                     if (closedTimestamp != null) {
-                        final long blockClosedToAckMs = nowMs - closedTimestamp.toEpochMilli();
-                        blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                        final long blockClosedToAckMicros = durationMicros(closedTimestamp, now);
+                        blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMicros);
                     }
-                    final Long headerSentMs = blockState.getHeaderSentMs();
-                    if (headerSentMs != null) {
-                        final long latencyMs = nowMs - headerSentMs;
-                        blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
+                    final Instant headerSentTimestamp = blockState.getHeaderSentTimestamp();
+                    if (headerSentTimestamp != null) {
+                        final long latencyMicros = durationMicros(headerSentTimestamp, now);
+                        blockStreamMetrics.recordHeaderSentAckLatency(latencyMicros);
                     }
-                    final Long blockEndSentMs = blockState.getBlockEndSentMs();
-                    if (blockEndSentMs != null) {
-                        final long latencyMs = nowMs - blockEndSentMs;
-                        blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
+                    final Instant blockEndSentTimestamp = blockState.getBlockEndSentTimestamp();
+                    if (blockEndSentTimestamp != null) {
+                        final long latencyMicros = durationMicros(blockEndSentTimestamp, now);
+                        blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMicros);
                     }
                 }
             }
@@ -668,6 +668,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return TimeUnit.NANOSECONDS.toMicros(totalNanos);
     }
 
+    private static long durationMicros(@NonNull final Instant start, @NonNull final Instant end) {
+        return Duration.between(start, end).toNanos() / 1_000;
+    }
+
     /**
      * Sends the specified request over this connection, if active, to a block node. If the connection is not active,
      * then no operations are performed. If there was a timeout trying to send the request, then the connection will be
@@ -710,7 +714,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         final AtomicLong startNanos = new AtomicLong(-1);
         final AtomicLong endNanos = new AtomicLong(-1);
-        final AtomicLong sentTimestampMillis = new AtomicLong(-1);
+        final AtomicReference<Instant> sentTimestamp = new AtomicReference<>();
         Future<?> future = null;
 
         /*
@@ -730,7 +734,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 startNanos.set(System.nanoTime());
                 pipeline.onNext(request.streamRequest());
                 endNanos.set(System.nanoTime());
-                sentTimestampMillis.set(System.currentTimeMillis());
+                sentTimestamp.set(Instant.now());
             });
             future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
             connStats.recordRequestSendSuccess();
@@ -823,13 +827,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         if (r.hasBlockProof()) {
                             blockNode
                                     .stats()
-                                    .recordBlockProofSent(
-                                            r.blockNumber(), Instant.ofEpochMilli(sentTimestampMillis.get()));
+                                    .recordBlockProofSent(r.blockNumber(), sentTimestamp.get());
                         }
                         if (r.hasBlockHeader()) {
                             final BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
                             if (blockState != null) {
-                                blockState.setHeaderSentMs(sentTimestampMillis.get());
+                                blockState.setHeaderSentTimestamp(sentTimestamp.get());
                             }
                         }
                         blockStreamMetrics.recordRequestBlockItemCount(r.numItems());
@@ -1313,11 +1316,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()))) {
                     connStats.recordBlockSent(block.blockNumber());
                     blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
-                    final long blockEndSentMs = System.currentTimeMillis();
-                    block.setBlockEndSentMs(blockEndSentMs);
-                    if (block.getHeaderSentMs() != null) {
-                        final long latencyMs = blockEndSentMs - block.getHeaderSentMs();
-                        blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(latencyMs);
+                    final Instant blockEndSentTimestamp = Instant.now();
+                    block.setBlockEndSentTimestamp(blockEndSentTimestamp);
+                    final Instant headerSentTimestamp = block.getHeaderSentTimestamp();
+                    if (headerSentTimestamp != null) {
+                        final long latencyMicros = durationMicros(headerSentTimestamp, blockEndSentTimestamp);
+                        blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(latencyMicros);
                     }
                 }
             } catch (final RuntimeException e) {
