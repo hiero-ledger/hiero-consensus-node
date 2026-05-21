@@ -51,9 +51,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-fetch-depth: 0
-          checkout-ref: ${{ inputs.ref || github.sha }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-ref: "${{ inputs.ref || github.sha }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
           setup-java: "true"
           java-distribution: "temurin"
           java-version: "25.0.2"

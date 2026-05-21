@@ -194,9 +194,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: ${{ inputs.ref }}
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Prep XTS Job State
         id: check-xts-job
@@ -233,9 +233,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Integration Job State
         id: check-integration-job
@@ -279,9 +279,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
         continue-on-error: true

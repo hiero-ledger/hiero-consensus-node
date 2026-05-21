@@ -19,8 +19,8 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: refs/heads/main
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-ref: "refs/heads/main"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Gather commit info
         id: gather-commit-info

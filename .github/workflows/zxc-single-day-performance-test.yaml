@@ -124,8 +124,8 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: ${{ inputs.ref }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Check Test Asset
         id: set-k8s-cluster
@@ -1419,7 +1419,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: ${{ inputs.ref }}
+          checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Install KubeCtl

@@ -416,9 +416,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ needs.validate.outputs.commit-id }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ needs.validate.outputs.commit-id }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -596,9 +596,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ needs.validate.outputs.commit-id }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ needs.validate.outputs.commit-id }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -712,9 +712,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ needs.validate.outputs.commit-id }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ needs.validate.outputs.commit-id }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}

@@ -159,9 +159,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref || github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -219,8 +219,8 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -385,9 +385,9 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref || github.ref }}
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
         env:
