@@ -59,11 +59,6 @@ on:
         type: string
         required: false
         default: "25.0.2"
-      java-distribution:
-        description: "Java JDK Distribution:"
-        type: string
-        required: false
-        default: "temurin"
     secrets:
       slack-report-webhook:
         required: true

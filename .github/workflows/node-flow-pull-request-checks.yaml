@@ -53,7 +53,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/802-extract-jdk-version.yaml
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ github.event.pull_request.head.sha }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 

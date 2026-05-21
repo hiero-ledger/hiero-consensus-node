@@ -70,7 +70,7 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: 0
           setup-java: "true"
-          java-distribution: "temurin"
+          java-distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
           setup-gradle: "true"
           gradle-cache-read-only: "false"

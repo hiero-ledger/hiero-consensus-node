@@ -171,7 +171,7 @@ jobs:
       - commit-info
     with:
       java-version: ${{ inputs.java-version }}
-      java-distribution: "temurin"
+      java-distribution: ${{ inputs.java-distribution }}
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
