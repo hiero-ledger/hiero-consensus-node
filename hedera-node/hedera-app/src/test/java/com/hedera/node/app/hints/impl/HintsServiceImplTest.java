@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,6 +19,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsKeySet;
+import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -31,10 +34,13 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
@@ -109,6 +115,9 @@ class HintsServiceImplTest {
 
     @Mock
     private WritableSingletonState<CRSState> crsState;
+
+    @Mock
+    private WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
 
     @Mock
     private Configuration configuration;
@@ -379,6 +388,37 @@ class HintsServiceImplTest {
         verify(activeConstructionState).put(HintsConstruction.DEFAULT);
         verify(nextConstructionState).put(HintsConstruction.DEFAULT);
         verify(crsState).put(CRSState.DEFAULT);
+    }
+
+    @Test
+    void doesGenesisSetupFromStartupNetworkTssMetadata() {
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(123L)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var startupCrsState = CRSState.newBuilder().stage(COMPLETED).build();
+        final var network = Network.newBuilder()
+                .tssMetadata(TssMetadata.newBuilder()
+                        .activeHintsConstruction(activeConstruction)
+                        .crsState(startupCrsState))
+                .build();
+        subject = new HintsServiceImpl(component, library, () -> network);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(writableStates.<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID))
+                .willReturn(crsState);
+        given(writableStates.<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID))
+                .willReturn(hintsKeys);
+        given(component.signingContext()).willReturn(context);
+
+        assertTrue(subject.doGenesisSetup(writableStates, configuration, 7));
+
+        verify(activeConstructionState).put(activeConstruction);
+        verify(nextConstructionState).put(HintsConstruction.DEFAULT);
+        verify(crsState).put(startupCrsState);
+        verify(context).setConstruction(activeConstruction);
     }
 
     @Test
