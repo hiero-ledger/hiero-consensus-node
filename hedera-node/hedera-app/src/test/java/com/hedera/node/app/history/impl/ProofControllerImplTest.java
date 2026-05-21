@@ -340,8 +340,7 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 tssConfig);
 
-        subject.advanceConstruction(
-                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
 
         verify(prover).advance(any(), any(), any(), any(), eq(tssConfig), any());
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(completedProof));
