@@ -54,6 +54,16 @@ on:
         default: ""
         description: "Kubernetes cluster to run the test on"
         type: string
+      java-version:
+        required: false
+        default: "25.0.2"
+        description: "Java JDK Version"
+        type: string
+      java-distribution:
+        required: false
+        default: "temurin"
+        description: "Java JDK Distribution"
+        type: string
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
@@ -178,7 +188,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25.0.2
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0

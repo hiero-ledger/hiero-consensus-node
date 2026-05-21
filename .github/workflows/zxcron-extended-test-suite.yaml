@@ -62,6 +62,14 @@ jobs:
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
@@ -245,9 +253,11 @@ jobs:
     name: Build & Publish Hedera State Validator Uber JAR
     needs:
       - fetch-xts-candidate
+      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
   xts-execution:
@@ -256,6 +266,7 @@ jobs:
       - fetch-xts-candidate
       - parameters
       - state-validator-uberjar
+      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -271,6 +282,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -293,6 +305,7 @@ jobs:
       - fetch-xts-candidate
       - parameters
       - state-validator-uberjar
+      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -307,6 +320,7 @@ jobs:
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
       enable-chaos-otter-test-suite: "true"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

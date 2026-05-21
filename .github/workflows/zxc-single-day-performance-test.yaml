@@ -54,6 +54,16 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+        default: "25.0.2"
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
     secrets:
       slack-report-webhook:
         required: true
@@ -187,7 +197,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25.0.2
+          java-version: ${{ inputs.java-distribution }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
@@ -761,7 +771,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25.0.2
+          java-version: ${{ inputs.java-distribution }}
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -940,7 +950,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25.0.2
+          java-version: ${{ inputs.java-distribution }}
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -1154,6 +1164,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1171,6 +1182,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-SmartContractLoadTest:
     needs:
@@ -1188,6 +1200,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-HeliSwapLoadTest:
     needs:
@@ -1205,6 +1218,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator

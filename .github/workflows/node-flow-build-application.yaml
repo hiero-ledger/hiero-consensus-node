@@ -20,9 +20,19 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
+    needs:
+      - extract-jdk-version
     with:
       ref: ${{ github.ref }}
       enable-dependency-check: "true"
@@ -39,7 +49,7 @@ jobs:
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "25.0.2"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:

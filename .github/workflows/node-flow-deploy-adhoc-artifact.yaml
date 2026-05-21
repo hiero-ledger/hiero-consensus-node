@@ -35,16 +35,26 @@ defaults:
     shell: bash
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   release-adhoc:
     name: Release [Adhoc]
     if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs:
+      - extract-jdk-version
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
     with:
       version-policy: branch-commit
       trigger-env-deploy: none
       release-profile: AdhocCommit
       dry-run-enabled: ${{ github.event.inputs.dry-run-enabled == 'true' }}
-      java-version: ${{ github.event.inputs.java-version || '25.0.2' }}
+      java-version: ${{ github.event.inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       gradle-version: ${{ github.event.inputs.gradle-version || 'wrapper' }}
       ref: ${{ github.event.inputs.ref }}

@@ -87,8 +87,17 @@ permissions:
   statuses: write
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   run-merge-queue-test:
     name: MQ Performance Test
+    needs: extract-jdk-version
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
@@ -100,6 +109,7 @@ jobs:
       run_NLGDparams: "${{ inputs.run_NLGDparams }}"
       add-settings: "${{ inputs.add-settings }}"
       delete-namespace: ${{ inputs.delete-namespace }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}

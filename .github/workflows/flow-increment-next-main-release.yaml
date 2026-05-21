@@ -21,8 +21,18 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   next-main-release:
     name: Increment Version File
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Prepare Runner
@@ -34,7 +44,7 @@ jobs:
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-java: "true"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-disabled: "true"

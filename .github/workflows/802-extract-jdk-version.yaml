@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "802: [CALL] Extract JDK Version"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        description: "The git ref to read the Chewie response from (branch, tag, or commit SHA)."
+        type: string
+        default: "main"
+    secrets:
+      github-token:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
+    outputs:
+      jdk-version:
+        value: ${{ jobs.extract-jdk-version.outputs.jdk-version }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extract-jdk-version:
+    name: Extract JDK Version
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      jdk-version: ${{ steps.get-jdk-version.outputs.jdk-version }}
+    steps:
+      - name: Initialize Job
+        uses: PandasWhoCode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+
+      - name: Get JDK Version
+        id: get-jdk-version
+        run: |
+          echo "::group::Extract JDK Version from Gradle Properties"
+          JDK_VERSION="$(cat ${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties | grep jdk | cut -d'=' -f2 | tr -d '[:space:]')"
+          echo "jdk-version=${JDK_VERSION}" | tee "${GITHUB_OUTPUT}"
+          echo "::endgroup::"

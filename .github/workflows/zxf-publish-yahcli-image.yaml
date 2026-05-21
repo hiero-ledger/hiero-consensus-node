@@ -48,8 +48,18 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   publish-yahcli-image:
     name: ${{ inputs.custom-job-name || 'Publish Yahcli Image' }}
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-default-lin-lg
     outputs:
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/yahcli:${{ steps.resolve-version.outputs.version }}
@@ -64,7 +74,7 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-distribution: "${{ inputs.java-distribution || 'temurin' }}"
-          java-version: "${{ inputs.java-version || '25.0.2' }}"
+          java-version: "${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}"
           setup-gradle: "true"
           gradle-version: ${{ inputs.gradle-version || 'wrapper'}}
 

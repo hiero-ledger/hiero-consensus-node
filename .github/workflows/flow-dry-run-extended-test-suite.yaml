@@ -116,18 +116,30 @@ jobs:
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - extract-jdk-version
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
       ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
 
   xts-execution:
     name: Execute XTS
     needs:
       - parameters
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -146,6 +158,7 @@ jobs:
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
