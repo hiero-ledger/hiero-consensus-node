@@ -31,7 +31,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read Trigger Time
         id: time
@@ -85,7 +85,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Branch Creation Check
         id: branch-creation
