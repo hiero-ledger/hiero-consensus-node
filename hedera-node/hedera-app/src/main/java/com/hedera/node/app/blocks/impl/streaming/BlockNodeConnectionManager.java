@@ -281,6 +281,15 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Checks whether this node currently has an active streaming connection to a block node.
+     *
+     * @return true if this node is actively streaming to a block node
+     */
+    public boolean hasActiveStreamingConnection() {
+        return isConnectionManagerActive.get() && activeConnectionRef.get() != null;
+    }
+
+    /**
      * Selects the next available block node based on priority.
      * It will skip over any nodes that are already in retry or have a lower priority than the current active connection.
      *

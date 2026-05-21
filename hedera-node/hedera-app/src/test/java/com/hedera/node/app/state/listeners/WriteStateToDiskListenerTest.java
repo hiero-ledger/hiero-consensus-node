@@ -3,23 +3,17 @@ package com.hedera.node.app.state.listeners;
 
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
-import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.VersionedConfigImpl;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.state.State;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -52,15 +46,6 @@ class WriteStateToDiskListenerTest {
     @Mock
     private BlockBufferService blockBufferService;
 
-    @Mock
-    private BlockStreamManager blockStreamManager;
-
-    @Mock
-    private BlockRecordManager blockRecordManager;
-
-    @Mock
-    private FreezeMarkerPlatformStatus freezeMarkerPlatformStatus;
-
     private WriteStateToDiskListener subject;
     private AtomicInteger externalizeFreezeIfUpgradePendingCalls;
 
@@ -69,15 +54,7 @@ class WriteStateToDiskListenerTest {
         externalizeFreezeIfUpgradePendingCalls = new AtomicInteger();
         subject =
                 new WriteStateToDiskListener(
-                        stateAccessor,
-                        executor,
-                        configProvider,
-                        startupNetworks,
-                        entityIdFactory,
-                        blockBufferService,
-                        blockStreamManager,
-                        blockRecordManager,
-                        freezeMarkerPlatformStatus) {
+                        stateAccessor, executor, configProvider, startupNetworks, entityIdFactory, blockBufferService) {
                     @Override
                     void externalizeFreezeIfUpgradePending() {
                         externalizeFreezeIfUpgradePendingCalls.incrementAndGet();
@@ -97,41 +74,21 @@ class WriteStateToDiskListenerTest {
     }
 
     @Test
-    void waitsForBlockSigningBeforeRespondingToFreezeStateNotification() {
-        final var blockStreamFuture = new CompletableFuture<Void>();
-        final var wrbWritersFuture = new CompletableFuture<Void>();
-        final var freezeCompleteFuture = new CompletableFuture<Void>();
+    void respondsImmediatelyToFreezeStateNotification() {
         given(notification.isFreezeState()).willReturn(true);
         given(notification.getRoundNumber()).willReturn(1L);
-        given(blockStreamManager.pendingBlockProofsFuture()).willReturn(blockStreamFuture);
-        given(blockRecordManager.noOpenWrbWritersFuture()).willReturn(wrbWritersFuture);
-        given(freezeMarkerPlatformStatus.freezeCompleteFuture()).willReturn(freezeCompleteFuture);
-        givenConfigurationWithNowFrozenWriteTimeout("60s");
 
         subject.notify(notification);
 
-        assertNoFreezeExternalization();
-        blockStreamFuture.complete(null);
-        assertNoFreezeExternalization();
-        wrbWritersFuture.complete(null);
-        assertNoFreezeExternalization();
-        freezeCompleteFuture.complete(null);
         assertFreezeExternalizedOnce();
         verify(startupNetworks).archiveStartupNetworks();
         verify(blockBufferService).persistBuffer();
     }
 
     @Test
-    void timesOutBeforeRespondingToFreezeStateNotification() {
-        final var blockStreamFuture = new CompletableFuture<Void>();
-        final var wrbWritersFuture = new CompletableFuture<Void>();
-        final var freezeCompleteFuture = new CompletableFuture<Void>();
+    void freezeExternalizationDoesNotWaitForAsyncWork() {
         given(notification.isFreezeState()).willReturn(true);
         given(notification.getRoundNumber()).willReturn(1L);
-        given(blockStreamManager.pendingBlockProofsFuture()).willReturn(blockStreamFuture);
-        given(blockRecordManager.noOpenWrbWritersFuture()).willReturn(wrbWritersFuture);
-        given(freezeMarkerPlatformStatus.freezeCompleteFuture()).willReturn(freezeCompleteFuture);
-        givenConfigurationWithNowFrozenWriteTimeout("1ms");
 
         subject.notify(notification);
 
@@ -145,24 +102,8 @@ class WriteStateToDiskListenerTest {
         verify(blockBufferService).persistBuffer();
     }
 
-    private void givenConfigurationWithNowFrozenWriteTimeout(final String timeout) {
-        given(configProvider.getConfiguration())
-                .willReturn(new VersionedConfigImpl(
-                        HederaTestConfigBuilder.create()
-                                .withValue("hedera.nowFrozenWriteTimeout", timeout)
-                                .getOrCreateConfig(),
-                        1L));
-    }
-
-    private void assertNoFreezeExternalization() {
-        org.assertj.core.api.Assertions.assertThat(externalizeFreezeIfUpgradePendingCalls)
-                .hasValue(0);
-        verify(stateAccessor, never()).get();
-    }
-
     private void assertFreezeExternalizedOnce() {
         org.assertj.core.api.Assertions.assertThat(externalizeFreezeIfUpgradePendingCalls)
                 .hasValue(1);
-        verify(stateAccessor, never()).get();
     }
 }
