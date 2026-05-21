@@ -986,7 +986,13 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        throw new UnsupportedOperationException("Use concise EVM transaction result");
+        // Pure block-stream output uses the concise `evmCreateTransactionResult` form; the legacy
+        // `ContractFunctionResult` isn't carried in BLOCKS-only mode. Callers (notably
+        // HandleHederaOperations.dispatchAndMarkCreation) emit both forms in a single fluent chain
+        // so the record-stream-capable builder receives what it needs without branching on stream
+        // mode. Accept the legacy value here and discard it, so the chain succeeds when the active
+        // builder is the block-stream-only one. 
+        return this;
     }
 
     @NonNull
