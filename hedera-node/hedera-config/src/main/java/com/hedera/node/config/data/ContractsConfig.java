@@ -163,5 +163,5 @@ public record ContractsConfig(
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
         boolean metricsSmartContractSecondaryEnabled,
 
-        @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "false") @NetworkProperty
+        @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "true") @NetworkProperty
         boolean useBonnevilleEVM) {}
