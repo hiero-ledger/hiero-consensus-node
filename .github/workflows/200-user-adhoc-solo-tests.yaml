@@ -65,7 +65,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ github.token }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-java: "true"
           java-version: "25.0.2"
