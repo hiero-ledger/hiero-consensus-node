@@ -170,7 +170,7 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
       java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -187,7 +187,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -202,7 +202,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -244,7 +244,7 @@ jobs:
       enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -261,7 +261,7 @@ jobs:
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -340,7 +340,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
-      java-version: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
 uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
 with:
 ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
