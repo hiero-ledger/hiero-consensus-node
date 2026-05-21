@@ -25,9 +25,9 @@ marks a known correctness gap, not a stale entry.
 
 ## Index
 
-|     ID     | Title | Class | Topics | Status |
-|------------|-------|-------|--------|--------|
-| _none yet_ |       |       |        |        |
+|                             ID                              |                                          Title                                          | Class  |  Topics   |  Status  |
+|-------------------------------------------------------------|-----------------------------------------------------------------------------------------|--------|-----------|----------|
+| [INV-001](INV-001-roundcreated-monotonic-along-ancestry.md) | `roundCreated` is monotonic along ancestry — a parent's round never exceeds its child's | safety | hashgraph | enforced |
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:
