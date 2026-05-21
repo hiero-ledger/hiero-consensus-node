@@ -30,7 +30,7 @@ related:
   tests: []                           # durable tests that exercise this, if any
 status: draft                         # draft | reviewed | verified
 provenance: war-story-interview-2026-05-xx
-curated_by: <name>
+curated_by: Full Name (@github-handle) # the person responsible for this entry
 ---
 ```
 
@@ -58,6 +58,9 @@ Field discipline:
 - **`provenance`** — traceability back to origin (interview date, Diagnostician handoff,
   Workbench session), so a future reader can re-check the scenario against its source.
   Same discipline as the heuristics catalog.
+- **`curated_by`** — the person responsible for this entry now. See
+  [LAYOUT.md](../LAYOUT.md#curator-and-decider-conventions) for the canonical
+  format and the distinction from `provenance`.
 
 ## Body
 

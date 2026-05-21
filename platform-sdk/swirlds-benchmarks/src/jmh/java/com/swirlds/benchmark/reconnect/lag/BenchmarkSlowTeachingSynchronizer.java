@@ -4,9 +4,9 @@ package com.swirlds.benchmark.reconnect.lag;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import com.swirlds.virtualmap.sync.TeacherTreeView;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;

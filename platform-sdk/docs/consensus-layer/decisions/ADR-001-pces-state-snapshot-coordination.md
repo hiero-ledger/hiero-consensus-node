@@ -1,8 +1,25 @@
-# ADR: No Coordination Between PCES Writer and Signed State Writer for Snapshot PCES Copy
+---
+id: ADR-001
+title: No Coordination Between PCES Writer and Signed State Writer for Snapshot PCES Copy
+topics: [signed-state, pces]
+related:
+  invariants: []
+  decisions: []
+  scenarios: []
+  heuristics: []
+  rules: []
+status: accepted
+date: 2026-05-08
+deciders:
+  - Artur Biesiadowski (@abies)
+  - Timo Brandstätter (@timo0)
+  - Michael Heinrichs (@netopyr)
+  - Kelly Greco (@poulok)
+  - Maximiliano Tartaglia (@mxtartaglia-sl)
+curated_by: Kelly Greco (@poulok)
+---
 
-## Status
-
-Accepted
+# ADR-001 — No Coordination Between PCES Writer and Signed State Writer for Snapshot PCES Copy
 
 ## Context
 
@@ -111,11 +128,3 @@ Selected. See **Decision** above.
   procedure that consumes PCES files alongside a signed state.
 - Related: [`signed-state-snapshot-spec.md`](../../core/signed-state-snapshot-spec.md) — describes the
   on-disk layout of a signed state directory, including its PCES sub-tree.
-
-## Authors / Deciders
-
-- Artur Biesiadowski (@abies)
-- Timo Brandstätter (@timo0)
-- Michael Heinrichs (@netopyr)
-- Kelly Greco (@poulok)
-- Maximiliano Tartaglia (@mxtartaglia-sl)
