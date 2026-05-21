@@ -418,6 +418,7 @@ jobs:
           checkout: "true"
           checkout-fetch-depth: "0"
           checkout-ref: ${{ needs.validate.outputs.commit-id }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -597,6 +598,7 @@ jobs:
           checkout: "true"
           checkout-fetch-depth: "0"
           checkout-ref: ${{ needs.validate.outputs.commit-id }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -712,6 +714,7 @@ jobs:
           checkout: "true"
           checkout-fetch-depth: "0"
           checkout-ref: ${{ needs.validate.outputs.commit-id }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}

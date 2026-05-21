@@ -27,6 +27,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: ${{ github.ref }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify Tag
         id: verify-tag

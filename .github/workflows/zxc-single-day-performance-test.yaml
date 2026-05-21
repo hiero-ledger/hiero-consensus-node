@@ -125,6 +125,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Test Asset
         id: set-k8s-cluster

@@ -20,7 +20,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: refs/heads/main
-          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Gather commit info
         id: gather-commit-info

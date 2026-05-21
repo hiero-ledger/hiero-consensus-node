@@ -53,7 +53,7 @@ jobs:
           checkout: "true"
           checkout-fetch-depth: 0
           checkout-ref: ${{ inputs.ref || github.sha }}
-          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
           setup-java: "true"
           java-distribution: "temurin"
           java-version: "25.0.2"
