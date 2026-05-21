@@ -12,9 +12,10 @@ last_reviewed: TBD
 A *coin round* is a periodic round during a fame election that exists
 to break ties when ordinary counting votes have failed to reach a
 super-majority on either side for too long. In a coin round, voters
-that do not strongly see a super-majority fall back to a deterministic
-pseudo-random bit derived from their own signature, forcing the
-election out of a stalemate. Coin rounds guarantee liveness: without
+that do not strongly see a super-majority fall back to a bit derived
+from a dedicated `coin` field — a securely-generated random value that
+the voting event's creator stamped on the event at creation — forcing
+the election out of a stalemate. Coin rounds guarantee liveness: without
 them, an adversary could keep an election perpetually undecided.
 
 ## Mechanics
@@ -27,12 +28,15 @@ the majority of the prior-round witnesses it strongly sees, and if
 that majority is a super-majority, fame is decided on the spot. In a
 coin round (*d* is a multiple of the coin frequency), the voter
 still follows a strongly-seen super-majority if one exists; otherwise
-its vote is set to the deterministic pseudo-random bit. The coin
-vote itself does not invoke the fame-decision step — instead, it
-produces the aligned votes that let a subsequent counting round
-reach super-majority and decide. The pseudo-random bit is identical
-across all honest voters that look at the same signature, which is
-why a single coin round is enough to break a long-running tie.
+its vote is set to a bit derived from the voting event's `coin`
+field — a securely-generated random value chosen by the creator at
+event creation. The coin vote itself does not invoke
+the fame-decision step — instead, it produces the aligned votes that
+let a subsequent counting round reach super-majority and decide.
+Because the `coin` field is stamped on the event once at creation and
+travels with it through gossip, every honest node that has that event
+computes the same coin-bit for that voter, which is why a single coin
+round is enough to break a long-running tie.
 
 ## Example
 
@@ -45,12 +49,28 @@ so on, until fame decides on either side.
 ## In current code
 
 `ConsensusImpl.isCoinRound(diff)` is `diff % config.coinFreq() == 0`
-(line 604 of
+(line 613 of
 [`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java)).
-Coin vote application: `ConsensusImpl.coinVote` (line 621). Coin
-frequency configuration:
+Coin vote application: `ConsensusImpl.coinVote` (line 630), which
+delegates to `ConsensusUtils.coin(event)`
+([`ConsensusUtils.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusUtils.java)
+line 28) — the bit is the parity of the voting event's `coin` field:
+`event.getEventCore().coin() % 2 == 0`. The field itself is
+`EventCore.coin` (PBJ field 5 in
+[`EventCore`](../../../../hapi/hedera-protobuf-java-api/src/main/proto/platform/event/event_core.proto)),
+a `long` stamped on the event by its creator at creation time,
+populated by
+[`TipsetEventCreator`](../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java)
+using a `java.security.SecureRandom`. The value must be genuinely
+unpredictable to any adversary in advance — a deterministic
+pseudo-random source seeded from event content would let an adversary
+predict the bit and exploit it to keep an election undecided. Coin frequency configuration:
 [`ConsensusConfig#coinFreq`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/config/ConsensusConfig.java)
 defaulting to `12`.
+
+Earlier code derived the coin bit from the middle bit of the voting
+event's signature; current code uses the dedicated `coin` field
+instead.
 
 ## Cross-references
 

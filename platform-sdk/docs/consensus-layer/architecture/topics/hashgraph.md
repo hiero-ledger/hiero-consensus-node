@@ -199,10 +199,10 @@ on every undecided witness in earlier rounds via
 `d == 1` the vote is the direct-visibility first vote; for `d > 1` the
 vote is a counting vote (`getCountingVote`, line 578) that tallies
 weighted YES/NO across witnesses of the previous round that the voter
-strongly sees. When `isCoinRound(d)` returns true (line 604), the
-counting vote falls back to the middle-bit-of-signature pseudo-random
-choice for that voter. Fame is decided when a super-majority is reached
-on either side. See
+strongly sees. When `isCoinRound(d)` returns true (line 613), the
+counting vote falls back to a coin-bit derived from the voter's
+`EventCore.coin` field (via `ConsensusUtils.coin`). Fame is decided
+when a super-majority is reached on either side. See
 [`../concepts/voting.md`](../concepts/voting.md) and
 [`../concepts/coin-rounds.md`](../concepts/coin-rounds.md).
 
