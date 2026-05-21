@@ -30,6 +30,10 @@ public class LongProbe {
     }
 
     public void add(final long value) {
+        if (statistics != null) {
+            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
+        }
+
         values.add(value);
     }
 
@@ -45,7 +49,7 @@ public class LongProbe {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         long total = 0;
-        int count = 0;
+        long count = 0;
 
         for (final long value : values) {
             if (min > value) {
@@ -80,27 +84,26 @@ public class LongProbe {
 
     @Override
     public String toString() {
-        String s = "[";
+        String s = name;
 
-        s += "(Name:" + name + ")";
-        s += "(Unit:" + unit + ")";
+        s += " { (Unit:" + unit;
 
         if (statistics == null) {
-            s += "<InProgress>";
+            s += "|<InProgress>";
         } else {
-            s += "(Count:" + statistics.count() + ")";
-            s += "(Total:" + statistics.total() + ")";
-            s += "(Min:" + statistics.min() + ")";
-            s += "(Max:" + statistics.max() + ")";
-            s += "(Avg:" + round(statistics.avg()).toPlainString() + ")";
-            s += "(StdDev:" + round(statistics.stdDev()).toPlainString() + ")";
+            s += "|Samples:" + statistics.count();
+            s += "|Sum:" + statistics.total();
+            s += "|Min:" + statistics.min();
+            s += "|Max:" + statistics.max();
+            s += "|Avg:" + round(statistics.avg()).toPlainString();
+            s += "|StdDev:" + round(statistics.stdDev()).toPlainString();
         }
 
-        s += ']';
+        s += ") }";
         return s;
     }
 
-    private BigDecimal round(final double d) {
+    private static BigDecimal round(final double d) {
         return BigDecimal.valueOf(d).setScale(3, RoundingMode.HALF_EVEN);
     }
 }
