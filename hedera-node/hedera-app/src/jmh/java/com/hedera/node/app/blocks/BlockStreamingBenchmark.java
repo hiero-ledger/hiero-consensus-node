@@ -351,7 +351,7 @@ public class BlockStreamingBenchmark {
                 new PlatformMetricsFactoryImpl(config.getConfigData(MetricsConfig.class)),
                 config.getConfigData(MetricsConfig.class));
         final BlockStreamMetrics blockStreamMetrics = new BlockStreamMetrics(metrics);
-        final BlockStreamingObs streamingObs = new BlockStreamingObsImpl(blockStreamMetrics, configProvider);
+        final BlockStreamingObs streamingObs = new BlockStreamingObsImpl(configProvider);
 
         // 4. Services
         bufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);

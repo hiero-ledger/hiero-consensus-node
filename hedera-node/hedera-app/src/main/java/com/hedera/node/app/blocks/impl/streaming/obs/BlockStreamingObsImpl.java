@@ -2,10 +2,8 @@ package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.BlockStreamingObservabilityMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -32,8 +30,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     private static final long NANOS_PER_SECOND = TimeUnit.SECONDS.toNanos(1);
     private static final int MAX_BUCKETS = 150;
 
-    private volatile BlockStreamingObservabilityMode observabilityMode;
-    private final BlockStreamMetrics metrics;
+    private volatile boolean enhancedObservabilityEnabled;
     private final ConfigProvider configProvider;
     // Map<BlockNumber, BlockStats>
     private final ConcurrentMap<Long, BlockStats> blockStats = new ConcurrentHashMap<>();
@@ -45,29 +42,28 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     private final ScheduledExecutorService executorService;
 
     @Inject
-    public BlockStreamingObsImpl(@NonNull final BlockStreamMetrics metrics, @NonNull final ConfigProvider configProvider) {
-        this.metrics = requireNonNull(metrics);
+    public BlockStreamingObsImpl(@NonNull final ConfigProvider configProvider) {
         this.configProvider = requireNonNull(configProvider);
         initialNanosTick = System.nanoTime();
 
         executorService = Executors.newSingleThreadScheduledExecutor();
-        executorService.schedule(new StatsTask(), 30, TimeUnit.SECONDS);
-        observabilityMode = configProvider.getConfiguration()
+        executorService.schedule(new StatsTask(), 60, TimeUnit.SECONDS);
+        enhancedObservabilityEnabled = configProvider.getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .enhancedObservabilityMode();
+                .enhancedObservabilityEnabled();
     }
 
     private class StatsTask implements Runnable {
         @Override
         public void run() {
             try {
-                observabilityMode = configProvider.getConfiguration()
+                enhancedObservabilityEnabled = configProvider.getConfiguration()
                         .getConfigData(BlockStreamConfig.class)
-                        .enhancedObservabilityMode();
+                        .enhancedObservabilityEnabled();
 
                 logStatistics();
             } finally {
-                executorService.schedule(new StatsTask(), 30, TimeUnit.SECONDS);
+                executorService.schedule(new StatsTask(), 60, TimeUnit.SECONDS);
             }
         }
     }
@@ -84,7 +80,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockInit(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -94,7 +90,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockOpen(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -108,7 +104,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockItemAdd(final long blockNumber, final int itemIndex, final long nanosTick, final int sizeInBytes) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -124,7 +120,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockItemSend(final long blockNumber, final int itemIndexStart, final int itemIndexEnd, final long startNanosTick, final long endNanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -151,7 +147,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockEndSend(final long blockNumber, final long startNanosTick, final long endNanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -165,7 +161,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockClose(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -179,7 +175,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockAcked(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -194,53 +190,12 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         }
 
         getThroughputBucket(nanosTick).blocksAcked.increment();
-
-        // calculate and emit block timing metrics
-        final long closedToAckNanos = stats.ackedNanosTick.get() - stats.closedNanosTick.get();
-        final long headerProducedToAckNanos = stats.ackedNanosTick.get() - stats.headerSentNanosTicks.get().start;
-        final long headerSentToAckNanos = stats.ackedNanosTick.get() - stats.headerSentNanosTicks.get().end;
-        final long endSentToAckNanos = stats.ackedNanosTick.get() - stats.endSentNanosTicks.get().end;
-        final long headerSentToEndSentNanos = stats.endSentNanosTicks.get().end - stats.headerSentNanosTicks.get().end;
-
-        metrics.recordHeaderProducedToAckLatency(headerProducedToAckNanos);
-        metrics.recordBlockClosedToAckLatency(closedToAckNanos);
-        metrics.recordHeaderSentAckLatency(headerSentToAckNanos);
-        metrics.recordBlockEndSentToAckLatency(endSentToAckNanos);
-        metrics.recordHeaderSentToBlockEndSentLatency(headerSentToEndSentNanos);
-
         stats.aggregate();
-
-        if (BlockStreamingObservabilityMode.DETAILED != observabilityMode) {
-            return;
-        }
-
-        final StringBuilder sb = new StringBuilder();
-
-        sb.append("\nBlockTimingData {\n");
-        sb.append("  Block#").append(stats.blockNumber).append(" { (Unit:NANOS");
-        sb.append("|I2O:").append(stats.initToOpen()); // I2O = Init-2-Open
-        sb.append("|O2Pc:").append(stats.openToProofCreated()); // O2Pc = Open-2-Proof Created
-        sb.append("|O2Pa:").append(stats.openToProofAdded()); // O2Pa = Open-2-Proof Added
-        sb.append("|O2C:").append(stats.openToClose()); // O2C = Open-2-Close
-        sb.append("|O2Es:").append(stats.openToEndSent()); // O2E = Open-2-End Sent
-        sb.append("|O2A:").append(stats.openToAck()); // O2A = Open-2-Ack
-        sb.append("|E2A:").append(stats.endSentToAck()); // E2A = End-2-Ack
-        sb.append("|C2A:").append(stats.closedToAck()); // C2A = Close-2-Ack
-        sb.append("|Hp2A:").append(stats.headerProducedToAck()); // Hp2A = Header Produced-2-Ack
-        sb.append("|Hs2Es:").append(stats.headerSentToEndSent()); // Hs2Es = Header Sent-2-End Sent
-        sb.append("|Hs2A:").append(stats.headerSentToAck()); // Hs2A = Header Sent-2-Ack
-        sb.append(") }\n");
-        sb.append("  ").append(stats.itemIdleProbe).append("\n");
-        sb.append("  ").append(stats.itemSendLatencyProbe).append("\n");
-        sb.append("  ").append(stats.itemSizeProbe).append("\n");
-        sb.append("}");
-
-        log.info("{}", sb);
     }
 
     @Override
     public void onBlockProofCreate(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -252,7 +207,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockProofAdd(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -264,7 +219,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockHeaderSend(final long blockNumber, final long startNanosTick, final long endNanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -276,7 +231,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
 
     @Override
     public void onBlockFooterCreate(final long blockNumber, final long nanosTick) {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             return;
         }
 
@@ -287,7 +242,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     }
 
     private void logStatistics() {
-        if (BlockStreamingObservabilityMode.DISABLED == observabilityMode) {
+        if (!enhancedObservabilityEnabled) {
             // clear everything and exit
             blockStats.clear();
             throughputBuckets.clear();
@@ -383,7 +338,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         output.append("  }\n");
 
         // append block details
-
         output.append("  BlockDetails {\n");
         output.append("    ").append(blockAggregation.initToOpen).append("\n");
         output.append("    ").append(blockAggregation.openToClose).append("\n");
@@ -396,6 +350,7 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         output.append("    ").append(blockAggregation.headerSentToEndSent).append("\n");
         output.append("    ").append(blockAggregation.openToProofAdded).append("\n");
         output.append("    ").append(blockAggregation.openToProofCreated).append("\n");
+        output.append("    ").append(blockAggregation.itemsPerBlock).append("\n");
         output.append("  }\n");
 
         // append item details
@@ -403,7 +358,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         output.append("    ").append(blockAggregation.itemIdleCombiner).append("\n");
         output.append("    ").append(blockAggregation.itemSendLatencyCombiner).append("\n");
         output.append("    ").append(blockAggregation.itemSizeCombiner).append("\n");
-        output.append("    ").append(blockAggregation.itemsPerBlock).append("\n");
         output.append("  }\n");
 
         output.append("}");
@@ -413,8 +367,6 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
     private static BigDecimal round(final double d) {
         return BigDecimal.valueOf(d).setScale(3, RoundingMode.HALF_EVEN);
     }
-
-    // ----------------
 
     private static class BlockStatsAggregation {
         private final LongProbe initToOpen = new LongProbe("InitToOpen", ObsUnit.NANOS);
@@ -432,9 +384,9 @@ public class BlockStreamingObsImpl implements BlockStreamingObs {
         private final LongProbe blockSize = new LongProbe("BlockSize", ObsUnit.BYTES);
         private final LongProbe itemsPerBlock = new LongProbe("ItemsPerBlock", ObsUnit.COUNT);
 
-        private final StatisticsCombiner itemIdleCombiner = new StatisticsCombiner("ItemIdleTime", ObsUnit.NANOS);
-        private final StatisticsCombiner itemSendLatencyCombiner = new StatisticsCombiner("ItemSendTime", ObsUnit.NANOS);
-        private final StatisticsCombiner itemSizeCombiner = new StatisticsCombiner("ItemSize", ObsUnit.BYTES);
+        private final StatisticsJoiner itemIdleCombiner = new StatisticsJoiner("ItemIdleTime", ObsUnit.NANOS);
+        private final StatisticsJoiner itemSendLatencyCombiner = new StatisticsJoiner("ItemSendTime", ObsUnit.NANOS);
+        private final StatisticsJoiner itemSizeCombiner = new StatisticsJoiner("ItemSize", ObsUnit.BYTES);
 
         void add(final BlockStats blockStats) {
             initToOpen.add(blockStats.initToOpen());

@@ -50,12 +50,13 @@ public class BlockNodeSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC",
-                                "blockStream.streamWrappedRecordBlocks", "false"
+                                "blockStream.streamWrappedRecordBlocks", "false",
+                                "blockStream.enhancedObservabilityEnabled", "true"
                         })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return validateHappyPath(20);
+        return validateHappyPath(60);
     }
 
     @HapiTest

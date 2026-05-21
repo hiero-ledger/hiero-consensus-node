@@ -35,8 +35,8 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockStreamingObs provideBlockStreamingObs(@NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockStreamingObsImpl(blockStreamMetrics, configProvider);
+    static BlockStreamingObs provideBlockStreamingObs(@NonNull final ConfigProvider configProvider) {
+        return new BlockStreamingObsImpl(configProvider);
     }
 
     @Provides

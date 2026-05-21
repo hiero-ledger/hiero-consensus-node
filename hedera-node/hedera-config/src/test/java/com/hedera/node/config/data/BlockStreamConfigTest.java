@@ -4,7 +4,6 @@ package com.hedera.node.config.data;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.node.config.types.BlockStreamingObservabilityMode;
 import com.hedera.node.config.types.StreamMode;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -53,6 +52,6 @@ class BlockStreamConfigTest {
                 256,
                 false,
                 streamWrappedRecordBlocks,
-                BlockStreamingObservabilityMode.DISABLED);
+                false);
     }
 }

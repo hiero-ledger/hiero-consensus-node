@@ -6,15 +6,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class LongProbe {
-
     private final String name;
     private final ObsUnit unit;
+    private volatile boolean isClosed = false;
     private Statistics statistics = null;
-    private List<Long> values = new ArrayList<>();
+    private Queue<Long> values = new ConcurrentLinkedQueue<>();
 
     public LongProbe(final String name, final ObsUnit unit) {
         this.name = requireNonNull(name);
@@ -30,7 +30,7 @@ public class LongProbe {
     }
 
     public void add(final long value) {
-        if (statistics != null) {
+        if (isClosed) {
             throw new IllegalStateException("Probe is already aggregated; cannot add more values");
         }
 
@@ -45,6 +45,8 @@ public class LongProbe {
         if (statistics != null) {
             return statistics;
         }
+
+        isClosed = true;
 
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;

@@ -2,17 +2,15 @@ package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class StatisticsCombiner {
-    private static final byte FILL = 0;
-
+public class StatisticsJoiner {
     private final String name;
     private final ObsUnit unit;
-    private final ConcurrentMap<Statistics, Byte> statsMap = new ConcurrentHashMap<>();
+    private final Queue<Statistics> statsQueue = new ConcurrentLinkedQueue<>();
 
-    public StatisticsCombiner(final String name, final ObsUnit unit) {
+    public StatisticsJoiner(final String name, final ObsUnit unit) {
         this.name = name;
         this.unit = unit;
     }
@@ -22,7 +20,7 @@ public class StatisticsCombiner {
             throw new IllegalArgumentException("Cannot add statistics with different unit");
         }
 
-        statsMap.put(statistics, FILL);
+        statsQueue.add(statistics);
     }
 
     public Statistics statistics() {
@@ -31,7 +29,7 @@ public class StatisticsCombiner {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
 
-        for (final Statistics stats : statsMap.keySet()) {
+        for (final Statistics stats : statsQueue) {
             count += stats.count();
             total += stats.total();
             if (min > stats.min()) {
@@ -49,7 +47,7 @@ public class StatisticsCombiner {
         final double avg = total / (count * 1.0D);
         double stdDev = 0.0D;
 
-        for (final Statistics stats : statsMap.keySet()) {
+        for (final Statistics stats : statsQueue) {
             final double d1 = stats.count() * Math.pow(stats.stdDev(), 2);
             final double d2 = stats.count() * Math.pow(stats.avg() - avg, 2);
             stdDev += d1 + d2;

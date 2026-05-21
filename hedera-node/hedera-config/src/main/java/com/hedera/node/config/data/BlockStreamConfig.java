@@ -4,7 +4,6 @@ package com.hedera.node.config.data;
 import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.node.config.types.BlockStreamingObservabilityMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -73,7 +72,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
-        @ConfigProperty(defaultValue = "DISABLED") @NetworkProperty BlockStreamingObservabilityMode enhancedObservabilityMode) {
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enhancedObservabilityEnabled) {
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main
