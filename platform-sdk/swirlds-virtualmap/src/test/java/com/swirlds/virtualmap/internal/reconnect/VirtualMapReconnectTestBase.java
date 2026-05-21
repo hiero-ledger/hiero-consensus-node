@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
@@ -18,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.sync.MerkleTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileNotFoundException;
@@ -84,6 +84,17 @@ public abstract class VirtualMapReconnectTestBase {
         learnerBuilder = new BrokenBuilder(dataSourceBuilder);
         teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
         learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (teacherMap.getReservationCount() > 0) {
+            teacherMap.release();
+        }
+
+        if (learnerMap.getReservationCount() > 0) {
+            learnerMap.release();
+        }
     }
 
     @BeforeAll
@@ -275,17 +286,6 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             // no op
-        }
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        if (teacherMap.getReservationCount() > 0) {
-            teacherMap.release();
-        }
-
-        if (learnerMap.getReservationCount() > 0) {
-            learnerMap.release();
         }
     }
 
