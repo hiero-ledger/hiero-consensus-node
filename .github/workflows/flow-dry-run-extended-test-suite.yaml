@@ -126,8 +126,6 @@ jobs:
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
-    needs:
-      - extract-jdk-version
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:

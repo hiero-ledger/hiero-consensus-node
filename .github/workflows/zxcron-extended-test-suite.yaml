@@ -254,7 +254,6 @@ jobs:
     name: Build & Publish Hedera State Validator Uber JAR
     needs:
       - fetch-xts-candidate
-      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
