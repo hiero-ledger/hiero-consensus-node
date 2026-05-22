@@ -133,7 +133,6 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
-    secrets: inherit
 
   xts-execution:
     name: Execute XTS

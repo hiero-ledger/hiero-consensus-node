@@ -259,7 +259,6 @@ jobs:
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets: inherit
 
   xts-execution:
     name: Execute XTS

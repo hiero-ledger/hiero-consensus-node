@@ -42,7 +42,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/802-extract-jdk-version.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ inputs.ref || github.sha }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
