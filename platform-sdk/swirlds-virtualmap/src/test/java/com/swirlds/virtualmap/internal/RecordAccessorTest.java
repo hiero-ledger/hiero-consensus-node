@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.merkle;
+package com.swirlds.virtualmap.internal;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
@@ -12,23 +12,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import com.swirlds.virtualmap.test.fixtures.datasource.DelegateVirtualDataSource;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -270,19 +267,22 @@ public class RecordAccessorTest {
         cache.shutdown();
     }
 
-    private static final class BreakableDataSource implements VirtualDataSource {
+    private static final class BreakableDataSource extends DelegateVirtualDataSource {
 
-        private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);
         boolean throwExceptionOnLoadLeafRecordByKey = false;
         boolean throwExceptionOnLoadLeafRecordByPath = false;
         boolean throwExceptionOnLoadHashChunk = false;
+
+        public BreakableDataSource() {
+            super(new InMemoryBuilder().build("delegate", null, true, false));
+        }
 
         @Override
         public VirtualLeafBytes<?> loadLeafRecord(final Bytes key) throws IOException {
             if (throwExceptionOnLoadLeafRecordByKey) {
                 throw new IOException("Thrown by loadLeafRecord by key");
             }
-            return delegate.loadLeafRecord(key);
+            return super.loadLeafRecord(key);
         }
 
         @Override
@@ -290,12 +290,7 @@ public class RecordAccessorTest {
             if (throwExceptionOnLoadLeafRecordByPath) {
                 throw new IOException("Thrown by loadLeafRecord by path");
             }
-            return delegate.loadLeafRecord(path);
-        }
-
-        @Override
-        public long findKey(final Bytes key) throws IOException {
-            return delegate.findKey(key);
+            return super.loadLeafRecord(path);
         }
 
         @Override
@@ -303,76 +298,7 @@ public class RecordAccessorTest {
             if (throwExceptionOnLoadHashChunk) {
                 throw new IOException("Thrown by loadHashChunk");
             }
-            return delegate.loadHashChunk(chunkId);
-        }
-
-        @Override
-        public void saveRecords(
-                final long firstLeafPath,
-                final long lastLeafPath,
-                @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
-                final boolean isReconnectContext)
-                throws IOException {
-            delegate.saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    hashChunksToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
-                    isReconnectContext);
-        }
-
-        @Override
-        public void close(final boolean keepData) throws IOException {
-            throw new UnsupportedOperationException("Not implemented by these tests");
-        }
-
-        @Override
-        public void snapshot(final Path snapshotDirectory) throws IOException {
-            throw new UnsupportedOperationException("Not implemented for these tests");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void copyStatisticsFrom(final VirtualDataSource that) {
-            // this database has no statistics
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void registerMetrics(final Metrics metrics) {
-            // this database has no statistics
-        }
-
-        @Override
-        public long getFirstLeafPath() {
-            return delegate.getFirstLeafPath();
-        }
-
-        @Override
-        public long getLastLeafPath() {
-            return delegate.getLastLeafPath();
-        }
-
-        @Override
-        public int getHashChunkHeight() {
-            return delegate.getHashChunkHeight();
-        }
-
-        @Override
-        public void enableBackgroundCompaction() {
-            delegate.enableBackgroundCompaction();
-        }
-
-        @Override
-        public void stopAndDisableBackgroundCompaction() {
-            delegate.stopAndDisableBackgroundCompaction();
+            return super.loadHashChunk(chunkId);
         }
     }
 
