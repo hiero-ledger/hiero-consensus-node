@@ -155,7 +155,7 @@ public class ProofControllerImpl implements ProofController {
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         votes.forEach((nodeId, vote) -> incorporateVote(nodeId, vote, tssConfig));
-        if (!construction.hasTargetProof()) {
+        if (!isCompleted(construction, tssConfig)) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
                     : Instant.MAX;
