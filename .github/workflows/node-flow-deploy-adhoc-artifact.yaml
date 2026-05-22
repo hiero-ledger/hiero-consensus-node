@@ -33,6 +33,11 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
 jobs:
   extract-jdk-version:
     name: Extract Java Version
