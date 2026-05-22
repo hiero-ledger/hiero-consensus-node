@@ -198,7 +198,6 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
     runs-on: hl-cn-default-lin-sm
