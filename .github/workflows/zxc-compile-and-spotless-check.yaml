@@ -91,7 +91,7 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: 810-call-set-failure-mode.yaml
+        uses: ./.github/workflows/810-call-set-failure-mode.yaml
         with:
           test-outcomes: >-
             ${{ steps.compile-source.outcome }}
