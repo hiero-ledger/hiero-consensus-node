@@ -124,6 +124,7 @@ public class CustomContractCreationProcessor extends PublicContractCreationProce
             final var initcode = pendingCreationMetadata.needsInitcodeExternalized()
                     ? tuweniToPbjBytes(frame.getCode().getBytes())
                     : null;
+
             // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support addContractBytecode.
             final var streamMode =
                     configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();

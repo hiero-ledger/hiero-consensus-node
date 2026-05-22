@@ -371,6 +371,7 @@ public class HandleHederaOperations implements HederaOperations {
                         .build()))
                 .evmCreateTransactionResult(
                         EvmTransactionResult.newBuilder().contractId(contractId).build());
+
         // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCreateResult.
         final var streamMode =
                 context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
@@ -436,6 +437,7 @@ public class HandleHederaOperations implements HederaOperations {
                 .evmCreateTransactionResult(EvmTransactionResult.newBuilder()
                         .contractId(newContractId)
                         .build());
+
         // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCreateResult.
         final var streamMode =
                 context.configuration().getConfigData(BlockStreamConfig.class).streamMode();

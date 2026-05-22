@@ -131,6 +131,7 @@ public class Erc20TransfersCall extends AbstractCall {
                     ? ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))
                     : ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true));
             final var outputData = Bytes.wrap(encodedOutput.array());
+
             // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
             final var streamMode =
                     configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
