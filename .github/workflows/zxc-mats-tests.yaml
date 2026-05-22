@@ -175,6 +175,7 @@ jobs:
       - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
