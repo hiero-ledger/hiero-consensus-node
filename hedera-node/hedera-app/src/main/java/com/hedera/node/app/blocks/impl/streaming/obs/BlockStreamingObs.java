@@ -306,43 +306,26 @@ public class BlockStreamingObs {
         final BigDecimal itemsSentPerSecondCount = round(totalItemsSent.samples / (numberOfSeconds * 1.0D));
         final BigDecimal itemsSentPerSecondBytes = round(totalItemsSent.sum / (numberOfSeconds * 1.0D));
 
+        // spotless:off
         // create the log output
         final StringBuilder output = new StringBuilder("\nBlockStreamingStats {\n");
 
         output.append("  Summary {\n");
         output.append("    Seconds { (Unit:COUNT|Sum:").append(numberOfSeconds).append(") }\n");
         output.append("    Blocks {\n");
-        output.append("      Opened { (Unit:COUNT|Sum:")
-                .append(totalBlocksOpened)
-                .append(") }\n");
-        output.append("      Closed { (Unit:COUNT|Sum:")
-                .append(totalBlocksClosed)
-                .append(") }\n");
-        output.append("      Acknowledged { (Unit:COUNT|Sum:")
-                .append(totalBlocksAcked)
-                .append(") }\n");
+        output.append("      Opened { (Unit:COUNT|Sum:").append(totalBlocksOpened).append(") }\n");
+        output.append("      Closed { (Unit:COUNT|Sum:").append(totalBlocksClosed).append(") }\n");
+        output.append("      Acknowledged { (Unit:COUNT|Sum:").append(totalBlocksAcked).append(") }\n");
         output.append("    }\n");
         output.append("    Items {\n");
-        output.append("      Created-Total { (Unit:COUNT|Sum:")
-                .append(totalItemsCreated.samples)
-                .append(")");
+        output.append("      Created-Total { (Unit:COUNT|Sum:").append(totalItemsCreated.samples).append(")");
         output.append("(Unit:BYTES|Sum:").append(totalItemsCreated.sum).append(") }\n");
-        output.append("      Created-PerSecond { (Unit:COUNT|Avg:")
-                .append(itemsCreatedPerSecondCount.toPlainString())
-                .append(")");
-        output.append("(Unit:BYTES|Avg:")
-                .append(itemsCreatedPerSecondBytes.toPlainString())
-                .append(") }\n");
-        output.append("      Sent-Total { (Unit:COUNT|Sum:")
-                .append(totalItemsSent.samples)
-                .append(")");
+        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(itemsCreatedPerSecondCount.toPlainString()).append(")");
+        output.append("(Unit:BYTES|Avg:").append(itemsCreatedPerSecondBytes.toPlainString()).append(") }\n");
+        output.append("      Sent-Total { (Unit:COUNT|Sum:").append(totalItemsSent.samples).append(")");
         output.append("(Unit:BYTES|Sum:").append(totalItemsSent.sum).append(") }\n");
-        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:")
-                .append(itemsSentPerSecondCount.toPlainString())
-                .append(")");
-        output.append("(Unit:BYTES|Avg:")
-                .append(itemsSentPerSecondBytes.toPlainString())
-                .append(") }\n");
+        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(itemsSentPerSecondCount.toPlainString()).append(")");
+        output.append("(Unit:BYTES|Avg:").append(itemsSentPerSecondBytes.toPlainString()).append(") }\n");
         output.append("    }\n");
         output.append("  }\n");
 
@@ -364,18 +347,14 @@ public class BlockStreamingObs {
 
         // append item details
         output.append("  ItemDetails {\n");
-        output.append("    ItemIdle { ")
-                .append(Statistics.toString(blocksAggregation.itemIdleComposite))
-                .append(" }\n");
-        output.append("    ItemSendLatency { ")
-                .append(Statistics.toString(blocksAggregation.itemSendLatencyComposite))
-                .append(" }\n");
-        output.append("    ItemSize { ")
-                .append(Statistics.toString(blocksAggregation.itemSizeComposite))
-                .append(" }\n");
+        output.append("    ItemIdle ").append(Statistics.toString(blocksAggregation.itemIdleComposite)).append("\n");
+        output.append("    ItemSendLatency ").append(Statistics.toString(blocksAggregation.itemSendLatencyComposite)).append("\n");
+        output.append("    ItemSize ").append(Statistics.toString(blocksAggregation.itemSizeComposite)).append("\n");
         output.append("  }\n");
 
         output.append("}");
+        // spotless:on
+
         log.info("{}", output);
     }
 
