@@ -727,7 +727,8 @@ public final class Hedera
                 // Wait for the block stream to close any pending or current blocks–-we may need them for triage
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
-            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
+            case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
+            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
                 // Nothing to do here, just enumerate for completeness
             }
         }

@@ -15,6 +15,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
@@ -158,6 +159,25 @@ class RsaContextTest {
         signing.incorporateValid(Bytes.EMPTY, 2L, sig2);
 
         assertTrue(signing.future().isDone());
+    }
+
+    @Test
+    void cancelAndRemoveAllCancelsRsaSigningFuture() throws Exception {
+        final var keys = KeysAndCertsGenerator.generate(NodeId.of(1L));
+        final var roster = new Roster(List.of(entryFor(1L, 10L, keys)));
+        final var signature =
+                new PlatformSigner(keys).sign(MESSAGE.toByteArray()).getBytes();
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
+
+        subject.initialize(roster, nodeId -> 10L);
+        final var signing = (RsaContext.Signing) subject.newSigning(MESSAGE, () -> {});
+        signings.put(MESSAGE, signing);
+
+        BlockHashSigning.cancelAndRemoveAll(signings);
+        signing.incorporateValid(Bytes.EMPTY, 1L, signature);
+
+        assertTrue(signings.isEmpty());
+        assertTrue(signing.future().isCancelled());
     }
 
     private static RosterEntry entryFor(final long nodeId, final long weight, final KeysAndCerts keysAndCerts)
