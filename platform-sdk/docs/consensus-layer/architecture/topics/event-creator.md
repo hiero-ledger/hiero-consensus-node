@@ -214,7 +214,7 @@ The selfishness score against a peer is the number of recent snapshots
 without that peer's sequence number advancing. A high score means the
 node has been ignoring that peer for several snapshots in a row. To
 prevent permanent starvation, the event creator probabilistically
-swaps the highest-scoring tipset parent for an event from an ignored
+swaps the lowest-scoring tipset parent for an event from an ignored
 peer, weighted by the peer's selfishness score.
 
 The score is computed in
