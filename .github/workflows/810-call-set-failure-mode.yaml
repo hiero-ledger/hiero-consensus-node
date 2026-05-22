@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+#  Sets failure-mode output to 'workflow', 'test', or 'none'
+#  First checks for workflow failures.
+#  Then checks for test failures.
+#  If nothing failed, returns 'none'.
+
+name: "810: [CALL] Set Failure Mode"
+on:
+  workflow_call:
+    inputs:
+      test-outcomes:
+        description: "Space-separated step outcome values for test steps. Empty/missing outcomes are treated as non-failures."
+        type: string
+        required: false
+        default: ''
+      workflow-outcomes:
+        description: "Space-separated step outcome values for infrastructure steps. Empty/missing outcomes are treated as non-failures."
+        type: string
+        required: false
+        default: ''
+    outputs:
+      failure-mode:
+        description: "none, test, or workflow"
+        value: ${{ jobs.compute.outputs.failure-mode }}
+      failed-tests:
+        description: "Comma-separated list of failed/cancelled job names (aggregate mode only)"
+        value: ${{ jobs.compute.outputs.failed-tests }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  compute:
+    name: "Compute Failure Mode"
+    runs-on: ubuntu-latest
+    outputs:
+      failure-mode: ${{ steps.compute.outputs.failure-mode }}
+      failed-tests: ${{ steps.compute.outputs.failed-tests }}
+    steps:
+      - name: Compute
+        id: compute
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_TEST_OUTCOMES: ${{ inputs.test-outcomes }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ inputs.workflow-outcomes }}
+          INPUT_JOB_STATUSES: ${{ inputs.job-statuses }}
+          INPUT_JOB_FAILURE_MODES: ${{ inputs.job-failure-modes }}
+          INPUT_JOB_NAMES: ${{ inputs.job-names }}
+        run: |
+          echo "checking failure modes"
+          
+          failure_mode="none"
+          failed_tests=""
+
+          has_failure() {
+            local arr=("$@")
+            for status in "${arr[@]}"; do
+              [[ "${status}" == "failure" ]] && return 0
+            done
+            return 1
+          }
+          
+          read -ra test_arr <<< "${INPUT_TEST_OUTCOMES}"
+          read -ra workflow_arr <<< "${INPUT_WORKFLOW_OUTCOMES}"
+          
+          echo "test arr ${test_arr}"
+          echo "workflow arr ${workflow_arr}"
+
+          if has_failure "${test_arr[@]}"; then
+            failure_mode="test"
+          fi
+          if has_failure "${workflow_arr[@]}"; then
+            failure_mode="workflow"
+          fi
+          
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"
