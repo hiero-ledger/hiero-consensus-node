@@ -46,6 +46,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
@@ -230,6 +231,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
+    private final BlockStreamingObs streamingObs;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -243,7 +246,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -268,6 +272,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
+        this.streamingObs = requireNonNull(streamingObs);
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
         indirectProofCounter = requireNonNull(metrics)
@@ -459,6 +464,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
+            streamingObs.onBlockInit(blockNumber, System.nanoTime());
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
@@ -711,6 +717,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Write BlockFooter to block stream (last item before BlockProof)
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
+            streamingObs.onBlockFooterCreate(blockNumber, System.nanoTime());
             worker.addItem(footerItem);
             worker.sync();
 
@@ -973,6 +980,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
+            streamingObs.onBlockProofCreate(blockNumber, System.nanoTime());
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first

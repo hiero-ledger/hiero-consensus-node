@@ -10,6 +10,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BE
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats.HighLatencyResult;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -147,6 +148,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private final AtomicLong connectionRequestNumberGenerator = new AtomicLong(0);
 
+    private final BlockStreamingObs streamingObs;
+
     /**
      * Construct a new BlockNodeConnection.
      *
@@ -168,13 +171,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             @NonNull final ExecutorService blockingIoExecutor,
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory,
-            final long nodeId) {
+            final long nodeId,
+            @NonNull final BlockStreamingObs streamingObs) {
         super(ConnectionType.BLOCK_STREAMING, blockNode.configuration(), configProvider, nodeId);
         this.blockNode = blockNode;
         this.connectionManager = requireNonNull(connectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor must not be null");
+        this.streamingObs = requireNonNull(streamingObs);
         this.streamResetPeriod = bncConfig().streamResetPeriod();
         this.streamResetPeriodJitter = bncConfig().streamResetPeriodJitter();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
@@ -668,6 +673,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return (endNanos - startNanos) / 1_000;
     }
 
+    record SendRequestResult(boolean success, long nanosTickStart, long nanosTickEnd) {}
+
     /**
      * Sends the specified request over this connection, if active, to a block node. If the connection is not active,
      * then no operations are performed. If there was a timeout trying to send the request, then the connection will be
@@ -678,7 +685,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @return true if the request was sent successfully, else false if the connection isn't active or initialized
      * @throws RuntimeException if there was a failure sending the request
      */
-    private boolean sendRequest(@NonNull final StreamRequest request) {
+    private SendRequestResult sendRequest(@NonNull final StreamRequest request) {
         requireNonNull(request, "request must not be null");
 
         final long connectionRequestNumber = connectionRequestNumberGenerator.incrementAndGet();
@@ -705,7 +712,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         "{} Tried to send a request but the connection is not active or initialized; ignoring request",
                         connectionContext(correlationId));
             }
-            return false;
+            return new SendRequestResult(false, -1, -1);
         }
 
         final AtomicLong startNanos = new AtomicLong(-1);
@@ -735,6 +742,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
             connStats.recordRequestSendSuccess();
         } catch (final TimeoutException _) {
+            endNanos.compareAndSet(-1, System.nanoTime());
             final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
             future.cancel(true);
             blockStreamMetrics.recordRequestSendFailure();
@@ -752,9 +760,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         connectionContext(correlationId),
                         pipelineOperationTimeout.toMillis(),
                         durationMicros);
-                return false;
+                return new SendRequestResult(false, startNanos.get(), endNanos.get());
             }
         } catch (final InterruptedException e) {
+            endNanos.compareAndSet(-1, System.nanoTime());
             final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
             blockStreamMetrics.recordRequestSendFailure();
             Thread.currentThread().interrupt();
@@ -769,9 +778,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         "{} Interrupted while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
                         connectionContext(correlationId),
                         durationMicros);
-                return false;
+                return new SendRequestResult(false, startNanos.get(), endNanos.get());
             }
         } catch (final Exception e) {
+            endNanos.compareAndSet(-1, System.nanoTime());
             final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
             blockStreamMetrics.recordRequestSendFailure();
             final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
@@ -789,7 +799,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         connectionContext(correlationId),
                         durationMicros,
                         error);
-                return false;
+                return new SendRequestResult(false, startNanos.get(), endNanos.get());
             }
         }
 
@@ -826,6 +836,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                                     .recordBlockProofSent(r.blockNumber(), sentTimestamp.get());
                         }
                         if (r.hasBlockHeader()) {
+                            streamingObs.onBlockHeaderSend(r.blockNumber(), startNanos.get(), endNanos.get());
                             final BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
                             if (blockState != null) {
                                 blockState.setHeaderSentNanos(endNanos.get());
@@ -839,7 +850,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
         // spotless:on
 
-        return true;
+        return new SendRequestResult(true, startNanos.get(), endNanos.get());
     }
 
     @Override
@@ -1309,7 +1320,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                     .build();
             try {
-                if (sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()))) {
+                final SendRequestResult result =
+                        sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()));
+                if (result.success) {
+                    streamingObs.onBlockEndSend(block.blockNumber(), result.nanosTickStart, result.nanosTickEnd);
                     connStats.recordBlockSent(block.blockNumber());
                     blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
                     final long blockEndSentNanos = System.nanoTime();
@@ -1446,15 +1460,23 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     reqBytes);
 
             try {
-                if (sendRequest(new BlockItemsStreamRequest(
+                final SendRequestResult result = sendRequest(new BlockItemsStreamRequest(
                         req,
                         block.blockNumber(),
                         requestCtr.get(),
                         pendingRequestItems.size(),
                         pendingRequestHasBlockProof,
-                        pendingRequestHasBlockHeader))) {
+                        pendingRequestHasBlockHeader));
+                if (result.success) {
                     // record that we've sent the request
                     lastSendTimeMillis = System.currentTimeMillis();
+
+                    streamingObs.onBlockItemsSend(
+                            block.blockNumber(),
+                            itemIndex - pendingRequestItems.size(),
+                            itemIndex - 1,
+                            result.nanosTickStart,
+                            result.nanosTickEnd);
 
                     // clear the pending request data
                     pendingRequestBytes = requestBasePaddingBytes;

@@ -70,7 +70,10 @@ public record BlockStreamConfig(
         boolean enableCutover,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean streamWrappedRecordBlocks) {
+        boolean streamWrappedRecordBlocks,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean enhancedObservabilityEnabled) {
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main

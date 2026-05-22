@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -143,6 +144,8 @@ public class BlockNodeConnectionManager {
     private static final long MASK_HIGHER_PRIORITY_CONNECTION = 1 << 3;
     private static final long MASK_AUTO_RESET = 1 << 4;
 
+    private final BlockStreamingObs streamingObs;
+
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
      *
@@ -177,7 +180,8 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
-            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+            @NonNull final BlockNodeConfigService blockNodeConfigService,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
@@ -188,6 +192,7 @@ public class BlockNodeConnectionManager {
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.clientFactory = new BlockNodeClientFactory();
         this.blockNodeConfigService = requireNonNull(blockNodeConfigService, "Block node config service is required");
+        this.streamingObs = requireNonNull(streamingObs);
 
         blockingIoExecutorRef.set(blockingIoExecutorSupplier.get());
     }
@@ -1021,7 +1026,8 @@ public class BlockNodeConnectionManager {
                 blockingIoExecutorSupplier.get(),
                 wantedBlock,
                 clientFactory,
-                selfNodeId);
+                selfNodeId,
+                streamingObs);
 
         try {
             connection.initialize();

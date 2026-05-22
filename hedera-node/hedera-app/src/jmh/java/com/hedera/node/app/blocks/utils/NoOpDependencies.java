@@ -333,7 +333,8 @@ public final class NoOpDependencies {
                 .withValue("networkAdmin.diskNetworkExportFile", "/tmp/benchmark-network-export")
                 .withValue("version.hapiVersion", "0.56.0")
                 .withValue("staking.periodMins", "1440")
-                .withValue("blockRecordStream.numOfBlockHashesInState", "256");
+                .withValue("blockRecordStream.numOfBlockHashesInState", "256")
+                .withValue("blockStream.enhancedObservabilityEnabled", "false");
 
         return ConfigurationBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
