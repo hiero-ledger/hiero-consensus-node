@@ -17,7 +17,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.reconnect.VirtualMapReconnectTestBase;
-import com.swirlds.virtualmap.test.fixtures.sync.MerkleTestUtils;
+import com.swirlds.virtualmap.test.fixtures.TestKey;
+import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -239,7 +242,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         for (final String key : removedKeys) {
             try {
@@ -254,7 +257,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         }
 
         // release all queued copies
-        while (copiesQueue.size() > 0) {
+        while (!copiesQueue.isEmpty()) {
             copiesQueue.remove().release();
         }
 
@@ -274,7 +277,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         teacherMap.reserve();
         learnerMap.reserve();
 
-        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         // Create a copy of the resulting map
         final VirtualMap afterCopy = afterMap.copy();

@@ -14,16 +14,15 @@ import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
@@ -115,48 +114,37 @@ public final class VirtualMapTestUtils {
         return hashChunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
     }
 
-    public static long hashChunkStreamSize(final int hashChunkHeight, final long startPathInc, final long endPathExc) {
-        final Set<Long> chunkIds = new HashSet<>();
-        for (long path = startPathInc; path < endPathExc; path++) {
-            final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
-            chunkIds.add(chunkId);
-        }
-        return chunkIds.size();
-    }
-
     /**
-     * Validate that two virtual maps contain the same data.
+     * Validate that two virtual maps contain the same data (size, range, internal node hashes, leaves).
      */
-    public static void assertVmsAreEqual(final VirtualMap originalMap, final VirtualMap deserializedMap) {
-        assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
+    public static void assertVmsAreEqual(final VirtualMap expectedMap, final VirtualMap actualMap) {
+        assertEquals(expectedMap.size(), actualMap.size(), "size should match");
 
-        if (originalMap.isEmpty() && deserializedMap.isEmpty()) {
+        if (expectedMap.isEmpty() && actualMap.isEmpty()) {
             return;
         }
 
         // make sure that the hashes are calculated
-        originalMap.getHash();
-        deserializedMap.getHash();
+        expectedMap.getHash();
+        actualMap.getHash();
 
-        assertEquals(originalMap.getHash(), deserializedMap.getHash(), "hash should match");
+        assertEquals(expectedMap.getHash(), actualMap.getHash(), "hash should match");
 
-        final VirtualMapMetadata originalMapMetadata = originalMap.getMetadata();
-        final VirtualMapMetadata deserializedMapMetadata = deserializedMap.getMetadata();
+        final VirtualMapMetadata expectedMetadata = expectedMap.getMetadata();
+        final VirtualMapMetadata actualMetadataMetadata = actualMap.getMetadata();
 
-        assertEquals(originalMapMetadata, deserializedMapMetadata, "metadata should match");
+        assertEquals(expectedMetadata, actualMetadataMetadata, "metadata should match");
 
-        for (long i = originalMapMetadata.getFirstLeafPath(); i <= originalMapMetadata.getLastLeafPath(); i++) {
+        for (long i = expectedMetadata.getFirstLeafPath(); i <= expectedMetadata.getLastLeafPath(); i++) {
             assertEquals(
-                    originalMap.getRecords().findLeafRecord(i),
-                    deserializedMap.getRecords().findLeafRecord(i),
+                    expectedMap.getRecords().findLeafRecord(i),
+                    actualMap.getRecords().findLeafRecord(i),
                     "leaf records should match");
         }
 
-        for (long i = 1; i <= originalMapMetadata.getLastLeafPath(); i++) {
+        for (long i = 1; i <= expectedMetadata.getLastLeafPath(); i++) {
             assertEquals(
-                    originalMap.getRecords().findHash(i),
-                    deserializedMap.getRecords().findHash(i),
-                    "hashes should match");
+                    expectedMap.getRecords().findHash(i), actualMap.getRecords().findHash(i), "hashes should match");
         }
     }
 }

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.test.fixtures;
+package com.swirlds.virtualmap;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.test.fixtures.TestKey;
+import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
