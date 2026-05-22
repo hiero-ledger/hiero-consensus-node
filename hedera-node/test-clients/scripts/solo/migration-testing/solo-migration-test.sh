@@ -53,6 +53,15 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
+# Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
+# Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
+# deployments seed by default. Override via env vars in CI if needed.
+CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
+MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
+OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
+OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
+SMOKE_POLL_TIMEOUT_MS="${SMOKE_POLL_TIMEOUT_MS:-60000}"
+
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-migration.XXXXXX")"
 CLUSTER_CREATED_THIS_RUN="false"
 
@@ -346,6 +355,104 @@ upgrade_to_local() {
   verify_local_build_on_consensus_nodes
 }
 
+# === Step 4 + 4a ===============================================================
+# Submit a CryptoCreate via the Hedera SDK against the upgraded consensus
+# network, then poll the Mirror Node REST API until it reports the transaction
+# with `result == "SUCCESS"`. Finally, scan the mirror importer's log for any
+# ERROR-level lines as the 4a "no errors in the log" check.
+step4_crypto_create_smoke() {
+  log "Step 4: CryptoCreate smoke test (SDK -> consensus, then poll mirror REST)"
+  require_cmd node
+  require_cmd npm
+
+  # 1) Port-forward CN gRPC + Mirror REST. Kill any stale forwards first.
+  pkill -f "kubectl.*port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
+  pkill -f "kubectl.*port-forward.*mirror-1-rest.*${MIRROR_REST_LOCAL_PORT}" >/dev/null 2>&1 || true
+  sleep 1
+
+  log "Port-forwarding haproxy-node1-svc -> 127.0.0.1:${CN_GRPC_LOCAL_PORT}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward \
+    svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
+    > "${WORK_DIR}/pf-grpc.log" 2>&1 < /dev/null &
+  local _pf_grpc=$!
+
+  log "Port-forwarding mirror-1-rest -> 127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward \
+    svc/mirror-1-rest "${MIRROR_REST_LOCAL_PORT}:http" \
+    > "${WORK_DIR}/pf-rest.log" 2>&1 < /dev/null &
+  local _pf_rest=$!
+
+  local p deadline
+  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}"; do
+    deadline=$((SECONDS + 30))
+    while (( SECONDS < deadline )); do
+      (: </dev/tcp/127.0.0.1/$p) >/dev/null 2>&1 && break
+      sleep 1
+    done
+    if ! (: </dev/tcp/127.0.0.1/$p) >/dev/null 2>&1; then
+      kill "${_pf_grpc}" "${_pf_rest}" >/dev/null 2>&1 || true
+      echo "Port ${p} did not become reachable" >&2
+      return 1
+    fi
+  done
+
+  # 2) Install @hashgraph/sdk into WORK_DIR (one-time per script run). The
+  #    JS lives at ${SCRIPT_DIR}/crypto-create-smoke.mjs; copy it into WORK_DIR
+  #    so Node resolves `@hashgraph/sdk` from WORK_DIR/node_modules (ESM
+  #    resolution walks up from the script's directory).
+  if [[ ! -d "${WORK_DIR}/node_modules/@hashgraph/sdk" ]]; then
+    log "Installing @hashgraph/sdk into ${WORK_DIR} (one-time, ~30s)"
+    (
+      cd "${WORK_DIR}"
+      cat > package.json <<'PKG'
+{ "name": "smoke", "version": "0.0.0", "private": true, "type": "module" }
+PKG
+      npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
+    )
+  fi
+  cp "${SCRIPT_DIR}/crypto-create-smoke.mjs" "${WORK_DIR}/crypto-create-smoke.mjs"
+
+  log "Running CryptoCreate smoke"
+  local rc=0
+  (
+    cd "${WORK_DIR}"
+    GRPC_ENDPOINT="127.0.0.1:${CN_GRPC_LOCAL_PORT}" \
+    MIRROR_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}" \
+    OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID}" \
+    OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY}" \
+    POLL_TIMEOUT_MS="${SMOKE_POLL_TIMEOUT_MS}" \
+      node "${WORK_DIR}/crypto-create-smoke.mjs"
+  ) || rc=$?
+
+  kill "${_pf_grpc}" "${_pf_rest}" >/dev/null 2>&1 || true
+
+  if (( rc != 0 )); then
+    echo "Step 4 (CryptoCreate smoke) FAILED with rc=${rc}" >&2
+    return "${rc}"
+  fi
+
+  # Step 4a: scan mirror importer log for ERROR-level lines.
+  log "Step 4a: scanning mirror importer log for ERROR-level entries"
+  local importer_pod errors
+  importer_pod="$(kubectl -n "${SOLO_NAMESPACE}" get pods \
+    -l 'app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1' \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
+  if [[ -z "${importer_pod}" ]]; then
+    echo "Step 4a: importer pod not found" >&2
+    return 1
+  fi
+  # Spring-Boot log format: `<timestamp> ERROR <pid> --- ...` or `... ERROR <module> ...`.
+  errors="$(kubectl -n "${SOLO_NAMESPACE}" logs "${importer_pod}" --tail=-1 2>&1 \
+    | grep -cE '(^|[^A-Z])ERROR ([0-9]+ --- |[a-z])' || true)"
+  if (( errors > 0 )); then
+    echo "Step 4a FAIL: ${errors} ERROR line(s) in ${importer_pod} log:" >&2
+    kubectl -n "${SOLO_NAMESPACE}" logs "${importer_pod}" --tail=-1 2>&1 \
+      | grep -E '(^|[^A-Z])ERROR ([0-9]+ --- |[a-z])' | head -10 >&2
+    return 1
+  fi
+  log "  ${importer_pod}: 0 ERROR lines in log"
+}
+
 # === Driver ====================================================================
 log "Validating prerequisites"
 require_cmd kind
@@ -367,5 +474,6 @@ configure_solo               #         solo init + cluster-ref + deployment
 setup_cluster_prereqs        #         MinIO operator
 deploy_baseline              #         CN @ prev_tag + MN with pinger
 upgrade_to_local             # Step 3 (CN upgrade to local build)
+step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
-log "PASS: baseline ${DEPLOY_RELEASE_TAG} -> local ${UPGRADE_VERSION} upgrade completed"
+log "PASS: baseline ${DEPLOY_RELEASE_TAG} -> local ${UPGRADE_VERSION} upgrade + CryptoCreate smoke completed"
