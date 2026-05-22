@@ -1098,7 +1098,7 @@ jobs:
           echo Setup procedure ...
           cat /etc/*elease
           sudo apt-get update
-          sudo apt-get install -y net-tools iputils-ping node-typescript
+          sudo apt-get install -y net-tools iputils-ping node-typescript coreutils jq xxd openssl
 
       - name: Create report dir
         shell: bash
