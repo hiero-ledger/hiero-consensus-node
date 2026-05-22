@@ -125,9 +125,6 @@ class ContractOperationStreamBuilderTest {
 
         subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
-        // BlockStreamBuilder rejects addContractActions(ContractActions, boolean) with
-        // UnsupportedOperationException; the gate must skip that call when streamMode=BLOCKS.
-        // The concise `addActions(List<ContractAction>)` should still fire on every mode.
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject).addActions(any());
     }

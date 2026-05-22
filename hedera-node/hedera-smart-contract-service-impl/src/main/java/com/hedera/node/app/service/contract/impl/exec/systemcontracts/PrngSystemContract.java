@@ -125,7 +125,6 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                     .systemOperations()
                     .dispatch(synthBody(), key -> Decision.INVALID, senderId, ContractCallStreamBuilder.class);
 
-            // TODO: COVERED
             if (streamMode != BLOCKS) {
                 streamBuilder.contractCallResult(data);
             }
@@ -168,7 +167,6 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                     .systemOperations()
                     .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG);
 
-            // TODO: COVERED
             if (streamMode != BLOCKS) {
                 streamBuilder.contractCallResult(contractResult);
             }

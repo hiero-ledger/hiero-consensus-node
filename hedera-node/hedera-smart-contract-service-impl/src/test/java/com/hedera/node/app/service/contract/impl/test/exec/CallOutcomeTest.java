@@ -30,6 +30,7 @@ import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,10 +39,10 @@ class CallOutcomeTest {
     @Mock
     private RootProxyWorldUpdater updater;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_SELF)
     private ContractCallStreamBuilder contractCallRecordBuilder;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_SELF)
     private ContractCreateStreamBuilder contractCreateRecordBuilder;
 
     @Mock
