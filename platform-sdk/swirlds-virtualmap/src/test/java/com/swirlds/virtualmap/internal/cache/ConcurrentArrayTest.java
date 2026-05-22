@@ -606,9 +606,7 @@ class ConcurrentArrayTest {
         final Set<String> values = ConcurrentHashMap.newKeySet();
         final ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            final Future<?> f = arr.parallelTraverse(exec, (i, v) -> {
-                values.add(v);
-            });
+            final Future<?> f = arr.parallelTraverse(exec, (i, v) -> values.add(v));
             f.get();
         } finally {
             exec.shutdown();
