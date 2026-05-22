@@ -20,7 +20,8 @@ to keep them from being starved out of consensus.
 The event creator does **not**:
 
 - gossip events — events leave through `createdEventOutputWire` and are
-  routed by the wiring framework to gossip and persistence;
+  routed by the wiring framework through event intake and persistence to
+  gossip;
 - persist events — inline PCES persistence happens downstream of event
   intake (see [Self-event persistence](#self-event-persistence));
 - run the hashgraph algorithm — it consumes the hashgraph's event window
@@ -101,8 +102,8 @@ input and output wires plus an `EventTransactionSupplier` passed at
   `PlatformEvent` returned by
   `TipsetEventCreator#maybeCreateEvent`. The event is hashed and signed
   at `TipsetEventCreator#signEvent` before being returned. The wiring
-  framework forwards the event to inline PCES and gossip; the event
-  creator itself does not call those subsystems.
+  framework forwards the event to event intake, inline PCES and gossip;
+  the event creator itself does not call those subsystems.
 
 ## Algorithm
 
@@ -167,15 +168,25 @@ if (SUPER_MAJORITY.isSatisfiedBy(advancementWeight.advancementWeight() + selfWei
 Per-event tipsets for peer events are constructed in
 `TipsetTracker#addPeerEvent` (lines 125–138); the call
 `new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber())`
-shows that tipset entries are event sequence numbers (the
-2026-04-30 update replaced the previous NGen-based formulation
-throughout the algorithm and the source doc; no NGen terminology
-remains).
+shows that tipset entries are event sequence numbers.
+
+The 2/3 threshold mirrors the super-majority that hashgraph consensus
+itself requires to strongly see another node's event, so a snapshot
+stored at this point captures a slice of hashgraph that genuinely
+advances consensus. This threshold also underlies the network's
+automatic stop during quorum loss — see [Behavior during quorum
+loss](#behavior-during-quorum-loss).
 
 ### Event-creation rule
 
-When the event creator is asked to create an event, it considers each
-non-ancient childless peer event as a candidate other parent, computes
+Before the tipset algorithm runs, a chain of permission gates in
+`DefaultEventCreationManager#maybeCreateEvent` (rate limit, platform
+status, health, sync lag, quiescence) must allow creation; these live
+outside `TipsetEventCreator` and are described in [Backpressure
+interaction](#backpressure-interaction).
+
+Once those gates pass, the tipset algorithm chooses other parents. It
+considers each non-ancient childless peer event as a candidate, computes
 the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
 no candidate qualifies and this is not a genesis event, no event is
@@ -187,11 +198,14 @@ The gate is implemented in
 `TipsetEventCreator#createEventCombinedAlgorithm` (lines 273–352): the
 non-zero filter is at line 287, and the no-eligible-parent branch is at
 lines 301–312 (returns `null` unless this is the genesis event). The
-actual snapshot-update happens later
-in `TipsetWeightCalculator#addEventAndGetAdvancementWeight` once the
-event has been assembled. Permission gates that wrap this rule (rate
-limit, health, sync lag, quiescence) live in `DefaultEventCreationManager`
-and are described in [Backpressure interaction](#backpressure-interaction).
+actual snapshot-update happens later in
+`TipsetWeightCalculator#addEventAndGetAdvancementWeight` once the event
+has been assembled.
+
+To keep peers from being permanently starved by this ranking, the
+top-ranked candidate can be probabilistically swapped for an event from
+an ignored peer, weighted by that peer's [selfishness
+score](#selfishness-score).
 
 ### Selfishness score
 
@@ -211,16 +225,21 @@ the maximum across all childless peers is `getMaxSelfishnessScore`
 called probabilistically with `beNiceChance = (selfishness - 1) / antiSelfishnessFactor`
 (line 319, with `antiSelfishnessFactor` defaulting to `10`).
 
-[TBD: question for engineer — In `TipsetEventCreator` and
-`TipsetWeightCalculator`, the anti-selfishness probability divides by
-`antiSelfishnessFactor` (default `10`). What drove the choice of `10`,
-and what symptom appears at lower or higher values?]
+The value `10` is a heuristic. It has no derivation in the code,
+comments, or commit history, and has been carried forward unchanged
+since it was introduced.
 
-[TBD: question for engineer — In
-`TipsetWeightCalculator#addEventAndGetAdvancementWeight` (line 184), the
-snapshot is replaced when advancement weight plus self weight satisfies
-super-majority. What drove the choice of super-majority rather than
-simple-majority for the update threshold?]
+### Behavior during quorum loss
+
+When too much weight is offline, no event can reach the 2/3 threshold
+from [Snapshot updates](#snapshot-updates), so the snapshot freezes.
+The advancement headroom above a frozen snapshot is finite: after a
+few events every candidate produces zero score improvement, and the
+legality rule from [Event-creation rule](#event-creation-rule) rejects
+them all — the node stops creating events without ever deciding to.
+When the partition heals, gossiped events reopen advancement above the
+snapshot and each node individually resumes, with no coordination
+between nodes.
 
 ## Backpressure interaction
 
