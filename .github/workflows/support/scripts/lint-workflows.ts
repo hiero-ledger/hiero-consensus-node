@@ -7,6 +7,7 @@ import * as yaml from 'js-yaml';
 
 const INIT_GITHUB_JOB_NAME = 'pandaswhocode/initialize-github-job'.toLowerCase();
 const EXPECTED_VERSION = 'v1.1.0';
+const EXPECTED_SHA = 'c392c3e699995ab6030915302d2fc9bffb1e861f';
 
 
 const SCRIPT_FILE = process.argv[1];
@@ -32,6 +33,11 @@ function checkVersionInRawLines(lines: string[], filePath: string): void {
     if (!line.toLowerCase().includes(INIT_GITHUB_JOB_NAME)) return;
     if (!line.includes(INIT_GITHUB_JOB_NAME)) {
       console.error(`ERROR: ${filePath}:${i + 1}: action name should be lowercase (found: ${line.trim()})`);
+      errors++;
+    }
+    const shaMatch = line.match(/@([0-9a-f]{40})/);
+    if (!shaMatch || shaMatch[1] !== EXPECTED_SHA) {
+      console.error(`ERROR: ${filePath}:${i + 1}: ${INIT_GITHUB_JOB_NAME} should use SHA ${EXPECTED_SHA} (found: ${line.trim()})`);
       errors++;
     }
     const versionMatch = line.match(/#\s*(v[\d.]+)/);
