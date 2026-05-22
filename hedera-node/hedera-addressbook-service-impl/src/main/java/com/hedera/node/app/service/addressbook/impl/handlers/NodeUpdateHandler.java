@@ -248,15 +248,10 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     private boolean onlyUpdatesAccountID(@NonNull final NodeUpdateTransactionBody op) {
         return op.hasAccountId()
-                && !op.hasDescription()
-                && !op.hasAdminKey()
-                && op.gossipEndpoint().isEmpty()
-                && op.serviceEndpoint().isEmpty()
-                && !op.hasGossipCaCertificate()
-                && !op.hasGrpcCertificateHash()
-                && !op.hasDeclineReward()
-                && !op.hasGrpcProxyEndpoint()
-                && !op.hasAssociatedRegisteredNodeList();
+                && op.equals(NodeUpdateTransactionBody.newBuilder()
+                        .nodeId(op.nodeId())
+                        .accountId(op.accountId())
+                        .build());
     }
 
     /**

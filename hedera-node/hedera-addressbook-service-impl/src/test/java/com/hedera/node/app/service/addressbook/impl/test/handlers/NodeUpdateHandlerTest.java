@@ -656,6 +656,35 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void onlyUpdatesAccountIDReturnsFalseWhenDescriptionAlsoSet() {
+        // Build a NodeUpdateTransactionBody with accountId AND description
+        final var opWithDescription = NodeUpdateTransactionBody.newBuilder()
+                .nodeId(nodeId.number())
+                .accountId(accountId)
+                .description("new description")
+                .build();
+        // Build a reference with only nodeId and accountId (what onlyUpdatesAccountID checks)
+        final var refOnlyAccountId = NodeUpdateTransactionBody.newBuilder()
+                .nodeId(opWithDescription.nodeId())
+                .accountId(opWithDescription.accountId())
+                .build();
+
+        // The two should NOT be equal when description is set
+        assertThat(opWithDescription).isNotEqualTo(refOnlyAccountId);
+
+        // But they SHOULD be equal when only accountId is set
+        final var opOnlyAccountId = NodeUpdateTransactionBody.newBuilder()
+                .nodeId(nodeId.number())
+                .accountId(accountId)
+                .build();
+        final var refForOnlyAccountId = NodeUpdateTransactionBody.newBuilder()
+                .nodeId(opOnlyAccountId.nodeId())
+                .accountId(opOnlyAccountId.accountId())
+                .build();
+        assertThat(opOnlyAccountId).isEqualTo(refForOnlyAccountId);
+    }
+
+    @Test
     void testHandleProxyEndpointDisabled() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(1L)

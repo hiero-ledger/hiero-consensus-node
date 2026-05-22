@@ -498,9 +498,21 @@ class FileUpdateTest extends FileTestBase {
     }
 
     @Test
+    void contentsMutationIsNonExpiry() {
+        final var op = OP_BUILDER.contents(Bytes.wrap("data")).build();
+        assertTrue(FileUpdateHandler.wantsToMutateNonExpiryField(op));
+    }
+
+    @Test
     void expiryMutationIsExpiry() {
         final var expiryTime = Timestamp.newBuilder().seconds(123L).build();
         final var op = OP_BUILDER.expirationTime(expiryTime).build();
+        assertFalse(FileUpdateHandler.wantsToMutateNonExpiryField(op));
+    }
+
+    @Test
+    void noFieldsSetIsNotNonExpiry() {
+        final var op = OP_BUILDER.build();
         assertFalse(FileUpdateHandler.wantsToMutateNonExpiryField(op));
     }
 
