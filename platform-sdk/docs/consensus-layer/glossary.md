@@ -75,7 +75,6 @@ Every entry has a `Gloss`. Entries whose source definition runs to multiple sent
 - **Formula:** `minNonExpiredRound = minJudgeBirthRound - numRoundsNonExpired`
 - **See also:** min judge birth round, numRoundsNonExpired, expired event
 - **Concept:** [event-lifecycle](concepts/event-lifecycle.md), [birth-round](concepts/birth-round.md)
-- **Note:** the source v18 formula read `minNonExpiredRound = minJudgeBirthRound - numRoundsNonAncient`; corrected to `numRoundsNonExpired` per agreed cleanup.
 
 ### Max roster round
 - **Gloss:** the maximum future round number for which there should be a roster in the queue
@@ -224,11 +223,10 @@ The sections below list all the fields inside an event. In the first section, 4 
 - **Concept:** [event-lifecycle](concepts/event-lifecycle.md), [birth-round](concepts/birth-round.md)
 
 ### Expired event
-- **Gloss:** an event whose birth round is less than `(pendingRound - numRoundsNonAncient)`.
-- **Detail:** an event whose birth round is less than `(pendingRound - numRoundsNonAncient)`. Expired events should be removed from memory. So if a node is so far behind that the events it needs are expired for its neighbors, then it will not be able to catch up by gossip alone, so it will have to do a reconnect to catch up.
+- **Gloss:** an event whose birth round is less than `(pendingRound - numRoundsNonExpired)`.
+- **Detail:** an event whose birth round is less than `(pendingRound - numRoundsNonExpired)`. Expired events should be removed from memory. So if a node is so far behind that the events it needs are expired for its neighbors, then it will not be able to catch up by gossip alone, so it will have to do a reconnect to catch up.
 - **See also:** ancient event, min non-expired round, pending round, numRoundsNonExpired, numRoundsNonAncient
 - **Concept:** [event-lifecycle](concepts/event-lifecycle.md)
-- **Note:** the source formula uses `numRoundsNonAncient`; if "expired" is intended to be governed by `numRoundsNonExpired` (per min non-expired round), this may be a third instance of the same source typo. Preserved verbatim pending review.
 
 ### Stale event
 - **Gloss:** an event that became ancient before reaching consensus.
@@ -400,7 +398,6 @@ The sections below list all the fields inside an event. In the first section, 4 
 ### numRoundsNonExpired
 - **Gloss:** number of rounds to be expired
 - **See also:** expired event, min non-expired round
-- **Note:** the source v18 glossary listed this parameter as `numRoundsNonAncient` (a duplicate of the entry above); corrected to `numRoundsNonExpired` per agreed cleanup.
 
 ### numRoundsFutureRoster
 - **Gloss:** number of future rounds desired in the roster queue
