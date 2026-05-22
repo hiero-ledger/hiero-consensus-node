@@ -32,7 +32,6 @@ on:
         description: "Java JDK Version"
         required: false
         type: string
-        default: "25.0.2"
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository"

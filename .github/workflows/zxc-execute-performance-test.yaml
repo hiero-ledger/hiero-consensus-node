@@ -56,7 +56,6 @@ on:
         type: string
       java-version:
         required: false
-        default: "25.0.2"
         description: "Java JDK Version"
         type: string
     outputs:

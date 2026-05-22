@@ -258,8 +258,8 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets: inherit
 
   xts-execution:
     name: Execute XTS

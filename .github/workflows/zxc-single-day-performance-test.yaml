@@ -58,7 +58,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25.0.2"
     secrets:
       slack-report-webhook:
         required: true

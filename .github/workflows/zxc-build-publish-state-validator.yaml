@@ -13,11 +13,6 @@ on:
         required: false
         type: boolean
         default: false
-      java-version:
-        description: "Java version to use for build"
-        required: false
-        type: string
-        default: "25.0.2"
   workflow_call:
     inputs:
       ref:
@@ -29,11 +24,6 @@ on:
         required: false
         type: string
         default: "false"
-      java-version:
-        description: "Java version to use for build"
-        required: false
-        type: string
-        default: "25.0.2"
     outputs:
       gcs-uri:
         description: "GCS URI of the published uber JAR"
@@ -48,13 +38,21 @@ defaults:
     shell: bash
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   build-publish:
     name: Build & Publish State Validator Uber JAR
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-state-validator-lin
-
     outputs:
       gcs-uri: ${{ steps.upload.outputs.gcs_uri || '' }}
-
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -66,7 +64,7 @@ jobs:
           checkout-fetch-depth: "0"
           setup-java: "true"
           java-distribution: "temurin"
-          java-version: "${{ inputs.java-version }}"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0

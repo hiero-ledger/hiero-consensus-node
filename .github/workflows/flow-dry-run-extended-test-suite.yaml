@@ -133,7 +133,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+    secrets: inherit
 
   xts-execution:
     name: Execute XTS

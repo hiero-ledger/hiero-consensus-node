@@ -73,7 +73,6 @@ on:
         description: "Java version for the XTS tests"
         type: string
         required: false
-        default: "25.0.2"
       java-distribution:
         description: "Java distribution for the XTS tests"
         type: string

@@ -24,7 +24,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25.0.2"
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
