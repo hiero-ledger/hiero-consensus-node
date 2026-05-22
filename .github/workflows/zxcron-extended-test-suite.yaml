@@ -258,7 +258,7 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
   xts-execution:
@@ -283,7 +283,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -321,7 +321,7 @@ jobs:
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
       enable-chaos-otter-test-suite: "true"
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
