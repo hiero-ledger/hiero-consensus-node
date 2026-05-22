@@ -44,13 +44,21 @@ public class BlockState {
      */
     private long sizeBytes;
     /**
-     * The timestamp associated with when the block header was sent.
+     * Monotonic nanoTime when this block was opened. Used for latency computation.
      */
-    private volatile Instant headerSentTimestamp;
+    private volatile long openedNanos = -1;
     /**
-     * The timestamp associated with when the block end was sent.
+     * Monotonic nanoTime when this block was closed. Used for latency computation.
      */
-    private volatile Instant blockEndSentTimestamp;
+    private volatile long closedNanos = -1;
+    /**
+     * Monotonic nanoTime when the block header was sent. Used for latency computation.
+     */
+    private volatile long headerSentNanos = -1;
+    /**
+     * Monotonic nanoTime when the block end was sent. Used for latency computation.
+     */
+    private volatile long blockEndSentNanos = -1;
 
     /**
      * Create a new block state object.
@@ -79,6 +87,7 @@ public class BlockState {
         final int index = itemIndex.incrementAndGet();
         blockItems.put(index, item);
         if (item.hasBlockHeader()) {
+            openedNanos = System.nanoTime();
             openedTimestamp = Instant.now();
         }
         sizeBytes += item.protobufSize();
@@ -109,6 +118,7 @@ public class BlockState {
      * Closes this block with the current time.
      */
     public void closeBlock() {
+        closedNanos = System.nanoTime();
         closeBlock(Instant.now());
     }
 
@@ -119,6 +129,9 @@ public class BlockState {
      * @throws NullPointerException if the specified timestamp is null
      */
     public void closeBlock(@NonNull final Instant timestamp) {
+        if (closedNanos == -1) {
+            closedNanos = System.nanoTime();
+        }
         closedTimestamp = requireNonNull(timestamp, "timestamp must not be null");
     }
 
@@ -182,38 +195,53 @@ public class BlockState {
      * @param openedInstant the timestamp when the block was opened
      */
     public void setOpenedTimestamp(@NonNull final Instant openedInstant) {
+        if (openedNanos == -1) {
+            openedNanos = System.nanoTime();
+        }
         this.openedTimestamp = openedInstant;
     }
 
     /**
-     * Sets the timestamp when the block header was sent.
-     * @param headerSentTimestamp the timestamp when the block header was sent
+     * Sets the monotonic nanoTime when the block header was sent.
+     * @param headerSentNanos the nanoTime when the block header was sent
      */
-    public void setHeaderSentTimestamp(@NonNull final Instant headerSentTimestamp) {
-        this.headerSentTimestamp = requireNonNull(headerSentTimestamp, "headerSentTimestamp must not be null");
+    public void setHeaderSentNanos(final long headerSentNanos) {
+        this.headerSentNanos = headerSentNanos;
     }
 
     /**
-     * Sets the timestamp when the block end was sent.
-     * @param blockEndSentTimestamp the timestamp when the block end was sent
+     * Sets the monotonic nanoTime when the block end was sent.
+     * @param blockEndSentNanos the nanoTime when the block end was sent
      */
-    public void setBlockEndSentTimestamp(@NonNull final Instant blockEndSentTimestamp) {
-        this.blockEndSentTimestamp = requireNonNull(blockEndSentTimestamp, "blockEndSentTimestamp must not be null");
+    public void setBlockEndSentNanos(final long blockEndSentNanos) {
+        this.blockEndSentNanos = blockEndSentNanos;
     }
 
     /**
-     * Gets the timestamp when the block header was sent.
-     * @return the timestamp when the block header was sent, or null if not yet sent
+     * @return the monotonic nanoTime when the block was opened, or -1 if not yet opened
      */
-    public @Nullable Instant getHeaderSentTimestamp() {
-        return headerSentTimestamp;
+    public long openedNanos() {
+        return openedNanos;
     }
 
     /**
-     * Gets the timestamp when the block end was sent.
-     * @return the timestamp when the block end was sent, or null if not yet sent
+     * @return the monotonic nanoTime when the block was closed, or -1 if not yet closed
      */
-    public @Nullable Instant getBlockEndSentTimestamp() {
-        return blockEndSentTimestamp;
+    public long closedNanos() {
+        return closedNanos;
+    }
+
+    /**
+     * @return the monotonic nanoTime when the block header was sent, or -1 if not yet sent
+     */
+    public long headerSentNanos() {
+        return headerSentNanos;
+    }
+
+    /**
+     * @return the monotonic nanoTime when the block end was sent, or -1 if not yet sent
+     */
+    public long blockEndSentNanos() {
+        return blockEndSentNanos;
     }
 }
