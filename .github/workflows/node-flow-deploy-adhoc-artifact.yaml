@@ -18,7 +18,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25.0.2"
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
