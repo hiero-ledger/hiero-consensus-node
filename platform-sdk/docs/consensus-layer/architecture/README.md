@@ -10,10 +10,10 @@ Where `../concepts/` defines foundational mental models and the catalog director
 
 ## Topics
 
-One file per topic, in `topics/`. Eleven topics total.
+One file per topic, in `topics/`. Twelve topics total.
 
 |                 Topic file                  |              Topic              |                                                          Summary                                                          |
-|---------------------------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+|---------------------------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------|---|
 | `topics/wiring-framework.md`                | Wiring framework                | Component-and-wire infrastructure that schedules and connects the consensus components.                                   |
 | `topics/gossip.md`                          | Gossip                          | Peer-to-peer exchange of events: RPC sync, fair sync selection, permits, simple broadcast.                                |
 | `topics/event-intake.md`                    | Event intake                    | Pipeline for incoming events — deduplication, validation, signature checks, parent linking, orphan buffering, PCES write. |
@@ -25,6 +25,7 @@ One file per topic, in `topics/`. Eleven topics total.
 | `topics/restart-and-pces.md`                | Restart and PCES                | The Preconsensus Event Stream and the replay path that restores consensus position after a crash.                         |
 | `topics/freeze-and-upgrade.md`              | Freeze and upgrade              | Coordinated network freeze for software upgrades, including the signature handoff to execution.                           |
 | `topics/reconnect.md`                       | Reconnect                       | Recovery path for a node that has fallen far behind and cannot catch up via gossip.                                       |
+| `topics/quiescence.md`                      | Quiescence                      | Opt-in feature affecting stale-events routing to Execution.                                                               |   |
 
 ## Interfaces
 
