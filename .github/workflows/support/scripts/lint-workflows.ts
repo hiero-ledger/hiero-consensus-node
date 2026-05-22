@@ -10,7 +10,7 @@ const EXPECTED_VERSION = 'v1.1.0';
 
 
 const SCRIPT_FILE = process.argv[1];
-const WORKFLOWS_DIR = path.resolve(SCRIPT_FILE, '../../../');
+const WORKFLOWS_DIR = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(SCRIPT_FILE, '../../../');
 
 interface Step {
   uses?: string;

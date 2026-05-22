@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "node lint-workflows.ts"
+    "lint": "node lint-workflows.ts",
+    "lint-other": "node lint-workflows.ts /Users/josh/Documents/GitHub/hiero-consensus-node/.github/workflows"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
