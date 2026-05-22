@@ -108,7 +108,7 @@ jobs:
       add-app-props: "${{ inputs.add-app-props }}"
       run_NLGDparams: "${{ inputs.run_NLGDparams }}"
       add-settings: "${{ inputs.add-settings }}"
-      delete-namespace: "${{ inputs.delete-namespace }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
