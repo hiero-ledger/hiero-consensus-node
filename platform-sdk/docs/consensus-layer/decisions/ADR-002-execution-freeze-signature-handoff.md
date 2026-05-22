@@ -1,8 +1,22 @@
-# ADR: Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
+---
+id: ADR-002
+title: Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
+topics: [freeze-and-upgrade, execution-layer-interface]
+related:
+  invariants: []
+  decisions: []
+  scenarios: []
+  heuristics: []
+  rules: []
+status: accepted
+date: 2026-05-12
+deciders:
+  - Kelly Greco (@poulok)
+  - Michael Tinker (@tinker-michaelj)
+curated_by: Kelly Greco (@poulok)
+---
 
-## Status
-
-Accepted
+# ADR-002 — Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
 
 ## Context
 
@@ -223,8 +237,3 @@ See **Decision** above.
 - `SignatureTransactionCheck.hasBufferedSignatureTransactions()` — keeps event creation alive in
   `FREEZING` while signature transactions remain to be gossiped.
 - Consensus layer statuses `FREEZING` and `FREEZE_COMPLETE` — define the event-creation window.
-
-## Authors / Deciders
-
-- Kelly Greco (@poulok)
-- Michael Tinker (@tinker-michaelj)
