@@ -49,6 +49,15 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
     secrets:
       slack-report-webhook:
         required: true
@@ -127,8 +136,8 @@ jobs:
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
-          java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-version: "wrapper"
 
