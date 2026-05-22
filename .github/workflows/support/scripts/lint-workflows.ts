@@ -30,6 +30,10 @@ let errors = 0;
 function checkVersionInRawLines(lines: string[], filePath: string): void {
   lines.forEach((line, i) => {
     if (!line.toLowerCase().includes(INIT_GITHUB_JOB_NAME)) return;
+    if (!line.includes(INIT_GITHUB_JOB_NAME)) {
+      console.error(`ERROR: ${filePath}:${i + 1}: action name should be lowercase (found: ${line.trim()})`);
+      errors++;
+    }
     const versionMatch = line.match(/#\s*(v[\d.]+)/);
     if (!versionMatch || versionMatch[1] !== EXPECTED_VERSION) {
       console.error(`ERROR: ${filePath}:${i + 1}: ${INIT_GITHUB_JOB_NAME} should use ${EXPECTED_VERSION} (found: ${line.trim()})`);
