@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "[CITR] MATS Dry Run"
+name: "200: [USER] MATS Dry Run"
 on:
   workflow_dispatch:
     inputs:

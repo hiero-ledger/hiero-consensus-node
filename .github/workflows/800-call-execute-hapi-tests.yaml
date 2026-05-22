@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Execute HAPI Tests"
+name: "800: [CALL] Execute HAPI Tests"
 on:
   workflow_call:
     inputs:
