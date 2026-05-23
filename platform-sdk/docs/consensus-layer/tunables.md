@@ -45,17 +45,17 @@ Module: `swirlds-common`. Source: [TemporaryFileConfig.java](../../swirlds-commo
 
 Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
 
-|   ID    |                        Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
-|---------|---------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-003 | `platform.wiring.healthMonitorEnabled`            | boolean  | `true`  | Whether the health monitor is enabled.                                                                    |       | —         |
-| TUN-004 | `platform.wiring.hardBackpressureEnabled`         | boolean  | `false` | Whether hard backpressure is enabled.                                                                     |       | —         |
-| TUN-005 | `platform.wiring.defaultPoolMultiplier`           | double   | `0`     | Multiplier when sizing the default platform fork-join pool: `max(1, multiplier × processors + constant)`. |       | —         |
-| TUN-006 | `platform.wiring.defaultPoolConstant`             | int      | `8`     | Constant added when sizing the default platform fork-join pool; may be negative.                          |       | —         |
-| TUN-007 | `platform.wiring.healthMonitorSchedulerCapacity`  | int      | `500`   | Unhandled-task capacity of the health monitor's scheduler.                                                |       | —         |
-| TUN-008 | `platform.wiring.healthMonitorHeartbeatPeriod`    | Duration | `1ms`   | Period between heartbeats sent to the health monitor.                                                     |       | —         |
-| TUN-009 | `platform.wiring.healthLogThreshold`              | Duration | `1s`    | How long a scheduler may be unhealthy before the platform is considered unhealthy and logs warnings.      |       | —         |
-| TUN-010 | `platform.wiring.healthLogPeriod`                 | Duration | `10m`   | Minimum time between health log messages for the same scheduler.                                          |       | —         |
-| TUN-011 | `platform.wiring.healthyReportThreshold`          | Duration | `1s`    | Period between consecutive reports while the system is healthy.                                           |       | —         |
+|   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
+|---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-003 | `platform.wiring.healthMonitorEnabled`           | boolean  | `true`  | Whether the health monitor is enabled.                                                                    |       | —         |
+| TUN-004 | `platform.wiring.hardBackpressureEnabled`        | boolean  | `false` | Whether hard backpressure is enabled.                                                                     |       | —         |
+| TUN-005 | `platform.wiring.defaultPoolMultiplier`          | double   | `0`     | Multiplier when sizing the default platform fork-join pool: `max(1, multiplier × processors + constant)`. |       | —         |
+| TUN-006 | `platform.wiring.defaultPoolConstant`            | int      | `8`     | Constant added when sizing the default platform fork-join pool; may be negative.                          |       | —         |
+| TUN-007 | `platform.wiring.healthMonitorSchedulerCapacity` | int      | `500`   | Unhandled-task capacity of the health monitor's scheduler.                                                |       | —         |
+| TUN-008 | `platform.wiring.healthMonitorHeartbeatPeriod`   | Duration | `1ms`   | Period between heartbeats sent to the health monitor.                                                     |       | —         |
+| TUN-009 | `platform.wiring.healthLogThreshold`             | Duration | `1s`    | How long a scheduler may be unhealthy before the platform is considered unhealthy and logs warnings.      |       | —         |
+| TUN-010 | `platform.wiring.healthLogPeriod`                | Duration | `10m`   | Minimum time between health log messages for the same scheduler.                                          |       | —         |
+| TUN-011 | `platform.wiring.healthyReportThreshold`         | Duration | `1s`    | Period between consecutive reports while the system is healthy.                                           |       | —         |
 
 ## `uptime.*` — UptimeConfig
 
