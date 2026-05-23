@@ -49,6 +49,22 @@ blockNode:
     #BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "1000"
     JAVA_OPTS: '-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
     SERVER_MAX_MESSAGE_SIZE_BYTES: "131072000"
+    BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+    BACKFILL_FETCH_BATCH_SIZE: "10"
+  backfill:
+    # The path to the block-node-sources.json file must match the path property in
+    # blockNode.config.BACKFILL_BLOCK_NODE_SOURCES_PATH
+    path: "/opt/hiero/block-node/backfill"
+    filename: "block-node-sources.json"
+    sources:
+      # note that this is an example of another (source) BN on the same K8 cluster
+      # different namespace <serviceName>.<namespace>.svc.cluster.local
+      - address: "%ANOTHER_BN_1%"
+        port: 40840
+        priority: 1
+      - address: "%ANOTHER_BN_2%"
+        port: 40840
+        priority: 2
   persistence:
     archive:
       create: false

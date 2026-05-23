@@ -571,19 +571,19 @@ jobs:
           BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
 
           #BN node 1
-          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values1.yaml
+          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-2-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values1.yaml
           cp block-node-values1.yaml block-node-values.yaml;
           export BN_MAPPING="node1=1,node2=2,node3=2,node4=2,node5=3,node6=2,node7=3"
           task solo:block:add
 
           #BN node 2
-          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values2.yaml
+          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values2.yaml
           cp block-node-values2.yaml block-node-values.yaml;
           export BN_MAPPING="node1=1,node2=2,node3=1,node4=1,node5=2,node6=1,node7=2"
           task solo:block:add
 
           #BN node 3
-          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values3.yaml
+          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-2-0@g" block-node-values.yaml.orig > block-node-values3.yaml
           cp block-node-values3.yaml block-node-values.yaml;
           export BN_MAPPING="node1=3,node2=1,node3=3,node4=3,node5=1,node6=3,node7=1"
           task solo:block:add
