@@ -722,6 +722,8 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         final var modifiedOldTreasury = writableAccountStore.get(treasuryId);
         assertThat(modifiedNewTreasury.numberOwnedNfts()).isEqualTo(3);
         assertThat(modifiedOldTreasury.numberOwnedNfts()).isEqualTo(1);
+        assertThat(modifiedNewTreasury.numberPositiveBalances()).isEqualTo(newTreasury.numberPositiveBalances() + 1);
+        assertThat(modifiedOldTreasury.numberPositiveBalances()).isEqualTo(oldTreasury.numberPositiveBalances() - 1);
 
         verify(recordBuilder)
                 .addAutomaticTokenAssociation(TokenAssociation.newBuilder()
