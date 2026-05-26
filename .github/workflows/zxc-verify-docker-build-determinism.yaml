@@ -431,43 +431,18 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hl-cn-default-lin-sm
     needs:
       - generate-baseline
       - verify-artifacts
-    if: ${{ !cancelled() && always() }}
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          egress-policy: audit
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        run: |
-          job_statuses=(
-            "${{ needs.generate-baseline.result || 'skipped' }}"
-            "${{ needs.verify-artifacts.result || 'skipped' }}"
-          )
-
-          job_failure_modes=(
-            "${{ needs.generate-baseline.outputs.failure-mode || 'none' }}"
-            "${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}"
-          )
-
-          failure_mode="none"
-
-          for i in "${!job_statuses[@]}"; do
-            if [[ "${job_statuses[$i]}" == "failure" ]]; then
-              mode="${job_failure_modes[$i]}"
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              elif [[ "${mode}" == "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/810-call-set-failure-mode.yaml
+    with:
+      job-statuses: >-
+        ${{ needs.generate-baseline.result }}
+        ${{ needs.verify-artifacts.result }}
+      job-failure-modes: >-
+        ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
+        ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
+      job-names: >-
+        generate-baseline
+        verify-artifacts
