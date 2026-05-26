@@ -61,7 +61,7 @@ on:
         required: true
         type: boolean
         default: false
-        description: "Run Migration Testing Panel (#25552)"
+        description: "Run Migration Testing Panel"
       execute-state-validator-build:
         required: true
         type: boolean

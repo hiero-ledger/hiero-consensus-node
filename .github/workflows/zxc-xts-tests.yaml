@@ -51,7 +51,7 @@ on:
         default: "false"
       enable-migration-testing-panel:
         type: string
-        description: "Run Migration Testing Panel (#25552)"
+        description: "Run Migration Testing Panel"
         default: "false"
       solo-version:
         type: string
