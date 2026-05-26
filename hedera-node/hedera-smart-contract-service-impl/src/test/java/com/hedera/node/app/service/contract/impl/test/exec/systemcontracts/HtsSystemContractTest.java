@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
@@ -9,15 +11,19 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.callTypeOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
@@ -28,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.nio.ByteBuffer;
@@ -72,6 +79,9 @@ class HtsSystemContractTest {
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    @Mock
+    private ContractCallStreamBuilder dispatchedRecordBuilder;
 
     private MockedStatic<FrameUtils> frameUtils;
 
@@ -148,6 +158,32 @@ class HtsSystemContractTest {
         final var expected = revertResult(CONTRACT_REVERT_EXECUTED, frame.getRemainingGas());
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
+    }
+
+    @Test
+    void dispatchedResultWithInsufficientGasSetsStatusAndBuildsResults() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        // streamMode defaults to BOTH in DEFAULT_CONFIG, so != BLOCKS → contractCallResult IS called
+        frameUtils.when(() -> configOf(frame)).thenReturn(DEFAULT_CONFIG);
+
+        final long gasRequirement = 123L;
+        // FullResult with a non-null recordBuilder triggers the dispatchedRecordBuilder branch
+        final var pricedResult =
+                gasOnly(successResult(ByteBuffer.allocate(0), gasRequirement, dispatchedRecordBuilder), SUCCESS, false);
+        given(call.execute(frame)).willReturn(pricedResult);
+        given(attempt.senderId()).willReturn(SENDER_ID);
+        // remaining gas < gasRequirement → insufficientGas = true
+        given(frame.getRemainingGas()).willReturn(gasRequirement - 1);
+
+        assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+
+        verify(dispatchedRecordBuilder).status(INSUFFICIENT_GAS);
+        verify(dispatchedRecordBuilder).contractCallResult(any());
+        verify(dispatchedRecordBuilder).evmCallTransactionResult(any());
     }
 
     private void givenValidCallAttempt() {

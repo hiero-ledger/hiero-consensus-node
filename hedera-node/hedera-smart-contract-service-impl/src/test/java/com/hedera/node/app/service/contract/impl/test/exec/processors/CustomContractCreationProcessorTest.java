@@ -3,19 +3,31 @@ package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadata;
+import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
+import java.util.ArrayDeque;
+import org.hyperledger.besu.evm.Code;
 import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
@@ -56,6 +68,12 @@ class CustomContractCreationProcessorTest {
 
     @Mock
     private ProxyWorldUpdater worldUpdater;
+
+    @Mock
+    private ContractOperationStreamBuilder streamBuilder;
+
+    @Mock
+    private Code code;
 
     private CustomContractCreationProcessor subject;
 
@@ -200,5 +218,110 @@ class CustomContractCreationProcessorTest {
         verify(frame).setExceptionalHaltReason(maybeReasonToHalt);
         verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
         verify(tracer).traceAccountCreationResult(frame, maybeReasonToHalt);
+    }
+
+    @Test
+    void codeSuccessWithValidationFailedAddsInitcodeSidecarWhenInitcodePresent() {
+        final var contractId = ContractID.newBuilder().contractNum(123L).build();
+        setupCodeSuccessFrame(contractId, true);
+        // validationRuleFailed=true: frame.getState() returns EXCEPTIONAL_HALT after super runs
+        given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
+
+        subject.codeSuccess(frame, tracer);
+
+        // streamMode=BOTH (DEFAULT_CONFIG) and validationRuleFailed=true, initcode!=null
+        // → ContractBytecode with only initcode (no contractId) is added
+        verify(streamBuilder).addContractBytecode(any(), any(Boolean.class));
+    }
+
+    @Test
+    void codeSuccessElseBranchAddsRuntimeBytecodeWithInitcodeWhenInitcodePresent() {
+        final var contractId = ContractID.newBuilder().contractNum(456L).build();
+        setupCodeSuccessFrame(contractId, true);
+        // validationRuleFailed=false: frame.getState() returns null (mock default)
+
+        subject.codeSuccess(frame, tracer);
+
+        // streamMode=BOTH (DEFAULT_CONFIG) and validationRuleFailed=false, initcode!=null
+        // → sidecar.initcode(initcode) at line 144 is called, then addContractBytecode and addInitcode
+        verify(streamBuilder).addContractBytecode(any(), any(Boolean.class));
+        verify(streamBuilder).addInitcode(any());
+    }
+
+    @Test
+    void codeSuccessSkipsBytecodeSidecarOnValidationFailureWhenStreamModeIsBlocks() {
+        final var contractId = ContractID.newBuilder().contractNum(789L).build();
+        setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
+        given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
+
+        subject.codeSuccess(frame, tracer);
+
+        // streamMode=BLOCKS gates the entire validation if/else — no sidecar is added
+        verify(streamBuilder, never()).addContractBytecode(any(), any(Boolean.class));
+        // The addInitcode call below the gate is skipped because validationRuleFailed=true
+        verify(streamBuilder, never()).addInitcode(any());
+    }
+
+    @Test
+    void codeSuccessSkipsBytecodeSidecarOnValidationSuccessWhenStreamModeIsBlocks() {
+        final var contractId = ContractID.newBuilder().contractNum(987L).build();
+        setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
+        // validationRuleFailed=false: frame.getState() returns null (mock default)
+
+        subject.codeSuccess(frame, tracer);
+
+        // streamMode=BLOCKS gates the entire validation if/else — no sidecar is added
+        verify(streamBuilder, never()).addContractBytecode(any(), any(Boolean.class));
+        // The addInitcode call below the gate is independent of streamMode and still runs
+        verify(streamBuilder).addInitcode(any());
+    }
+
+    private Configuration blocksOnlyConfig() {
+        return HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+    }
+
+    private void setupCodeSuccessFrame(final ContractID contractId, final boolean needsInitcodeExternalized) {
+        setupCodeSuccessFrame(contractId, needsInitcodeExternalized, DEFAULT_CONFIG);
+    }
+
+    /**
+     * Sets up frame as its own initial frame (empty stack) with bytecode sidecars enabled,
+     * the given configuration, and a pre-populated PendingCreationMetadataRef for the given contractId.
+     *
+     * @param contractId the contract id to register in the metadata ref
+     * @param needsInitcodeExternalized whether the metadata ref should record that initcode must be externalized
+     * @param config the configuration to expose via the frame's CONFIG_CONTEXT_VARIABLE
+     */
+    private void setupCodeSuccessFrame(
+            final ContractID contractId, final boolean needsInitcodeExternalized, final Configuration config) {
+        // frame is its own initial frame when the stack is empty
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(frame.hasContextVariable(BYTECODE_SIDECARS_VARIABLE)).willReturn(true);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+
+        final var metadataRef = new PendingCreationMetadataRef();
+        metadataRef.set(contractId, new PendingCreationMetadata(streamBuilder, needsInitcodeExternalized));
+        given(frame.getContextVariable(PENDING_CREATION_BUILDER_CONTEXT_VARIABLE)).willReturn(metadataRef);
+
+        // super.codeSuccess(): empty output passes both validation rules; deposit cost = 0
+        given(frame.getOutputData()).willReturn(Bytes.EMPTY);
+        given(evm.getGasCalculator()).willReturn(gasCalculator);
+        given(gasCalculator.codeDepositGasCost(0)).willReturn(0L);
+        given(frame.getRemainingGas()).willReturn(100L);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.getOrCreate(any())).willReturn(contract);
+
+        // CustomContractCreationProcessor.codeSuccess() reads recipient and its code
+        given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
+        given(worldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(contract);
+        given(contract.hederaContractId()).willReturn(contractId);
+        given(contract.getCode()).willReturn(Bytes.EMPTY);
+
+        if (needsInitcodeExternalized) {
+            given(frame.getCode()).willReturn(code);
+            given(code.getBytes()).willReturn(Bytes.of(1, 2, 3));
+        }
     }
 }
