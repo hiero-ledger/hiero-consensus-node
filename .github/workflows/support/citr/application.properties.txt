@@ -11,3 +11,5 @@ blockNode.globalCoolDownSeconds=1
 blockNode.basicNodeCoolDownSeconds=1
 blockNode.extendedNodeCoolDownSeconds=1
 blockNode.connectionStallThresholdMillis=5000
+
+staking.periodMins=360
