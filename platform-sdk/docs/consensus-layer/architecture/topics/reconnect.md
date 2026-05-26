@@ -206,6 +206,31 @@ There is no separate "caught-up" signal: reaching `ACTIVE` *is* the
 recovered state — the node is back to creating events that reach
 consensus.
 
+## Failure behavior
+
+A reconnect attempt that is interrupted — broken connection,
+unexpected exception, validation failure — is not resumed. The
+controller drops any partial progress and starts the next attempt
+from scratch, beginning with teacher selection. The
+`ReconnectConfig.maximumReconnectFailuresBeforeShutdown` cap noted
+in [Lifecycle](#lifecycle) counts these attempts.
+
+A reconnect that completes successfully but leaves the node still
+behind is not a special case. Detection runs the same way it did
+originally: peers report the node as behind on event-window
+boundaries, `FallenBehindMonitor` flips, and another reconnect
+begins. The follow-up attempt transfers less data than the first,
+because the state delta from the just-loaded state is smaller than
+the original gap.
+
+This gives reconnect a natural catch-up property. A node that
+cannot close the entire backlog in one attempt can chain reconnects
+and converge to live, provided each learned state represents more
+forward progress than the `ACTIVE` network has applied to the live
+state in the meantime. If the live state advances faster than each
+reconnect can close the gap, the failure cap eventually trips and
+the node exits.
+
 ## Boundary handoffs
 
 See
