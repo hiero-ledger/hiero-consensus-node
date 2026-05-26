@@ -130,14 +130,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        needs: [execute-unit-tests]
-        uses: 810-call-set-failure-mode.yaml
+        uses: ./.github/workflows/810-call-set-failure-mode.yaml
         with:
-          test-outcomes: ${{ needs.execute-unit-tests.outputs.gradle-test-outcome }}
+          test-outcomes: ${{ steps.gradle-test.outcome }}
           workflow-outcomes: >-
-            ${{ needs.execute-unit-tests.outputs.prepare-runner.outcome }}
-            ${{ needs.execute-unit-tests.outputs.publish-unit-test-report.outcome }}
-            ${{ needs.execute-unit-tests.outputs.upload-artifacts.outcome }}
-            ${{ needs.execute-unit-tests.outputs.publish-codecov.outcome }}
-            ${{ needs.execute-unit-tests.outputs.publish-codacy.outcome }}
-            ${{ needs.execute-unit-tests.outputs.upload-test-reports.outcome }}
+            ${{ steps.prepare-runner.outcome }}
+            ${{ steps.publish-unit-test-report.outcome }}
+            ${{ needs.upload-artifacts.outcome }}
+            ${{ needs.publish-codecov.outcome }}
+            ${{ needs.publish-codacy.outcome }}
+            ${{ needs.upload-test-reports.outcome }}
