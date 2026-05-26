@@ -25,6 +25,7 @@ public class SimulatedBroadcast {
      * Events that are currently in transit between nodes in the network.
      */
     private final Map<NodeId, PriorityQueue<EventInTransit>> eventsInTransit;
+
     private final Map<NodeId, List<PlatformEvent>> eventsDelivered;
 
     private final Map<ConnectionKey, ConnectionInfo> connections = new HashMap<>();
@@ -35,19 +36,15 @@ public class SimulatedBroadcast {
     public SimulatedBroadcast(final Instant now, final int numNodes) {
         this.now = now;
         this.nodes = LongStream.range(0, numNodes).mapToObj(NodeId::of).toList();
-        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
-                _ -> new PriorityQueue<>()));
-        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
-                _ -> new LinkedList<>()));
+        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(), _ -> new PriorityQueue<>()));
+        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(), _ -> new LinkedList<>()));
     }
 
     public SimulatedBroadcast(final Instant now, final List<NodeId> nodes) {
         this.now = now;
         this.nodes = nodes.stream().toList();
-        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
-                _ -> new PriorityQueue<>()));
-        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
-                _ -> new LinkedList<>()));
+        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(), _ -> new PriorityQueue<>()));
+        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(), _ -> new LinkedList<>()));
     }
 
     /**
@@ -93,15 +90,14 @@ public class SimulatedBroadcast {
         return eventsDelivered.replace(nodeId, new LinkedList<>());
     }
 
-    public void setLatency(final NetworkLatency latency){
+    public void setLatency(final NetworkLatency latency) {
         for (int i = 0; i < nodes.size(); i++) {
             for (int j = 0; j < nodes.size(); j++) {
                 if (i == j) {
                     continue;
                 }
                 connections.put(
-                        new ConnectionKey(nodes.get(i), nodes.get(j)),
-                        new ConnectionInfo(latency.getLatency(i, j)));
+                        new ConnectionKey(nodes.get(i), nodes.get(j)), new ConnectionInfo(latency.getLatency(i, j)));
             }
         }
     }

@@ -2,7 +2,6 @@
 package org.hiero.consensus.network.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -133,8 +132,8 @@ class SimulatedBroadcastTest {
         // Each node should receive events from the other (NUM_NODES - 1) nodes
         for (int i = 0; i < NUM_NODES; i++) {
             final List<PlatformEvent> delivered = network.getDeliveredEvents(NodeId.of(i));
-            assertEquals(NUM_NODES - 1, delivered.size(),
-                    "Node " + i + " should receive one event from each other node");
+            assertEquals(
+                    NUM_NODES - 1, delivered.size(), "Node " + i + " should receive one event from each other node");
         }
     }
 
@@ -165,9 +164,13 @@ class SimulatedBroadcastTest {
         assertEquals(2, deliveredToNode0.size(), "Node 0 should receive both events");
 
         // Node 2's event (20ms latency) should arrive before node 1's event (50ms latency)
-        assertEquals(NodeId.of(2), deliveredToNode0.get(0).getSenderId(),
+        assertEquals(
+                NodeId.of(2),
+                deliveredToNode0.get(0).getSenderId(),
                 "First delivered event should be from node 2 (lower latency)");
-        assertEquals(NodeId.of(1), deliveredToNode0.get(1).getSenderId(),
+        assertEquals(
+                NodeId.of(1),
+                deliveredToNode0.get(1).getSenderId(),
                 "Second delivered event should be from node 1 (higher latency)");
     }
 
@@ -205,5 +208,4 @@ class SimulatedBroadcastTest {
                 .setCreatorId(creatorId)
                 .build();
     }
-
 }

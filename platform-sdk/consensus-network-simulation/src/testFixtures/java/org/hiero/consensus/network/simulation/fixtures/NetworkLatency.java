@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.network.simulation.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,7 +42,9 @@ public class NetworkLatency {
             }
             // we multiply by 1000 to convert to micros
             // we also divide by 2 to convert from 2-way latency (ping) to 1-way latency
-            latenciesMicros[i] = Arrays.stream(row).mapToLong(latency -> (latency * 1000L)/2).toArray();
+            latenciesMicros[i] = Arrays.stream(row)
+                    .mapToLong(latency -> (latency * 1000L) / 2)
+                    .toArray();
         }
         return new NetworkLatency(latenciesMicros);
     }

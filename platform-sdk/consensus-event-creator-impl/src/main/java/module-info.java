@@ -6,6 +6,7 @@ import org.hiero.consensus.event.creator.impl.DefaultEventCreatorModule;
 module org.hiero.consensus.event.creator.impl {
     exports org.hiero.consensus.event.creator.impl;
     exports org.hiero.consensus.event.creator.impl.tipset;
+
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;

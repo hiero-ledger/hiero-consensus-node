@@ -37,14 +37,15 @@ import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 public class EventCreatorNetwork {
-    final Map<NodeId,DefaultEventCreationManager> eventCreators;
+    final Map<NodeId, DefaultEventCreationManager> eventCreators;
     final DefaultOrphanBuffer orphanBuffer;
     final FakeTime time;
     final Roster roster;
     final PlatformContext platformContext;
     final SimulatedBroadcast network;
 
-    public EventCreatorNetwork(final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
+    public EventCreatorNetwork(
+            final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
         // Build a roster with real keys
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
                 .withSize(numNodes)
@@ -70,9 +71,15 @@ public class EventCreatorNetwork {
             final KeyPair keyPair = SigningFactory.generateKeyPair(SigningSchema.ED25519, nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(SigningImplementation.ED25519_SODIUM, keyPair);
 
-            final EventCreator eventCreator =
-                    new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId,
-                            ()->List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())));
+            final EventCreator eventCreator = new TipsetEventCreator(
+                    configuration,
+                    metrics,
+                    time,
+                    nodeRandom,
+                    signer,
+                    roster,
+                    nodeId,
+                    () -> List.of(new TimestampedTransaction(Bytes.EMPTY, time.now())));
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                     configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
@@ -83,7 +90,9 @@ public class EventCreatorNetwork {
             eventCreators.put(nodeId, eventCreationManager);
         }
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
-        final List<NodeId> ids = roster.rosterEntries().stream().map(entry -> NodeId.of(entry.nodeId())).toList();
+        final List<NodeId> ids = roster.rosterEntries().stream()
+                .map(entry -> NodeId.of(entry.nodeId()))
+                .toList();
         network = new SimulatedBroadcast(time.now(), ids);
         network.setLatency(latency);
     }
@@ -102,7 +111,7 @@ public class EventCreatorNetwork {
         }
     }
 
-    public List<PlatformEvent> tick(final Duration delay){
+    public List<PlatformEvent> tick(final Duration delay) {
         final List<PlatformEvent> newEvents = new ArrayList<>();
         for (final DefaultEventCreationManager creator : eventCreators.values()) {
             final PlatformEvent event = creator.maybeCreateEvent();
@@ -110,7 +119,10 @@ public class EventCreatorNetwork {
                 newEvents.add(event);
             }
         }
-        final List<PlatformEvent> unorphanedEvents = newEvents.stream().map(orphanBuffer::handleEvent).flatMap(List::stream).toList();
+        final List<PlatformEvent> unorphanedEvents = newEvents.stream()
+                .map(orphanBuffer::handleEvent)
+                .flatMap(List::stream)
+                .toList();
         if (unorphanedEvents.size() != newEvents.size()) {
             throw new RuntimeException("There should be no orphaned events in this benchmark");
         }

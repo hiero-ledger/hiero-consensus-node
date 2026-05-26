@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 open module com.swirlds.platform.core.test.fixtures {
-    requires org.hiero.consensus.event.creator.impl;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -25,6 +24,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
+    requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.model.test.fixtures;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;

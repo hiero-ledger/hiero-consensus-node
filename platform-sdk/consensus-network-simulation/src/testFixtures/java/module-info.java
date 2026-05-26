@@ -13,10 +13,10 @@ open module org.hiero.consensus.network.simulation.test.fixtures {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.creator.impl;
-    requires org.hiero.consensus.roster.test.fixtures;
-    requires org.hiero.consensus.utility;
-    requires org.hiero.consensus.utility.test.fixtures;
+    requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.hashgraph.impl;
+    requires org.hiero.consensus.roster.test.fixtures;
+    requires org.hiero.consensus.utility.test.fixtures;
+    requires org.hiero.consensus.utility;
 }

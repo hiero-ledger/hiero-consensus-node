@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 class SimulationStats {
     private final List<Duration> c2cs = new ArrayList<>();
@@ -28,10 +27,11 @@ class SimulationStats {
     }
 
     void print(final int nodes, final Duration timePassed) {
-        final double averageC2C = c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
+        final double averageC2C =
+                c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
         final Duration max = c2cs.stream().max(Comparator.naturalOrder()).orElse(Duration.ZERO);
         System.out.printf("Num nodes: %d%n", nodes);
-        System.out.printf("Avg C2C:   %s%n", Duration.ofNanos((long)averageC2C));
+        System.out.printf("Avg C2C:   %s%n", Duration.ofNanos((long) averageC2C));
         System.out.printf("Max C2C:   %s%n", max);
         System.out.printf("Ev/sec:    %,d%n", (long) (numEvents / ((double) timePassed.toMillis() / 1000)));
     }
