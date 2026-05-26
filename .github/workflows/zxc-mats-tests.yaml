@@ -82,7 +82,6 @@ on:
         description: "Java JDK Version"
         type: string
         required: false
-        default: "25.0.2"
       java-distribution:
         description: "Java JDK Distribution"
         type: string
@@ -140,7 +139,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -159,9 +158,9 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "25.0.2"
-      java-distribution: "temurin"
-      ref: ${{ needs.commit-info.outputs.sha }}
+      ref: "${{ needs.commit-info.outputs.sha }}"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -176,6 +175,7 @@ jobs:
       - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -190,8 +190,8 @@ jobs:
       - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -208,8 +208,8 @@ jobs:
       - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -225,8 +225,8 @@ jobs:
       - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
       enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
@@ -250,8 +250,8 @@ jobs:
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
@@ -268,8 +268,8 @@ jobs:
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -285,8 +285,8 @@ jobs:
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -301,8 +301,8 @@ jobs:
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '25.0.2' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -328,7 +328,7 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode

@@ -22,9 +22,9 @@ load-bearing.
 
 ## Index
 
-|     ID     | Title | Symptoms | Topics | Verification | Status |
-|------------|-------|----------|--------|--------------|--------|
-| _none yet_ |       |          |        |              |        |
+|                                ID                                |                                                           Title                                                            | Symptoms |  Topics   | Verification |  Status  |
+|------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|----------|-----------|--------------|----------|
+| [SCN-001](SCN-001-same-round-judge-ancestry-stalls-consensus.md) | A round's judge exempted from clearing has another same-round judge in its ancestry — consensus stalls after roster change | SYM-001  | hashgraph | observed     | verified |
 
 <!--
 Row convention, one line per entry, kept in SCN-NNN order:
