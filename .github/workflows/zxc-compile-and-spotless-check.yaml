@@ -91,9 +91,9 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        uses: ./.github/workflows/810-call-set-failure-mode.yaml
-        with:
-          test-outcomes: >-
+        env:
+          INPUT_TEST_OUTCOMES: >-
             ${{ steps.compile-source.outcome }}
             ${{ steps.spotless-check.outcome }}
-          workflow-outcomes: ${{ steps.prepare-runner.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
