@@ -36,6 +36,9 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
+/**
+ * A self-contained simulated network of event-creator nodes backed by a {@link SimulatedBroadcast} layer.
+ */
 public class EventCreatorNetwork {
     final Map<NodeId, DefaultEventCreationManager> eventCreators;
     final DefaultOrphanBuffer orphanBuffer;
@@ -44,6 +47,14 @@ public class EventCreatorNetwork {
     final PlatformContext platformContext;
     final SimulatedBroadcast network;
 
+    /**
+     * Creates a new event-creator network.
+     *
+     * @param seed          random seed used to generate the roster and per-node key pairs
+     * @param numNodes      the number of nodes to include in the network
+     * @param configuration platform configuration applied to every event creator
+     * @param latency       the latency model used by the underlying broadcast simulation
+     */
     public EventCreatorNetwork(
             final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
         // Build a roster with real keys
@@ -97,20 +108,43 @@ public class EventCreatorNetwork {
         network.setLatency(latency);
     }
 
+    /**
+     * Returns the roster shared by all nodes in this network.
+     *
+     * @return the roster
+     */
     public Roster getRoster() {
         return roster;
     }
 
+    /**
+     * Returns the shared platform context used by all nodes in this network.
+     *
+     * @return the platform context
+     */
     public PlatformContext getPlatformContext() {
         return platformContext;
     }
 
+    /**
+     * Updates the event window on every event creator in the network.
+     *
+     * @param eventWindow the new event window to apply
+     */
     public void setEventWindow(final EventWindow eventWindow) {
         for (final DefaultEventCreationManager creator : eventCreators.values()) {
             creator.setEventWindow(eventWindow);
         }
     }
 
+    /**
+     * Advances the simulation by one tick: each node attempts to create an event, all newly created events are
+     * submitted to the broadcast layer, simulated time is advanced by {@code delay}, and any events whose
+     * propagation latency has elapsed are delivered to their destination nodes.
+     *
+     * @param delay the amount of simulated time to advance during this tick
+     * @return the list of events created by nodes during this tick (before delivery)
+     */
     public List<PlatformEvent> tick(final Duration delay) {
         final List<PlatformEvent> newEvents = new ArrayList<>();
         for (final DefaultEventCreationManager creator : eventCreators.values()) {

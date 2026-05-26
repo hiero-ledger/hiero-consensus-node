@@ -179,6 +179,15 @@ public class NetworkSimulationTest {
         runSimulation(tick, duration, numNodes, configuration, latency);
     }
 
+    /**
+     * Runs a network simulation and prints statistics to standard output.
+     *
+     * @param tick               the simulated time step used for each iteration of the main loop
+     * @param simulationDuration the total simulated wall-clock duration of the run
+     * @param nodes              the number of nodes in the network
+     * @param configuration      platform configuration applied to all event creators
+     * @param latency            the latency model applied to the broadcast simulation
+     */
     private void runSimulation(
             final Duration tick,
             final Duration simulationDuration,

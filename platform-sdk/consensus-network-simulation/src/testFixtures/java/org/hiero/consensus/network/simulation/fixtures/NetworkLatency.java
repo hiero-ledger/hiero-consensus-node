@@ -6,6 +6,10 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 
+/**
+ * Encapsulates the one-way propagation delay between every ordered pair of nodes in the simulated network.
+ * Instances are created via the static factory methods {@link #pingMatrix} and {@link #uniformLatency}.
+ */
 public class NetworkLatency {
 
     private final long[][] latenciesMicros;
@@ -14,6 +18,13 @@ public class NetworkLatency {
         this.latenciesMicros = latenciesMicros;
     }
 
+    /**
+     * Returns the one-way latency from the node at {@code node1Index} to the node at {@code node2Index}.
+     *
+     * @param node1Index index of the sending node
+     * @param node2Index index of the receiving node
+     * @return the one-way propagation delay
+     */
     public Duration getLatency(final int node1Index, final int node2Index) {
         return Duration.of(latenciesMicros[node1Index][node2Index], ChronoUnit.MICROS);
     }
@@ -49,6 +60,13 @@ public class NetworkLatency {
         return new NetworkLatency(latenciesMicros);
     }
 
+    /**
+     * Creates a {@link NetworkLatency} where every connection has the same one-way latency.
+     *
+     * @param latency  the one-way latency to apply to all connections; must be non-negative
+     * @param numNodes the number of nodes in the network
+     * @return a uniform-latency instance
+     */
     public static NetworkLatency uniformLatency(@NonNull final Duration latency, final int numNodes) {
         if (latency.isNegative()) {
             throw new IllegalArgumentException("Latency must be non-negative");

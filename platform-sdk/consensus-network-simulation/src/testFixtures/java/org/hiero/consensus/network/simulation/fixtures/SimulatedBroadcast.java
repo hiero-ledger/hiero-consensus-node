@@ -26,13 +26,25 @@ public class SimulatedBroadcast {
      */
     private final Map<NodeId, PriorityQueue<EventInTransit>> eventsInTransit;
 
+    /** Events that have been delivered to each node but not yet consumed via {@link #getDeliveredEvents}. */
     private final Map<NodeId, List<PlatformEvent>> eventsDelivered;
 
+    /** Per-connection latency configuration, keyed by ordered (sender, receiver) pair. */
     private final Map<ConnectionKey, ConnectionInfo> connections = new HashMap<>();
+
+    /** Ordered list of all node IDs participating in the network. */
     private final List<NodeId> nodes;
 
+    /** The current simulated time, advanced by each call to {@link #tick}. */
     Instant now;
 
+    /**
+     * Creates a new broadcast simulation with sequentially assigned node IDs from {@code 0} to
+     * {@code numNodes - 1}.
+     *
+     * @param now      the initial simulated time
+     * @param numNodes the number of nodes in the network
+     */
     public SimulatedBroadcast(final Instant now, final int numNodes) {
         this.now = now;
         this.nodes = LongStream.range(0, numNodes).mapToObj(NodeId::of).toList();
@@ -40,6 +52,12 @@ public class SimulatedBroadcast {
         eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(), _ -> new LinkedList<>()));
     }
 
+    /**
+     * Creates a new broadcast simulation with the given set of node IDs.
+     *
+     * @param now   the initial simulated time
+     * @param nodes the node IDs to include in the network
+     */
     public SimulatedBroadcast(final Instant now, final List<NodeId> nodes) {
         this.now = now;
         this.nodes = nodes.stream().toList();
@@ -86,10 +104,22 @@ public class SimulatedBroadcast {
         deliverEvents();
     }
 
+    /**
+     * Returns and drains the list of events that have been delivered to the given node since the last call.
+     * Subsequent calls will return an empty list until new events are delivered.
+     *
+     * @param nodeId the node whose delivered events to retrieve
+     * @return the events delivered to the node since the last call, in arrival-time order
+     */
     public List<PlatformEvent> getDeliveredEvents(final NodeId nodeId) {
         return eventsDelivered.replace(nodeId, new LinkedList<>());
     }
 
+    /**
+     * Applies a {@link NetworkLatency} configuration to all directed connections in the network.
+     *
+     * @param latency the latency model to apply
+     */
     public void setLatency(final NetworkLatency latency) {
         for (int i = 0; i < nodes.size(); i++) {
             for (int j = 0; j < nodes.size(); j++) {

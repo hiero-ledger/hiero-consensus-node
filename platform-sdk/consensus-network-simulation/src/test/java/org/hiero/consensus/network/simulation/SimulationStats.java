@@ -7,10 +7,18 @@ import java.util.Comparator;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 
+/**
+ * Accumulates and reports performance statistics gathered during a network simulation run.
+ */
 class SimulationStats {
     private final List<Duration> c2cs = new ArrayList<>();
     private long numEvents = 0;
 
+    /**
+     * Records statistics from a batch of consensus engine outputs produced during a single simulation tick.
+     *
+     * @param engineOutputs the outputs returned by the consensus engine for each event processed in the tick
+     */
     void record(final List<ConsensusEngineOutput> engineOutputs) {
         numEvents += engineOutputs.stream()
                 .map(ConsensusEngineOutput::preConsensusEvents)
@@ -26,6 +34,12 @@ class SimulationStats {
                 .forEach(c2cs::add);
     }
 
+    /**
+     * Prints a summary of the collected statistics to standard output.
+     *
+     * @param nodes       the number of nodes in the simulated network
+     * @param timePassed  the total simulated time that elapsed during the run
+     */
     void print(final int nodes, final Duration timePassed) {
         final double averageC2C =
                 c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
