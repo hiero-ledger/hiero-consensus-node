@@ -58,14 +58,15 @@ Thread-safe holder for a `SignedState` that internally manages reservations
 on the value it holds. Used wherever multiple threads may swap, read, or
 release references to a single signed state without coordinating manually.
 
-> **Delta vs. signed-state-use.md:** the source doc lists `SignedStateMap`
-> as a thread-safe utility alongside `SignedStateReference`. `SignedStateMap`
-> no longer exists in current code (verified absent from the entire
-> repository). The thread-safe-access role is now served solely by
-> `SignedStateReference`. [TBD: question for engineer — was
-> `SignedStateMap` removed because no caller needed map semantics, or has
-> its responsibility been folded into another component? If the latter,
-> name the replacement.]
+### `StateWithHashComplexity`
+
+Defined in
+[`StateWithHashComplexity.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/StateWithHashComplexity.java).
+Record that pairs a `ReservedSignedState` with an estimate of how
+expensive hashing the state will be (measured in applied transactions,
+minimum 1). The wiring graph carries this record from the
+`TransactionHandler` through `SavedStateController` to `StateHasher`,
+where the complexity figure feeds the scheduler's health monitor.
 
 ## Reservation discipline
 
@@ -97,10 +98,14 @@ thread-safe to read, write, or otherwise interact with that copy.
       block.
    2. Avoid `@Nullable ReservedSignedState` parameters; prefer a non-null
       `ReservedSignedState` wrapped around a `null` value.
-   3. In general, prefer passing a `SignedState` into a method instead of a
-      `ReservedSignedState`. Synchronous implementations rarely need to
-      retain the state after returning, and if they do, taking a fresh
-      reservation is cheap.
+   3. Outside the wiring graph, prefer passing a `SignedState` into a
+      method instead of a `ReservedSignedState`. Synchronous
+      implementations rarely need to retain the state after returning,
+      and if they do, taking a fresh reservation is cheap. Inside the
+      wiring graph the reverse holds: state-bearing input wires take
+      `ReservedSignedState` so the Reserver transformers
+      (see [Reservation in the wiring graph](#reservation-in-the-wiring-graph))
+      can mint and release one reservation per edge.
 3. When creating a new `SignedState`, always ensure that an explicit
    reservation is held before passing it to other parts of the system —
    never rely on an implicit reference.
@@ -121,6 +126,75 @@ thread-safe to read, write, or otherwise interact with that copy.
    captures stack traces alongside reservation events, which is useful for
    diagnosing reference-count exceptions. The setting has non-trivial
    performance impact and **must never be enabled in production**.
+
+## Reservation in the wiring graph
+
+The rules above are framed for code that holds a `ReservedSignedState`
+on a single thread. When a state passes through the component
+framework it also crosses scheduler queues, and every fan-out from one
+wire to multiple listeners must mint one reservation per listener so
+that the fastest consumer cannot release the last reservation while a
+slower consumer is still waiting in queue. Three
+`AdvancedTransformation` implementations in
+`com.swirlds.platform.wiring` enforce this:
+
+- [`SignedStateReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/SignedStateReserver.java)
+  — fans out a `ReservedSignedState`.
+- [`StateWithHashComplexityReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityReserver.java)
+  — fans out a `StateWithHashComplexity` (used between
+  `TransactionHandler` and `SavedStateController`).
+- [`StateWithHashComplexityToStateReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityToStateReserver.java)
+  — unwraps a `StateWithHashComplexity` to a `ReservedSignedState`
+  while fanning out (feeds `SignedStateNexus` and
+  `StateGarbageCollector`).
+
+All three share the same contract:
+
+- `transform()` runs once per downstream listener and returns a
+  freshly reserved `ReservedSignedState` whose `reason` is the
+  reserver's `name`.
+- `inputCleanup()` runs once after every listener has received its
+  copy and releases the upstream reservation.
+- `outputCleanup()` releases a per-listener reservation if the
+  destination declines it (offer soldering).
+
+The per-listener reservation is minted *before* the work item lands in
+the downstream scheduler's queue, so a state cannot become eligible
+for deletion while a task sits in queue. A state's reservation count
+reaches zero only after every wired consumer has actually run and
+released its reservation.
+
+### Component patterns
+
+Within
+[`PlatformWiring.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)
+every consumer of a state-bearing wire follows one of three patterns:
+
+- **Terminal.** Wraps the input in `try (reservedState)` and produces a
+  non-state output (a transaction, a notification, an ISS list, or a
+  raw `SignedState` reference held without a reservation). Sites:
+  `HashLogger::logHashes`, `StateSigner::signState`,
+  `IssDetector::handleState`, `StateGarbageCollector::registerState`,
+  `StateHashedNotification::from`.
+- **Pipeline-middle.** Returns the same `ReservedSignedState` (or the
+  same `StateWithHashComplexity`) without closing it. The next
+  Reserver's `inputCleanup()` releases the reservation after every
+  downstream listener has minted its own. Sites:
+  `SavedStateController::markSavedState`, `StateHasher::hashState`.
+- **Holder.** Stores the reservation in a field and closes the
+  previous one when a newer one arrives, or on `clear()` / status
+  change. Sites: `LockFreeStateNexus`,
+  `DefaultLatestCompleteStateNexus`, and the `incompleteStates` map
+  inside `DefaultStateSignatureCollector` (which parks states until
+  they collect enough signatures or age out, at which point the
+  reservation flows on as part of the collector's list output).
+
+`StateSnapshotManager::saveStateTask` is the only consumer that
+transfers ownership to a helper:
+`SignedStateFileWriter#writeSignedStateToDisk` takes the reservation
+and releases it (early for async snapshots, after the write for
+synchronous ones), with a defensive `try { ... } finally { if
+(!rs.isClosed()) rs.close(); }` covering early returns and errors.
 
 ## On-disk layout
 
@@ -168,52 +242,91 @@ The reader for the same on-disk format is
 
 A signed state passes through six phases.
 
-1. **Create.** `DefaultTransactionHandler#handleConsensusRound`
+1. **Create.** Only consensus rounds that close a block, plus the
+   freeze round, produce a `SignedState`.
+   `DefaultTransactionHandler#handleConsensusRound`
    ([`DefaultTransactionHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java))
-   produces a fresh `SignedState` after each consensus round, capturing
-   the immutable state at the moment of consensus.
-2. **Sign.** `DefaultStateSignatureCollector#addSignature`
+   applies each round's transactions to the mutable state and then
+   calls `ConsensusStateEventHandler#onSealConsensusRound`, which
+   returns whether the round aligns with the end of a block. If it
+   does — or if this is the freeze round — the handler takes an
+   immutable copy of the state and constructs a fresh `SignedState`.
+   Other rounds yield no `SignedState`; their transaction count is
+   accumulated into the next boundary round's hash-complexity estimate.
+   Restricting state creation to block boundaries ensures that every
+   persisted snapshot is a point Execution can cleanly restart from
+   and that the hashes published into the block stream cover whole
+   blocks.
+2. **Hash and locally sign.** `DefaultStateHasher#hashState`
+   ([`DefaultStateHasher.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/hasher/DefaultStateHasher.java))
+   forces computation of the merkle root, and
+   `DefaultStateSigner#signState`
+   ([`DefaultStateSigner.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signer/DefaultStateSigner.java))
+   produces a `StateSignatureTransaction` containing this node's
+   signature over the hash. The transaction is submitted to Execution
+   for inclusion in the gossiped event stream. (PCES-replay rounds are
+   not signed.)
+3. **Collect peer signatures.**
+   `DefaultStateSignatureCollector#addSignature`
    ([`DefaultStateSignatureCollector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java))
    accumulates signatures from `StateSignatureTransaction` payloads sent
    by peers, adding them to the state's `SigSet` until the
-   signing-weight threshold is reached.
-3. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
+   signing-weight threshold is reached. Collection is best-effort, not
+   guaranteed: states that have not yet collected a threshold of
+   signatures are parked in the collector's `incompleteStates` map
+   and purged once they fall behind
+   `lastStateRound - stateConfig.roundsToKeepForSigning + 1` (default
+   26 rounds). A purged state still flows downstream — if it was
+   marked for saving (step 4) it is written to disk with an incomplete
+   `SigSet`, and `DefaultStateSnapshotManager` logs the shortfall via
+   `InsufficientSignaturesPayload` and increments
+   `totalUnsignedDiskStates`. Freeze states bypass the parking step:
+   they are expected to lack quorum and are emitted immediately on
+   arrival at the collector.
+4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
    ([`DefaultSavedStateController.java:111`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java))
    marks freeze states for saving unconditionally; for non-freeze rounds
    it tests whether the round's consensus timestamp crosses a
    `stateConfig.saveStatePeriod` boundary (read at line 116; the period
    crossing is computed at lines 133-134). When saving is selected, the
    controller calls `signedState.markAsStateToSave(reason)` (line 92).
-4. **Dump.** A
-   [`StateDumpRequest`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/StateDumpRequest.java)
-   carries a `ReservedSignedState` together with a
-   [`StateToDiskReason`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java).
-   Reasons: `FIRST_ROUND_AFTER_GENESIS`, `FREEZE_STATE`,
-   `PERIODIC_SNAPSHOT`, `RECONNECT`, `ISS`, `FATAL_ERROR`,
-   `PCES_RECOVERY_COMPLETE`, `UNKNOWN`.
-
-   [TBD: question for engineer — `StateDumpRequest` carries a
-   `StateToDiskReason`; under what circumstances is a dump enqueued
-   synchronously vs. asynchronously? `SignedStateFileWriter` and the
-   dispatching component (likely a `StateSnapshotManager`) should make
-   both paths visible.]
-
+   The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
+   or `PERIODIC_SNAPSHOT`
+   ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
+   on reconnect, `SavedStateController#reconnectStateReceived` applies
+   `RECONNECT` to the incoming state instead. (The enum contains
+   additional values — `ISS`, `FATAL_ERROR`, `PCES_RECOVERY_COMPLETE`
+   — that have no current production caller.)
 5. **Write.** `SignedStateFileWriter#writeSignedStateToDisk` writes inside
    `executeAndRename`. After the state files are written, it copies PCES
    files into the round directory by calling
    `pcesModule.copyPcesFilesRetryOnFailure`
    ([`SignedStateFileWriter.java:303`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)).
-
 6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
    ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
    destroys states whose reservation count has reached zero, off the hot
    path.
 
-The freeze-state branch of step 3 is part of the freeze procedure
+The freeze-state branch of step 4 is part of the freeze procedure
 described in [freeze-and-upgrade.md](freeze-and-upgrade.md). The
-`RECONNECT` and `PCES_RECOVERY_COMPLETE` reasons of step 4 connect to the
-recovery flow described in [restart-and-pces.md](restart-and-pces.md).
-Those flows are not reproduced here.
+`RECONNECT` reason set in `reconnectStateReceived` connects to the flow
+described in [reconnect.md](reconnect.md). Those flows are not
+reproduced here.
+
+## ISS detection
+
+Every hashed signed state and every `StateSignatureTransaction` is also
+routed to `DefaultIssDetector`
+([`DefaultIssDetector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/DefaultIssDetector.java)),
+which validates that this node's locally-computed state hash agrees
+with the consensus of peer signatures for the same round. A
+disagreement produces an `IssNotification` — Inconsistent State
+Signature — and falls into one of three categories: `SELF_ISS` (the
+local hash is the outlier), `OTHER_ISS` (some peer is the outlier),
+or `CATASTROPHIC_ISS` (no super-majority hash exists). ISS is a
+serious failure; the detection algorithm, partition reporting, and
+follow-on handling are described in
+[iss-detection.md](iss-detection.md).
 
 ## Cross-references
 

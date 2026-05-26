@@ -8,7 +8,7 @@ The topic-organized lens on the consensus layer. Each topic file describes the t
 
 ## Topics
 
-One file per topic, in `topics/`. Eleven topics total.
+One file per topic, in `topics/`. Twelve topics total.
 
 |                 Topic File                  |              Topic              | Summary |
 |---------------------------------------------|---------------------------------|---------|
@@ -20,6 +20,7 @@ One file per topic, in `topics/`. Eleven topics total.
 | `topics/health-monitor-and-backpressure.md` | Health monitor and backpressure |         |
 | `topics/reasons-not-to-gossip.md`           | Reasons not to gossip           |         |
 | `topics/signed-state-management.md`         | Signed state management         |         |
+| `topics/iss-detection.md`                   | ISS detection                   |         |
 | `topics/restart-and-pces.md`                | Restart and PCES                |         |
 | `topics/freeze-and-upgrade.md`              | Freeze and upgrade              |         |
 | `topics/reconnect.md`                       | Reconnect                       |         |
