@@ -38,7 +38,7 @@ public class OpsDurationThrottleTest {
     private static final String OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND =
             "contracts.opsDurationThrottleUnitsFreedPerSecond";
 
-    private static final long DEFAULT_OPS_DURATION_CAPACITY = 500_000_000;
+    private static final long DEFAULT_OPS_DURATION_CAPACITY = 10_000_000;
 
     public static SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
         return overridingAllOf(Map.of(
