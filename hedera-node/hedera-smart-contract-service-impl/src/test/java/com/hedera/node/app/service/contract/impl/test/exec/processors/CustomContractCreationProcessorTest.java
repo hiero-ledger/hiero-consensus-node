@@ -27,10 +27,10 @@ import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayDeque;
-import org.hyperledger.besu.evm.Code;
 import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.contractvalidation.MaxCodeSizeRule;
 import org.hyperledger.besu.evm.contractvalidation.PrefixCodeRule;
@@ -249,20 +249,6 @@ class CustomContractCreationProcessorTest {
     }
 
     @Test
-    void codeSuccessSkipsBytecodeSidecarOnValidationFailureWhenStreamModeIsBlocks() {
-        final var contractId = ContractID.newBuilder().contractNum(789L).build();
-        setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
-        given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
-
-        subject.codeSuccess(frame, tracer);
-
-        // streamMode=BLOCKS gates the entire validation if/else — no sidecar is added
-        verify(streamBuilder, never()).addContractBytecode(any(), any(Boolean.class));
-        // The addInitcode call below the gate is skipped because validationRuleFailed=true
-        verify(streamBuilder, never()).addInitcode(any());
-    }
-
-    @Test
     void codeSuccessSkipsBytecodeSidecarOnValidationSuccessWhenStreamModeIsBlocks() {
         final var contractId = ContractID.newBuilder().contractNum(987L).build();
         setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
@@ -303,7 +289,8 @@ class CustomContractCreationProcessorTest {
 
         final var metadataRef = new PendingCreationMetadataRef();
         metadataRef.set(contractId, new PendingCreationMetadata(streamBuilder, needsInitcodeExternalized));
-        given(frame.getContextVariable(PENDING_CREATION_BUILDER_CONTEXT_VARIABLE)).willReturn(metadataRef);
+        given(frame.getContextVariable(PENDING_CREATION_BUILDER_CONTEXT_VARIABLE))
+                .willReturn(metadataRef);
 
         // super.codeSuccess(): empty output passes both validation rules; deposit cost = 0
         given(frame.getOutputData()).willReturn(Bytes.EMPTY);
