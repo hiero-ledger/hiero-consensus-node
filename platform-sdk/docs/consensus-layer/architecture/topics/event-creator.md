@@ -276,8 +276,9 @@ rule agrees. The rules cover distinct concerns.
 - **`SyncLagRule`**
   (`consensus-event-creator-impl/.../rules/SyncLagRule.java`) — blocks
   creation when this node trails the peer median by `maxAllowedSyncLag`
-  rounds or more. The intent is to stop a node that has fallen behind
-  from emitting events that would only widen its gap from consensus.
+  rounds or more. A lagging node's new events are likely to go stale
+  before reaching consensus, so suppressing them avoids wasted work
+  that would only widen the gap.
 - **`QuiescenceRule`**
   (`consensus-event-creator-impl/.../rules/QuiescenceRule.java`) —
   blocks creation while the current `QuiescenceCommand` is `QUIESCE`.
