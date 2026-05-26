@@ -17,7 +17,10 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.nonNull;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -31,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStre
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -82,11 +86,23 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Ignore the return value; we just want to cache the signature for use in handle()
-        computeEthTxSigsFor(
-                context.body().ethereumTransactionOrThrow(),
-                context.createStore(ReadableFileStore.class),
-                context.configuration());
+        final var config = context.configuration().getConfigData(HederaConfig.class);
+        final var fileStore = context.createStore(ReadableFileStore.class);
+        final var accountStore = context.createStore(ReadableAccountStore.class);
+        final var ethSigs = computeEthTxSigsFor(context.body().ethereumTransactionOrThrow(), fileStore, config);
+        final var account = accountStore.getAliasedAccountById(AccountID.newBuilder()
+                .shardNum(config.shard())
+                .realmNum(config.realm())
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build());
+
+        // If there is no account present at this point - possible hollow account is signing the transaction
+        // so we validate the alias key
+        if (account != null) {
+            validateTruePreCheck(
+                    adminKeyMatchesEcdsaPubKey(account.keyOrThrow(), ethSigs.publicKey()),
+                    INVALID_ETHEREUM_TRANSACTION);
+        }
     }
 
     @Override
@@ -139,7 +155,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         requireNonNull(config);
         requireNonNull(fileStore);
         try {
-            return computeEthTxSigsFor(op, fileStore, config);
+            return computeEthTxSigsFor(op, fileStore, config.getConfigData(HederaConfig.class));
         } catch (PreCheckException ignore) {
             return null;
         }
@@ -205,9 +221,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     private EthTxSigs computeEthTxSigsFor(
             @NonNull final EthereumTransactionBody op,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final Configuration config)
+            @NonNull final HederaConfig hederaConfig)
             throws PreCheckException {
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
         final var hydratedTx = callDataHydration.tryToHydrate(op, fileStore, hederaConfig.firstUserEntity());
         validateTruePreCheck(hydratedTx.status() == OK, hydratedTx.status());
         final var ethTxData = hydratedTx.ethTxData();
@@ -218,5 +233,22 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             // Ignore and translate any signature computation exception
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }
+    }
+
+    private static boolean adminKeyMatchesEcdsaPubKey(
+            @NonNull final Key adminKey, @NonNull final byte[] compressedPubKey) {
+        if (adminKey.key().kind() != KeyOneOfType.ECDSA_SECP256K1) {
+            return false;
+        }
+        final var adminBytes = adminKey.ecdsaSecp256k1();
+        if (adminBytes.length() != compressedPubKey.length) {
+            return false;
+        }
+        for (int i = 0; i < compressedPubKey.length; i++) {
+            if (adminBytes.getByte(i) != compressedPubKey[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

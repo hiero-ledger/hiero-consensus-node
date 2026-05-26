@@ -29,6 +29,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
@@ -56,6 +57,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -93,6 +95,9 @@ class EthereumTransactionHandlerTest {
 
     @Mock
     private ReadableFileStore fileStore;
+
+    @Mock
+    private ReadableAccountStore accountStore;
 
     @Mock
     private TransactionComponent component;
@@ -337,9 +342,13 @@ class EthereumTransactionHandlerTest {
                 TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
         given(preHandleContext.body()).willReturn(body);
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
+                .willReturn(EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS));
+        given(accountStore.getAliasedAccountById(any())).willReturn(null);
         subject.preHandle(preHandleContext);
         verify(ethereumSignatures).computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS);
     }
