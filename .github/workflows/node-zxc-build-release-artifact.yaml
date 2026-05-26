@@ -45,16 +45,15 @@ on:
         type: boolean
         required: false
         default: false
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
         required: false
         default: "temurin"
-      java-version:
-        description: "Java JDK Version:"
-        type: string
-        required: false
-        default: "25.0.2"
       gradle-version:
         description: "Gradle Version:"
         type: string

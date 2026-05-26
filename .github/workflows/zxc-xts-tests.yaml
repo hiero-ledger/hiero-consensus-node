@@ -73,6 +73,15 @@ on:
         description: "Custom Job Label"
         type: string
         required: false
+      java-version:
+        description: "Java version for the XTS tests"
+        type: string
+        required: false
+      java-distribution:
+        description: "Java distribution for the XTS tests"
+        type: string
+        required: false
+        default: "temurin"
     secrets:
       access-token:
         description: "Github Access Token"
@@ -164,8 +173,8 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "25.0.2"
-      java-distribution: "temurin"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -181,6 +190,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -195,6 +205,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -218,6 +229,7 @@ jobs:
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
       enable-network-log-capture: "true"
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -235,6 +247,7 @@ jobs:
       enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -251,6 +264,7 @@ jobs:
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -270,6 +284,7 @@ jobs:
       hedera-tests-enabled: true
       use-branch-for-slack-channel: false
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.platform-access-token }}
       jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
@@ -293,6 +308,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
@@ -311,6 +327,7 @@ jobs:
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
       mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -326,6 +343,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -341,6 +359,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}

@@ -53,8 +53,18 @@ env:
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
+    needs:
+      - extract-jdk-version
     if: ${{ inputs.scenario == 'jumpstart' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -68,7 +78,7 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-java: "true"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
@@ -179,6 +189,8 @@ jobs:
 
   solo-wrb-block-node-streaming:
     name: "Solo WRB Streaming to Block Node"
+    needs:
+      - extract-jdk-version
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
@@ -192,7 +204,7 @@ jobs:
           checkout-fetch-depth: "0"
           checkout-token: "${{ github.token }}"
           setup-java: "true"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
