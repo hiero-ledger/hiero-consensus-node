@@ -42,7 +42,7 @@ jobs:
   migration-testing:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-migration-lin-lg
+    runs-on: hl-cn-bn-regression-lin-lg
     steps:
       - name: Prepare Runner
         id: prepare-runner
