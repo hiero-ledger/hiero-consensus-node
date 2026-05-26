@@ -17,9 +17,9 @@ class BlockStreamConfigTest {
     }
 
     @Test
-    void streamToBlockNodesTrueWhenFileWriterAndWrbEnabled() {
+    void streamToBlockNodesFalseWhenFileWriterAndWrbEnabled() {
         assertThat(configWith(BlockStreamWriterMode.FILE, true).streamToBlockNodes())
-                .isTrue();
+                .isFalse();
     }
 
     @Test
