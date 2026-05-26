@@ -101,7 +101,7 @@ class SimulatedBroadcastTest {
                 latencies[i][j] = (i + 1) * (j + 1) * 10;
             }
         }
-        network.setLatency(NetworkLatency.fromMatrix(latencies));
+        network.setLatency(NetworkLatency.pingMatrix(latencies));
 
         // Event from node 0:
         //   latency to node 1 = 1*2*10 = 20ms
@@ -148,7 +148,7 @@ class SimulatedBroadcastTest {
         final int[][] latencies = new int[nodes][nodes];
         latencies[1][0] = 50; // node 1 -> node 0: 50ms
         latencies[2][0] = 20; // node 2 -> node 0: 20ms
-        network.setLatency(NetworkLatency.fromMatrix(latencies));
+        network.setLatency(NetworkLatency.pingMatrix(latencies));
 
         // Submit event from node 1 first, then from node 2.
         // Despite node 1's event being submitted first, node 2's event should arrive first

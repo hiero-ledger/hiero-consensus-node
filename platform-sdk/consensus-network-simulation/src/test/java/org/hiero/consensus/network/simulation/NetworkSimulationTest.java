@@ -23,7 +23,7 @@ public class NetworkSimulationTest {
     @Test
     void mainnet(){
         final int numNodes = 32;
-        int[][] matrix = new int[][]{
+        final int[][] matrix = new int[][]{
                 {0,217,158,67,183,241,328,185,152,204,180,196,165,92,162,164,223,156,159,217,170,163,153,173,213,60,177,216,163,184,188,165},
                 {217,0,110,234,125,208,154,126,119,16,117,31,106,185,105,107,15,110,101,36,107,96,119,118,40,229,123,25,107,126,118,95},
                 {158,110,0,233,35,88,205,29,7,118,17,95,11,255,12,7,109,14,2,87,8,8,8,10,90,129,24,90,6,29,35,7},
@@ -65,7 +65,7 @@ public class NetworkSimulationTest {
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .withValue(EventCreationConfig_.MAX_OTHER_PARENTS, 4)
                 .getOrCreateConfig();
-        final NetworkLatency latency = NetworkLatency.fromMatrix(matrix);
+        final NetworkLatency latency = NetworkLatency.pingMatrix(matrix);
         runSimulation(tick, duration, numNodes, configuration, latency);
     }
     @Test

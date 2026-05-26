@@ -2,17 +2,19 @@ package org.hiero.consensus.network.simulation.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 
 public class NetworkLatency {
 
-    final int[][] latenciesMs;
+    private final long[][] latenciesMicros;
 
-    private NetworkLatency(final int[][] latenciesMs) {
-        this.latenciesMs = latenciesMs;
+    private NetworkLatency(final long[][] latenciesMicros) {
+        this.latenciesMicros = latenciesMicros;
     }
 
     public Duration getLatency(final int node1Index, final int node2Index) {
-        return Duration.ofMillis(latenciesMs[node1Index][node2Index]);
+        return Duration.of(latenciesMicros[node1Index][node2Index], ChronoUnit.MICROS);
     }
 
     /**
@@ -23,10 +25,12 @@ public class NetworkLatency {
      * @param latenciesMs a square matrix of latencies in milliseconds, where {@code latenciesMs[i][j]} is the time in
      *                    milliseconds for an event sent from node {@code i} to reach node {@code j}
      */
-    public static NetworkLatency fromMatrix(@NonNull final int[][] latenciesMs) {
+    public static NetworkLatency pingMatrix(@NonNull final int[][] latenciesMs) {
         // Validate that the matrix is square and has non-negative latencies
         final int numNodes = latenciesMs.length;
-        for (final int[] row : latenciesMs) {
+        final long[][] latenciesMicros = new long[numNodes][];
+        for (int i = 0; i < latenciesMs.length; i++) {
+            final int[] row = latenciesMs[i];
             if (row.length != numNodes) {
                 throw new IllegalArgumentException("Latency matrix must be square");
             }
@@ -35,21 +39,28 @@ public class NetworkLatency {
                     throw new IllegalArgumentException("Latencies must be non-negative");
                 }
             }
+            // we multiply by 1000 to convert to micros
+            // we also divide by 2 to convert from 2-way latency (ping) to 1-way latency
+            latenciesMicros[i] = Arrays.stream(row).mapToLong(latency -> (latency * 1000L)/2).toArray();
         }
-        return new NetworkLatency(latenciesMs);
+        return new NetworkLatency(latenciesMicros);
     }
 
     public static NetworkLatency uniformLatency(@NonNull final Duration latency, final int numNodes) {
         if (latency.isNegative()) {
             throw new IllegalArgumentException("Latency must be non-negative");
         }
-        final int latencyMs = (int) latency.toMillis();
-        final int[][] latenciesMs = new int[numNodes][numNodes];
+        final long latencyMicros = toMicros(latency);
+        final long[][] latenciesMicros = new long[numNodes][numNodes];
         for (int i = 0; i < numNodes; i++) {
             for (int j = 0; j < numNodes; j++) {
-                latenciesMs[i][j] = latencyMs;
+                latenciesMicros[i][j] = latencyMicros;
             }
         }
-        return new NetworkLatency(latenciesMs);
+        return new NetworkLatency(latenciesMicros);
+    }
+
+    private static long toMicros(final Duration d) {
+        return d.getSeconds() * 1_000_000L + d.getNano() / 1_000L;
     }
 }
