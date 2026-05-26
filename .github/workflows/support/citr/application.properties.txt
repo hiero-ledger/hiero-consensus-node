@@ -1,18 +1,18 @@
+# SOLO_ENABLE_OVERWRITE=true
 hedera.realm=0
-  hedera.shard=0
+hedera.shard=0
 
-  blockStream.streamMode=BOTH
-  blockStream.writerMode=FILE_AND_GRPC
+blockStream.streamMode=BOTH
+blockStream.writerMode=FILE_AND_GRPC
 
-
-  contracts.chainId=298
-  ledger.id=0x03
-  entities.unlimitedAutoAssociationsEnabled=true
-  bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
-  networkAdmin.exportCandidateRoster=true
-  addressBook.useRosterLifecycle=true
-  nodes.gossipFqdnRestricted=false
-  hedera.recordStream.computeHashesFromWrappedRecordBlocks=true
-  hedera.recordStream.liveWritePrevWrappedRecordHashes=true
-  blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
-  blockStream.streamWrappedRecordBlocks=true
+contracts.chainId=298
+ledger.id=0x03
+entities.unlimitedAutoAssociationsEnabled=true
+bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
+networkAdmin.exportCandidateRoster=true
+addressBook.useRosterLifecycle=true
+nodes.gossipFqdnRestricted=false
+hedera.recordStream.computeHashesFromWrappedRecordBlocks=true
+hedera.recordStream.liveWritePrevWrappedRecordHashes=true
+blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
+blockStream.streamWrappedRecordBlocks=true
