@@ -277,8 +277,8 @@ rule agrees. The rules cover distinct concerns.
   (`consensus-event-creator-impl/.../rules/SyncLagRule.java`) — blocks
   creation when this node trails the peer median by `maxAllowedSyncLag`
   rounds or more. A lagging node's new events are likely to go stale
-  before reaching consensus, so suppressing them avoids wasted work
-  that would only widen the gap.
+  before reaching consensus, which would force users to resubmit any
+  transactions those events carried.
 - **`QuiescenceRule`**
   (`consensus-event-creator-impl/.../rules/QuiescenceRule.java`) —
   blocks creation while the current `QuiescenceCommand` is `QUIESCE`.
