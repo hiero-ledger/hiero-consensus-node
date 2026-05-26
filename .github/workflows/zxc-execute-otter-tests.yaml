@@ -305,7 +305,7 @@ jobs:
       - full-otter
       - fast-otter
       - chaos-otter
-    if: ${{ always() }}
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
