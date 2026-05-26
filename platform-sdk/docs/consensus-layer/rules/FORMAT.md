@@ -1,9 +1,10 @@
 # Rules — Entry Format
 
 Specification for `rules/RUL-NNN-short-slug.md` entries. This file defines the
-structure only; allowed values for the `topics` field live in the top-level
-`topics.md` catalog. The test for whether something is a rule rather than an
-invariant is defined in `README.md` — apply it before filing here.
+structure only; allowed values for the `topics` field are the eleven topic
+slugs under `architecture/topics/`. The test for whether something is a rule
+rather than an invariant is defined in `README.md` — apply it before filing
+here.
 
 ## File naming
 
@@ -17,18 +18,19 @@ invariant is defined in `README.md` — apply it before filing here.
 ---
 id: RUL-NNN
 title: Short declarative title — the property in a phrase
-class: structural                 # structural | protocol | state-machine | config | operational | determinism
-topics: [event-intake]            # topic slugs this rule touches
-components:                       # code this rule depends on — required
+class: structural                     # structural | protocol | state-machine | config | operational | determinism
+topics: [event-intake]                # topic slugs this rule touches
+components:                           # code this rule depends on — required
   - consensus-hashgraph-impl/.../DefaultConsensusEngine.java
 related:
-  invariants: [INV-004]            # optional; invariants this rule helps enforce
-  decisions: []                    # optional
-  scenarios: []                    # optional
-  heuristics: []                   # optional
-status: holds                      # holds | divergent | retired
-confidence: medium                 # low | medium | high
-provenance: extraction-2026-05-xx  # where this entry came from
+  invariants: [INV-004]                # optional; invariants this rule helps enforce
+  decisions: []                        # optional
+  scenarios: []                        # optional
+  heuristics: []                       # optional
+status: holds                          # holds | divergent | retired
+confidence: medium                     # low | medium | high
+provenance: extraction-2026-05-xx      # where this entry came from
+curated_by: Full Name (@github-handle) # the person responsible for this entry
 ---
 ```
 
@@ -54,6 +56,9 @@ Field discipline:
 - **`provenance`** — traceability back to the source (extraction run,
   elicitation session date, SCN ID, post-mortem, code path), so a future
   reader can re-check the rule against its origin.
+- **`curated_by`** — the person responsible for this entry now. See
+  [LAYOUT.md](../LAYOUT.md#curator-and-decider-conventions) for the canonical
+  format and the distinction from `provenance`.
 - **no `source` field** — a rule has no external authority; that absence is
   precisely what separates it from an invariant. Its justification lives in
   the `## Why it holds now` body section, not in a citation.
@@ -107,6 +112,7 @@ related:
 status: holds
 confidence: medium
 provenance: ...
+curated_by: ...
 ---
 
 # RUL-NNN — Title
