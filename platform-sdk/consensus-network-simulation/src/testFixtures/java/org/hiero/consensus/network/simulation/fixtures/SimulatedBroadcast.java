@@ -2,16 +2,13 @@
 package org.hiero.consensus.network.simulation.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -94,21 +91,6 @@ public class SimulatedBroadcast {
 
     public List<PlatformEvent> getDeliveredEvents(final NodeId nodeId) {
         return eventsDelivered.replace(nodeId, new LinkedList<>());
-    }
-
-    /**
-     * Sets the same latency for all connections in the network.
-     *
-     * @param latency the latency to apply to every connection
-     */
-    public void setUniformLatency(@NonNull final Duration latency) {
-        for (final NodeId sender : nodes) {
-            for (final NodeId receiver : nodes) {
-                if (!sender.equals(receiver)) {
-                    connections.put(new ConnectionKey(sender, receiver), new ConnectionInfo(latency));
-                }
-            }
-        }
     }
 
     public void setLatency(final NetworkLatency latency){
