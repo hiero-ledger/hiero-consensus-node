@@ -24,7 +24,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.model.test.fixtures;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;

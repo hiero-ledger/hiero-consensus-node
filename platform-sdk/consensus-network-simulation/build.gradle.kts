@@ -14,7 +14,6 @@ testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.event.creator")
-    requires("org.hiero.consensus.event.creator.impl")
     requires("org.hiero.consensus.hashgraph")
     requires("org.hiero.consensus.hashgraph.impl")
     requires("org.hiero.consensus.model")
