@@ -10,11 +10,11 @@ import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.sync.MerkleTestUtils;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -24,7 +24,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -70,24 +69,6 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             value += (word.charAt(position) - 'a');
         }
         return value;
-    }
-
-    @Test
-    @DisplayName("Random Operations")
-    void keyToWordAndBackTest() {
-        assertEquals("aaaaa", keyToWord(0), "incorrect value from keyToWord(0)");
-        assertEquals("aaaab", keyToWord(1), "incorrect value from keyToWord(1)");
-        assertEquals("aaaaz", keyToWord(25), "incorrect value from keyToWord(25)");
-        assertEquals("aaaba", keyToWord(26), "incorrect value from keyToWord(26)");
-        assertEquals("wordl", keyToWord(10311117), "incorrect value from keyToWord(26)");
-        assertEquals("zzzzz", keyToWord(ZZZZZ - 1), "incorrect value from keyToWord(ZZZZZ - 1)");
-
-        assertEquals(0, wordToKey("aaaaa"), "incorrect value from wordToKey(aaaaa)");
-        assertEquals(1, wordToKey("aaaab"), "incorrect value from wordToKey(aaaab)");
-        assertEquals(25, wordToKey("aaaaz"), "incorrect value from wordToKey(aaaaz)");
-        assertEquals(26, wordToKey("aaaba"), "incorrect value from wordToKey(aaaba)");
-        assertEquals(10311117, wordToKey("wordl"), "incorrect value from wordToKey(wordl)");
-        assertEquals(ZZZZZ - 1, wordToKey("zzzzz"), "incorrect value from keyToWord(zzzzz)");
     }
 
     /**
@@ -232,7 +213,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         for (final String key : removedKeys) {
             try {
@@ -247,7 +228,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         }
 
         // release all queued copies
-        while (copiesQueue.size() > 0) {
+        while (!copiesQueue.isEmpty()) {
             copiesQueue.remove().release();
         }
 

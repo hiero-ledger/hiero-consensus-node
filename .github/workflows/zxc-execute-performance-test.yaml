@@ -54,6 +54,10 @@ on:
         default: ""
         description: "Kubernetes cluster to run the test on"
         type: string
+      java-version:
+        required: false
+        description: "Java JDK Version"
+        type: string
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
@@ -63,7 +67,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.14.1
+  NLG_VERSION: 0.14.3
 
 defaults:
   run:
@@ -178,7 +182,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25.0.2
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
