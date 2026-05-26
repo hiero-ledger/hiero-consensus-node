@@ -375,6 +375,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }}
       custom-job-name: "${{ inputs.custom-job-label }} Migration Testing"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
