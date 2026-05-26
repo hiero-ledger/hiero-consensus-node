@@ -598,7 +598,7 @@ jobs:
           bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
           jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
 
-      - name: Update BlockNodes
+      - name: Update RSA BlockNodes
         run: |
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
@@ -607,9 +607,37 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "mkdir -p /opt/hiero/block-node/node"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
               ${pod}:/opt/hiero/block-node/node/rsa-bootstrap-roster.json
+          done
 
+      - name: Update back-fill
+        run: |
+          set +x
+          set +e
+
+          echo >block_ips.txt
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod block-node-$i-0 | grep -E '^IP:' | awk "{print \"block-node-$i-0 \"\$2}" >> block_ips.txt
+          done
+
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            echo '{"nodes": [' > block-node-sources_$i.json
+            grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
+            echo ']}' >> block-node-sources_$i.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$i.json \
+              block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
+          done
+
+      - name: Start BlockNodes
+        run: |
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
               bash -c "find /opt/hiero/block-node/data -type f -exec rm -f {} \;" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
               bash -c "nohup bash /opt/hiero/block-node/app*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
