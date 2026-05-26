@@ -362,10 +362,6 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hl-cn-default-lin-sm
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
       - commit-info
       - build
@@ -378,100 +374,42 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
-    if: ${{ !cancelled() && always() }} # always run unless cancelled
-    steps:
-      - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        run: |
-          job_statuses=(
-            ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.build.result || 'skipped' }}
-            ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
-            ${{ needs.xts-hammer-tests.result || 'skipped' }}
-            ${{ needs.xts-hapi-tests.result || 'skipped' }}
-            ${{ needs.xts-otter-tests.result || 'skipped' }}
-          )
-          job_failure_modes=(
-            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
-            ${{ needs.build.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
-          )
-          job_names=(
-            "commit-info"
-            "build"
-            "xts-timing-sensitive-tests"
-            "xts-hammer-tests"
-            "xts-hapi-tests"
-            "xts-otter-tests"
-          )
-
-          # Final outputs
-          failure_mode="none"
-          failed_tests=""
-
-          # go through all of the job statuses and check failure mode (none | workflow | test)
-          # if any job failed (failure-mode != none) then set the failure mode for the workflow
-          # to that jobs failure mode.
-          # only set failure mode once
-          # append the failing job to the failed-tests list.
-
-          for job in "${!job_statuses[@]}"; do
-            status=${job_statuses[$job]}
-            mode=${job_failure_modes[$job]}
-            name=${job_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${mode}" != "none" && "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
-              else
-                failed_tests="${failed_tests}, ${name}"
-              fi
-            fi
-          done
-
-          # if any panel jobs failed, set failure mode to 'test' if not already set to something
-          # other than "none"
-          # Add the failed panel job to the failed-tests list
-
-          panel_statuses=(
-            ${{ needs.hedera-node-jrs-panel.result || 'skipped' }}
-            ${{ needs.sdk-tck-regression-panel.result || 'skipped' }}
-            ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
-            ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
-            ${{ needs.block-node-regression-panel.result || 'skipped' }}
-          )
-          panel_names=(
-            "hedera-node-jrs-panel"
-            "sdk-tck-regression-panel"
-            "mirror-node-regression-panel"
-            "json-rpc-relay-regression-panel"
-            "block-node-regression-panel"
-          )
-
-          for job in "${!panel_statuses[@]}"; do
-            status=${panel_statuses[$job]}
-            name=${panel_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="test"
-              fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
-              else
-                failed_tests="${failed_tests}, ${name}"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/810-call-set-failure-mode.yaml
+    with:
+      job-statuses: >-
+        ${{ needs.commit-info.result }}
+        ${{ needs.build.result }}
+        ${{ needs.xts-timing-sensitive-tests.result }}
+        ${{ needs.xts-hammer-tests.result }}
+        ${{ needs.xts-hapi-tests.result }}
+        ${{ needs.xts-otter-tests.result }}
+        ${{ needs.hedera-node-jrs-panel.result }}
+        ${{ needs.sdk-tck-regression-panel.result }}
+        ${{ needs.mirror-node-regression-panel.result }}
+        ${{ needs.json-rpc-relay-regression-panel.result }}
+        ${{ needs.block-node-regression-panel.result }}
+      job-failure-modes: >-
+        ${{ needs.commit-info.outputs.failure-mode || 'none' }}
+        ${{ needs.build.outputs.failure-mode || 'none' }}
+        ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
+        ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
+        ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
+        ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
+        test
+        test
+        test
+        test
+        test
+      job-names: >-
+        commit-info
+        build
+        xts-timing-sensitive-tests
+        xts-hammer-tests
+        xts-hapi-tests
+        xts-otter-tests
+        hedera-node-jrs-panel
+        sdk-tck-regression-panel
+        mirror-node-regression-panel
+        json-rpc-relay-regression-panel
+        block-node-regression-panel
