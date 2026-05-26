@@ -79,7 +79,7 @@ input and output wires plus an `EventTransactionSupplier` passed at
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `eventWindowInputWire` flows to
   `TipsetEventCreator#setEventWindow`, which prunes ancient tipsets and
-  childless events and also caries the birth round for newly created 
+  childless events and also caries the birth round for newly created
   events. See [hashgraph.md](hashgraph.md).
 - **Health duration from health monitor** —
   `healthStatusInputWire` calls
@@ -268,9 +268,9 @@ rule agrees. The rules cover distinct concerns.
   outright.
 - **`PlatformHealthRule`**
   (`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`)
-  blocks event creation whenever the duration reported via `reportUnhealthyDuration` 
-  exceeds `maximumPermissibleUnhealthyDuration` (default `1s`), 
-  giving slow downstream components room to catch up. The signal 
+  blocks event creation whenever the duration reported via `reportUnhealthyDuration`
+  exceeds `maximumPermissibleUnhealthyDuration` (default `1s`),
+  giving slow downstream components room to catch up. The signal
   framework that produces the unhealthy-duration measurement lives
   in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md).
 - **`SyncLagRule`**
