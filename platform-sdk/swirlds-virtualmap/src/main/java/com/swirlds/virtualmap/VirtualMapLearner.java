@@ -518,7 +518,11 @@ public final class VirtualMapLearner {
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerPullVirtualTreeView(reconnectConfig, this, new TopToBottomTraversalOrder(), mapStats);
+                new LearnerPullVirtualTreeView(
+                        reconnectConfig,
+                        this,
+                        new TopToBottomTraversalOrder(virtualMapConfig.chunkPrefetchDepth()),
+                        mapStats);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
                 new LearnerPullVirtualTreeView(
                         reconnectConfig, this, new TwoPhasePessimisticTraversalOrder(), mapStats);

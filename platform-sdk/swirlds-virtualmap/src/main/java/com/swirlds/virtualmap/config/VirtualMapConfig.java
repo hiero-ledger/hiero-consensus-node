@@ -23,6 +23,9 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      with hash chunks on disk.
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
+ * @param chunkPrefetchDepth the number of hash chunks to prefetch in the background when {@link VirtualMapReconnectMode#PULL_TOP_TO_BOTTOM}
+ *                           reconnect mode is used. 0 disables pre-fetch (baseline behavior), -1 allows unbounded pre-fetch (experimental).
+ *                           Default value is 1, which means that one chunk is prefetched in the background.
  * @param reconnectFlushInterval
  *      During reconnect, virtual nodes are periodically flushed to disk after they are hashed. This
  *      interval indicates the number of nodes to hash before they are flushed to disk. If zero, all
@@ -57,6 +60,7 @@ public record VirtualMapConfig(
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
         @ConfigProperty(defaultValue = PULL_TOP_TO_BOTTOM) String reconnectMode,
+        @Min(-1) @ConfigProperty(defaultValue = "1") int chunkPrefetchDepth,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,

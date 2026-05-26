@@ -4,10 +4,13 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.virtualmap.internal.Path;
+import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,9 +40,10 @@ import org.apache.logging.log4j.Logger;
  * <p>Tree processing is done in chunks. First, the chunk root rank is fixed, this is
  * where every chunk's root paths are. Then a chunk containing the first leaf path is
  * processed, both internals and leaves. Then the next chunk, and the next one, till
- * the chunk, which contains the last leaf. After each chunk is processed, the list
- * of accumulated clean nodes is reset, since chunk paths are disjoint. This makes
- * sure the list of clean nodes doesn't grow beyond certain point.
+ * the chunk, which contains the last leaf. Each chunk maintains its own set of
+ * accumulated clean and dirty nodes (see {@link ChunkState}). Since chunk subtrees
+ * are disjoint, these sets are scoped to a single chunk and discarded once the chunk's
+ * leaves are fully processed, ensuring that memory usage stays bounded.
  *
  * <p>One more optimization is effective processing of the beginning or the end of
  * the leaf path range. If the range is [N, 2N] on the learner, and [N+X, 2N+2X] on
@@ -65,6 +69,111 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     private static final Logger logger = LogManager.getLogger(TopToBottomTraversalOrder.class);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Per-chunk state
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Encapsulates all mutable state that is scoped to a single chunk. A new instance
+     * is created for every chunk and discarded once the chunk's leaves are fully processed.
+     */
+    static final class ChunkState {
+
+        /** Node path of this chunk's root */
+        final long chunkRootPath;
+
+        /** The last leaf path covered by this chunk's subtree */
+        final long chunkLastLeafPath;
+
+        /** The leaf rank of this chunk (either firstLeafRank or lastLeafRank) */
+        final int chunkLastRank;
+
+        /**
+         * The highest rank at which initial chunk internals are seeded. Equals
+         * {@code chunkRootRank + skipRanks}. Used by {@code skipCleanPaths} to bound
+         * how far up the tree it walks looking for clean ancestors.
+         */
+        final int chunkFirstCheckedRank;
+
+        /**
+         * Clean internal nodes for this chunk. Used by {@code skipCleanPaths} to skip
+         * subtrees known to be identical on learner and teacher.
+         */
+        final Set<Long> cleanPaths = ConcurrentHashMap.newKeySet();
+
+        /**
+         * Dirty internal nodes within RANK_STEP of the leaf rank for this chunk. Together
+         * with {@code cleanPaths}, used to determine whether a leaf can be sent or must wait.
+         */
+        final Set<Long> someDirtyPaths = ConcurrentHashMap.newKeySet();
+
+        /**
+         * Queue of internal node paths to send to the teacher for this chunk. Initially
+         * populated with the chunk's seed internals, then extended via dirty drill-down.
+         */
+        final Queue<Long> internals = new ConcurrentLinkedQueue<>();
+
+        // ── Observability (mutated only from the view's synchronized block) ──
+
+        /** Number of PATH_NOT_AVAILABLE_YET returns caused by hasDirtyParent failure */
+        int leafStallCount;
+        /** Accumulated wall-clock nanoseconds spent in stall state */
+        long chunkStallNanos;
+        /** Timestamp of the current stall episode start, or 0 if not stalling */
+        long stallStartNanos;
+
+        /**
+         * Creates a fully-initialized chunk state with its initial internals already seeded.
+         *
+         * @param chunkRootPath  the root path of this chunk
+         * @param chunkRootRank  the global chunk root rank (same for all chunks)
+         * @param chunkLastRank  the leaf rank of this chunk
+         */
+        ChunkState(final long chunkRootPath, final int chunkRootRank, final int chunkLastRank) {
+            this.chunkRootPath = chunkRootPath;
+            this.chunkLastRank = chunkLastRank;
+            this.chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
+
+            // Seed initial internals at the midpoint of the chunk
+            final int chunkHeight = chunkLastRank - chunkRootRank;
+            final int skipRanks = chunkHeight / 2;
+            this.chunkFirstCheckedRank = chunkRootRank + skipRanks;
+            final long firstPath = Path.getLeftGrandChildPath(chunkRootPath, skipRanks);
+            final long lastPath = Path.getRightGrandChildPath(chunkRootPath, skipRanks);
+            for (long path = firstPath; path <= lastPath; path++) {
+                internals.add(path);
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Global (tree-level) state — not per-chunk
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Maximum number of chunks that may be pre-fetched ahead of the current chunk.
+     * 0 = no pre-fetch (baseline behavior). Negative = unbounded.
+     */
+    private final int chunkPrefetchDepth;
+
+    /**
+     * Creates a traversal order with the default pre-fetch depth of 1.
+     */
+    public TopToBottomTraversalOrder() {
+        this(1);
+    }
+
+    /**
+     * Creates a traversal order with the specified pre-fetch depth.
+     *
+     * @param chunkPrefetchDepth maximum number of chunks to pre-fetch ahead of the
+     *     current chunk. 0 disables pre-fetch (baseline behavior), negative values
+     *     allow unbounded pre-fetch (experimental).
+     */
+    public TopToBottomTraversalOrder(final int chunkPrefetchDepth) {
+        this.chunkPrefetchDepth = chunkPrefetchDepth;
+    }
+
     /**
      * When the number of nodes is low, it doesn't make sense to use chunks, just send all
      * leaves without any internal nodes.
@@ -84,38 +193,8 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     private volatile int lastLeafRank;
 
-    /** The rank of chunk root nodes */
+    /** The rank of chunk root nodes. Same for all chunks. */
     private volatile int chunkRootRank;
-    /** Node path of the currently processed chunk */
-    private volatile long chunkRootPath;
-    /** The highest rank of the current chunk at which chunk's internal nodes are sent to the teacher */
-    private volatile int chunkFirstCheckedRank;
-    /** The last rank of the current chunk. It may be either firstLeafRank or lastLeafRank */
-    private volatile int chunkLastRank;
-    /** The last leaf path in the currently processed chunk */
-    private volatile long chunkLastLeafPath;
-
-    /**
-     * Clean internal nodes. This set is cleared, when the current chunk is completely
-     * processed, and a new chunk is started.
-     */
-    private final Set<Long> cleanPaths = ConcurrentHashMap.newKeySet();
-    /**
-     * If a node is dirty, and it's less than RANK_STEP ranks higher than the leaf
-     * rank, it's tracked here. This set, together with cleanPaths, is used to
-     * evaluate if a leaf node can be processed, or it's pending more responses
-     * from the teacher.
-     */
-    private final Set<Long> someDirtyPaths = ConcurrentHashMap.newKeySet();
-
-    /**
-     * A queue of internal nodes to send to the teacher. It's originally populated with
-     * some nodes in the first chunk. Afterwards, nodes are added to the queue, when
-     * dirty responses from the teacher are processed. The queue is drained by learner's
-     * sending thread using {@link #getNextInternalPathToSend()} method. If the queue is
-     * empty, no internal nodes are sent, and an attempt to send a leaf is performed.
-     */
-    private final Queue<Long> internals = new ConcurrentLinkedQueue<>();
 
     /**
      * Leaf path tracker. Leaf requests are sent to the teacher in ascending path order.
@@ -127,6 +206,36 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * requests are sent to the teacher.
      */
     private final AtomicLong currentLeafPath = new AtomicLong();
+
+    /**
+     * Active chunk(s). Head = the current chunk whose leaves are being processed.
+     * Subsequent entries are pre-fetched chunks whose internals have been seeded
+     * but whose leaf phase has not started yet. Empty in simple mode.
+     */
+    private final Deque<ChunkState> activeChunks = new ConcurrentLinkedDeque<>();
+
+    /**
+     * Monotonic upper bound on paths that have ever belonged to a popped (completed)
+     * chunk. Used by {@link #nodeReceived} to distinguish expected late responses
+     * (TRACE) from paths that were never part of any chunk (ERROR). Updated on every
+     * chunk promotion. Initialized to -1 (no chunks have been popped yet).
+     */
+    private volatile long lastPoppedChunkRightmost = -1;
+
+    // ── Observability (mutated only from the view's synchronized block) ──
+
+    /** Total number of chunks fully processed (promoted or finalized) */
+    private int totalChunks;
+    /** Accumulated stall nanoseconds across all completed chunks */
+    private long totalStallNanos;
+    /** Accumulated nanoseconds where stalls occurred with all pre-fetch queues empty */
+    private long totalPrefetchExhaustedNanos;
+    /** Timestamp when pre-fetch exhaustion began, or 0 if not currently exhausted */
+    private long prefetchExhaustedSince;
+    /** Peak number of pre-fetched chunks observed during the traversal */
+    private int maxLookaheadReached;
+    /** Guard to ensure the end-of-traversal summary is logged exactly once */
+    private boolean traversalComplete;
 
     @Override
     public void start(
@@ -149,25 +258,32 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         } else {
             chunkRootRank = Math.max(1, lastLeafRank - DEFAULT_CHUNK_HEIGHT);
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
-            chunkLastRank = Path.getRank(startingLeaf);
-            chunkRootPath = Path.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
-            chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
-            addInitialChunkInternals();
+            final int chunkLastRank = Path.getRank(startingLeaf);
+            final long chunkRootPath = Path.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
+            activeChunks.addLast(new ChunkState(chunkRootPath, chunkRootRank, chunkLastRank));
 
             logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
         }
     }
 
-    // chunkRootPath, chunkRootRank, and chunkLastRank must be set before this method is called
-    private void addInitialChunkInternals() {
-        final int chunkHeight = chunkLastRank - chunkRootRank;
-        final int skipRanks = chunkHeight / 2;
-        chunkFirstCheckedRank = chunkRootRank + skipRanks;
-        final long firstPath = Path.getLeftGrandChildPath(chunkRootPath, skipRanks);
-        final long lastPath = Path.getRightGrandChildPath(chunkRootPath, skipRanks);
-        for (long path = firstPath; path <= lastPath; path++) {
-            internals.add(path);
+    /**
+     * Finds the active chunk whose subtree contains the given internal path, or
+     * {@code null} if no active chunk owns it (late response for a completed chunk,
+     * or a bug). Walks the deque linearly — bounded by prefetch depth + 1.
+     */
+    private ChunkState findOwningChunk(final long path) {
+        final int rank = Path.getRank(path);
+        if (rank <= chunkRootRank) {
+            // Path is at or above chunk root level — not part of any chunk's subtree
+            return null;
         }
+        final long ancestor = Path.getGrandParentPath(path, rank - chunkRootRank);
+        for (final ChunkState chunk : activeChunks) {
+            if (chunk.chunkRootPath == ancestor) {
+                return chunk;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -176,18 +292,42 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if ((path == 0) || isLeaf) {
             return;
         }
+        if (simpleMode) {
+            // No chunks in simple mode — internal responses are not expected
+            return;
+        }
+        final ChunkState chunk = findOwningChunk(path);
+        if (chunk == null) {
+            if (path <= lastPoppedChunkRightmost) {
+                // Late response for a chunk that has already been promoted and discarded.
+                // Expected race between receiver threads and chunk promotion.
+                logger.trace(
+                        RECONNECT.getMarker(), "Late response discarded for path {} (chunk already promoted)", path);
+            } else {
+                // Path belongs to no active chunk and was never in a popped one — bug
+                logger.error(
+                        RECONNECT.getMarker(),
+                        "nodeReceived for path {} (rank {}) with no owning chunk; "
+                                + "lastPoppedRightmost={} activeChunks={}",
+                        path,
+                        Path.getRank(path),
+                        lastPoppedChunkRightmost,
+                        activeChunks.size());
+            }
+            return;
+        }
         final int rank = Path.getRank(path);
         if (isClean) {
-            cleanPaths.add(path);
-        } else if (rank >= chunkLastRank - RANK_STEP) {
-            someDirtyPaths.add(path);
+            chunk.cleanPaths.add(path);
+        } else if (rank >= chunk.chunkLastRank - RANK_STEP) {
+            chunk.someDirtyPaths.add(path);
         } else {
             final long left = Path.getLeftGrandChildPath(path, RANK_STEP);
             final long right = Path.getRightGrandChildPath(path, RANK_STEP);
-            final long lastChunkInternal = Math.min(firstLeafPath - 1, Path.getParentPath(chunkLastLeafPath));
+            final long lastChunkInternal = Math.min(firstLeafPath - 1, Path.getParentPath(chunk.chunkLastLeafPath));
             for (long p = left; p <= right; p++) {
                 if (p <= lastChunkInternal) {
-                    internals.add(p);
+                    chunk.internals.add(p);
                 }
             }
         }
@@ -207,9 +347,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-        final Long internal = internals.poll();
-        if (internal != null) {
-            return internal;
+        // Poll from the current chunk's internals queue
+        for (final ChunkState chunk : activeChunks) {
+            final Long internal = chunk.internals.poll();
+            if (internal != null) {
+                return internal;
+            }
         }
         // Proceed to leaves
         return Path.INVALID_PATH;
@@ -220,6 +363,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         long leafPath = currentLeafPath.get();
         if (leafPath > lastLeafPath) {
             // Processing is over, this method must return INVALID_PATH
+            finalizeTraversal(activeChunks.peekFirst());
             return Path.INVALID_PATH;
         }
         if (simpleMode) {
@@ -232,85 +376,273 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             currentLeafPath.set(leafPath + 1);
             return leafPath;
         }
+        final ChunkState chunk = activeChunks.peekFirst();
+        assert chunk != null : "activeChunks must not be empty outside simpleMode";
         // Skip all clean leaf paths starting from the current path
-        leafPath = skipCleanPaths(leafPath, chunkLastLeafPath);
+        leafPath = skipCleanPaths(chunk, leafPath, chunk.chunkLastLeafPath);
         if (leafPath == Path.INVALID_PATH) {
-            // All remaining leaves in the current chunk are clean, time to proceed to the
-            // next chunk, if any
-            leafPath = chunkLastLeafPath + 1;
+            // All remaining leaves in the current chunk are clean, promote to next chunk
+            leafPath = chunk.chunkLastLeafPath + 1;
             if (leafPath > lastLeafPath) {
                 // This was the last chunk. Done
+                finalizeTraversal(chunk);
                 return Path.INVALID_PATH;
-            } else {
-                logger.debug(
-                        RECONNECT.getMarker(),
-                        "Chunk end: clean paths: {} some dirty paths: {} last chunk path: {}",
-                        cleanPaths.size(),
-                        someDirtyPaths.size(),
-                        chunkLastLeafPath);
-                cleanPaths.clear();
-                someDirtyPaths.clear();
-                long nextChunkRootPath = chunkRootPath + 1;
-                if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
-                    assert Path.getRank(nextChunkRootPath) == chunkRootRank + 1;
-                    nextChunkRootPath = Path.getParentPath(nextChunkRootPath);
-                    assert chunkLastRank == firstLeafRank;
-                    chunkLastRank = lastLeafRank;
-                }
-                chunkRootPath = nextChunkRootPath;
-                chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
-                addInitialChunkInternals();
-                currentLeafPath.set(leafPath);
-                // Proceed to internal nodes
-                return PATH_NOT_AVAILABLE_YET;
             }
+            // Finalize stall timing and accumulate totals for the completing chunk
+            endStallIfActive(chunk);
+            totalChunks++;
+            totalStallNanos += chunk.chunkStallNanos;
+            final int prefetchDepthAtPromotion = activeChunks.size() - 1;
+            logger.debug(
+                    RECONNECT.getMarker(),
+                    "Chunk promoted: root={} leafStallCount={} prefetchDepthAtPromotion={} "
+                            + "chunkStallNanos={} memCleanPaths={} memSomeDirtyPaths={} memInternals={}",
+                    chunk.chunkRootPath,
+                    chunk.leafStallCount,
+                    prefetchDepthAtPromotion,
+                    chunk.chunkStallNanos,
+                    chunk.cleanPaths.size(),
+                    chunk.someDirtyPaths.size(),
+                    chunk.internals.size());
+            // Promote: pop current chunk, advance to next
+            activeChunks.pollFirst();
+            //noinspection NonAtomicOperationOnVolatileField
+            lastPoppedChunkRightmost = Math.max(lastPoppedChunkRightmost, chunk.chunkLastLeafPath);
+            if (activeChunks.isEmpty()) {
+                // No pre-fetched chunk available, compute the next one
+                activeChunks.addLast(computeNextChunk(chunk));
+            }
+            // else: pre-fetched chunk is already the new head
+            currentLeafPath.set(leafPath);
+            // Proceed to internal nodes of the new chunk
+            return PATH_NOT_AVAILABLE_YET;
         }
         // OK, leafPath is not clean. It can be either dirty (if one of its parents is
         // in someDirtyPaths) or not known
         boolean hasDirtyParent = false;
         long parentPath = Path.getParentPath(leafPath);
         for (int i = 0; i < RANK_STEP; i++) {
-            if (someDirtyPaths.contains(parentPath)) {
+            if (chunk.someDirtyPaths.contains(parentPath)) {
                 hasDirtyParent = true;
                 break;
             }
             parentPath = Path.getParentPath(parentPath);
         }
         if (!hasDirtyParent) {
+            // Neither clean, nor dirty. Parent status unknown — stall.
+            chunk.leafStallCount++;
+            if (chunk.stallStartNanos == 0) {
+                chunk.stallStartNanos = System.nanoTime();
+            }
+            // Seed the next chunk's internals if pre-fetch depth allows, so the
+            // wire stays busy while we wait for the current chunk's responses.
+            seedPrefetchChunkIfAllowed();
+            // Track pre-fetch exhaustion: stalling with no pre-fetch work available
+            updatePrefetchExhaustionTracking();
             currentLeafPath.set(leafPath);
-            // Neither clean, nor dirty. Wait
             return PATH_NOT_AVAILABLE_YET;
         }
+        // Leaf has a dirty parent — send it. End any active stall.
+        endStallIfActive(chunk);
         currentLeafPath.set(leafPath + 1);
         return leafPath;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Observability helpers
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
-     * Skip all clean paths starting from the given path at the same rank, un until the limit. If
-     * all paths are clean up to and including the limit, Path.INVALID_PATH is returned
+     * If the given chunk is in a stall, finalizes the stall duration and clears the
+     * stall state. Also finalizes any active pre-fetch exhaustion tracking.
      */
-    private long skipCleanPaths(long path, final long limit) {
-        long result = skipCleanPaths(path);
+    private void endStallIfActive(final ChunkState chunk) {
+        if (chunk.stallStartNanos != 0) {
+            chunk.chunkStallNanos += System.nanoTime() - chunk.stallStartNanos;
+            chunk.stallStartNanos = 0;
+        }
+        if (prefetchExhaustedSince != 0) {
+            totalPrefetchExhaustedNanos += System.nanoTime() - prefetchExhaustedSince;
+            prefetchExhaustedSince = 0;
+        }
+    }
+
+    /**
+     * Checks whether pre-fetch is exhausted (all pre-fetched chunks' internal queues
+     * are empty) and updates the exhaustion duration tracking accordingly.
+     */
+    private void updatePrefetchExhaustionTracking() {
+        final boolean exhausted = isPrefetchExhausted();
+        if (exhausted && prefetchExhaustedSince == 0) {
+            prefetchExhaustedSince = System.nanoTime();
+        } else if (!exhausted && prefetchExhaustedSince != 0) {
+            totalPrefetchExhaustedNanos += System.nanoTime() - prefetchExhaustedSince;
+            prefetchExhaustedSince = 0;
+        }
+    }
+
+    /**
+     * Returns {@code true} if at least one pre-fetched chunk exists but all of their
+     * internal queues are empty. Returns {@code false} if there are no pre-fetched
+     * chunks (exhaustion is not meaningful without pre-fetch) or if any pre-fetched
+     * chunk still has internals to send.
+     */
+    private boolean isPrefetchExhausted() {
+        if (activeChunks.size() <= 1) {
+            return false;
+        }
+        boolean first = true;
+        for (final ChunkState cs : activeChunks) {
+            if (first) {
+                first = false;
+                continue; // skip the current chunk (head)
+            }
+            if (!cs.internals.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Finalizes observability for the traversal and logs the end-of-traversal summary.
+     * Called when the traversal is complete (no more leaves to send). Guarded to run
+     * at most once.
+     */
+    private void finalizeTraversal(final ChunkState lastChunk) {
+        if (traversalComplete || simpleMode) {
+            return;
+        }
+        traversalComplete = true;
+        if (lastChunk != null) {
+            endStallIfActive(lastChunk);
+            totalChunks++;
+            totalStallNanos += lastChunk.chunkStallNanos;
+        }
+        logger.info(
+                RECONNECT.getMarker(),
+                "Traversal complete: chunks={} totalStallMs={} prefetchExhaustedMs={} "
+                        + "maxLookahead={} configuredDepth={}",
+                totalChunks,
+                TimeUnit.NANOSECONDS.toMillis(totalStallNanos),
+                TimeUnit.NANOSECONDS.toMillis(totalPrefetchExhaustedNanos),
+                maxLookaheadReached,
+                chunkPrefetchDepth);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Chunk computation and pre-fetch helpers
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Computes the {@link ChunkState} for the chunk immediately following the given chunk.
+     * Handles the rank-change boundary where chunks transition from {@code firstLeafRank}
+     * to {@code lastLeafRank}. Does NOT check termination conditions — the caller must
+     * ensure a next chunk exists before calling this method.
+     */
+    private ChunkState computeNextChunk(final ChunkState lastChunk) {
+        long nextChunkRootPath = lastChunk.chunkRootPath + 1;
+        int nextChunkLastRank = lastChunk.chunkLastRank;
+        if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
+            assert Path.getRank(nextChunkRootPath) == chunkRootRank + 1;
+            nextChunkRootPath = Path.getParentPath(nextChunkRootPath);
+            assert lastChunk.chunkLastRank == firstLeafRank;
+            nextChunkLastRank = lastLeafRank;
+        }
+        return new ChunkState(nextChunkRootPath, chunkRootRank, nextChunkLastRank);
+    }
+
+    /**
+     * Computes the next chunk for pre-fetch purposes, or returns {@code null} if no useful
+     * pre-fetch target exists beyond the given chunk. Returns {@code null} when:
+     * <ul>
+     *   <li>The tree has no more chunks ({@code lastChunk} covers the last leaf)</li>
+     *   <li>The next chunk's leaves are entirely past {@code oldLastLeafPath} — those
+     *       leaves are sent immediately as dirty without needing internal queries, so
+     *       pre-fetching internals for them would waste bandwidth</li>
+     * </ul>
+     *
+     * <p>Note: these termination conditions apply to pre-fetch only. Promotion uses
+     * {@link #computeNextChunk} directly, because chunks past the old range still need
+     * to be created for the immediate-send leaf path to work correctly.
+     */
+    private ChunkState computeNextChunkForPrefetch(final ChunkState lastChunk) {
+        final long nextFirstLeaf = lastChunk.chunkLastLeafPath + 1;
+        if (nextFirstLeaf > lastLeafPath) {
+            return null;
+        }
+        if (nextFirstLeaf > oldLastLeafPath) {
+            return null;
+        }
+        return computeNextChunk(lastChunk);
+    }
+
+    /**
+     * Seeds at most one pre-fetch chunk at the tail of the deque, if the configured
+     * pre-fetch depth allows and there are more chunks to process within the old leaf range.
+     *
+     * <p>At most one chunk is seeded per invocation. Seeding a chunk allocates a
+     * {@link ChunkState}, computes geometry, and inserts ~2048 entries into its internals
+     * queue — roughly 200μs of work under the view's sync lock. Seeding multiple chunks
+     * in one call would hold the lock for a multiple of that duration, blocking other
+     * threads waiting to call {@code getNextLeafPathToSend}. Additionally, by the time
+     * a second pre-fetched chunk is needed, the current chunk's stall may have already
+     * resolved, making the second pre-fetch unnecessary. Sender threads cycle back through
+     * the send loop quickly; subsequent stalls will seed subsequent chunks if conditions
+     * still warrant it.
+     */
+    private void seedPrefetchChunkIfAllowed() {
+        if (chunkPrefetchDepth == 0) {
+            return;
+        }
+        final int currentDepth = activeChunks.size() - 1;
+        if (chunkPrefetchDepth > 0 && currentDepth >= chunkPrefetchDepth) {
+            return;
+        }
+        final ChunkState lastInDeque = activeChunks.peekLast();
+        if (lastInDeque == null) {
+            return;
+        }
+        final ChunkState prefetched = computeNextChunkForPrefetch(lastInDeque);
+        if (prefetched != null) {
+            activeChunks.addLast(prefetched);
+            final int depth = activeChunks.size() - 1;
+            if (depth > maxLookaheadReached) {
+                maxLookaheadReached = depth;
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Clean path optimization
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Skip all clean paths starting from the given path at the same rank, up until the limit. If
+     * all paths are clean up to and including the limit, Path.INVALID_PATH is returned.
+     */
+    private long skipCleanPaths(final ChunkState chunk, long path, final long limit) {
+        long result = skipCleanPaths(chunk, path);
         while ((result < limit) && (result != path)) {
             path = result;
-            result = skipCleanPaths(path);
+            result = skipCleanPaths(chunk, path);
         }
         return (result <= limit) ? result : Path.INVALID_PATH;
     }
 
     /**
-     * For a given path, find its highest parent path in cleanNodes. If such a parent exists,
-     * skip all paths at the original paths's rank in the parent sub-tree and return the first
-     * path after that. If no clean parent is found, the original path is returned
+     * For a given path, find its highest parent path in cleanPaths. If such a parent exists,
+     * skip all paths at the original path's rank in the parent sub-tree and return the first
+     * path after that. If no clean parent is found, the original path is returned.
      */
-    private long skipCleanPaths(final long path) {
+    private long skipCleanPaths(final ChunkState chunk, final long path) {
         assert path > 0;
         final int rank = Path.getRank(path);
         long parent = Path.getParentPath(path);
         int parentRank = rank - 1;
         long cleanParent = Path.INVALID_PATH;
-        while (parentRank >= chunkFirstCheckedRank) {
-            if (cleanPaths.contains(parent)) {
+        while (parentRank >= chunk.chunkFirstCheckedRank) {
+            if (chunk.cleanPaths.contains(parent)) {
                 cleanParent = parent;
                 break;
             }
