@@ -453,9 +453,16 @@ jobs:
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
           #git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
-          #echo > resources/templates/application.properties
-          #echo > resources/templates/application.env
-          #echo > resources/templates/settings.txt
+          echo > resources/templates/application.properties
+          echo > resources/templates/application.env
+          echo > resources/templates/settings.txt
+
+          sed -i -e 's/37748736/131072000/g' resources/config/tss-config.yaml
+          sed -i -e 's/37748736/131072000/g' resources/block-node-tss-values.yaml
+
+          sed -i -e 's/37_748_736/131_072_000/g' src/data/schema/model/solo/tss-schema.ts
+          sed -i -e 's/37_748_736/131_072_000/g' src/data/schema/migration/impl/solo/solo-config-v1-migration.ts
+
           task build:compile
           #npm run build
 
@@ -551,7 +558,7 @@ jobs:
 
           #dedicate top-3 nodes for BN
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 3  | grep -n -E '^' > top3nodes.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
           #create local-path-storage
           #sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
@@ -568,14 +575,29 @@ jobs:
              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml
            done
            sleep 10
-
-           bnindex=$(expr ${i} % 3)
-           bnindex=$(expr $bnindex + 1)
-           BNNODE=$(grep "${bnindex}:" top3nodes.txt | awk -F : '{print $2}')
-           sed -e "s@%NODE_ID%@${i}@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values.yaml
-           export BN_MAPPING="node${i}=1"
-           task solo:block:add
           done
+
+          bnindex=1
+          BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
+
+          #BN node 1
+          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-2-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values1.yaml
+          cp block-node-values1.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=1,node2=2,node3=2,node4=2,node5=3,node6=2,node7=3"
+          task solo:block:add
+
+          #BN node 2
+          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values2.yaml
+          cp block-node-values2.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=1,node2=2,node3=1,node4=1,node5=2,node6=1,node7=2"
+          task solo:block:add
+
+          #BN node 3
+          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-2-0@g" block-node-values.yaml.orig > block-node-values3.yaml
+          cp block-node-values3.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=3,node2=1,node3=3,node4=3,node5=1,node6=3,node7=1"
+          task solo:block:add
+
           sleep 30
 
       - name: Fix blocknode jsons
@@ -583,12 +605,69 @@ jobs:
           find ~/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
           find ~/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
-      - name: Start CNs
+      - name: Deploy CNs
         run: |
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
           task installCNs
+
+      - name: Generate RSARoster
+        run: |
+          genesisFile=$(find $HOME/.solo -type f -name 'genesis-network.json')
+          bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+          jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+
+      - name: Update RSA BlockNodes
+        run: |
+
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "mkdir -p /opt/hiero/block-node/node"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
+              ${pod}:/opt/hiero/block-node/node/rsa-bootstrap-roster.json
+          done
+
+      - name: Update back-fill
+        run: |
+          set +x
+          set +e
+
+          echo >block_ips.txt
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod block-node-$i-0 | grep -E '^IP:' | awk "{print \"block-node-$i-0 \"\$2}" >> block_ips.txt
+          done
+
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            echo '{"nodes": [' > block-node-sources_$i.json
+            grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
+            echo ']}' >> block-node-sources_$i.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$i.json \
+              block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
+          done
+
+      - name: Start BlockNodes
+        run: |
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "find /opt/hiero/block-node/data -type f -exec rm -f {} \;" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
+              bash -c "nohup bash /opt/hiero/block-node/app*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+          done
+
+      - name: Start CNs
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          task start
 
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
