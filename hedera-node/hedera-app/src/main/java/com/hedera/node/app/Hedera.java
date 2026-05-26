@@ -72,6 +72,7 @@ import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
@@ -362,6 +363,10 @@ public final class Hedera
      */
     private Platform platform;
     /**
+     * The id of this node.
+     */
+    private final NodeId selfId;
+    /**
      * The current status of the platform.
      */
     private PlatformStatus platformStatus = STARTING_UP;
@@ -448,13 +453,17 @@ public final class Hedera
                 @NonNull AppContext appContext,
                 @NonNull Configuration bootstrapConfig,
                 @NonNull RsaContext rsaContext,
-                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
+                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
     public interface HistoryServiceFactory {
         @NonNull
-        HistoryService apply(@NonNull AppContext appContext, @NonNull Configuration bootstrapConfig);
+        HistoryService apply(
+                @NonNull AppContext appContext,
+                @NonNull Configuration bootstrapConfig,
+                @NonNull Supplier<Network> genesisNetworkSupplier);
     }
 
     @FunctionalInterface
@@ -483,6 +492,8 @@ public final class Hedera
      * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory the factory to use for creating the services registry
      * @param migrator the migrator to use with the services
+     * @param instantSource the source of wall-clock instants
+     * @param selfId the node id of this node
      * @param startupNetworksFactory the factory for the startup networks
      * @param hintsServiceFactory the factory for the hinTS service
      * @param historyServiceFactory the factory for the history service
@@ -497,6 +508,7 @@ public final class Hedera
             @NonNull final ServicesRegistry.Factory registryFactory,
             @NonNull final ServiceMigrator migrator,
             @NonNull final InstantSource instantSource,
+            @NonNull final NodeId selfId,
             @NonNull final StartupNetworksFactory startupNetworksFactory,
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
@@ -511,6 +523,7 @@ public final class Hedera
         requireNonNull(historyServiceFactory);
         this.metrics = requireNonNull(metrics);
         this.serviceMigrator = requireNonNull(migrator);
+        this.selfId = requireNonNull(selfId);
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
@@ -562,8 +575,11 @@ public final class Hedera
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         rsaContext = new RsaContext(configSupplier);
-        hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings);
-        historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
+        final Supplier<Network> genesisNetworkSupplier =
+                () -> requireNonNull(this.genesisNetworkSupplier).get();
+        hintsService =
+                hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
+        historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
                 .transactionChecker()
                 .parseSignedAndCheck(txnBytes)
@@ -573,8 +589,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl =
-                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
+        final var rosterServiceImpl = new RosterServiceImpl(
+                this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks, this::onOverrideNetwork);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -711,7 +727,8 @@ public final class Hedera
                 // Wait for the block stream to close any pending or current blocks–-we may need them for triage
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
-            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
+            case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
+            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
                 // Nothing to do here, just enumerate for completeness
             }
         }
@@ -825,9 +842,9 @@ public final class Hedera
             }
         }
 
-        NodeId selfId = platform.getSelfId();
-        assertEnvSanityChecks(selfId);
-        logger.info("Initializing Hedera app with HederaNode#{}", selfId);
+        final var platformSelfId = platform.getSelfId();
+        assertEnvSanityChecks(platformSelfId);
+        logger.info("Initializing Hedera app with HederaNode#{}", platformSelfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
 
@@ -1659,6 +1676,24 @@ public final class Hedera
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
                         || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
+    }
+
+    private void onOverrideNetwork(@NonNull final Network network) {
+        requireNonNull(initState);
+        requireNonNull(network);
+        if (!TssStartupNetworks.hasTssMetadata(network)) {
+            return;
+        }
+        logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
+        final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        ((CommittableWritableStates) writableHintsStates).commit();
+        final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        ((CommittableWritableStates) writableHistoryStates).commit();
+        TssStartupNetworks.initializeRuntime(
+                activeHintsConstruction, activeProofConstruction, hintsService, historyService);
+        TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
