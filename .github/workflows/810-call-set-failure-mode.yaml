@@ -19,27 +19,27 @@ on:
         description: "Space-separated step outcome values for test steps. Empty/missing outcomes are treated as non-failures."
         type: string
         required: false
-        default: ''
+        default: ""
       workflow-outcomes:
         description: "Space-separated step outcome values for infrastructure steps. Empty/missing outcomes are treated as non-failures."
         type: string
         required: false
-        default: ''
+        default: ""
       job-statuses:
         description: "Space-separated job result values (success/failure/cancelled/skipped). Parallel to job-failure-modes and job-names."
         type: string
         required: false
-        default: ''
+        default: ""
       job-failure-modes:
         description: "Space-separated failure-mode values for each entry in job-statuses (none/test/workflow/cancelled)."
         type: string
         required: false
-        default: ''
+        default: ""
       job-names:
         description: "Space-separated job names corresponding to job-statuses, used in the failed-tests output."
         type: string
         required: false
-        default: ''
+        default: ""
     outputs:
       failure-mode:
         description: "none, test, workflow, or cancelled"
