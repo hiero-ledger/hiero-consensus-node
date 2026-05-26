@@ -223,7 +223,7 @@ class CustomContractCreationProcessorTest {
     @Test
     void codeSuccessWithValidationFailedAddsInitcodeSidecarWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(123L).build();
-        setupCodeSuccessFrame(contractId, true);
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG);
         given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
 
         subject.codeSuccess(frame, tracer);
@@ -234,7 +234,7 @@ class CustomContractCreationProcessorTest {
     @Test
     void codeSuccessElseBranchAddsRuntimeBytecodeWithInitcodeWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(456L).build();
-        setupCodeSuccessFrame(contractId, true);
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG);
 
         subject.codeSuccess(frame, tracer);
 
@@ -245,7 +245,11 @@ class CustomContractCreationProcessorTest {
     @Test
     void codeSuccessSkipsBytecodeSidecarOnValidationSuccessWhenStreamModeIsBlocks() {
         final var contractId = ContractID.newBuilder().contractNum(987L).build();
-        setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
+        final var blocksConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+
+        setupCodeSuccessFrame(contractId, blocksConfig);
 
         subject.codeSuccess(frame, tracer);
 
@@ -253,33 +257,14 @@ class CustomContractCreationProcessorTest {
         verify(streamBuilder).addInitcode(any());
     }
 
-    private Configuration blocksOnlyConfig() {
-        return HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .getOrCreateConfig();
-    }
+    private void setupCodeSuccessFrame(final ContractID contractId, final Configuration config) {
 
-    private void setupCodeSuccessFrame(final ContractID contractId, final boolean needsInitcodeExternalized) {
-        setupCodeSuccessFrame(contractId, needsInitcodeExternalized, DEFAULT_CONFIG);
-    }
-
-    /**
-     * Sets up frame as its own initial frame (empty stack) with bytecode sidecars enabled,
-     * the given configuration, and a pre-populated PendingCreationMetadataRef for the given contractId.
-     *
-     * @param contractId the contract id to register in the metadata ref
-     * @param needsInitcodeExternalized whether the metadata ref should record that initcode must be externalized
-     * @param config the configuration to expose via the frame's CONFIG_CONTEXT_VARIABLE
-     */
-    private void setupCodeSuccessFrame(
-            final ContractID contractId, final boolean needsInitcodeExternalized, final Configuration config) {
-        // frame is its own initial frame when the stack is empty
         given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(frame.hasContextVariable(BYTECODE_SIDECARS_VARIABLE)).willReturn(true);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
 
         final var metadataRef = new PendingCreationMetadataRef();
-        metadataRef.set(contractId, new PendingCreationMetadata(streamBuilder, needsInitcodeExternalized));
+        metadataRef.set(contractId, new PendingCreationMetadata(streamBuilder, true));
         given(frame.getContextVariable(PENDING_CREATION_BUILDER_CONTEXT_VARIABLE))
                 .willReturn(metadataRef);
 
@@ -297,9 +282,7 @@ class CustomContractCreationProcessorTest {
         given(contract.hederaContractId()).willReturn(contractId);
         given(contract.getCode()).willReturn(Bytes.EMPTY);
 
-        if (needsInitcodeExternalized) {
-            given(frame.getCode()).willReturn(code);
-            given(code.getBytes()).willReturn(Bytes.of(1, 2, 3));
-        }
+        given(frame.getCode()).willReturn(code);
+        given(code.getBytes()).willReturn(Bytes.of(1, 2, 3));
     }
 }
