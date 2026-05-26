@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_SECP256K1_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
@@ -27,6 +29,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -351,6 +354,56 @@ class EthereumTransactionHandlerTest {
         given(accountStore.getAliasedAccountById(any())).willReturn(null);
         subject.preHandle(preHandleContext);
         verify(ethereumSignatures).computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS);
+    }
+
+    @Test
+    void preHandleSkipsKeyMatchForHollowAccount() throws PreCheckException {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var hollowAccount = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(EMPTY_KEY_LIST)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(hollowAccount);
+
+        subject.preHandle(preHandleContext);
+    }
+
+    @Test
+    void preHandleRejectsMismatchedEcdsaAdminKey() {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var account = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(B_SECP256K1_KEY)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(account);
+
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
     }
 
     @Test

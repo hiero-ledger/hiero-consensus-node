@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
@@ -96,12 +97,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .alias(Bytes.wrap(ethSigs.address()))
                 .build());
 
-        // If there is no account present at this point - possible hollow account is signing the transaction
-        // so we validate the alias key
-        if (account != null) {
-            validateTruePreCheck(
-                    adminKeyMatchesEcdsaPubKey(account.keyOrThrow(), ethSigs.publicKey()),
-                    INVALID_ETHEREUM_TRANSACTION);
+        // If there is no account at the sender alias, the sender may be completing a hollow account.
+        // Otherwise, for finalized accounts with a top-level ECDSA key, verify the signature matches.
+        if (account != null && !isHollow(account)) {
+            final var adminKey = account.keyOrThrow();
+            if (adminKey.key().kind() == KeyOneOfType.ECDSA_SECP256K1) {
+                validateTruePreCheck(
+                        adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_ETHEREUM_TRANSACTION);
+            }
         }
     }
 
