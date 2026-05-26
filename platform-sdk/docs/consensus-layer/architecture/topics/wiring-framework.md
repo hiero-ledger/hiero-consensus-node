@@ -12,27 +12,30 @@ The wiring framework is the substrate the consensus layer is built on. It suppli
 
 What the framework provides:
 
-- **Thread confinement of business logic** — each scheduler decides which thread executes the bound handler; business logic does not need synchronization for state owned by a single component.
 - **Type-safe data flow** — input and output wires are generic; soldering is checked at the type level.
+- **Declarative inter-component wiring** — `solderTo` connects output wires to input wires; `PUT` / `INJECT` / `OFFER` select per-edge handoff semantics.
+- **In-line data transformations** — filters, transformers, advanced transformers, and list-splitters reshape data along a wire without a dedicated component.
+- **Configurable concurrency and queueing** — six scheduler types, per-scheduler capacity, and `flush()` / squelching for graceful draining.
 - **Graph validation** — cycle detection, illegal `DIRECT` usage detection, unbound input wires, and Mermaid-style diagram generation.
 - **Queue-health observability** — per-scheduler queue depth feeds the health monitor wire that the rest of the consensus layer subscribes to.
+- **Process-wide heartbeat** — periodic tick wire (`buildHeartbeatWire`) that components can subscribe to for cadence-driven work.
 
 ## Core abstractions
 
 ### TaskScheduler / TaskSchedulerType
 
-A `TaskScheduler<OUT>` (`swirlds-component-framework :: TaskScheduler`) owns a queue, a thread-execution policy, and a built-in primary `OutputWire<OUT>`. The framework primitive for obtaining one is `WiringModel.schedulerBuilder(name).withType(...).build()`. Consensus-layer modules rarely call that directly: the canonical wrapper is `ComponentWiring<COMPONENT, OUT>` (`swirlds-component-framework :: ComponentWiring`), which combines a scheduler with method-reference-based input-wire creation and a deferred binding step.
+A `TaskScheduler<OUT>` (`swirlds-component-framework :: TaskScheduler`) owns a queue, a thread-execution policy, and a built-in primary `OutputWire<OUT>`. The framework primitive for obtaining one is `WiringModel.schedulerBuilder(name).withType(...).build()`. Consensus-layer code rarely calls that directly: the canonical wrapper is `ComponentWiring<COMPONENT, OUT>` (`swirlds-component-framework :: ComponentWiring`), which combines a scheduler with method-reference-based input-wire creation and a deferred binding step.
 
 `TaskSchedulerType` (`swirlds-component-framework :: TaskSchedulerType`) chooses the threading policy. Six values exist; see the enum's javadoc for the authoritative descriptions:
 
-- `SEQUENTIAL` — fork-join pool, one task at a time, happens-before between consecutive tasks.
-- `SEQUENTIAL_THREAD` — dedicated thread, one task at a time.
+- `SEQUENTIAL` — fork-join pool, one task at a time, happens-before between consecutive tasks, thread-confined handler.
+- `SEQUENTIAL_THREAD` — dedicated thread, one task at a time, thread-confined handler.
 - `CONCURRENT` — fork-join pool, parallel, no ordering guarantee.
 - `DIRECT` — execute on the calling thread; no queue. Subject to graph-walk validation rules.
 - `DIRECT_THREADSAFE` — like `DIRECT` but the handler must itself be threadsafe.
 - `NO_OP` — discards everything; useful for disabling a component without removing its wiring.
 
-Components are assembled in three steps inside each module's `initialize(...)` method. The pattern below is taken from `DefaultEventIntakeModule` (`consensus-event-intake-impl :: DefaultEventIntakeModule`), and is representative of every default module:
+Components are assembled in three steps. The pattern below is taken from `DefaultEventIntakeModule.initialize` (`consensus-event-intake-impl :: DefaultEventIntakeModule`), and is representative throughout the consensus layer:
 
 **Step 1 — construct a `ComponentWiring` per component**, configured from a typed `*WiringConfig` record:
 
@@ -66,7 +69,7 @@ There is no canonical scheduler type for new components — the choice is made c
 
 `InputWire<IN>` (`swirlds-component-framework :: InputWire`) is the entry point of a component. It exposes three put-paths: `put(data)` blocks the caller if the scheduler's queue is at capacity, `offer(data)` returns `false` rather than blocking, and `inject(data)` bypasses capacity entirely. These three paths correspond to the three `SolderType` values used when wires are connected via soldering — see [Backpressure (wire level)](#backpressure-wire-level).
 
-In the canonical pattern, modules do not call `BindableInputWire.bind(...)` directly. They obtain an `InputWire` via `componentWiring.getInputWire(MethodReference)`; `ComponentWiring` lazily creates a `BindableInputWire<IN, OUT>` (`swirlds-component-framework :: BindableInputWire`) for the targeted method on first use, caches it, and binds it later when `componentWiring.bind(component)` is called. The framework method `BindableInputWire.bind(Function<IN, OUT>)` / `bindConsumer(Consumer<IN>)` is therefore an implementation detail that consensus-layer modules normally don't touch directly.
+In the canonical pattern, modules do not call `BindableInputWire.bind(...)` directly. They obtain an `InputWire` via `componentWiring.getInputWire(MethodReference)`; `ComponentWiring` lazily creates a `BindableInputWire<IN, OUT>` (`swirlds-component-framework :: BindableInputWire`) for the targeted method on first use, caches it, and binds it later when `componentWiring.bind(component)` is called. The framework method `BindableInputWire.bind(Function<IN, OUT>)` / `bindConsumer(Consumer<IN>)` is therefore an implementation detail that consensus-code normally doesn't touch directly.
 
 `OutputWire<OUT>` (`swirlds-component-framework :: OutputWire`) is the source of every connection out of a component. Soldering, filters, transformers, and splitters are all methods on `OutputWire`. A scheduler always owns one primary output wire (`getOutputWire()`); secondary output wires for fan-out side-channels are created with `buildSecondaryOutputWire()`. When a component's primary output type is a `List<T>`, `ComponentWiring.getSplitOutput()` returns a per-element output wire (built internally via `buildSplitter(...)`) — `DefaultEventIntakeModule.validatedEventsOutputWire()` returns the orphan-buffer's split output for this reason.
 
