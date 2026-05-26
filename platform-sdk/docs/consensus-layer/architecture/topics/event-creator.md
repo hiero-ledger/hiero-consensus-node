@@ -232,15 +232,17 @@ since it was introduced.
 
 ### Behavior during quorum loss
 
-When too much weight is offline, no event can reach the >2/3 threshold
+When too much weight is unreachable — whether due to a network
+partition, nodes being offline, peers running too slowly to keep up,
+or any combination of these — no event can reach the >2/3 threshold
 from [Snapshot updates](#snapshot-updates), so the snapshot freezes.
 The advancement headroom above a frozen snapshot is finite: after a
 few events every candidate produces zero score improvement, and the
 legality rule from [Event-creation rule](#event-creation-rule) rejects
 them all — the node stops creating events without ever deciding to.
-When the partition heals, gossiped events reopen advancement above the
-snapshot and each node individually resumes, with no coordination
-between nodes.
+When enough weight becomes reachable again, gossiped events reopen
+advancement above the snapshot and each node individually resumes,
+with no coordination between nodes.
 
 ## Backpressure interaction
 
