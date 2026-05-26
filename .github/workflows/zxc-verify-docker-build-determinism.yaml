@@ -435,14 +435,22 @@ jobs:
       - generate-baseline
       - verify-artifacts
     if: ${{ !cancelled() }}
-    uses: ./.github/workflows/810-call-set-failure-mode.yaml
-    with:
-      job-statuses: >-
-        ${{ needs.generate-baseline.result }}
-        ${{ needs.verify-artifacts.result }}
-      job-failure-modes: >-
-        ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
-        ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
-      job-names: >-
-        generate-baseline
-        verify-artifacts
+    runs-on: ubuntu-latest
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.generate-baseline.result }}
+            ${{ needs.verify-artifacts.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
+            ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            generate-baseline
+            verify-artifacts
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
