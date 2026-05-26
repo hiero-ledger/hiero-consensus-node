@@ -141,7 +141,7 @@ jobs:
 
   report-migration-testing-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-migration-lin-sm
+    runs-on: hl-cn-default-lin-sm
     needs: migration-testing
     if: ${{ always() }}
     steps:
