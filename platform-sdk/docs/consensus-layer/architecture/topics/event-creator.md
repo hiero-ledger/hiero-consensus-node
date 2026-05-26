@@ -86,7 +86,7 @@ input and output wires plus an `EventTransactionSupplier` passed at
   `DefaultEventCreationManager#reportUnhealthyDuration`, which feeds the
   `PlatformHealthRule`
   (`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`).
-  See [Backpressure interaction](#backpressure-interaction).
+  See [Permission gates](#permission-gates).
 - **Platform status, sync progress, quiescence** — `platformStatusInputWire`,
   `syncProgressInputWire`, and `quiescenceCommandInputWire` feed the
   `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively.
@@ -180,13 +180,13 @@ loss](#behavior-during-quorum-loss).
 
 ### Event-creation rule
 
-Before the tipset algorithm runs, a chain of permission gates in
-`DefaultEventCreationManager#maybeCreateEvent` (rate limit, platform
-status, health, sync lag, quiescence) must allow creation; these live
-outside `TipsetEventCreator` and are described in [Backpressure
-interaction](#backpressure-interaction).
+Before the tipset algorithm runs, a chain of independent permission
+gates in `DefaultEventCreationManager#maybeCreateEvent` (rate limit,
+platform status, platform health, sync lag, quiescence) must all allow
+creation. These gates live outside `TipsetEventCreator` and are
+described in [Permission gates](#permission-gates).
 
-Once those gates pass, the tipset algorithm chooses other parents. It
+Once every gate passes, the tipset algorithm chooses other parents. It
 considers each non-ancient childless peer event as a candidate, computes
 the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
@@ -244,19 +244,45 @@ When enough weight becomes reachable again, gossiped events reopen
 advancement above the snapshot and each node individually resumes,
 with no coordination between nodes.
 
-## Backpressure interaction
+## Permission gates
 
-The orchestration permission chain in
+Before delegating to the tipset algorithm,
 `DefaultEventCreationManager#maybeCreateEvent` (lines 133–157) consults
-an `AggregateEventCreationRules` chain before delegating to the tipset
-algorithm. `PlatformHealthRule`
-(`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`)
-blocks event creation whenever the duration reported via
-`reportUnhealthyDuration` exceeds `maximumPermissibleUnhealthyDuration`
-(default `1s`). The other rules in the chain (`MaximumRateRule`,
-`PlatformStatusRule`, `SyncLagRule`, `QuiescenceRule`) gate creation on
-related signals. Detail on the framework that produces these signals
-lives in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md).
+an `AggregateEventCreationRules` chain assembled in the constructor
+(lines 106–115). Each rule independently vetoes event creation when
+its condition is not met; the chain permits creation only when every
+rule agrees. The rules cover distinct concerns.
+
+- **`MaximumRateRule`**
+  (`consensus-event-creator-impl/.../rules/MaximumRateRule.java`) —
+  enforces an upper bound on the self-event creation rate through a
+  `RateLimiter` configured with `maxCreationRate`. Disabled when
+  `maxCreationRate <= 0`. This is a steady-state cap, not a reaction
+  to load.
+- **`PlatformStatusRule`**
+  (`consensus-event-creator-impl/.../rules/PlatformStatusRule.java`) —
+  permits creation only when the platform status is `ACTIVE` or
+  `CHECKING`. During `FREEZING` it allows creation only while there
+  are still buffered signature transactions to gossip, so a freeze
+  can complete its signature collection; all other statuses block
+  outright.
+- **`PlatformHealthRule`**
+  (`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`)
+  blocks event creation whenever the duration reported via `reportUnhealthyDuration` 
+  exceeds `maximumPermissibleUnhealthyDuration` (default `1s`), 
+  giving slow downstream components room to catch up. The signal 
+  framework that produces the unhealthy-duration measurement lives
+  in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md).
+- **`SyncLagRule`**
+  (`consensus-event-creator-impl/.../rules/SyncLagRule.java`) — blocks
+  creation when this node trails the peer median by `maxAllowedSyncLag`
+  rounds or more. The intent is to stop a node that has fallen behind
+  from emitting events that would only widen its gap from consensus.
+- **`QuiescenceRule`**
+  (`consensus-event-creator-impl/.../rules/QuiescenceRule.java`) —
+  blocks creation while the current `QuiescenceCommand` is `QUIESCE`.
+  Used to deliberately quiet the network during shutdown or staged
+  operational actions.
 
 ## Self-event persistence
 
