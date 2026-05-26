@@ -37,13 +37,11 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestObjectKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -69,7 +67,7 @@ import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@SuppressWarnings({"DataFlowIssue", "deprecation", "unchecked"})
+@SuppressWarnings({"DataFlowIssue", "unchecked"})
 class VirtualMapTests extends VirtualTestBase {
 
     /**
@@ -598,7 +596,7 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("put should not mutate old copies")
-    void checkPutMutation() throws InterruptedException {
+    void checkPutMutation() {
         final VirtualMap vm = createMap();
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         final TestValue value = vm.get(A_KEY, TestValueCodec.INSTANCE);
@@ -972,7 +970,7 @@ class VirtualMapTests extends VirtualTestBase {
     void deletedObjectLeavesOnFlush() throws InterruptedException {
         VirtualMap map = createMap();
         for (int i = 0; i < 8; i++) {
-            map.put(TestObjectKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
+            map.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
         map.enableFlush();
@@ -981,7 +979,7 @@ class VirtualMapTests extends VirtualTestBase {
         // Check that key/value 0 is at path 7
         VirtualLeafBytes<TestValue> leaf = records.findLeafRecord(8);
         assertNotNull(leaf);
-        assertEquals(TestObjectKey.longToKey(4), leaf.keyBytes());
+        assertEquals(TestKey.longToKey(4), leaf.keyBytes());
         assertEquals(new TestValue(4).toBytes(), leaf.valueBytes());
         assertEquals(new TestValue(4), leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
@@ -991,11 +989,11 @@ class VirtualMapTests extends VirtualTestBase {
         map = copy;
 
         // Move key/value to a different path, then delete
-        map.remove(TestObjectKey.longToKey(0));
-        map.remove(TestObjectKey.longToKey(2));
-        map.put(TestObjectKey.longToKey(8), new TestValue(8), TestValueCodec.INSTANCE);
-        map.put(TestObjectKey.longToKey(0), new TestValue(0), TestValueCodec.INSTANCE);
-        map.remove(TestObjectKey.longToKey(0));
+        map.remove(TestKey.longToKey(0));
+        map.remove(TestKey.longToKey(2));
+        map.put(TestKey.longToKey(8), new TestValue(8), TestValueCodec.INSTANCE);
+        map.put(TestKey.longToKey(0), new TestValue(0), TestValueCodec.INSTANCE);
+        map.remove(TestKey.longToKey(0));
 
         map.enableFlush();
 
@@ -1006,9 +1004,9 @@ class VirtualMapTests extends VirtualTestBase {
 
         // During this second flush, key/value 0 must be deleted from the map despite it's
         // path the virtual tree doesn't match the path in the data source
-        assertFalse(map.containsKey(TestObjectKey.longToKey(0)));
-        assertNull(map.get(TestObjectKey.longToKey(0), TestValueCodec.INSTANCE));
-        assertNull(map.getBytes(TestObjectKey.longToKey(0)));
+        assertFalse(map.containsKey(TestKey.longToKey(0)));
+        assertNull(map.get(TestKey.longToKey(0), TestValueCodec.INSTANCE));
+        assertNull(map.getBytes(TestKey.longToKey(0)));
 
         map.release();
     }

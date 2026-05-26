@@ -3,6 +3,20 @@
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
 compact state files, and apply block streams to advance state.
 
+### GCP Support
+
+All commands accept a GCS URI (`gs://...`) as the state directory, eliminating the need to manually download state files. When a GCS path is provided, the tool downloads the state to a local cache directory using the `gcloud storage` CLI.
+
+**Prerequisites:** The `gcloud` CLI must be installed and authenticated with access to the target bucket. See [Google Cloud SDK installation](https://cloud.google.com/sdk/docs/install).
+
+**Caching:** Downloaded state files are cached in a deterministic directory (`./state-validator-cache-<round>/`) in the current working directory. Subsequent runs with the same state path reuse the cached copy without re-downloading.
+
+### Global Options
+
+These options apply to all subcommands:
+
+- `--cleanup-temp` - Delete cached directories created for GCP downloads after execution. Default = `false` (cache is preserved for reuse).
+
 ## Validate
 
 [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) ensures state integrity and validates that Hedera nodes can start from existing state snapshots.
@@ -19,7 +33,7 @@ java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 - `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
   - [`all`](/src/main/java/com/hedera/statevalidation/validator/Validator.java) - Runs all validators.
   - [`internal`](/src/main/java/com/hedera/statevalidation/validator/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
@@ -196,7 +210,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} introspect --service-n
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -223,7 +237,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv]
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -296,7 +310,7 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -457,7 +471,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ## Updating State with a Block Stream
 
@@ -472,20 +486,46 @@ java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-s
  [--rate=<rounds per second>]
 ```
 
+#### Using GCS paths:
+
+Both the state directory and block stream directory accept GCS URIs:
+
+```shell
+java -jar ./validator-<version>.jar gs://bucket/prefix/4971437 apply-blocks \
+ --block-stream-dir=gs://bucket/block-stream/0/1 \
+ --node-id=0 \
+ --target-round=5013136 \
+ --out=./out \
+ --billing-project=my-gcp-project
+```
+
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`).
 
 ### Options
 
-- `--block-stream-dir` (or `-d`) - Location of the block stream files (required).
+- `--block-stream-dir` (or `-d`) - Location of the block stream files (required). Accepts a local path or a GCS URI (`gs://...`). When a GCS path is provided, `--target-round` is required.
 - `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
 - `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
-- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
-- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
+- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. Required when `--block-stream-dir` is a GCS path.
+- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command validates the hash of the resulting state against it.
 - `--rate` (or `-r`) - Maximum rounds to apply per second (integer, ≥ 1). Controls CPU/IO load independently of state size. For example, `10` means at most 10 rounds/s. Default = unlimited (apply as fast as possible).
+- `--billing-project` (or `-bp`) - GCP billing project for requester-pays buckets. Applies to block stream downloads only.
+- `--download-threads` (or `-dt`) - Number of parallel workers for downloading block files from GCP. Default = `32`.
+
+### GCS Block Stream Download
+
+When `--block-stream-dir` is a GCS path, the tool performs the following steps:
+
+1. **Left boundary**: Reads `BlockStreamInfo.blockNumber` from the loaded state to determine the first block file to download.
+2. **Right boundary**: Uses a scatter-gather binary search over the GCS block files — probes individual `.blk.gz` files, parses `RoundHeader` items, and narrows the range until the block containing the target round is found.
+3. **Download**: Downloads the resolved block range in parallel using batched `gcloud storage cp` invocations.
+4. **Validation**: Verifies all expected files are present and non-empty, with up to 3 retry passes for any missing files.
+   Downloaded block files are cached in a deterministic directory (`./state-validator-blocks-<source-round>-to-<target-round>/`). Subsequent runs with the same state and target round reuse the cached files without re-downloading.
 
 ### Notes:
 
 - The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
 - The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
+- When using GCS paths, progress is reported to stdout: state download percentage, block range probing status, and block file download percentage.

@@ -6,6 +6,10 @@ import java.util.Objects;
 
 /**
  * Represents a set of label values for a specific combination of dynamic labels.
+ * <p>
+ * {@link #equals(Object)} and {@link #hashCode()} methods are overridden to take only label values into account.
+ * Names are not included because this class is constructed by metric when provided label names match those of the metric,
+ * so they are not relevant for equality and hash code.
  */
 public final class LabelValues {
 
@@ -13,13 +17,14 @@ public final class LabelValues {
 
     private final String[] namesAndValues;
 
-    private int hashCode = 0;
+    private final int hashCode;
 
     /**
      * Create label values instance with where values are provided together with label names as single array of pairs.
      */
     LabelValues(String... namesAndValues) {
         this.namesAndValues = namesAndValues;
+        this.hashCode = computeHashCode();
     }
 
     /**
@@ -61,15 +66,6 @@ public final class LabelValues {
 
     @Override
     public int hashCode() {
-        if (hashCode == 0) {
-            hashCode = 1;
-            int limitValue = (Integer.MAX_VALUE >> 9);
-            for (int i = 0; i < size(); i++) {
-                hashCode = hashCode % limitValue; // avoid integer overflow
-                hashCode = 257 * hashCode + Objects.hashCode(get(i));
-            }
-        }
-
         return hashCode;
     }
 
@@ -84,5 +80,13 @@ public final class LabelValues {
             sb.append(get(i));
         }
         return sb.append(']').toString();
+    }
+
+    private int computeHashCode() {
+        int h = 1;
+        for (int i = 0; i < size(); i++) {
+            h = 31 * h + Objects.hashCode(get(i));
+        }
+        return h;
     }
 }

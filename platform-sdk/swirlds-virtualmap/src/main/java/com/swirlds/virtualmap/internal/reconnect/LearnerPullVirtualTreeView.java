@@ -4,15 +4,15 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import com.swirlds.virtualmap.sync.LearnerTreeView;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -134,8 +134,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         final int learnerSendTasks = 16;
         final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
         for (int i = 0; i < learnerSendTasks; i++) {
-            final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
-                    reconnectConfig, workGroup, out, this, expectedResponses, tasksDone);
+            final LearnerPullVirtualTreeSendTask learnerSendTask =
+                    new LearnerPullVirtualTreeSendTask(workGroup, out, this, expectedResponses, tasksDone);
             learnerSendTask.exec();
         }
     }

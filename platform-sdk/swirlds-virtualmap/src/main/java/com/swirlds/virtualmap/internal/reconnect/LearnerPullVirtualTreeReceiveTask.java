@@ -4,9 +4,9 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -102,7 +102,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                     final long waitStart = System.currentTimeMillis();
                     while (expectedResponses.get() != 0) {
                         Thread.sleep(0, 1);
-                        Thread.onSpinWait();
                         if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
                             throw new MerkleSynchronizationException(
                                     "Timed out waiting for view all remaining view messages to be processed");
