@@ -282,8 +282,10 @@ rule agrees. The rules cover distinct concerns.
 - **`QuiescenceRule`**
   (`consensus-event-creator-impl/.../rules/QuiescenceRule.java`) —
   blocks creation while the current `QuiescenceCommand` is `QUIESCE`.
-  Used to deliberately quiet the network during shutdown or staged
-  operational actions.
+  Used by the application to pause event creation while no transactions
+  are pending and no time-based deadline (e.g. a scheduled transaction
+  or network freeze) is approaching, so an idle network stops producing
+  empty events.
 
 ## Self-event persistence
 
