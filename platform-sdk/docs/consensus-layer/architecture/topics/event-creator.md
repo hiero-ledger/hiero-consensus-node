@@ -285,7 +285,7 @@ rule agrees. The rules cover distinct concerns.
   Used by the application to pause event creation while no transactions
   are pending and no time-based deadline (e.g. a scheduled transaction
   or network freeze) is approaching, so an idle network stops producing
-  empty events.
+  empty events. See [quiescence.md](quiescence.md).
 
 ## Self-event persistence
 
@@ -302,7 +302,8 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
 - Topics: [hashgraph.md](hashgraph.md), [event-intake.md](event-intake.md),
   [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md),
   [restart-and-pces.md](restart-and-pces.md),
-  [reasons-not-to-gossip.md](reasons-not-to-gossip.md).
+  [reasons-not-to-gossip.md](reasons-not-to-gossip.md),
+  [quiescence.md](quiescence.md).
 - Tunables: [../../tunables.md](../../tunables.md) — for
   `antiSelfishnessFactor`, `tipsetSnapshotHistorySize`,
   `eventIntakeThrottle`, `maximumPermissibleUnhealthyDuration`,
