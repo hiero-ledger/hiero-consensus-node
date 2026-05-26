@@ -47,7 +47,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -499,7 +498,7 @@ public class EthereumSuite {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.ethTransaction.zeroHapiFees.enabled"})
     final Stream<DynamicTest> etx031InvalidNonceEthereumTxFailsAndChargesRelayer() {
         final var relayerSnapshot = "relayer";
         final var senderSnapshot = "sender";
@@ -1332,7 +1331,7 @@ public class EthereumSuite {
                                 new byte[32])));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerTransaction"})
     final Stream<DynamicTest> ethereumTransactionRespectsMaxGasPerTransaction() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1350,9 +1349,7 @@ public class EthereumSuite {
                         .gasLimit(16_000_000L)
                         .sending(1)
                         .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
-                restoreDefault("contracts.maxGasPerTransaction"),
-                restoreDefault("contracts.throttle.throttleByGas"));
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
     }
 
     // Legacy `v` byte values that are neither EIP-155 protected (v >= 35, derived from

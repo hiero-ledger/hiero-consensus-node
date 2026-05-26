@@ -23,6 +23,15 @@ on:
         description: "The version of the mirror node to deploy (if not specified, '0.145.2' will be used)"
         required: false
         type: string
+      java-distribution:
+        description: "Java JDK Distribution"
+        required: false
+        type: string
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version"
+        required: false
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository"
@@ -57,11 +66,11 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
-          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: 0
           setup-java: "true"
-          java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"

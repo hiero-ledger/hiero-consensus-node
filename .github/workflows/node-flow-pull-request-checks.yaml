@@ -38,7 +38,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
           checkout-fetch-depth: "0"
 
       - name: Classify Changed Files
@@ -49,10 +49,19 @@ jobs:
             const script = require('.github/workflows/support/scripts/classify-changed-files.js');
             await script({github, context, core})
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-pr-checks:
     name: MATS
     needs:
       - detect-change-type
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
@@ -68,7 +77,7 @@ jobs:
       enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: "25.0.2"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:
@@ -117,7 +126,8 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-ref: ${{ github.event.pull_request.head.sha }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
           checkout-fetch-depth: "0"
 
       - name: Report Summary

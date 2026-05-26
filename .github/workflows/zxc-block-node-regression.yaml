@@ -15,6 +15,15 @@ on:
         description: "The version of solo to install (if not specified, latest will be used):"
         required: false
         type: string
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -55,9 +64,10 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
           checkout-fetch-depth: 0
+          checkout-token: ${{secrets.GITHUB_TOKEN}}
           setup-java: "true"
-          java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
