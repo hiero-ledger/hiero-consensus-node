@@ -363,6 +363,9 @@ jobs:
   set-failure-mode:
     name: Set Failure Mode
     runs-on: hl-cn-default-lin-sm
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
       - commit-info
       - build
@@ -375,10 +378,7 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
-    if: ${{ !cancelled() }}
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    if: ${{ !cancelled() && always() }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0

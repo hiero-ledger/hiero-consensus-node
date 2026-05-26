@@ -435,13 +435,16 @@ jobs:
     needs:
       - generate-baseline
       - verify-artifacts
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: PandasWhoCode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode

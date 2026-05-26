@@ -320,18 +320,21 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hl-cn-gradle-determinism-lin-ss
     needs:
       - generate-baseline
       - generate-matrix
       - verify-artifacts
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
