@@ -79,7 +79,8 @@ input and output wires plus an `EventTransactionSupplier` passed at
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `eventWindowInputWire` flows to
   `TipsetEventCreator#setEventWindow`, which prunes ancient tipsets and
-  childless events. See [hashgraph.md](hashgraph.md).
+  childless events and also caries the birth round for newly created 
+  events. See [hashgraph.md](hashgraph.md).
 - **Health duration from health monitor** —
   `healthStatusInputWire` calls
   `DefaultEventCreationManager#reportUnhealthyDuration`, which feeds the
@@ -170,7 +171,7 @@ Per-event tipsets for peer events are constructed in
 `new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber())`
 shows that tipset entries are event sequence numbers.
 
-The 2/3 threshold mirrors the super-majority that hashgraph consensus
+The >2/3 threshold mirrors the super-majority that hashgraph consensus
 itself requires to strongly see another node's event, so a snapshot
 stored at this point captures a slice of hashgraph that genuinely
 advances consensus. This threshold also underlies the network's
@@ -231,7 +232,7 @@ since it was introduced.
 
 ### Behavior during quorum loss
 
-When too much weight is offline, no event can reach the 2/3 threshold
+When too much weight is offline, no event can reach the >2/3 threshold
 from [Snapshot updates](#snapshot-updates), so the snapshot freezes.
 The advancement headroom above a frozen snapshot is finite: after a
 few events every candidate produces zero score improvement, and the
