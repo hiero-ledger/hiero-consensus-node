@@ -88,3 +88,24 @@ jobs:
             sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
           done
           exit 0
+
+      - name: Authorize Teleport K8S Access to Miami Cluster
+        id: auth-k8s-mia
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: k8s.epn.mia2.lat.ope.eng.hashgraph.io
+          certificate-ttl: 24h
+
+      - name: Call clean Mia
+        run: |
+          set +e
+          set +x
+
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          do
+            echo "Cleaning ${namespace}"
+            sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
+          done
+          exit 0
