@@ -238,6 +238,115 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void constructorInitializesProverWhenWrapsEnabledOnNonWrapsExtensibleTargetProof() {
+        // Regression: when wrapsEnabled flips false -> true after an upgrade, an existing
+        // target proof saved before WRAPS was enabled is no longer "completed" per
+        // HistoryService.isCompleted, but the constructor previously only checked
+        // construction.hasTargetProof() and so skipped createProver(). The fix widens
+        // that gate to !isCompleted(construction, tssConfig) so the conversion path has
+        // a prover to drive.
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .targetProof(aValidProof())
+                .build();
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(proverFactory.create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions)))
+                .willReturn(prover);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                tssConfig);
+
+        verify(proverFactory)
+                .create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions));
+    }
+
+    @Test
+    void advanceConstructionDrivesProverWhenConvertingNonWrapsExtensibleTargetProof() {
+        // Regression: with a target proof that is not WRAPS-extensible and wrapsEnabled=true,
+        // isStillInProgress returns true (because isCompleted=false), advanceConstruction
+        // falls through to the prover-driven branch, and the prover must not be null.
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .targetProof(aValidProof())
+                .build();
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(proverFactory.create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions)))
+                .willReturn(prover);
+
+        final var completedProof = recursiveProof("compressed", "uncompressed");
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(new HistoryProver.Outcome.Completed(completedProof));
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(completedProof)))
+                .willReturn(construction);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                tssConfig);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(prover).advance(any(), any(), any(), any(), eq(tssConfig), any());
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(completedProof));
+    }
+
+    @Test
     void advanceConstructionPublishesKeyWhenMetadataMissingAndActive() {
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
