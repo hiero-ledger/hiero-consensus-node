@@ -41,51 +41,40 @@ runs a continuous loop: it blocks until the node detects it has fallen
 behind, then attempts a reconnect, retrying until success or until
 configured thresholds are exceeded. Each attempt walks five phases.
 
-> **Delta vs. reconnect-refactor proposal:** the proposal absorbs
-> `ReconnectController`, `ReconnectStateLoader`,
-> `ReconnectPlatformHelper(Impl)`, and `ReconnectLearnerThrottle` into a
-> single `PlatformReconnecter` and moves the entry point out of
-> `swirlds-platform-core`. None of this is implemented;
-> `ReconnectController` remains the live lifecycle driver. See
-> [Future state](#future-state).
-
 1. **Detection.** `ReconnectController` blocks on
    `FallenBehindMonitor.awaitFallenBehind()`. The monitor flips its
    `isBehind` flag once enough peers have reported the local node as
    behind. See [Detection](#detection-fallenbehindmonitor).
-2. **Peer selection and handshake.** State retrieval is asynchronous:
-   `ReconnectController` waits on a
+2. **Peer selection and handshake.** Teacher selection is random:
+   the learner offers the reconnect protocol to peers, and the first
+   peer whose `ReconnectStatePeerProtocol.shouldAccept()` returns true
+   becomes the teacher. There is no explicit ranking step inside
+   `ReconnectController`; state retrieval is asynchronous, with the
+   controller waiting on a
    `BlockingResourceProvider<ReservedSignedStateResult>` for the next
-   available state, while
-   `ReconnectStatePeerProtocol.shouldInitiate()` and `shouldAccept()`
-   decide which peers participate.
-   [TBD: question for engineer — is there an explicit peer ranking
-   step inside `ReconnectController`, or is selection purely
-   first-come via the blocking resource provider? If first-come, what
-   prevents a single slow teacher from monopolising the slot?]
+   available state.
 3. **State transfer.** The receiving side runs
    `ReconnectStateLearner.execute()`; the sending side runs
    `ReconnectStateTeacher.execute()`. See
    [Learner / teacher protocol](#learner--teacher-protocol).
-4. **Validation and load.** A `SignedStateValidator` checks the
-   received state, then `PlatformCoordinator`
-   (`com.swirlds.platform.wiring.PlatformCoordinator`) pauses the
-   wiring, swaps in the new state via `StateLifecycleManager`, and
-   clears in-flight pipelines.
-   [TBD: question for engineer — beyond signature quorum, what does
-   the default `SignedStateValidator` check (roster compatibility,
-   software version, birth-round monotonicity)?]
-5. **Resumption.** `ReconnectController` submits a
-   `ReconnectCompleteAction` to the platform status machine, the
-   wiring resumes, and the loop returns to phase 1. See
+4. **Validation and load.** The default `SignedStateValidator` checks
+   only that the received state carries a signature quorum; no roster-
+   compatibility or software-version check is performed, because the
+   roster does not change between upgrades and nodes on different
+   versions do not establish connections in the first place.
+   `ReconnectCoordinator.loadReconnectState` then re-initialises every
+   component that depends on an event window (hashgraph, event
+   intake, shadowgraph, …) against the new state. See
    [Post-reconnect resumption](#post-reconnect-resumption).
+5. **Resumption.** `ReconnectController` submits a
+   `ReconnectCompleteAction`; the status machine moves the node to
+   `RECONNECT_COMPLETE`, then to `CHECKING` once the state is
+   persisted to disk, and the loop returns to phase 1.
 
 If an attempt fails, the controller backs off and re-enters detection;
-after a configured maximum number of failures the node exits via
-`SystemExitUtils`.
-[TBD: question for engineer — what is the field name on
-`ReconnectConfig` for the failure cap, and what `SystemExitCode` is
-used when the cap is exceeded?]
+once the count crosses
+`ReconnectConfig.maximumReconnectFailuresBeforeShutdown` the node
+exits via `SystemExitUtils` with `SystemExitCode.RECONNECT_FAILURE`.
 
 ## Detection (`FallenBehindMonitor`)
 
@@ -95,12 +84,6 @@ the local node lagging on event-window boundaries calls
 `FallenBehindMonitor.report(NodeId)`. The monitor recomputes whether
 the node is behind on every report and signals waiting threads when
 the state flips to behind.
-
-> **Delta vs. reconnect-refactor proposal:** the proposal renames
-> `FallenBehindManager` / `FallenBehindManagerImpl` to
-> `FallenBehindMonitor` and folds in `SyncManagerImpl`. The rename is
-> implemented; the monitor lives in `consensus-utility`, not
-> `consensus-reconnect-impl`.
 
 The trigger condition is in `FallenBehindMonitor.checkAndNotify()`:
 
@@ -116,16 +99,14 @@ the edge case where every peer has reported. See
 monitor also surfaces two metrics under the `internal` category:
 `hasFallenBehind` and `numReportFallenBehind`.
 
-[TBD: question for engineer — `FallenBehindMonitor` exposes
-`notifySyncProtocolPaused()` / `awaitGossipPaused()` as a separate
-condition. Is the gossip-pause handshake part of the detection
-contract (the monitor blocks reconnect until gossip is quiescent), or
-is this a distinct synchronisation point owned elsewhere?]
-
-[TBD: question for engineer — when the threshold trips spuriously (a
-flaky neighbor briefly under-reports during normal operation), what
-is the operator-visible symptom? Spurious reconnect attempts,
-throttled retries, or silent recovery?]
+Detection is only the trigger; before the learner can fetch a new
+state the node has to quiesce. `notifySyncProtocolPaused()` /
+`awaitGossipPaused()` on `FallenBehindMonitor` are the gossip-pause
+handshake used for that preparation: once the monitor flips to
+behind, gossip is stopped, in-flight tasks are flushed, and data
+structures that depend on the current event window are cleared.
+Only after that preparation completes does the learner request a new
+state from a teacher.
 
 ## Learner / teacher protocol
 
@@ -139,16 +120,9 @@ connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
   drives the learner side. `execute()` performs the actual state sync
   and returns a reserved signed state.
 
-  > **Delta vs. reconnect-refactor proposal:** the proposal calls this
-  > `ReconnectLearner` and pairs it with a `ReconnectLearnerFactory`;
-  > both have been collapsed into the single class above.
-
 - [`ReconnectStateTeacher`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectStateTeacher.java)
   drives the teacher side. `execute()` streams the local signed state
   to the requesting peer.
-
-  > **Delta vs. reconnect-refactor proposal:** the proposal calls this
-  > `ReconnectTeacher`.
 
 - [`ReconnectStateTeacherThrottle`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectStateTeacherThrottle.java)
   bounds how often this node accepts a teacher session.
@@ -156,22 +130,13 @@ connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
   releases the slot; `getNumberOfRecentReconnects()` exposes the
   observed rate.
 
-  > **Delta vs. reconnect-refactor proposal:** the proposal lists a
-  > `ReconnectLearnerThrottle` (learner-side retry / shutdown limits)
-  > separate from the teacher throttle. Current code only contains a
-  > teacher-side throttle; learner-side retry and shutdown logic lives
-  > inside `ReconnectController` itself.
-
 - [`ReconnectStateSyncProtocol`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectStateSyncProtocol.java)
   is the gossip-side protocol object — it produces a per-peer
   `ReconnectStatePeerProtocol` instance via `createPeerInstance()` and
   tracks the platform status the per-peer decisions depend on
-  (`updatePlatformStatus()`).
-
-  > **Delta vs. reconnect-refactor proposal:** the proposal calls this
-  > `SyncProtocol` in current naming and renames it to
-  > `StateSyncProtocol` in the proposed design. Current code uses
-  > `ReconnectStateSyncProtocol`.
+  (`updatePlatformStatus()`). The "sync" in the name refers to state
+  synchronisation; the gossip event-exchange algorithm is a separate
+  protocol described in [`gossip.md`](gossip.md).
 
 - [`ReconnectStatePeerProtocol`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectStatePeerProtocol.java)
   is the per-connection implementation: `shouldInitiate()` decides
@@ -179,64 +144,73 @@ connection (see [`gossip.md`](gossip.md) for the protocol-stack view).
   whether to accept one as teacher, and `runProtocol()` runs the
   chosen role on the active connection.
 
-  > **Delta vs. reconnect-refactor proposal:** the proposal calls this
-  > `ReconnectPeerProtocol`.
+A node will only ever teach one learner at a time;
+`ReconnectStateTeacherThrottle` enforces that single-slot bound.
 
-[TBD: question for engineer — what is the current cap on concurrent
-teacher sessions in `ReconnectStateTeacherThrottle` (and is it
-configurable via `ReconnectConfig`)? Has there been a production
-scenario where this cap was the bottleneck?]
+The learner-side `shouldInitiate()` has no gates beyond
+`FallenBehindMonitor` reporting the local node behind by this peer.
+The teacher-side `shouldAccept()` additionally requires platform
+status `ACTIVE`, since only a healthy node should teach.
+Software-version mismatches are rejected when connections are first
+established, so a non-matching peer never reaches either check; the
+roster does not change between upgrades, so no roster-compatibility
+check is needed.
 
-[TBD: question for engineer — `ReconnectStatePeerProtocol.shouldInitiate`
-relies on `FallenBehindMonitor` plus platform status. What other
-gates are checked (freeze in progress, software-version mismatch,
-roster compatibility) before a reconnect can begin?]
-
-[TBD: question for engineer — does the learner reuse the gossip
-socket directly via `ReconnectStatePeerProtocol.runProtocol()`, or
-does it acquire a connection through the
-`BlockingResourceProvider<ReservedSignedStateResult>` referenced from
-`ReconnectController`? The two paths are not obviously equivalent.]
+The learner does not open a new socket — it reuses the same
+gossip-multiplexed connection that the reconnect protocol negotiated
+on.
 
 ## Post-reconnect resumption
 
-Once a state is validated and loaded, the platform's wiring must be
-re-anchored to the new round before gossip and event creation can
-resume. `PlatformCoordinator` is the orchestration object: it pauses
-gossip, flushes wiring pipelines, swaps in the new state via
-`StateLifecycleManager`, and resumes. `ReconnectController` then
-submits a `ReconnectCompleteAction` to the platform status machine,
-which transitions the node out of the BEHIND status.
+Once a state is validated, the entire set of components that depend
+on an event window has to be re-initialised against it — the
+hashgraph algorithm, event intake, the shadowgraph, and any other
+component carrying round / event-window state. These structures
+were already cleared during preparation (see
+[Detection](#detection-fallenbehindmonitor)); resumption is the
+mirror step that pushes the new state into them.
 
-[TBD: question for engineer — where does event-intake re-anchor after
-a reconnect, and what invariant does it re-establish? Specifically,
-which event-window thresholds are reset, and how does event-intake
-know to discard events older than the new state's birth-round? Cross-
-link to [`event-intake.md`](event-intake.md) once anchored.]
+The orchestration is
+[`ReconnectCoordinator.loadReconnectState`](../../../../consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectCoordinator.java):
+it overrides the ISS-detector state, installs the signed state as
+the latest immutable state, hands it to the signature collector
+(which queues it for disk write), overrides the consensus snapshot,
+injects the roster history into event intake, updates the event
+window across the platform, overrides the running event hash, and
+records a PCES discontinuity at the state's round.
 
-[TBD: question for engineer — does the event creator pause for a
-quiescent period after `ReconnectCompleteAction` to avoid creating
-events with stale parents, or does it rely entirely on event-intake
-filtering downstream?]
+Status transitions follow loading in two stages.
+`ReconnectController` submits a `ReconnectCompleteAction` once a
+valid state has been learned, and the platform status machine moves
+the node to `RECONNECT_COMPLETE`. The node only advances from
+`RECONNECT_COMPLETE` to `CHECKING` — the status at which it is
+permitted to create events — after the state has been written to
+disk.
 
-[TBD: question for engineer — is there a post-reconnect verification
-step that confirms the node has reached parity with peers (a
-"caught-up" signal), or is exit from BEHIND status considered
-sufficient?]
+The event window — which carries the ancient round and the other
+round thresholds — is what tells event-intake which events to keep
+and which to discard; updating it during `loadReconnectState` is how
+the discard rule re-anchors. See
+[`event-intake.md`](event-intake.md) for the window's full role.
+
+The event creator does not run separate logic for event creation after a reconnect; the
+status machine is the gate. After `RECONNECT_COMPLETE` the node
+moves to `CHECKING`, where it may create events. It re-enters
+`ACTIVE` as soon as one of those events reaches consensus in a
+timely manner (a transition through `OBSERVING` would also be
+valid). Note that if the Execution layer keeps its transaction
+pool across the reconnect, the node may briefly create events
+carrying user transactions that have already gone stale.
+
+There is no separate "caught-up" signal: reaching `ACTIVE` *is* the
+recovered state — the node is back to creating events that reach
+consensus.
 
 ## Boundary handoffs
 
-Reconnect crosses the Consensus / Execution boundary in two places.
-The orchestration entry point — `ReconnectModule` — lives in
-`swirlds-platform-core`, the wiring root where Execution and Consensus
-meet. The implementation (`ReconnectController`, the learner / teacher
-classes, the throttle, the protocols) lives in `consensus-reconnect-impl`
-on the Consensus side. State ownership transitions at validation:
-until then the local signed state belongs to Execution; the loaded
-replacement is installed via `StateLifecycleManager` before Consensus
-modules re-anchor. See
+See
 [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)
-for the boundary's full method-by-method walk.
+for how reconnect crosses the Consensus / Execution boundary.
 
 ## Cross-references
 
@@ -269,38 +243,9 @@ for the boundary's full method-by-method walk.
 
 ## Future state
 
-> **Future state.** The items below are described in the
-> reconnect-refactor and consensus-layer proposals but are not yet
-> present in current code. They are listed here so a reader of the
-> codebase is not surprised by their absence; main prose above
-> describes reconnect as it stands.
->
-> - **`PlatformReconnecter`.** The reconnect-refactor proposal
->   centralises the reconnect lifecycle in a single
->   `PlatformReconnecter` class on the platform side, absorbing
->   `ReconnectController`, `ReconnectStateLoader`,
->   `ReconnectPlatformHelper(Impl)`, and `ReconnectLearnerThrottle`.
->   No such class exists; the lifecycle still runs in
->   `ReconnectController`, and the helper classes named alongside it
->   in the proposal are not present in current code under those
->   names.
-> - **`StateSyncProtocol`.** The proposal renames the gossip-side
->   reconnect protocol to `StateSyncProtocol` to reflect that its
->   responsibility narrows to fetching a state on request. Current
->   code uses `ReconnectStateSyncProtocol`.
-> - **`ReservedSignedStatePromise`.** The proposal introduces a
->   purpose-built blocking resource to hand a reserved signed state
->   from the protocol to the reconnect orchestrator. The capability
->   exists today via the generic
->   `BlockingResourceProvider<ReservedSignedStateResult>` used by
->   `ReconnectController`, but no class named
->   `ReservedSignedStatePromise` exists.
->
-> Separately, the [consensus-layer
-> proposal](../../../proposals/consensus-layer/Consensus-Layer.md)
-> places reconnect entirely on the Execution side ("Reconnect
->
->> therefore is the responsibility of Execution"). Current code splits
->> responsibilities across `consensus-reconnect-impl` (the Consensus-
->> side implementation) and `swirlds-platform-core` (the orchestration
->> entry point and the Execution handoff).
+> **Future state.** Reconnect is expected to move entirely to the
+> Execution layer. Rather than re-initialising in-place components
+> against the new state, Execution will likely tear down the whole
+> platform and reconstruct it from scratch around the received
+> state. The main prose above describes reconnect as it stands
+> today.
