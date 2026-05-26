@@ -166,7 +166,6 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
-        // streamMode defaults to BOTH in DEFAULT_CONFIG, so != BLOCKS → contractCallResult IS called
         frameUtils.when(() -> configOf(frame)).thenReturn(DEFAULT_CONFIG);
 
         final long gasRequirement = 123L;

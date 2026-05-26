@@ -224,13 +224,10 @@ class CustomContractCreationProcessorTest {
     void codeSuccessWithValidationFailedAddsInitcodeSidecarWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(123L).build();
         setupCodeSuccessFrame(contractId, true);
-        // validationRuleFailed=true: frame.getState() returns EXCEPTIONAL_HALT after super runs
         given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
 
         subject.codeSuccess(frame, tracer);
 
-        // streamMode=BOTH (DEFAULT_CONFIG) and validationRuleFailed=true, initcode!=null
-        // → ContractBytecode with only initcode (no contractId) is added
         verify(streamBuilder).addContractBytecode(any(), any(Boolean.class));
     }
 
@@ -238,12 +235,9 @@ class CustomContractCreationProcessorTest {
     void codeSuccessElseBranchAddsRuntimeBytecodeWithInitcodeWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(456L).build();
         setupCodeSuccessFrame(contractId, true);
-        // validationRuleFailed=false: frame.getState() returns null (mock default)
 
         subject.codeSuccess(frame, tracer);
 
-        // streamMode=BOTH (DEFAULT_CONFIG) and validationRuleFailed=false, initcode!=null
-        // → sidecar.initcode(initcode) at line 144 is called, then addContractBytecode and addInitcode
         verify(streamBuilder).addContractBytecode(any(), any(Boolean.class));
         verify(streamBuilder).addInitcode(any());
     }
@@ -252,13 +246,10 @@ class CustomContractCreationProcessorTest {
     void codeSuccessSkipsBytecodeSidecarOnValidationSuccessWhenStreamModeIsBlocks() {
         final var contractId = ContractID.newBuilder().contractNum(987L).build();
         setupCodeSuccessFrame(contractId, true, blocksOnlyConfig());
-        // validationRuleFailed=false: frame.getState() returns null (mock default)
 
         subject.codeSuccess(frame, tracer);
 
-        // streamMode=BLOCKS gates the entire validation if/else — no sidecar is added
         verify(streamBuilder, never()).addContractBytecode(any(), any(Boolean.class));
-        // The addInitcode call below the gate is independent of streamMode and still runs
         verify(streamBuilder).addInitcode(any());
     }
 
