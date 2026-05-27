@@ -114,7 +114,7 @@ this.eventWindowDispatcher =
         new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
 ```
 
-`WireListSplitter<T>` (`swirlds-component-framework :: WireListSplitter`) is the canonical concrete transformer: a `List<T>` arriving on its input wire produces one task per element on its output wire. It is built via `OutputWire.buildSplitter(...)`, and `ComponentWiring` exposes it as `getSplitOutput()` for any component whose primary output type is a list. For example, `DefaultEventIntakeModule.validatedEventsOutputWire()` returns the orphan buffer's split output so that downstream components receive one event at a time rather than a batch. 
+`WireListSplitter<T>` (`swirlds-component-framework :: WireListSplitter`) is the canonical concrete transformer: a `List<T>` arriving on its input wire produces one task per element on its output wire. It is built via `OutputWire.buildSplitter(...)`, and `ComponentWiring` exposes it as `getSplitOutput()` for any component whose primary output type is a list. For example, `DefaultEventIntakeModule.validatedEventsOutputWire()` returns the orphan buffer's split output so that downstream components receive one event at a time rather than a batch.
 
 A more advanced chain appears in `PlatformWiring` for the signed-state fan-out:
 
@@ -144,7 +144,7 @@ All three concrete `AdvancedTransformation` implementations in the codebase live
 
 A single `WiringModel` instance flows through the whole platform: it is constructed once in `PlatformBuilder` (via `WiringModelBuilder.create(...)`), threaded into `PlatformComponents.create(...)` and on into each module's `initialize(model, configuration, ...)` so the module can build its internal `ComponentWiring`s on it, and passed to `PlatformWiring.wire(...)` so inter-module solders share the same graph. Soldering against the model-owned heartbeat and health-monitor wires is one of the few places `PlatformWiring` reaches back into the model directly.
 
-`stop()` is not a graceful drain: it stops the heartbeat scheduler and the schedulers that own dedicated threads, but does not wait for in-flight or queued tasks (`swirlds-component-framework :: StandardWiringModel`). The lifecycle is one-shot — calling `start()` a second time throws. `DeterministicWiringModel` is reached via `WiringModelBuilder.deterministic()` and exists solely for testing and debugging; production always uses `StandardWiringModel`.
+`stop()` is not a graceful drain: it stops the heartbeat scheduler and the schedulers that own dedicated threads, but does not wait for in-flight or queued tasks (`swirlds-component-framework :: StandardWiringModel`). The lifecycle is one-shot — calling `start()` a second time throws an `IllegalStateException`. `DeterministicWiringModel` is reached via `WiringModelBuilder.deterministic()` and exists solely for testing and debugging; production always uses `StandardWiringModel`.
 
 ## Backpressure (wire level)
 
@@ -154,7 +154,7 @@ The principal hazard is cyclic data flow under `PUT`: a producer waiting on a do
 
 Backpressure feeds queue-health detection. `WiringModel.getHealthMonitorWire()` exposes the duration each scheduler has been over its capacity, and the health monitor turns that signal into the unhealthy-duration reports that the rest of the consensus layer (event creation, gossip, transaction acceptance, PCES replay, …) reacts to. This file describes only the wire-level mechanism; the reaction side — what each subsystem does when the system is unhealthy — lives in `../topics/health-monitor-and-backpressure.md`.
 
-A few specifics worth pinning down. The default `unhandledTaskCapacity` on the framework builder is `1` (`swirlds-component-framework :: AbstractTaskSchedulerBuilder`); consensus-layer schedulers always override this via `TaskSchedulerConfiguration`, so the default is effectively never used in production. The capacity is per-scheduler: every input wire on the same scheduler shares a single on-ramp counter, so the cap applies to total backlog across all inputs, not independently per wire. 
+A few specifics worth pinning down. The default `unhandledTaskCapacity` on the framework builder is `1` (`swirlds-component-framework :: AbstractTaskSchedulerBuilder`); consensus-layer schedulers always override this via `TaskSchedulerConfiguration`, so the default is effectively never used in production. The capacity is per-scheduler: every input wire on the same scheduler shares a single on-ramp counter, so the cap applies to total backlog across all inputs, not independently per wire.
 
 `withExternalBackPressure(true)` declares that a producer feeding this scheduler blocks through some mechanism outside the wire. It is not used anywhere in the consensus layer today. It cannot be set through `TaskSchedulerConfiguration`, so no `ComponentWiring`-built scheduler can enable it.
 
