@@ -10,24 +10,20 @@ Source: `src/main/java/com/hedera/services/bdd/junit/restart/`.
 
 ## The annotation
 
-```java
-@Target({ElementType.METHOD})
-@TestFactory
-@Execution(SAME_THREAD)
-@Tag(ONLY_REPEATABLE)
-public @interface RestartHapiTest {
-    RestartType restartType() default RestartType.GENESIS;
-    ConfigOverride[] setupOverrides() default {};
-    ConfigOverride[] restartOverrides() default {};
-    StartupAssets setupAssets() default StartupAssets.NONE;
-    StartupAssets restartAssets() default StartupAssets.NONE;
-    Class<? extends SavedStateSpec> savedStateSpec() default NoopSavedStateSpec.class;
-}
-```
+`@RestartHapiTest` is method-level, tagged `ONLY_REPEATABLE`, and forces `SAME_THREAD` execution,
+so it runs under `testRepeatable`. Each test gets a fresh embedded network seeded according to
+the annotation's attributes:
 
-`@RestartHapiTest` is tagged `ONLY_REPEATABLE` and forces `SAME_THREAD` execution, so it runs
-under `testRepeatable`. Each test gets a fresh embedded network seeded according to the
-annotation's attributes.
+- `restartType()` — shape of the restart (`GENESIS`, `SAME_VERSION`, `UPGRADE_BOUNDARY`).
+- `setupOverrides()` / `restartOverrides()` — `ConfigOverride[]` applied at setup vs. restart
+  time (see *`setupOverrides` vs. `restartOverrides`* below).
+- `setupAssets()` / `restartAssets()` — on-disk override network presented before setup vs.
+  before restart.
+- `savedStateSpec()` — a `SavedStateSpec` subclass that customises the initial `FakeState`
+  before the restart.
+
+See `RestartHapiTest.java` for the current attribute set and defaults; each is described in
+detail in the sections below.
 
 ## `RestartType`
 

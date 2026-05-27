@@ -10,26 +10,16 @@ For the user-facing description of *when* to use embedded mode, see [`../README.
 
 ## Class map
 
-```
-junit/hedera/embedded
-├── EmbeddedNetwork.java          — HederaNetwork implementation; wraps an EmbeddedHedera
-├── EmbeddedNode.java             — HederaNode adapter exposing fake paths
-├── EmbeddedMode.java             — CONCURRENT or REPEATABLE
-├── EmbeddedHedera.java           — interface
-├── AbstractEmbeddedHedera.java   — shared lifecycle + Hedera bootstrap
-├── ConcurrentEmbeddedHedera.java — concurrent variant (real-time, real ECDSA)
-├── RepeatableEmbeddedHedera.java — repeatable variant (virtual time, Ed25519 only)
-└── fakes/
-    ├── AbstractFakePlatform.java
-    ├── FakeConsensusEvent.java
-    ├── FakeEvent.java
-    ├── FakeRound.java
-    ├── FakeNotificationEngine.java
-    ├── FakePlatformContext.java
-    ├── FakeHintsService.java
-    ├── FakeHistoryService.java
-    └── LapsingBlockHashSigner.java
-```
+The embedded framework lives under `junit/hedera/embedded/`, with two top-level groupings:
+
+- The directory itself contains the `EmbeddedNetwork` / `EmbeddedNode` adapters and the
+  `EmbeddedHedera` family — an interface plus `Concurrent` and `Repeatable` variants (selected
+  by the `EmbeddedMode` enum) sharing an `AbstractEmbeddedHedera` base.
+- `fakes/` contains the stand-in `Platform`, `NotificationEngine`, `PlatformContext`, hints and
+  history services, and a `LapsingBlockHashSigner` that lets tests simulate a stuck signer.
+
+See `junit/hedera/embedded/` for the current contents; the sections below describe the classes
+that are routinely extended or observed from tests.
 
 ## `EmbeddedMode`
 
@@ -48,19 +38,11 @@ that value.
 
 ## `EmbeddedHedera`
 
-The interface in `EmbeddedHedera.java` is what `EmbeddedNetwork` calls to drive the node:
-
-|                  Method                  |                           What it does                           |
-|------------------------------------------|------------------------------------------------------------------|
-| `start()`                                | Boot the embedded `Hedera` from genesis.                         |
-| `restart(FakeState)`                     | Boot from a customized saved state (used by `@RestartHapiTest`). |
-| `stop()`                                 | Shut down.                                                       |
-| `state()`                                | Returns the live `FakeState` for direct inspection or mutation.  |
-| `version()`                              | Software `SemanticVersion`.                                      |
-| `nextValidStart()`                       | Monotonically-increasing `Timestamp` accepted by ingest.         |
-| `now()` / `tick(Duration)`               | Read or advance synthetic consensus time.                        |
-| `submit(Transaction, AccountID, …)`      | Submit a transaction directly to the embedded node.              |
-| `send(Query, AccountID, asNodeOperator)` | Send a query directly.                                           |
+The interface in `EmbeddedHedera.java` is what `EmbeddedNetwork` calls to drive the node. It
+exposes lifecycle (`start`, `restart(FakeState)`, `stop`), direct state access (`state()`),
+synthetic-time control (`now()` / `tick(Duration)`), monotonic `nextValidStart()` for ingest, and
+direct `submit(...)` / `send(...)` entry points that bypass gRPC. See `EmbeddedHedera.java` for
+the current method set.
 
 `AbstractEmbeddedHedera` owns the lifecycle, bootstraps `Hedera` against a fake
 `FakeServicesRegistry` / `FakeServiceMigrator`, and wires in the fakes below.

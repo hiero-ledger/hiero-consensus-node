@@ -96,21 +96,9 @@ ask `baseTranslator` for whatever they don't carry themselves.
 
 ## Per-functionality translators (`translators/impl/`)
 
-There is one class per `HederaFunctionality` that requires explicit translation. As of writing
-the set is:
-
-```
-AirdropRemovalTranslator        AtomicBatchTranslator           ContractCallTranslator
-ContractCreateTranslator        ContractDeleteTranslator        ContractUpdateTranslator
-CryptoCreateTranslator          CryptoTransferTranslator        CryptoUpdateTranslator
-EthereumTransactionTranslator   FileCreateTranslator            FileUpdateTranslator
-NoExplicitSideEffectsTranslator NodeCreateTranslator            RegisteredNodeCreateTranslator
-ScheduleCreateTranslator        ScheduleDeleteTranslator        ScheduleSignTranslator
-SubmitMessageTranslator         TokenAirdropTranslator          TokenAssociateTranslator
-TokenBurnTranslator             TokenCreateTranslator           TokenDissociateTranslator
-TokenMintTranslator             TokenUpdateTranslator           TokenWipeTranslator
-TopicCreateTranslator           UtilPrngTranslator
-```
+Each `HederaFunctionality` that requires explicit translation has a dedicated class under
+`translators/impl/`, named `<Functionality>Translator` (e.g., `CryptoTransferTranslator`,
+`TokenMintTranslator`, `ContractCallTranslator`). See the directory itself for the current set.
 
 `NoExplicitSideEffectsTranslator` is the catch-all for functionalities that don't change state
 in a way the legacy record stream represented (queries, freeze, etc.).

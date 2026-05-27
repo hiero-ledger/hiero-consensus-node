@@ -43,11 +43,9 @@ possible*.
 Test must run in embedded mode (tagged `EMBEDDED`). Holds `READ` lock on `"NETWORK"`. Required when
 the test needs to skip the ingest workflow, directly access state, or manipulate event versions.
 
-Attribute: `EmbeddedReason[] value()` — required. Enumerated reasons in `EmbeddedReason.java`:
-
-- `MUST_SKIP_INGEST` — submits transactions that would normally be rejected at ingest.
-- `NEEDS_STATE_ACCESS` — must assert on state not exposed via gRPC.
-- `MANIPULATES_EVENT_VERSION` — varies the software version of the simulated consensus event.
+Attribute: `EmbeddedReason[] value()` — required. The reason explains *why* the test needs
+embedded mode: skipping ingest, accessing internal state, manipulating the simulated event
+version, and similar. See `EmbeddedReason.java` for the current enum.
 
 ### `@LeakyEmbeddedHapiTest`
 
@@ -60,15 +58,9 @@ both: `reason()` (required, `EmbeddedReason[]`), `requirement()` (`ContextRequir
 Test must run in repeatable embedded mode (tagged `REPEATABLE`, executes `SAME_THREAD`). Required
 when the test needs virtual time, deterministic ordering, or synchronous handling.
 
-Attribute: `RepeatableReason[] value()` — required. Enumerated reasons in `RepeatableReason.java`:
-
-- `NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION`
-- `NEEDS_LAST_ASSIGNED_CONSENSUS_TIME`
-- `NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW`
-- `NEEDS_TSS_CONTROL`
-- `NEEDS_STATE_ACCESS`
-- `THROTTLE_OVERRIDES`
-- `USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK`
+Attribute: `RepeatableReason[] value()` — required. The reason explains *why* the test needs
+repeatable mode: virtual time, deterministic ordering, synchronous handling, TSS control, and
+similar. See `RepeatableReason.java` for the current enum.
 
 ### `@LeakyRepeatableHapiTest`
 
@@ -126,19 +118,11 @@ task uses `hapi.spec.embedded.mode=per-class`.
 ## `ContextRequirement` (leak reasons)
 
 Enum in `com.hedera.services.bdd.junit.ContextRequirement` listing the typical reasons a test
-must run serially:
-
-|                      Value                      |                         Why the test leaks                         |
-|-------------------------------------------------|--------------------------------------------------------------------|
-| `NO_CONCURRENT_CREATIONS`                       | Depends on predictable entity numbers.                             |
-| `NO_CONCURRENT_STAKE_PERIOD_BOUNDARY_CROSSINGS` | Needs its transactions to be the first in a staking period.        |
-| `PROPERTY_OVERRIDES`                            | Changes network properties (other tests may see the default).      |
-| `PERMISSION_OVERRIDES`                          | Changes network permissions.                                       |
-| `THROTTLE_OVERRIDES`                            | Changes throttle definitions.                                      |
-| `FEE_SCHEDULE_OVERRIDES`                        | Changes fee schedules.                                             |
-| `UPGRADE_FILE_CONTENT`                          | Manipulates upgrade files.                                         |
-| `SYSTEM_ACCOUNT_BALANCES`                       | Asserts on system-account balances only its own ops should change. |
-| `SYSTEM_ACCOUNT_KEYS`                           | Asserts on system-account keys only its own ops should change.     |
+must run serially. They fall into a few groups: ordering-sensitive expectations
+(`NO_CONCURRENT_CREATIONS`, staking-boundary requirements), in-test mutations of network-wide
+configuration (properties, permissions, throttles, fee schedules, upgrade files), and assertions
+on system-account state that other tests may also touch. See `ContextRequirement.java` for the
+current set and the per-value Javadoc.
 
 ## `ConfigOverride`
 
