@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
@@ -64,25 +63,23 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final Path recordsDir = workingDirFor(Long.parseLong(nodeToUpdate), null)
+            final Path blocksDir = workingDirFor(Long.parseLong(nodeToUpdate), null)
                     .resolve("data")
-                    .resolve("recordStreams");
+                    .resolve("blockStreams");
 
             return hapiTest(
-                    overriding("blockStream.streamMode", "BOTH"),
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
                     // account 6 is the node account of node 3
                     getAccountInfo("6").exposingIdTo(oldNodeAccountId::set),
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
-                    // create a transaction after the update so record files are generated
+                    // create a transaction after the update so block files are generated
                     cryptoCreate("foo"),
-                    // assert record paths
+                    // assert block paths
                     withOpContext((spec, log) -> {
-                        final var oldRecordPath =
-                                recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
-                        final var newRecordPath = recordsDir.resolve("record" + asAccountString(newAccountId.get()));
-                        assertTrue(oldRecordPath.toFile().exists());
-                        assertFalse(newRecordPath.toFile().exists());
+                        final var oldBlockPath = blocksDir.resolve("block-" + asAccountString(oldNodeAccountId.get()));
+                        final var newBlockPath = blocksDir.resolve("block-" + asAccountString(newAccountId.get()));
+                        assertTrue(oldBlockPath.toFile().exists());
+                        assertFalse(newBlockPath.toFile().exists());
                     }));
         }
     }

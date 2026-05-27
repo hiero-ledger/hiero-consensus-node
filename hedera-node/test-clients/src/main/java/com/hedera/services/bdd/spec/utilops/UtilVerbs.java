@@ -173,6 +173,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssert
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedBlockItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
@@ -1742,6 +1743,30 @@ public class UtilVerbs {
         return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);
     }
 
+    /**
+     * Returns an op that asserts the block stream eventually contains a pass from the given
+     * assertion within {@code timeout}, opting in to background traffic so blocks keep closing.
+     */
+    public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion, @NonNull final Duration timeout) {
+        requireNonNull(assertion);
+        requireNonNull(timeout);
+        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout)
+                .withBackgroundTraffic();
+    }
+
+    /**
+     * Block-stream equivalent of {@link EventualRecordStreamAssertion#eventuallyAssertingExplicitPassWithReplay}:
+     * also replays any existing block files first so genesis-time items (emitted before the
+     * subscription) can still satisfy the assertion.
+     */
+    public static AbstractEventualStreamAssertion blockStreamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion, @NonNull final Duration timeout) {
+        requireNonNull(assertion);
+        requireNonNull(timeout);
+        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPassWithReplay(assertion, timeout);
+    }
+
     public static RunnableOp verify(@NonNull final Runnable runnable) {
         return new RunnableOp(runnable);
     }
@@ -1815,6 +1840,21 @@ public class UtilVerbs {
         requireNonNull(validator);
         requireNonNull(test);
         return spec -> new SelectedItemsAssertion(n, spec, test, validator);
+    }
+
+    /**
+     * Block-stream analog of {@link #selectedItems}. Translates each incoming {@link
+     * com.hedera.hapi.block.stream.Block} back to {@link RecordStreamItem}s so the existing
+     * predicate and {@link VisibleItemsValidator} APIs can be reused under
+     * {@code streamMode=BLOCKS} without re-implementing per-test selection logic.
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> selectedBlockItems(
+            @NonNull final VisibleItemsValidator validator,
+            final int n,
+            @NonNull final BiPredicate<HapiSpec, RecordStreamItem> test) {
+        requireNonNull(validator);
+        requireNonNull(test);
+        return spec -> new SelectedBlockItemsAssertion(n, spec, test, validator);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleNonSyntheticItems(
