@@ -93,28 +93,28 @@ class SimulatedBroadcastTest {
         final int nodes = 3;
         final SimulatedBroadcast network = new SimulatedBroadcast(START, nodes);
 
-        final int[][] latencies = new int[nodes][nodes];
+        final int[][] pings = new int[nodes][nodes];
         for (int i = 0; i < nodes; i++) {
             for (int j = 0; j < nodes; j++) {
-                // Asymmetric: latency from i->j = (i+1)*(j+1) * 10ms
-                latencies[i][j] = (i + 1) * (j + 1) * 10;
+                // Asymmetric: ping from i->j = (i+1)*(j+1) * 10ms
+                pings[i][j] = (i + 1) * (j + 1) * 10;
             }
         }
-        network.setLatency(NetworkLatency.pingMatrix(latencies));
+        network.setLatency(NetworkLatency.pingMatrix(pings));
 
         // Event from node 0:
-        //   latency to node 1 = 1*2*10 = 20ms
-        //   latency to node 2 = 1*3*10 = 30ms
+        //   latency to node 1 = 1*2*10/2 = 10ms
+        //   latency to node 2 = 1*3*10/2 = 15ms
         final PlatformEvent event = buildEvent(NodeId.of(0));
         network.submitEvent(event);
 
-        // At 20ms, node 1 should have the event but node 2 should not
-        network.tick(START.plusMillis(20));
-        assertEquals(1, network.getDeliveredEvents(NodeId.of(1)).size(), "Node 1 should receive at 20ms");
-        assertTrue(network.getDeliveredEvents(NodeId.of(2)).isEmpty(), "Node 2 should not receive at 20ms");
+        // At 10ms, node 1 should have the event but node 2 should not
+        network.tick(START.plusMillis(10));
+        assertEquals(1, network.getDeliveredEvents(NodeId.of(1)).size(), "Node 1 should receive at 10ms");
+        assertTrue(network.getDeliveredEvents(NodeId.of(2)).isEmpty(), "Node 2 should not receive at 10ms");
 
         // At 30ms, node 2 should now have the event
-        network.tick(START.plusMillis(30));
+        network.tick(START.plusMillis(20));
         assertEquals(1, network.getDeliveredEvents(NodeId.of(2)).size(), "Node 2 should receive at 30ms");
     }
 

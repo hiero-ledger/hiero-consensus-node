@@ -77,8 +77,7 @@ public class EventCreatorNetwork {
         // Create an event creator for each node
         for (final RosterEntry entry : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
-            final SecureRandom nodeRandom = new SecureRandom();
-            nodeRandom.setSeed(nodeId.id());
+            final SecureRandom nodeRandom = DeterministicSecureRandom.getInstance(seed);
             final KeyPair keyPair = SigningFactory.generateKeyPair(SigningSchema.ED25519, nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(SigningImplementation.ED25519_SODIUM, keyPair);
 

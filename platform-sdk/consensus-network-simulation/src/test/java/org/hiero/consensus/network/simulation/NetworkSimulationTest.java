@@ -16,11 +16,13 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.network.simulation.fixtures.EventCreatorNetwork;
 import org.hiero.consensus.network.simulation.fixtures.NetworkLatency;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class NetworkSimulationTest {
 
     @Test
+    @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void mainnet() {
         final int numNodes = 32;
         final int[][] matrix = new int[][] {
@@ -158,7 +160,7 @@ public class NetworkSimulationTest {
         final Duration duration = Duration.ofSeconds(10);
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
-                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
+                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 20)
                 .withValue(EventCreationConfig_.MAX_OTHER_PARENTS, 4)
                 .getOrCreateConfig();
         final NetworkLatency latency = NetworkLatency.pingMatrix(matrix);
@@ -166,6 +168,7 @@ public class NetworkSimulationTest {
     }
 
     @Test
+    @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void fastFourNodeNetwork() {
         final int numNodes = 4;
         final Duration tick = Duration.of(100, ChronoUnit.MICROS);
