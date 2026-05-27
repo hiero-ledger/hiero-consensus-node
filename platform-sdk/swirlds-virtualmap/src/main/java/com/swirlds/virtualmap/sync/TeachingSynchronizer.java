@@ -87,7 +87,8 @@ public class TeachingSynchronizer {
      * Perform reconnect in the role of the teacher.
      */
     public void synchronize() throws InterruptedException {
-        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
+        final AsyncInputStream in =
+                new AsyncInputStream(inputStream, workGroup, reconnectConfig.asyncStreamBufferSize());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
@@ -105,7 +106,6 @@ public class TeachingSynchronizer {
         }
 
         if ((interruptException != null) || workGroup.hasExceptions()) {
-            in.abort();
             if (interruptException != null) {
                 throw interruptException;
             }
@@ -130,6 +130,11 @@ public class TeachingSynchronizer {
             @NonNull final StandardWorkGroup workGroup,
             @NonNull final DataOutputStream out,
             @NonNull final ReconnectConfig reconnectConfig) {
-        return new AsyncOutputStream(out, workGroup, reconnectConfig);
+        return new AsyncOutputStream(
+                out,
+                workGroup,
+                reconnectConfig.asyncStreamBufferSize(),
+                reconnectConfig.asyncOutputStreamFlush(),
+                reconnectConfig.asyncStreamTimeout());
     }
 }

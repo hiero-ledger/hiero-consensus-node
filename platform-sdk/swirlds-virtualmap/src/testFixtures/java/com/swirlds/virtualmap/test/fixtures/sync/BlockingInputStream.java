@@ -43,7 +43,7 @@ public class BlockingInputStream extends InputStream {
      */
     @Override
     public int read() throws IOException {
-        while (locked.get()) {
+        while (locked.get() && !Thread.currentThread().isInterrupted()) {
             Thread.onSpinWait();
         }
         return in.read();

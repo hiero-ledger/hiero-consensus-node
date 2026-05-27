@@ -43,7 +43,7 @@ public class BlockingOutputStream extends OutputStream {
      */
     @Override
     public void write(final int b) throws IOException {
-        while (locked.get()) {
+        while (locked.get() && !Thread.currentThread().isInterrupted()) {
             Thread.onSpinWait();
         }
         out.write(b);

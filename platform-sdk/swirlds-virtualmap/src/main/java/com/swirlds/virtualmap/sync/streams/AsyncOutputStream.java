@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.sync.streams;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.base.time.StopWatch;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
@@ -13,183 +12,235 @@ import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * <p>
- * Allows a thread to asynchronously send data over a stream.
+ * Allows producer threads to asynchronously send length-prefixed byte array messages over a stream.
  * </p>
  *
  * <p>
- * Only one type of message is allowed to be sent using an instance of this class. Originally this class was capable of
- * supporting arbitrary message types, but there was a significant memory footprint optimization that was made possible
- * by switching to single message type.
+ * A background thread continuously dequeues messages from an internal bounded buffer and writes
+ * length-prefixed frames to the underlying {@link DataOutputStream}. Producers enqueue messages with
+ * {@link #sendAsync(byte[])} (which blocks up to {@code timeout} when the buffer is full) and signal
+ * end-of-stream by calling {@link #done()}. After {@link #done()}, the background thread drains any
+ * remaining queued messages, writes a {@code -1} termination marker, flushes, and exits.
  * </p>
  *
  * <p>
- * This object is not thread safe. Only one thread should attempt to send data over this stream at any point in time.
+ * This object is thread safe. Multiple producers may call {@link #sendAsync(byte[])} in parallel and
+ * messages enqueued by a single producer are written to the stream in submission order. Ordering
+ * across producers is not guaranteed beyond what the underlying {@link BlockingQueue} provides.
+ * </p>
+ *
+ * <p>
+ * Lifecycle is tracked by {@link Status}: {@link Status#NOT_STARTED} → {@link Status#RUNNING} (set by
+ * {@link #start()}) → {@link Status#FINISHING} (set by {@link #done()}, while the background thread
+ * is still draining) → {@link Status#DONE} (set by the background thread when it exits — drain
+ * complete or I/O error). {@link #done()} only signals; observers wait for actual termination via the
+ * {@link StandardWorkGroup}. {@link #sendAsync(byte[])} only accepts new work while the status is
+ * {@link Status#RUNNING}; any call during {@link Status#FINISHING} or after fails with
+ * {@link IllegalStateException}. An I/O error is reported through the work group rather than the
+ * status, so {@link Status#DONE} does not distinguish clean shutdown from a failure — callers that
+ * care should consult {@link StandardWorkGroup#hasExceptions()}.
  * </p>
  */
 public class AsyncOutputStream {
 
     private static final Logger logger = LogManager.getLogger(AsyncOutputStream.class);
 
-    /**
-     * The stream which all data is written to.
-     */
+    private static final String THREAD_NAME = "async-output-stream";
+
+    /** Lifecycle states of the background writer thread. Transitions are monotonic. */
+    public enum Status {
+        /** {@link #start()} has not been called yet. */
+        NOT_STARTED,
+        /** The background writer thread is running and {@link #sendAsync(byte[])} accepts new work. */
+        RUNNING,
+        /** {@link #done()} has been called; the background thread is draining the queue before exit. */
+        FINISHING,
+        /** The background writer thread has exited (drain complete, I/O error, or interrupt). */
+        DONE
+    }
+
     private final DataOutputStream outputStream;
 
-    /**
-     * A queue that needs to be written to the output stream.
-     */
+    /** Bounded buffer providing backpressure for {@link #sendAsync(byte[])}. */
     private final BlockingQueue<byte[]> streamQueue;
 
-    /**
-     * The time that has elapsed since the last flush was attempted.
-     */
-    private final StopWatch timeSinceLastFlush;
-
-    /**
-     * The maximum amount of time that is permitted to pass without a flush being attempted.
-     */
+    /** Maximum time the background thread waits for a new message before flushing buffered data. */
     private final Duration flushInterval;
 
-    /**
-     * The number of messages that have been written to the stream but have not yet been flushed
-     */
-    private int bufferedMessageCount;
-
-    /**
-     * The maximum amount of time to wait when writing a message.
-     */
+    /** Maximum time {@link #sendAsync(byte[])} will wait when the buffer is full. */
     private final Duration timeout;
 
     private final StandardWorkGroup workGroup;
 
-    /**
-     * A condition to check whether it's time to terminate this output stream.
-     */
-    private final AtomicBoolean isDone = new AtomicBoolean(false);
+    // Single writer per transition: start() sets RUNNING under sync; done() sets FINISHING under
+    // sync (guarded — no-op unless RUNNING); the background thread sets DONE on exit.
+    // Volatile is sufficient for visibility.
+    private volatile Status status = Status.NOT_STARTED;
 
     /**
-     * Constructs a new instance using the given underlying {@link DataOutputStream} and
-     * {@link StandardWorkGroup}.
+     * Constructs a new instance.
      *
-     * @param outputStream the outputStream to which all objects are written
-     * @param workGroup    the work group that should be used to execute this thread
-     * @param config       the reconnect configuration
+     * @param outputStream  the stream all serialized messages are written to
+     * @param workGroup     the work group that executes the background writer thread
+     * @param bufferSize    capacity of the internal queue; must be {@code > 0}
+     * @param flushInterval maximum time the background thread waits for a new message before flushing
+     *                      buffered data; must be non-null and positive
+     * @param timeout       maximum time {@link #sendAsync(byte[])} will wait when the buffer is full;
+     *                      must be non-null and positive
      */
     public AsyncOutputStream(
             @NonNull final DataOutputStream outputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final ReconnectConfig config) {
-        Objects.requireNonNull(config, "config must not be null");
-
+            final int bufferSize,
+            @NonNull final Duration flushInterval,
+            @NonNull final Duration timeout) {
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.streamQueue = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
-        this.timeSinceLastFlush = new StopWatch();
-        this.timeSinceLastFlush.start();
-        this.flushInterval = config.asyncOutputStreamFlush();
-        this.timeout = config.asyncStreamTimeout();
-    }
+        Objects.requireNonNull(flushInterval, "flushInterval must not be null");
+        Objects.requireNonNull(timeout, "timeout must not be null");
 
-    /**
-     * Start the thread that writes to the stream.
-     */
-    public void start() {
-        workGroup.execute("async-output-stream", this::run);
-    }
-
-    /**
-     * Background thread loop. Drains the message queue, writes length-prefixed messages to the
-     * underlying stream, and flushes periodically. On termination, writes a {@code -1} marker.
-     */
-    public void run() {
-        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
-        try {
-            while ((!isDone.get() || !streamQueue.isEmpty())
-                    && !Thread.currentThread().isInterrupted()) {
-                flushIfRequired();
-                boolean workDone = handleQueuedMessages();
-                if (!workDone) {
-                    workDone = flush();
-                    if (!workDone) {
-                        Thread.onSpinWait();
-                    }
-                }
-            }
-            // Handle remaining queued messages
-            boolean wasNotEmpty = true;
-            while (wasNotEmpty) {
-                wasNotEmpty = handleQueuedMessages();
-            }
-            flush();
-            try {
-                logger.info(RECONNECT.getMarker(), Thread.currentThread().getName() + " closing stream");
-                // Send reconnect termination marker
-                outputStream.writeInt(-1);
-                outputStream.flush();
-            } catch (final IOException e) {
-                throw new MerkleSynchronizationException(e);
-            }
-        } catch (final Exception e) {
-            workGroup.handleError(e);
+        if (bufferSize <= 0) {
+            throw new IllegalArgumentException("bufferSize must be greater than 0");
         }
-        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
+        if (flushInterval.isNegative() || flushInterval.isZero()) {
+            throw new IllegalArgumentException("flushInterval must be positive");
+        }
+        if (timeout.isNegative() || timeout.isZero()) {
+            throw new IllegalArgumentException("timeout must be positive");
+        }
+
+        this.streamQueue = new LinkedBlockingQueue<>(bufferSize);
+        this.flushInterval = flushInterval;
+        this.timeout = timeout;
     }
 
     /**
-     * Send a pre-serialized message asynchronously. Messages are guaranteed to be delivered
-     * in the order sent.
+     * Start the background writer thread. This method can be called only once.
      *
-     * This method can be overridden to simulate disk write delays. Note that the caller thread will be delayed.
+     * @throws IllegalStateException          if the stream has already been started or terminated
+     * @throws MerkleSynchronizationException if the background thread cannot be submitted for execution
+     */
+    public synchronized void start() {
+        if (status != Status.NOT_STARTED) {
+            throw new IllegalStateException("Stream status has already been set: " + status);
+        }
+        status = Status.RUNNING;
+
+        try {
+            workGroup.execute(THREAD_NAME, this::run);
+        } catch (Exception e) {
+            status = Status.DONE;
+            workGroup.handleError(e); // terminate other tasks that already running
+            throw new MerkleSynchronizationException("Background writing thread cannot be submitted for execution", e);
+        }
+    }
+
+    /**
+     * Signal that no more messages will be sent. The background thread drains any remaining queued
+     * messages, writes a {@code -1} termination marker, flushes, and exits. This method only signals;
+     * observers wait for actual termination via {@link StandardWorkGroup#waitForTermination()}.
+     *
+     * <p>Calls made before {@link #start()} or after the stream has reached {@link Status#FINISHING}
+     * or {@link Status#DONE} are silent no-ops.
+     */
+    public synchronized void done() {
+        if (status == Status.RUNNING) {
+            status = Status.FINISHING;
+        }
+    }
+
+    /**
+     * Send a pre-serialized message asynchronously. Messages from a single producer are written to
+     * the underlying stream in submission order; ordering across producers is not guaranteed. When
+     * the internal buffer is full this call blocks for up to {@code timeout} and then throws.
      *
      * @param messageBytes the serialized message bytes
-     * @throws InterruptedException if interrupted while waiting to enqueue
+     * @throws InterruptedException           if the caller is interrupted while waiting to enqueue
+     * @throws IllegalStateException          if the stream is not in {@link Status#RUNNING}
+     * @throws MerkleSynchronizationException if the enqueue timed out because the buffer stayed full
      */
     public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
+        if (status != Status.RUNNING) {
+            throw new IllegalStateException("Stream is not running: " + status);
+        }
         final boolean success = streamQueue.offer(messageBytes, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
-            try {
-                outputStream.close();
-            } catch (final IOException e) {
-                throw new MerkleSynchronizationException("Unable to close stream", e);
-            }
             throw new MerkleSynchronizationException("Timed out waiting to send data");
         }
     }
 
     /**
-     * Send the next message if possible.
-     *
-     * @return true if a message was sent.
+     * Returns {@code true} while the background writer thread is running, which includes both
+     * {@link Status#RUNNING} (accepting new work) and {@link Status#FINISHING} (draining).
      */
-    private boolean handleQueuedMessages() {
-        byte[] item = streamQueue.poll();
-        if (item == null) {
-            return false;
-        }
-        try {
-            do {
-                writeMessage(item);
-                bufferedMessageCount += 1;
-                item = streamQueue.poll();
-            } while (item != null);
-        } catch (final IOException e) {
-            throw new MerkleSynchronizationException(e);
-        }
-        return true;
+    public boolean isAlive() {
+        return status == Status.RUNNING || status == Status.FINISHING;
     }
 
     /**
-     * Writes a single length-prefixed message to the underlying output stream. Called on
-     * the <b>writer thread</b> for each dequeued message. This method is helpful for testing
-     * when it comes to simulation of network latency.
+     * @return current lifecycle status of the background writer thread. Visible for tests.
+     */
+    Status getStatus() {
+        return status;
+    }
+
+    /**
+     * Background thread loop. Waits up to {@code flushInterval} for the next message, writes it as
+     * a length-prefixed frame, and flushes when {@code flushInterval} has elapsed since the last
+     * flush with buffered data pending. The wall-clock check is independent of the poll timeout, so
+     * a continuously-populated queue still gets periodic flushes. On shutdown, drains remaining
+     * messages, writes a {@code -1} termination marker, and flushes.
+     */
+    private void run() {
+        logger.debug(RECONNECT.getMarker(), "Background writer thread started");
+        final long flushIntervalNanos = flushInterval.toNanos();
+        long lastFlushNanos = System.nanoTime();
+        boolean dirty = false;
+        try {
+            while (status == Status.RUNNING && !Thread.currentThread().isInterrupted()) {
+                final byte[] msg = streamQueue.poll(flushIntervalNanos, TimeUnit.NANOSECONDS);
+                if (msg != null) {
+                    writeMessage(msg);
+                    dirty = true;
+                }
+                if (dirty && (System.nanoTime() - lastFlushNanos) >= flushIntervalNanos) {
+                    outputStream.flush();
+                    dirty = false;
+                    lastFlushNanos = System.nanoTime();
+                }
+            }
+
+            // Drain any remaining queued messages submitted before done() was called.
+            byte[] msg;
+            while ((msg = streamQueue.poll()) != null) {
+                writeMessage(msg);
+            }
+
+            // Termination marker
+            outputStream.writeInt(-1);
+            outputStream.flush();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.debug(RECONNECT.getMarker(), "Background writer thread interrupted");
+        } catch (final IOException e) {
+            logger.warn(RECONNECT.getMarker(), "Async output stream failed due to I/O error", e);
+            workGroup.handleError(e);
+        } finally {
+            status = Status.DONE;
+            logger.debug(RECONNECT.getMarker(), "Background writer thread stopped");
+        }
+    }
+
+    /**
+     * Writes a single length-prefixed message to the underlying output stream. Called on the
+     * <b>writer thread</b> for each dequeued message. Exposed as {@code protected} so test doubles
+     * (e.g. simulated network latency) can override per-message behavior.
      *
      * @param messageBytes the serialized message bytes
      * @throws IOException if writing to the stream fails
@@ -197,43 +248,5 @@ public class AsyncOutputStream {
     protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
         outputStream.writeInt(messageBytes.length);
         outputStream.write(messageBytes);
-    }
-
-    /**
-     * Flushes the underlying output stream if any messages have been written since the last flush.
-     *
-     * @return {@code true} if a flush was performed
-     */
-    private boolean flush() {
-        timeSinceLastFlush.reset();
-        timeSinceLastFlush.start();
-        if (bufferedMessageCount > 0) {
-            try {
-                outputStream.flush();
-            } catch (final IOException e) {
-                throw new MerkleSynchronizationException(e);
-            }
-            bufferedMessageCount = 0;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Flush the stream if necessary.
-     */
-    private void flushIfRequired() {
-        if (timeSinceLastFlush.getElapsedTimeNano() > flushInterval.toNanos()) {
-            flush();
-        }
-    }
-
-    /**
-     * Marks this async output stream as done. All messages currently enqueued are processed,
-     * then the thread behind this object is exited. In the end, the stream sends a reconnect
-     * termination marker to the underlying output stream.
-     */
-    public void done() {
-        isDone.set(true);
     }
 }
