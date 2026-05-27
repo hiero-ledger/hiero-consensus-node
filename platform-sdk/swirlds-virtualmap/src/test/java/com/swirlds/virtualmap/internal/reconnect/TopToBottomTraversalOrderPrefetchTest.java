@@ -34,6 +34,9 @@ class TopToBottomTraversalOrderPrefetchTest {
     private static final long CHUNK_FIRST = 1023L;
     private static final long CHUNK_LAST = 2 * CHUNK_FIRST; // 2046
 
+    // Chunk 1 initial internals (rank 5)
+    private static final long CHUNK1_INIT_LO = 31L;
+    private static final long CHUNK1_INIT_HI = 46L;
     // Chunk 2 initial internals (rank 5)
     private static final long CHUNK2_INIT_LO = 47L;
     private static final long CHUNK2_INIT_HI = 62L;
@@ -312,13 +315,8 @@ class TopToBottomTraversalOrderPrefetchTest {
                 order.nodeReceived(p, true);
             }
 
-            // Drive past chunk 1's leaves (all clean → skipCleanPaths → transition)
-            long result;
-            int attempts = 0;
-            do {
-                result = order.getNextLeafPathToSend();
-                assertTrue(++attempts <= 100, "Must transition within reasonable attempts");
-            } while (result == PATH_NOT_AVAILABLE_YET);
+            // Single call: skipCleanPaths skips all chunk 1 leaves → transition
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
 
             // After transition, chunk 2 (pre-fetched) is now the head
             final var chunksAfter = getActiveChunks(order);
@@ -406,11 +404,8 @@ class TopToBottomTraversalOrderPrefetchTest {
             for (long p : chunk1Internals) {
                 order.nodeReceived(p, true);
             }
-            // Drive past chunk 1
-            long result;
-            do {
-                result = order.getNextLeafPathToSend();
-            } while (result == PATH_NOT_AVAILABLE_YET);
+            // Chunk transition: exactly one PATH_NOT_AVAILABLE_YET
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
 
             // Now we're in chunk 2 (the last chunk). Drain its internals, stall.
             drainInternals(order);
@@ -639,6 +634,263 @@ class TopToBottomTraversalOrderPrefetchTest {
             final List<Long> leaves = driveAllDirty(order);
             final Set<Long> unique = new HashSet<>(leaves);
             assertEquals(leaves.size(), unique.size(), "No duplicate leaves allowed");
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // 6k — Rank-change boundary: no pre-fetch across the boundary
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("6k — Rank-change boundary blocks pre-fetch")
+    class RankChangeBoundaryTests {
+
+        // Mixed-rank tree: firstLeafPath=1100 (rank 10), lastLeafPath=2200 (rank 11)
+        // chunkRootRank = max(1, 11-23) = 1
+        // Chunks:
+        //   A: root=1, chunkLastRank=10, leaves 1100–1534
+        //   B: root=2, chunkLastRank=10, leaves 1535–2046
+        //   C: root=1, chunkLastRank=11, leaves 2047–2200
+        // A and C share chunkRootPath=1 — this is the collision that must be prevented.
+        private static final long MR_FIRST = 1100L;
+        private static final long MR_LAST = 2200L;
+
+        @Test
+        @DisplayName("Depth=2 does not pre-fetch across the rank-change boundary (no duplicate roots)")
+        void noPrefetchAcrossRankChangeBoundary() throws Exception {
+            final var order = new TopToBottomTraversalOrder(2);
+            order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
+
+            // Stall in chunk A to trigger pre-fetch
+            triggerStall(order);
+
+            final var chunks = getActiveChunks(order);
+            // First stall: chunk B seeded. Deque = [A, B].
+            assertEquals(2, chunks.size(), "First stall must seed chunk B");
+
+            // Drain B's pre-fetched internals so the queue is empty
+            drainInternals(order);
+
+            // Second stall: B is the last in the deque. B.chunkRootPath + 1 crosses
+            // the rank boundary, so computeNextChunkForPrefetch must return null.
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            assertEquals(
+                    2, chunks.size(), "Second stall must NOT seed chunk C (rank-change boundary blocks pre-fetch)");
+
+            // Verify no duplicate chunkRootPath in the deque
+            final Set<Long> roots = new HashSet<>();
+            for (final var chunk : chunks) {
+                assertTrue(
+                        roots.add(chunk.chunkRootPath),
+                        "Duplicate chunkRootPath " + chunk.chunkRootPath + " found in active chunks");
+            }
+        }
+
+        @Test
+        @DisplayName("Mixed-rank tree with depth=2 completes correctly despite boundary block")
+        void mixedRankTreeCompletesWithPrefetch() {
+            final var order = new TopToBottomTraversalOrder(2);
+            order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+
+            assertEquals(MR_LAST - MR_FIRST + 1, leaves.size(), "All leaves must be sent");
+            assertEquals(MR_FIRST, leaves.get(0));
+            assertEquals(MR_LAST, leaves.get(leaves.size() - 1));
+            for (int i = 1; i < leaves.size(); i++) {
+                assertTrue(leaves.get(i) > leaves.get(i - 1), "Leaves must be strictly ascending");
+            }
+        }
+
+        @Test
+        @DisplayName("Unbounded depth also blocks at rank-change boundary")
+        void unboundedBlocksAtRankChange() throws Exception {
+            final var order = new TopToBottomTraversalOrder(-1);
+            order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
+
+            // Stall repeatedly to try to seed as many chunks as possible
+            triggerStall(order);
+            drainInternals(order);
+            order.getNextLeafPathToSend(); // second stall attempt
+
+            final var chunks = getActiveChunks(order);
+            // Even with unbounded depth, deque must not exceed 2 (A + B)
+            // because the boundary blocks C
+            assertTrue(
+                    chunks.size() <= 2,
+                    "Unbounded depth must still block pre-fetch at rank-change boundary, got " + chunks.size());
+
+            // Verify no duplicate roots
+            final Set<Long> roots = new HashSet<>();
+            for (final var chunk : chunks) {
+                assertTrue(
+                        roots.add(chunk.chunkRootPath),
+                        "Duplicate chunkRootPath " + chunk.chunkRootPath + " found in active chunks");
+            }
+        }
+
+        @Test
+        @DisplayName("Chunk C (post-boundary) is correctly created via promotion, not pre-fetch")
+        void postBoundaryChunkCreatedViaPromotion() {
+            // Drive to completion and verify chunk C's leaves are handled.
+            // Leaves 2047–2200 are in chunk C (post-boundary, root=1, rank=11).
+            // These must be sent despite C never being pre-fetched.
+            final var order = new TopToBottomTraversalOrder(2);
+            order.start(MR_FIRST, MR_LAST, MR_FIRST, MR_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            final Set<Long> leafSet = new HashSet<>(leaves);
+
+            // Verify chunk C's leaves are present
+            for (long p = 2047L; p <= MR_LAST; p++) {
+                assertTrue(leafSet.contains(p), "Post-boundary leaf " + p + " (chunk C) must be sent");
+            }
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Stall flag priority — pre-fetch internals gated by currentChunkStalled
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Stall flag — pre-fetch internals yield to current-chunk leaves")
+    class StallFlagPriorityTests {
+
+        @Test
+        @DisplayName("Pre-fetch internals are returned while current chunk is stalled")
+        void prefetchInternalsAvailableDuringStall() {
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // Drain chunk 1 internals, stall to seed chunk 2
+            drainInternals(order);
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+
+            // currentChunkStalled = true → pre-fetch internals must be available
+            final long prefetchInternal = order.getNextInternalPathToSend();
+            assertNotEquals(
+                    INVALID_PATH,
+                    prefetchInternal,
+                    "Pre-fetch internals must be returned while current chunk is stalled");
+            assertTrue(
+                    prefetchInternal >= CHUNK2_INIT_LO && prefetchInternal <= CHUNK2_INIT_HI,
+                    "Returned internal must be from chunk 2's initial range, got " + prefetchInternal);
+        }
+
+        @Test
+        @DisplayName("Pre-fetch internals blocked after stall resolves, even though queue is non-empty")
+        void prefetchInternalsBlockedAfterStallResolves() {
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // Drain chunk 1 internals, stall to seed chunk 2
+            drainInternals(order);
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+
+            // Take one pre-fetch internal to confirm they're available
+            assertNotEquals(INVALID_PATH, order.getNextInternalPathToSend());
+
+            // Resolve the stall: path 127 (rank 7) → someDirtyPaths, covers leaves 1023–1030
+            order.nodeReceived(127L, false);
+
+            // Get the leaf — this clears currentChunkStalled
+            final long leaf = order.getNextLeafPathToSend();
+            assertEquals(CHUNK_FIRST, leaf, "Leaf 1023 must be sent after stall resolves");
+
+            // Now: chunk 2's queue still has ~15 internals, but flag is false.
+            // getNextInternalPathToSend must return INVALID_PATH (skip pre-fetch).
+            assertEquals(
+                    INVALID_PATH,
+                    order.getNextInternalPathToSend(),
+                    "Pre-fetch internals must be blocked after stall resolves, "
+                            + "even though chunk 2's queue is non-empty");
+        }
+
+        @Test
+        @DisplayName("Pre-fetch internals resume when current chunk stalls again")
+        void prefetchInternalsResumeOnNextStall() {
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // Drain chunk 1 internals, stall to seed chunk 2
+            drainInternals(order);
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+
+            // Resolve stall: dirty path 127 covers leaves 1023–1030
+            order.nodeReceived(127L, false);
+
+            // Send leaves 1023–1030 (all have dirty parent 127)
+            for (long expected = CHUNK_FIRST; expected <= 1030L; expected++) {
+                assertEquals(
+                        expected,
+                        order.getNextLeafPathToSend(),
+                        "Leaf " + expected + " must be sent (dirty parent 127)");
+            }
+
+            // Leaf 1031's parents (515, 257, 128) are NOT in someDirtyPaths → stall again
+            assertEquals(
+                    PATH_NOT_AVAILABLE_YET,
+                    order.getNextLeafPathToSend(),
+                    "Leaf 1031 must stall (no dirty parent known)");
+
+            // Flag is true again → pre-fetch internals must be available
+            final long prefetchInternal = order.getNextInternalPathToSend();
+            assertNotEquals(
+                    INVALID_PATH, prefetchInternal, "Pre-fetch internals must resume after current chunk stalls again");
+        }
+
+        @Test
+        @DisplayName("Current chunk's own drill-down internals returned regardless of stall flag")
+        void currentChunkDrillDownAlwaysReturned() {
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // Drain chunk 1 internals, stall to seed chunk 2
+            drainInternals(order);
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+
+            // Resolve stall so flag = false
+            order.nodeReceived(127L, false);
+            assertEquals(CHUNK_FIRST, order.getNextLeafPathToSend());
+
+            // Now inject a dirty response for a chunk-1 internal that triggers drill-down.
+            // Path 31 (rank 5 < threshold 7) → enqueues rank-8 children 255–262 into chunk 1's queue.
+            order.nodeReceived(31L, false);
+
+            // Even with flag = false, current chunk's own internals must always be returned
+            final long drillDown = order.getNextInternalPathToSend();
+            assertNotEquals(
+                    INVALID_PATH,
+                    drillDown,
+                    "Current chunk's drill-down internals must be returned regardless of stall flag");
+            assertTrue(
+                    drillDown >= 255L && drillDown <= 262L,
+                    "Drill-down internal must be from chunk 1's range (255–262), got " + drillDown);
+        }
+
+        @Test
+        @DisplayName("Flag cleared on chunk promotion — new chunk starts unstalled")
+        void flagClearedOnPromotion() {
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // Drain chunk 1 internals, stall to seed chunk 2
+            drainInternals(order);
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            // flag = true here
+
+            // Complete chunk 1: feed all initial internals as clean → all leaves skipped → promotion
+            for (long p = CHUNK1_INIT_LO; p <= CHUNK1_INIT_HI; p++) {
+                order.nodeReceived(p, true);
+            }
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            // Promotion happened, flag = false
+
+            // Chunk 2 is now current. Its initial internals (from pre-fetch) should be
+            // returned as current-chunk internals (head of deque), not as pre-fetch.
+            // There are no further pre-fetched chunks. Verify internals are available.
+            final long internal = order.getNextInternalPathToSend();
+            assertNotEquals(INVALID_PATH, internal, "After promotion, new current chunk's internals must be available");
         }
     }
 }

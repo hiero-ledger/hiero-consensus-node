@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.virtualmap.internal.Path;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
@@ -222,6 +223,17 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     private volatile long lastPoppedChunkRightmost = -1;
 
+    /**
+     * Set to {@code true} when the current chunk's leaf phase is stalled (parent status
+     * unknown), {@code false} when a leaf is successfully sent or a chunk transition occurs.
+     * Read by {@link #getNextInternalPathToSend()} (outside the view's sync block) to gate
+     * access to pre-fetched chunks' internals: pre-fetch internals are only returned while
+     * the current chunk is stalled, ensuring that current-chunk leaves take priority over
+     * pre-fetch work once the stall resolves. Races are benign — a stale {@code true} sends
+     * one extra pre-fetch internal; a stale {@code false} skips one, caught on the next call.
+     */
+    private volatile boolean currentChunkStalled = false;
+
     // ── Observability (mutated only from the view's synchronized block) ──
 
     /** Total number of chunks fully processed (promoted or finalized) */
@@ -347,8 +359,27 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Proceed to leaves
             return Path.INVALID_PATH;
         }
-        // Poll from the current chunk's internals queue
+        // Current chunk's internals always have highest priority — these are
+        // drill-down children that help resolve the current chunk's leaf stall.
+        final ChunkState current = activeChunks.peekFirst();
+        if (current != null) {
+            final Long internal = current.internals.poll();
+            if (internal != null) {
+                return internal;
+            }
+        }
+        // Pre-fetched chunks' internals: only returned while the current chunk's
+        // leaf phase is stalled. Once the stall resolves (a leaf becomes sendable),
+        // currentChunkStalled is cleared, and pre-fetch internals yield to leaves.
+        if (!currentChunkStalled) {
+            return Path.INVALID_PATH;
+        }
+        boolean first = true;
         for (final ChunkState chunk : activeChunks) {
+            if (first) {
+                first = false;
+                continue; // current chunk already polled above
+            }
             final Long internal = chunk.internals.poll();
             if (internal != null) {
                 return internal;
@@ -389,6 +420,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 return Path.INVALID_PATH;
             }
             // Finalize stall timing and accumulate totals for the completing chunk
+            currentChunkStalled = false;
             endStallIfActive(chunk);
             totalChunks++;
             totalStallNanos += chunk.chunkStallNanos;
@@ -430,6 +462,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         }
         if (!hasDirtyParent) {
             // Neither clean, nor dirty. Parent status unknown — stall.
+            currentChunkStalled = true;
             chunk.leafStallCount++;
             if (chunk.stallStartNanos == 0) {
                 chunk.stallStartNanos = System.nanoTime();
@@ -443,6 +476,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             return PATH_NOT_AVAILABLE_YET;
         }
         // Leaf has a dirty parent — send it. End any active stall.
+        currentChunkStalled = false;
         endStallIfActive(chunk);
         currentLeafPath.set(leafPath + 1);
         return leafPath;
@@ -560,18 +594,38 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      *   <li>The next chunk's leaves are entirely past {@code oldLastLeafPath} — those
      *       leaves are sent immediately as dirty without needing internal queries, so
      *       pre-fetching internals for them would waste bandwidth</li>
+     *   <li>The next chunk crosses the rank-change boundary. At the boundary,
+     *       {@code lastChunk.chunkRootPath + 1} has a higher rank than {@code chunkRootRank},
+     *       so {@link #computeNextChunk} wraps it via {@code getParentPath()} back to a root
+     *       path that was already used by a pre-boundary chunk. For example, with
+     *       {@code chunkRootRank=1}, pre-boundary chunks use roots 1 and 2, and the first
+     *       post-boundary chunk wraps back to root 1. If both are in the deque simultaneously,
+     *       {@link #findOwningChunk} — which routes by {@code chunkRootPath} — would match
+     *       the earlier chunk first, misrouting the post-boundary chunk's responses into the
+     *       pre-boundary chunk's state. This causes the post-boundary chunk to never see its
+     *       parent statuses, leading to indefinite stalls. The rank change occurs exactly once
+     *       per traversal, so blocking pre-fetch at this single transition has negligible
+     *       performance impact.</li>
      * </ul>
      *
      * <p>Note: these termination conditions apply to pre-fetch only. Promotion uses
      * {@link #computeNextChunk} directly, because chunks past the old range still need
-     * to be created for the immediate-send leaf path to work correctly.
+     * to be created for the immediate-send leaf path to work correctly, and the rank-change
+     * boundary is safe during promotion (the old chunk with the conflicting root has already
+     * been popped from the deque).
      */
+    @Nullable
     private ChunkState computeNextChunkForPrefetch(final ChunkState lastChunk) {
         final long nextFirstLeaf = lastChunk.chunkLastLeafPath + 1;
         if (nextFirstLeaf > lastLeafPath) {
             return null;
         }
         if (nextFirstLeaf > oldLastLeafPath) {
+            return null;
+        }
+        // Don't pre-fetch across the rank-change boundary — see javadoc above.
+        final long nextChunkRootPath = lastChunk.chunkRootPath + 1;
+        if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
             return null;
         }
         return computeNextChunk(lastChunk);
