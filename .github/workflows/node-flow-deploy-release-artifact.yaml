@@ -297,7 +297,7 @@ jobs:
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
-          setup-gomplate: 'true'
+          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         continue-on-error: true
