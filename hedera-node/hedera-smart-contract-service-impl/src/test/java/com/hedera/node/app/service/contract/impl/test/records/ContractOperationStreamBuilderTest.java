@@ -21,6 +21,7 @@ import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
@@ -122,7 +123,8 @@ class ContractOperationStreamBuilderTest {
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(context.configuration()).willReturn(blocksOnlyConfig);
 
         subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
