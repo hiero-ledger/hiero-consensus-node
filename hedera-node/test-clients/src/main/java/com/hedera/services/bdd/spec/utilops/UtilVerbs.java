@@ -174,6 +174,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStre
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamModeAwareAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
@@ -1660,7 +1661,33 @@ public class UtilVerbs {
                 }));
     }
 
-    /* Stream validation. */
+    /* Stream-mode-aware validation — routes to record or block stream based on active streamMode. */
+    public static StreamModeAwareAssertion streamMustIncludeNoFailuresFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+        return StreamModeAwareAssertion.streamMustIncludeNoFailures(assertion, true);
+    }
+
+    public static StreamModeAwareAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+        return StreamModeAwareAssertion.streamMustIncludeNoFailures(assertion, false);
+    }
+
+    public static StreamModeAwareAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+        return StreamModeAwareAssertion.streamMustIncludePass(assertion, null, true);
+    }
+
+    public static StreamModeAwareAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return StreamModeAwareAssertion.streamMustIncludePass(assertion, timeout, true);
+    }
+
+    public static StreamModeAwareAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return StreamModeAwareAssertion.streamMustIncludePass(assertion, timeout, false);
+    }
+
+    /* Record stream validation. */
     public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
