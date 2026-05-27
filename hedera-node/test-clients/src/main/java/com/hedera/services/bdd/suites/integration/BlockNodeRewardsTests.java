@@ -17,9 +17,9 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
@@ -51,7 +51,7 @@ import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hedera.services.stream.proto.RecordStreamItem;
@@ -470,8 +470,8 @@ public final class BlockNodeRewardsTests {
     }
 
     /** Configures a record stream listener to capture and validate reward transfers. */
-    private static EventualRecordStreamAssertion setupRecordStreamListener(@NonNull final TestContext ctx) {
-        return recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+    private static AbstractEventualStreamAssertion setupRecordStreamListener(@NonNull final TestContext ctx) {
+        return streamMustIncludePassWithoutBackgroundTrafficFrom(
                 selectedItems(nodeRewardValidator(ctx), 1, filterRewardDebitTransaction(ctx)), Duration.ofSeconds(1));
     }
 
