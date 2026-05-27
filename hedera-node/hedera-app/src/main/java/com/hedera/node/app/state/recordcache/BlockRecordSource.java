@@ -57,6 +57,13 @@ public class BlockRecordSource implements RecordSource {
     }
 
     /**
+     * Returns the underlying outputs for direct access to block items and translation contexts.
+     */
+    public @NonNull List<BlockStreamBuilder.Output> outputs() {
+        return outputs;
+    }
+
+    /**
      * For each {@link BlockItem} in the source, apply the given action.
      *
      * @param action the action to apply

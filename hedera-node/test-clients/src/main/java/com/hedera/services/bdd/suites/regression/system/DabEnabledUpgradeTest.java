@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActiva
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.matchStateChange;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -173,7 +172,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 // This test verifies staking rewards aren't paid for deleted nodes; so ensure staking is active
                 ensureStakingActivated(),
@@ -213,7 +212,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("1"),
                 prepareFakeUpgrade(),
@@ -240,7 +239,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("3"),
                 prepareFakeUpgrade(),
@@ -257,7 +256,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
@@ -327,7 +326,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final Stream<DynamicTest> exportedAddressBookReflectsOnlyEditsBeforePrepareUpgrade() {
             return hapiTest(
                     overriding("blockStream.streamMode", "BOTH"),
-                    recordStreamMustIncludePassFrom(selectedItems(
+                    streamMustIncludePassFrom(selectedItems(
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                     prepareFakeUpgrade(),
                     // Now make some changes that should not be incorporated in this upgrade
