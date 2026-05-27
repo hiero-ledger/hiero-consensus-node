@@ -46,9 +46,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
@@ -217,8 +217,7 @@ class AtomicContractCallSuite {
         final var firstCreation = "firstCreation";
         final var secondCreation = "secondCreation";
         return hapiTest(
-                streamMustIncludeNoFailuresFrom(
-                        sidecarIdValidator(createContract, firstCreation, secondCreation)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, firstCreation, secondCreation)),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
