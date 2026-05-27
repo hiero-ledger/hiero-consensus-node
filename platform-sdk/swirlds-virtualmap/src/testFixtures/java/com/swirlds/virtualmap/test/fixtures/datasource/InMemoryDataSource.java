@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.test.fixtures;
+package com.swirlds.virtualmap.test.fixtures.datasource;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -36,10 +36,6 @@ public class InMemoryDataSource implements VirtualDataSource {
     private volatile long lastLeafPath = -1;
 
     private volatile boolean closed = false;
-
-    private boolean failureOnHashChunkLookup = false;
-    private boolean failureOnSave = false;
-    private boolean failureOnLeafRecordLookup = false;
 
     /**
      * Create a new InMemoryDataSource
@@ -86,10 +82,6 @@ public class InMemoryDataSource implements VirtualDataSource {
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
             throws IOException {
-        if (failureOnSave) {
-            throw new IOException("Preconfigured failure on save");
-        }
-
         if (closed) {
             throw new IOException("Data Source is closed");
         }
@@ -139,17 +131,11 @@ public class InMemoryDataSource implements VirtualDataSource {
      * @param path
      * 		the path for a leaf
      * @return the leaf's record if one was stored for the given path or null if not stored
-     * @throws IOException
-     * 		If there was a problem reading the leaf record
      */
     @Override
-    public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
+    public VirtualLeafBytes loadLeafRecord(final long path) {
         if (path < 0) {
             throw new IllegalArgumentException(NEGATIVE_PATH_MESSAGE);
-        }
-
-        if (failureOnLeafRecordLookup) {
-            throw new IOException("Preconfigured failure on leaf record lookup");
         }
 
         if (path < firstLeafPath) {
@@ -172,11 +158,9 @@ public class InMemoryDataSource implements VirtualDataSource {
      * Find the path of the given key
      * @param key the key for a path
      * @return the path or INVALID_PATH if not stored
-     * @throws IOException
-     * 		If there was a problem locating the key
      */
     @Override
-    public long findKey(final Bytes key) throws IOException {
+    public long findKey(final Bytes key) {
         final Long path = keyToPathMap.get(key);
         return (path == null) ? INVALID_PATH : path;
     }
@@ -185,11 +169,7 @@ public class InMemoryDataSource implements VirtualDataSource {
      * {@inheritDoc}
      */
     @Override
-    public VirtualHashChunk loadHashChunk(long chunkId) throws IOException {
-        if (failureOnHashChunkLookup) {
-            throw new IOException("Preconfigured failure on hash lookup");
-        }
-
+    public VirtualHashChunk loadHashChunk(long chunkId) {
         if (chunkId < 0) {
             throw new IllegalArgumentException(NEGATIVE_CHUNKID_MESSAGE);
         }
@@ -301,18 +281,6 @@ public class InMemoryDataSource implements VirtualDataSource {
     @Override
     public int getHashChunkHeight() {
         return DEFAULT_HASH_CHUNK_HEIGHT;
-    }
-
-    public void setFailureOnHashChunkLookup(boolean failureOnHashChunkLookup) {
-        this.failureOnHashChunkLookup = failureOnHashChunkLookup;
-    }
-
-    public void setFailureOnSave(boolean failureOnSave) {
-        this.failureOnSave = failureOnSave;
-    }
-
-    public void setFailureOnLeafRecordLookup(boolean failureOnLeafRecordLookup) {
-        this.failureOnLeafRecordLookup = failureOnLeafRecordLookup;
     }
 
     @Override

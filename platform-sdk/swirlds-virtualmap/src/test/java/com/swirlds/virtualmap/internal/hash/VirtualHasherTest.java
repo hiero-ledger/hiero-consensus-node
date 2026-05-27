@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -18,7 +19,6 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -81,7 +81,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Test
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Empty stream results in a null hash")
-    @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection", "RedundantOperationOnEmptyContainer"})
+    @SuppressWarnings({"RedundantOperationOnEmptyContainer"})
     void emptyStreamProducesNull() {
         final TestDataSource ds = new TestDataSource(1, 2, CHUNK_HEIGHT);
         final List<VirtualLeafBytes> leaves = new ArrayList<>();

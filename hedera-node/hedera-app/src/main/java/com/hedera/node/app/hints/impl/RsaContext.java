@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongUnaryOperator;
@@ -175,6 +176,7 @@ public class RsaContext {
         private final ConcurrentMap<Long, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
+        private final ScheduledFuture<?> timeoutFuture;
 
         public Signing(
                 @NonNull final Bytes blockHash,
@@ -187,7 +189,7 @@ public class RsaContext {
             this.thresholdWeight = thresholdWeight;
             this.nodeWeights = requireNonNull(nodeWeights);
             requireNonNull(onCompletion);
-            executor.schedule(
+            timeoutFuture = executor.schedule(
                     () -> {
                         if (!future.isDone()) {
                             log.warn(
@@ -211,6 +213,17 @@ public class RsaContext {
          */
         public CompletableFuture<Bytes> future() {
             return future;
+        }
+
+        /**
+         * Cancels this RSA signing process.
+         */
+        @Override
+        public void cancel() {
+            timeoutFuture.cancel(false);
+            if (completed.compareAndSet(false, true)) {
+                future.cancel(false);
+            }
         }
 
         /**

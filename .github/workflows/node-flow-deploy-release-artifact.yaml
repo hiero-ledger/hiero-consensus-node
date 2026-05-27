@@ -28,6 +28,14 @@ permissions:
   actions: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
@@ -71,6 +79,7 @@ jobs:
     name: Release [Tag]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
     needs:
+      - extract-jdk-version
       - prepare-tag-release
     with:
       version-policy: specified
@@ -79,6 +88,8 @@ jobs:
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
       ref: ${{ github.ref }}
       ref-name: ${{ github.ref_name }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -157,6 +168,8 @@ jobs:
   release-branch:
     name: Release [Branch]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
+    needs:
+      - extract-jdk-version
     if: ${{ github.event_name == 'workflow_dispatch' }}
     with:
       version-policy: branch-commit
@@ -165,6 +178,8 @@ jobs:
       ref: ${{ inputs.ref }}
       ref-name: ${{ inputs.ref-name }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}

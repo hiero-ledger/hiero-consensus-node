@@ -6,6 +6,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -328,7 +329,7 @@ class AsyncInputStreamTest {
             // Drain the queue
             in.readAnticipatedMessage();
 
-            assertTrue(!in.isAlive(), "Stream should not be alive after termination marker is received");
+            assertFalse(in.isAlive(), "Stream should not be alive after termination marker is received");
         }
     }
 
