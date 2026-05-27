@@ -156,7 +156,7 @@ Backpressure feeds queue-health detection. `WiringModel.getHealthMonitorWire()` 
 
 A few specifics worth pinning down. The default `unhandledTaskCapacity` on the framework builder is `1` (`swirlds-component-framework :: AbstractTaskSchedulerBuilder`); consensus-layer schedulers always override this via `TaskSchedulerConfiguration`, so the default is effectively never used in production. The capacity is per-scheduler: every input wire on the same scheduler shares a single on-ramp counter, so the cap applies to total backlog across all inputs, not independently per wire.
 
-`withExternalBackPressure(true)` declares that a producer feeding this scheduler blocks through some mechanism outside the wire. It is not used anywhere in the consensus layer today. It cannot be set through `TaskSchedulerConfiguration`, so no `ComponentWiring`-built scheduler can enable it.
+`withExternalBackPressure(true)` tells the wiring model that insertion into this scheduler can block even though its capacity is unlimited, so that graph validation still treats it as a backpressure point. It is used only in `WiringBenchmark` and is not relevant for production: it cannot be set through `TaskSchedulerConfiguration`, so no `ComponentWiring`-built scheduler can enable it.
 
 ## Cross-references
 
