@@ -116,8 +116,10 @@ jobs:
           kubectl --context kind-solo-migration logs -n solo -l "app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1" \
             --all-containers --since=24h --timestamps --prefix --tail=-1 > mirror-importer.log || true
 
-          # All consensus node + Solo logs.
-          solo deployment diagnostics all -d solo-migration --dev -q || true
+          # All consensus node + Solo logs. Unset KUBERNETES_SERVICE_HOST so
+          # solo's k8s client doesn't auto-use the ARC pod's SA token (which kind
+          # rejects with 403); forces it to read ~/.kube/config like kubectl does.
+          env -u KUBERNETES_SERVICE_HOST solo deployment diagnostics all -d solo-migration --dev -q || true
           LOG_FOLDER="${HOME}/.solo/logs/solo"
           echo "CN_LOG_FOLDER=${LOG_FOLDER}" >> "${GITHUB_ENV}"
           ls -lR "${LOG_FOLDER}" || true
