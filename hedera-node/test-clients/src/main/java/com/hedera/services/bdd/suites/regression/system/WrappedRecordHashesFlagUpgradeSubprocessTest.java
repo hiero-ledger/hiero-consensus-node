@@ -70,7 +70,6 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
         final var enableAtRestart = Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true");
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),

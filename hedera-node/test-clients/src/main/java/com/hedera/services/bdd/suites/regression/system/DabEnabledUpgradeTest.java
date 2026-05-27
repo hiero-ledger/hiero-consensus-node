@@ -32,8 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.matchStateChange;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -140,7 +139,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var file101 = "101";
         final var file102 = "102";
 
-        return hapiTest(overriding("blockStream.streamMode", "BOTH"), withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, opLog) -> {
             var getFile101 = QueryVerbs.getFileContents(file101).consumedBy(bytes -> {
                 AddressBookPojo addressBook;
                 try {
@@ -172,8 +171,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var newNode0CertHash = Bytes.fromHex("ab".repeat(48));
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 // This test verifies staking rewards aren't paid for deleted nodes; so ensure staking is active
                 ensureStakingActivated(),
@@ -212,8 +210,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(2)
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("1"),
                 prepareFakeUpgrade(),
@@ -230,7 +227,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     final Stream<DynamicTest> nodeId3CanStillReconnectAfterRemovingNodeId1() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
                 sourcing(() -> reconnectNode(byNodeId(3), configVersionOf(startVersion.get()))));
     }
@@ -239,8 +235,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(4)
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("3"),
                 prepareFakeUpgrade(),
@@ -256,8 +251,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
@@ -326,8 +320,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         @DisplayName("exported address book reflects only edits before prepare upgrade")
         final Stream<DynamicTest> exportedAddressBookReflectsOnlyEditsBeforePrepareUpgrade() {
             return hapiTest(
-                    overriding("blockStream.streamMode", "BOTH"),
-                    recordStreamMustIncludePassFrom(selectedItems(
+                    streamMustIncludePassFrom(selectedItems(
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                     prepareFakeUpgrade(),
                     // Now make some changes that should not be incorporated in this upgrade
@@ -372,7 +365,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             final AtomicReference<SemanticVersion> currentVersion = new AtomicReference<>();
 
             return hapiTest(
-                    overriding("blockStream.streamMode", "BOTH"),
                     cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
                     cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
                     // create node txn
@@ -421,7 +413,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             final String nodeToUpdate = "2";
 
             return hapiTest(
-                    overriding("blockStream.streamMode", "BOTH"),
                     cryptoCreate("account").exposingCreatedIdTo(accountId::set),
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
 

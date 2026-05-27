@@ -46,7 +46,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -217,7 +217,7 @@ class AtomicContractCallSuite {
         final var firstCreation = "firstCreation";
         final var secondCreation = "secondCreation";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                streamMustIncludeNoFailuresFrom(
                         sidecarIdValidator(createContract, firstCreation, secondCreation)),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
@@ -253,7 +253,7 @@ class AtomicContractCallSuite {
         final var altbn128Call = "altbn128Call";
         final var htsCall = "htsCall";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 tokenCreate("someToken").exposingAddressTo(someTokenAddress::set),
@@ -285,7 +285,7 @@ class AtomicContractCallSuite {
         final var createContract = "createContract";
         final var callTransaction = "callTransaction";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 atomicBatch(contractCall(contract, "testCallFoo", randomHeadlongAddress(), BigInteger.valueOf(500_000L))
@@ -1749,7 +1749,7 @@ class AtomicContractCallSuite {
         final var ACC = "acc";
         final var RECEIVER_KEY = "receiverKey";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
                 newKeyNamed(RECEIVER_KEY),
                 cryptoCreate(ACC)
                         .balance(5 * ONE_HUNDRED_HBARS)
@@ -2332,7 +2332,7 @@ class AtomicContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 atomicBatch(contractCall(
@@ -2353,7 +2353,7 @@ class AtomicContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).gas(400_000L).via(createContract),
                 atomicBatch(contractCall(
