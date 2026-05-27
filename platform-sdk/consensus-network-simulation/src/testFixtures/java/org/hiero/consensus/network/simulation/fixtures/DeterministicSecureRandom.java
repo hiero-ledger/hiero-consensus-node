@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.network.simulation.fixtures;
 
+import java.security.MessageDigest;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.SecureRandomSpi;
 import java.security.Security;
-import java.security.MessageDigest;
 
 /**
  * An implementation of SecureRandom that produces deterministic output based on a provided seed. This is useful for
@@ -27,8 +28,7 @@ public class DeterministicSecureRandom extends SecureRandom {
     // Public constructor taking a byte[] seed
     public static SecureRandom getInstance(final byte[] seed) {
         try {
-            final SecureRandom r =
-                    SecureRandom.getInstance(ALGORITHM, PROVIDER);
+            final SecureRandom r = SecureRandom.getInstance(ALGORITHM, PROVIDER);
             // Pass seed via setSeed — the SPI will use it to initialize state
             r.setSeed(seed);
             return r;
