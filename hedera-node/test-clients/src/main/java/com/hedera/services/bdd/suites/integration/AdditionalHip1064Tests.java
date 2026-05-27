@@ -446,7 +446,6 @@ public class AdditionalHip1064Tests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),

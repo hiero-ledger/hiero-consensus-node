@@ -75,7 +75,7 @@ class ParentTxnTest {
     private static final Key AN_ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101"))
             .build();
-    private static final Configuration CONFIG = HederaTestConfigBuilder.create()
+    private static final Configuration BOTH_CONFIG = HederaTestConfigBuilder.create()
             .withValue("blockStream.streamMode", "BOTH")
             .getOrCreateConfig();
     private static final Configuration BLOCKS_CONFIG = HederaTestConfigBuilder.create()
@@ -154,9 +154,9 @@ class ParentTxnTest {
     }
 
     @Test
-    void usesPairedStreamBuilderWithDefaultConfig() {
+    void usesPairedStreamBuilder() {
         givenExistingCreator();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(CONFIG, 1));
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BOTH_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
         final var subject =
