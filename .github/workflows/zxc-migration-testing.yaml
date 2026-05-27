@@ -92,14 +92,14 @@ jobs:
       #   4a) Mirror importer log scan for ERROR-level entries
       - name: Run migration test
         env:
-          KEEP_NETWORK: "false" # tear down the kind cluster on exit (CI hygiene)
+          KEEP_NETWORK: "true" # keep kind alive so post-run log collection can reach it
         run: ./hedera-node/test-clients/scripts/solo/migration-testing/solo-migration-test.sh
 
       - name: Collect CN + Mirror Node Logs
         if: always()
         run: |
           # Mirror Node importer log (full, since this is what step 4a checks).
-          kubectl logs -n solo -l "app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1" \
+          kubectl --context kind-solo-migration logs -n solo -l "app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1" \
             --all-containers --since=24h --timestamps --prefix --tail=-1 > mirror-importer.log || true
 
           # All consensus node + Solo logs.
