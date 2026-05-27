@@ -261,9 +261,9 @@ downstream view of pre-consensus output stays complete.
 > ancient-ness, and the current code uses `birthRound` instead. The
 > implementation also carries a few quantities that do not appear in
 > the paper — `NGen` (a locally-computed, non-deterministic generation
-> used only for picking a topological order and for "higher in the
-> hashgraph" comparisons; see `NonDeterministicGeneration`) and the
-> `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> used only for picking a topological order and for
+> "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
+> and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
 > background lives in
 > [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
 > and [`../concepts/birth-round.md`](../concepts/birth-round.md).
