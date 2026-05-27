@@ -2,6 +2,9 @@
 package com.hedera.services.bdd.spec.verification.traceability;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.triggerAndCloseAtLeastOneFileIfNotInterrupted;
@@ -91,6 +94,21 @@ public class SidecarWatcher {
     private boolean hasSeenFirstExpectedSidecar = false;
 
     private record ConstructionDetails(String creatingThread, String stackTrace) {}
+
+    /**
+     * Creates a {@link SidecarWatcher} appropriate for the active stream mode.
+     * In BLOCKS mode, sidecars are synthesised from block items; otherwise, V6 sidecar files are used.
+     */
+    public static SidecarWatcher forSpec(@NonNull final HapiSpec spec) {
+        final var streamsLoc = spec.recordStreamsLoc(byNodeId(0));
+        final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+        if (streamMode == BLOCKS) {
+            final var network = spec.targetNetworkOrThrow();
+            final var blockStreamLoc = network.getRequiredNode(byNodeId(0)).getExternalPath(BLOCK_STREAMS_DIR);
+            return new SidecarWatcher(streamsLoc, blockStreamLoc, network.shard(), network.realm());
+        }
+        return new SidecarWatcher(streamsLoc);
+    }
 
     public SidecarWatcher(@NonNull final Path path) {
         // shard/realm are unused on this overload — only consulted when blockStreamPath != null.

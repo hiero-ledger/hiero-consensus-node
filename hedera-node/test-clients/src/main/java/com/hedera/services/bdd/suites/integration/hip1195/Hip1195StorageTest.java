@@ -2,11 +2,8 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
-import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -93,17 +90,7 @@ public class Hip1195StorageTest {
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_MODIFICATIONS_HOOK.getInfo());
-        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> {
-            final var streamsLoc = spec.recordStreamsLoc(byNodeId(0));
-            final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
-            if (streamMode == BLOCKS) {
-                final var network = spec.targetNetworkOrThrow();
-                final var blockStreamLoc = network.getRequiredNode(byNodeId(0)).getExternalPath(BLOCK_STREAMS_DIR);
-                GLOBAL_WATCHER.set(new SidecarWatcher(streamsLoc, blockStreamLoc, network.shard(), network.realm()));
-            } else {
-                GLOBAL_WATCHER.set(new SidecarWatcher(streamsLoc));
-            }
-        }));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
     }
 
     @HapiTest
