@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -329,7 +328,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     // Validate removal of the nodes from the state after the upgrade
-                    blockStreamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
+                    streamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
                             .stateId(NODES_STATE_ID)
                             .mapDelete(MapDeleteChange.newBuilder()
                                     .key(MapChangeKey.newBuilder()
