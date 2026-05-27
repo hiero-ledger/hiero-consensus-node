@@ -561,6 +561,7 @@ class AtomicContractCreateSuite {
         final var timeLoggingTxn = "timeLoggingTxn";
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 uploadInitCode(contract),
                 atomicBatch(contractCreate(contract).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
                 contractCall(contract, "logNow").via(firstBlock),

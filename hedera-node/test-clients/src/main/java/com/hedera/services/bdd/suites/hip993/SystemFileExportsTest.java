@@ -126,6 +126,7 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         nodeDetailsExportValidator(grpcCertHashes, gossipCertificates),
                         1,
@@ -155,6 +156,7 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         addressBookExportValidator("files.addressBook", grpcCertHashes), 2, TxnUtils::isSysFileUpdate)),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
@@ -181,6 +183,7 @@ public class SystemFileExportsTest {
         final var upgradeFeeSchedules =
                 CurrentAndNextFeeSchedule.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.feeSchedules", upgradeFeeSchedules, SystemFileExportsTest::parseFeeSchedule),
@@ -220,6 +223,7 @@ public class SystemFileExportsTest {
         final var upgradeThrottleDefs =
                 ThrottleDefinitions.parseFrom(SYS_FILE_SERDES.get(123L).toRawFile(throttlesJson, null));
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.throttleDefinitions",
@@ -256,6 +260,7 @@ public class SystemFileExportsTest {
         final var upgradePropOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(121L).toRawFile(overrideProperties, null));
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
@@ -289,6 +294,7 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateCanBeEmptyFile() {
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
@@ -325,6 +331,7 @@ public class SystemFileExportsTest {
         final var upgradePermissionOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(122L).toRawFile(overridePermissions, null));
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.hapiPermissions",
@@ -360,6 +367,7 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 recordStreamMustIncludePassFrom(selectedItems(
                         nodeUpdatesValidator(),
                         // Our node admin key file will contain two override keys
@@ -411,6 +419,7 @@ public class SystemFileExportsTest {
     final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 getSystemFiles(preGenesisContents::set),
                 eventuallyAssertingExplicitPassWithReplay(
                         selectedItems(

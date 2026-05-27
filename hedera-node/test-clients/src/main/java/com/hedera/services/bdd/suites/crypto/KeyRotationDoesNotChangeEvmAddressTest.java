@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
@@ -68,6 +69,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
@@ -99,6 +101,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
@@ -148,6 +151,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
