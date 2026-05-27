@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -272,6 +273,7 @@ public class Hip1195StorageTest {
         final var wrongPassword = ByteString.copyFrom(tupleType.encode(Single.of("open-sunflower")));
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(124L, a.firstHookId());

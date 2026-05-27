@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,6 +75,9 @@ class ParentTxnTest {
     private static final Key AN_ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101"))
             .build();
+    private static final Configuration CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
     private static final Configuration BLOCKS_CONFIG = HederaTestConfigBuilder.create()
             .withValue("blockStream.streamMode", "BLOCKS")
             .getOrCreateConfig();
@@ -154,7 +156,7 @@ class ParentTxnTest {
     @Test
     void usesPairedStreamBuilderWithDefaultConfig() {
         givenExistingCreator();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(CONFIG, 1));
 
         final var factory = createUserTxnFactory();
         final var subject =

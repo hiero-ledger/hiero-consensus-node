@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
@@ -169,6 +170,7 @@ public class Hip1259EnabledTests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(nodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -238,6 +240,7 @@ public class Hip1259EnabledTests {
         final AtomicLong initialNodeAccountBalance = new AtomicLong(0);
         final AtomicLong nodeAccountBalanceAfterDistribution = new AtomicLong(0);
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -427,6 +430,7 @@ public class Hip1259EnabledTests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -472,6 +476,7 @@ public class Hip1259EnabledTests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -644,6 +649,7 @@ public class Hip1259EnabledTests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 // Validate that exactly ONE fee distribution happens after the multi-day outage
