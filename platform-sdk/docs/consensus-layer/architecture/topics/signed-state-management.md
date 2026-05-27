@@ -17,12 +17,16 @@ once no live caller holds a reservation.
 
 In scope:
 
-- Producing a `SignedState` after each consensus round.
+- Producing a `SignedState` at every block boundary and at the freeze round.
+- Loading the starting `SignedState` from disk at startup.
 - Collecting state signatures from other nodes.
 - Deciding when a round's state is persisted.
 - Writing and reading the on-disk snapshot.
+- Exposing the latest immutable state and the latest complete signed state
+  to consumers outside the module.
 - Reservation / reference-counting for in-memory access.
 - Asynchronous deletion of unreserved states.
+- Detecting ISS — Inconsistent State Signatures — across peer signatures.
 
 Out of scope (covered by sibling topics):
 
@@ -68,73 +72,194 @@ minimum 1). The wiring graph carries this record from the
 `TransactionHandler` through `SavedStateController` to `StateHasher`,
 where the complexity figure feeds the scheduler's health monitor.
 
+## Lifecycle
+
+A signed state passes through six phases.
+
+1. **Create.** Only consensus rounds that close a block, plus the
+   freeze round, produce a `SignedState`.
+   `DefaultTransactionHandler#handleConsensusRound`
+   ([`DefaultTransactionHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java))
+   applies each round's transactions to the mutable state and then
+   calls `ConsensusStateEventHandler#onSealConsensusRound`, which
+   returns whether the round aligns with the end of a block. If it
+   does — or if this is the freeze round — the handler takes an
+   immutable copy of the state and constructs a fresh `SignedState`.
+   Other rounds yield no `SignedState`; their transaction count is
+   accumulated into the next boundary round's hash-complexity estimate.
+   Restricting state creation to block boundaries ensures that every
+   persisted snapshot is a point Execution can cleanly restart from
+   and that the hashes published into the block stream cover whole
+   blocks. The first `SignedState` a network ever produces — the
+   genesis state — follows this same lifecycle but is marked with
+   `FIRST_ROUND_AFTER_GENESIS` so that it is always written to disk.
+2. **Hash and locally sign.** `DefaultStateHasher#hashState`
+   ([`DefaultStateHasher.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/hasher/DefaultStateHasher.java))
+   forces computation of the merkle root, and
+   `DefaultStateSigner#signState`
+   ([`DefaultStateSigner.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signer/DefaultStateSigner.java))
+   produces a `StateSignatureTransaction` containing this node's
+   signature over the hash. The transaction is submitted to Execution
+   for inclusion in the gossiped event stream. (PCES-replay rounds are
+   not signed.)
+3. **Collect peer signatures.**
+   `DefaultStateSignatureCollector#addSignature`
+   ([`DefaultStateSignatureCollector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java))
+   accumulates signatures from `StateSignatureTransaction` payloads sent
+   by peers, adding them to the state's `SigSet` until the
+   signing-weight threshold is reached. Collection is best-effort, not
+   guaranteed: states that have not yet collected a threshold of
+   signatures are parked in the collector's `incompleteStates` map
+   and purged once they fall behind
+   `lastStateRound - stateConfig.roundsToKeepForSigning + 1` (default
+   26 rounds). A purged state still flows downstream — if it was
+   marked for saving (step 4) it is written to disk with an incomplete
+   `SigSet`, and `DefaultStateSnapshotManager` logs the shortfall via
+   `InsufficientSignaturesPayload` and increments
+   `totalUnsignedDiskStates`. Freeze states bypass the parking step:
+   they are expected to lack quorum and are emitted immediately on
+   arrival at the collector.
+4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
+   ([`DefaultSavedStateController.java:111`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java))
+   marks freeze states for saving unconditionally; for non-freeze rounds
+   it tests whether the round's consensus timestamp crosses a
+   `stateConfig.saveStatePeriod` boundary (read at line 116; the period
+   crossing is computed at lines 133-134). When saving is selected, the
+   controller calls `signedState.markAsStateToSave(reason)` (line 92).
+   The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
+   or `PERIODIC_SNAPSHOT`
+   ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
+   on reconnect, `SavedStateController#reconnectStateReceived` applies
+   `RECONNECT` to the incoming state instead. (The enum contains
+   additional values — `ISS`, `FATAL_ERROR`, `PCES_RECOVERY_COMPLETE`
+   — that have no current production caller.)
+5. **Write.** `SignedStateFileWriter#writeSignedStateToDisk` writes inside
+   `executeAndRename`. After the state files are written, it copies PCES
+   files into the round directory by calling
+   `pcesModule.copyPcesFilesRetryOnFailure`
+   ([`SignedStateFileWriter.java:303`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)).
+6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
+   ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
+   destroys states whose reservation count has reached zero, off the hot
+   path.
+
+The freeze-state branch of step 4 is part of the freeze procedure
+described in [freeze-and-upgrade.md](freeze-and-upgrade.md). The
+`RECONNECT` reason set in `reconnectStateReceived` connects to the flow
+described in [reconnect.md](reconnect.md). Those flows are not
+reproduced here.
+
+## On-disk layout
+
+`SignedStateFileWriter.writeSignedStateToDisk`
+([`SignedStateFileWriter.java:362`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java))
+is the entry point used whenever a signed state is persisted — periodic
+snapshot, freeze state, or state dump. The writer computes the round
+directory via
+[`SignedStateFilePath`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFilePath.java):
+
+```
+<savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/<round>/
+```
+
+The whole round directory is built under a temporary path and moved into
+place via `executeAndRename`
+([`SignedStateFileWriter.java:386`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)),
+so readers never observe a half-built directory; on a mid-write crash the
+temporary tree is orphaned without affecting the live `saved/…/<round>/`
+hierarchy.
+
+A complete round directory contains:
+
+- `stateMetadata.txt` — human-readable key/value file written by
+  [`SavedStateMetadata`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SavedStateMetadata.java).
+- `hashInfo.txt` — mnemonic of the state hash, diagnostic only.
+- `currentRoster.json` — the active `Roster` as PBJ JSON.
+- `consensusSnapshot.json` — the round's `ConsensusSnapshot` as PBJ JSON.
+- `signatureSet.pbj` — the `SigSet` as PBJ binary.
+- `settingsUsed.txt` — effective configuration dump.
+- `data/` — the state snapshot files.
+- A PCES sub-tree of event files needed to replay state from this round.
+
+Files inside `data/` and the PCES sub-tree are **hard-linked** from the
+live working directory rather than byte-copied, keeping snapshots cheap and
+preserving the immutable view even if compaction later removes the
+originating files.
+
+For the full schema, file-by-file format, and field-by-field detail, see
+[signed-state-snapshot-spec.md](../../../core/signed-state-snapshot-spec.md).
+
+### Reading
+
+[`SignedStateFileReader.readState`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileReader.java)
+is the canonical reader for the on-disk format. In production it is
+reached through
+[`StartupStateUtils.loadStateFile`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/StartupStateUtils.java),
+which enumerates the round directories under
+`<savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/` via
+`SignedStateFilePath.getSavedStateFiles()` and walks them newest-first,
+returning the first state that deserializes successfully. If no on-disk
+state is found, a null-reservation is returned and the node starts from
+genesis. When `stateConfig.deleteInvalidStateFiles` is set, an unparseable
+round directory is moved into the recycle bin and the loader continues to
+the next-newest candidate; otherwise the node fails to start.
+
+## Latest-state exposure
+
+Two `SignedStateNexus`-derived holders sit on the boundary of this module
+and expose an in-memory `SignedState` to consumers outside it. Each holds
+the most recent state matching a different criterion:
+
+- **`LatestImmutableStateNexus`**
+  ([interface](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/SignedStateNexus.java),
+  implemented by
+  [`LockFreeStateNexus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/LockFreeStateNexus.java))
+  holds the latest immutable state produced by the transaction handler.
+  Execution reads from it to prehandle incoming transactions against an
+  up-to-date state without blocking the handle thread.
+- **`LatestCompleteStateNexus`**
+  ([interface](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/LatestCompleteStateNexus.java),
+  implemented by
+  [`DefaultLatestCompleteStateNexus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/DefaultLatestCompleteStateNexus.java))
+  holds the latest signed state that has collected at least the
+  signing-weight threshold of signatures. Reconnect teachers serve this
+  state to learners; if the network has fallen far enough behind that no
+  fresh complete state exists, `updateEventWindow` clears the holder.
+
+Both follow the Holder pattern from [Reservation in the wiring
+graph](#reservation-in-the-wiring-graph): each setter releases the
+previous reservation and takes a new one, and `getState(reason)` returns a
+fresh reservation that the caller must close.
+
 ## Reservation discipline
 
-When working with a `SignedState`, thread safety and proper reference-count
-handling are non-negotiable.
+The lifetime of every in-memory `SignedState` is governed by reference
+counting and asynchronous garbage collection. The property — *a state
+must remain reserved as long as any consumer can still access it* — its
+application across direct calls, wiring fan-out, holders, and concurrent
+reads, and the use-after-free failure mode it guards against are
+captured in [RUL-001](../../rules/RUL-001-signed-state-reservations.md).
 
-**FAILURE TO USE STATE RESERVATIONS CORRECTLY IS ALMOST ALWAYS FATAL TO A NODE!**
+Two related operational cautions sit outside that rule:
 
-While a state has a positive reference count, it will not be deleted. Once
-all references on a state have been released, it becomes eligible for
-asynchronous deletion and will eventually be destroyed. Once all
-reservations on a state copy have been released, it is no longer
-thread-safe to read, write, or otherwise interact with that copy.
-
-1. If an object of type `SignedState` is passed into a method, it is never
-   thread-safe to take a reference to the state and use it after the method
-   returns.
-   1. A `SignedState` passed directly into a method is only guaranteed to
-      be valid until the method returns.
-   2. If the state must outlive the call, take a fresh reservation:
-      `ReservedSignedState ss = SignedState.reserve("reason")`.
-   3. Avoid using the merkle reference-count API to force a state to remain
-      in memory. Merkle reference counts should only be modified by the
-      utilities designed to operate directly on merkle trees.
-2. If an object of type `ReservedSignedState` is passed into a method, the
-   method is responsible for guaranteeing that `ReservedSignedState.close()`
-   is eventually called.
-   1. Where possible, use a `ReservedSignedState` in a try-with-resources
-      block.
-   2. Avoid `@Nullable ReservedSignedState` parameters; prefer a non-null
-      `ReservedSignedState` wrapped around a `null` value.
-   3. Outside the wiring graph, prefer passing a `SignedState` into a
-      method instead of a `ReservedSignedState`. Synchronous
-      implementations rarely need to retain the state after returning,
-      and if they do, taking a fresh reservation is cheap. Inside the
-      wiring graph the reverse holds: state-bearing input wires take
-      `ReservedSignedState` so the Reserver transformers
-      (see [Reservation in the wiring graph](#reservation-in-the-wiring-graph))
-      can mint and release one reservation per edge.
-3. When creating a new `SignedState`, always ensure that an explicit
-   reservation is held before passing it to other parts of the system —
-   never rely on an implicit reference.
-4. It is never thread-safe for threads to read from the same
-   `ReservedSignedState` instance concurrently with another thread calling
-   `ReservedSignedState.close()`.
-   1. In multithreaded contexts, prefer creating a new
-      `ReservedSignedState` for each thread that needs to read from the
-      state.
-   2. Alternatively, use `SignedStateReference` for thread-safe access and
-      management of a `SignedState`.
-5. When taking a reservation through any API that requires a reason, use a
-   reason string unique enough that an engineer debugging a reference-count
-   exception can locate the responsible call site by searching for the
-   string.
-6. Setting `state.debugStackTracesEnabled = true`
-   ([`StateConfig.java:93`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateConfig.java))
-   captures stack traces alongside reservation events, which is useful for
-   diagnosing reference-count exceptions. The setting has non-trivial
-   performance impact and **must never be enabled in production**.
+- **Merkle reference-count API.** Do not use the merkle reference-count
+  API to force a `SignedState` to remain in memory. Merkle reference
+  counts should only be modified by utilities designed to operate
+  directly on merkle trees; use `SignedState.reserve(reason)` instead.
+- **Debug stack traces.** Setting `state.debugStackTracesEnabled = true`
+  ([`StateConfig.java:93`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateConfig.java))
+  captures stack traces alongside reservation events, which is useful
+  for diagnosing reference-count exceptions. The setting has non-trivial
+  performance impact and **must never be enabled in production**.
 
 ## Reservation in the wiring graph
 
-The rules above are framed for code that holds a `ReservedSignedState`
-on a single thread. When a state passes through the component
-framework it also crosses scheduler queues, and every fan-out from one
-wire to multiple listeners must mint one reservation per listener so
-that the fastest consumer cannot release the last reservation while a
-slower consumer is still waiting in queue. Three
+RUL-001 is straightforward to follow for code that holds a
+`ReservedSignedState` on a single thread. When a state passes through
+the component framework it also crosses scheduler queues, and every
+fan-out from one wire to multiple listeners must mint one reservation
+per listener so that the fastest consumer cannot release the last
+reservation while a slower consumer is still waiting in queue. Three
 `AdvancedTransformation` implementations in
 `com.swirlds.platform.wiring` enforce this:
 
@@ -195,123 +320,6 @@ transfers ownership to a helper:
 and releases it (early for async snapshots, after the write for
 synchronous ones), with a defensive `try { ... } finally { if
 (!rs.isClosed()) rs.close(); }` covering early returns and errors.
-
-## On-disk layout
-
-`SignedStateFileWriter.writeSignedStateToDisk`
-([`SignedStateFileWriter.java:362`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java))
-is the entry point used whenever a signed state is persisted — periodic
-snapshot, freeze state, or state dump. The writer computes the round
-directory via
-[`SignedStateFilePath`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFilePath.java):
-
-```
-<savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/<round>/
-```
-
-The whole round directory is built under a temporary path and moved into
-place via `executeAndRename`
-([`SignedStateFileWriter.java:386`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)),
-so readers never observe a half-built directory; on a mid-write crash the
-temporary tree is orphaned without affecting the live `saved/…/<round>/`
-hierarchy.
-
-A complete round directory contains:
-
-- `stateMetadata.txt` — human-readable key/value file written by
-  [`SavedStateMetadata`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SavedStateMetadata.java).
-- `hashInfo.txt` — mnemonic of the state hash, diagnostic only.
-- `currentRoster.json` — the active `Roster` as PBJ JSON.
-- `consensusSnapshot.json` — the round's `ConsensusSnapshot` as PBJ JSON.
-- `signatureSet.pbj` — the `SigSet` as PBJ binary.
-- `settingsUsed.txt` — effective configuration dump.
-- `data/` — the state snapshot files.
-- A PCES sub-tree of event files needed to replay state from this round.
-
-Files inside `data/` and the PCES sub-tree are **hard-linked** from the
-live working directory rather than byte-copied, keeping snapshots cheap and
-preserving the immutable view even if compaction later removes the
-originating files.
-
-For the full schema, file-by-file format, and field-by-field detail, see
-[signed-state-snapshot-spec.md](../../../core/signed-state-snapshot-spec.md).
-The reader for the same on-disk format is
-[`SignedStateFileReader`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileReader.java).
-
-## Lifecycle
-
-A signed state passes through six phases.
-
-1. **Create.** Only consensus rounds that close a block, plus the
-   freeze round, produce a `SignedState`.
-   `DefaultTransactionHandler#handleConsensusRound`
-   ([`DefaultTransactionHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java))
-   applies each round's transactions to the mutable state and then
-   calls `ConsensusStateEventHandler#onSealConsensusRound`, which
-   returns whether the round aligns with the end of a block. If it
-   does — or if this is the freeze round — the handler takes an
-   immutable copy of the state and constructs a fresh `SignedState`.
-   Other rounds yield no `SignedState`; their transaction count is
-   accumulated into the next boundary round's hash-complexity estimate.
-   Restricting state creation to block boundaries ensures that every
-   persisted snapshot is a point Execution can cleanly restart from
-   and that the hashes published into the block stream cover whole
-   blocks.
-2. **Hash and locally sign.** `DefaultStateHasher#hashState`
-   ([`DefaultStateHasher.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/hasher/DefaultStateHasher.java))
-   forces computation of the merkle root, and
-   `DefaultStateSigner#signState`
-   ([`DefaultStateSigner.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signer/DefaultStateSigner.java))
-   produces a `StateSignatureTransaction` containing this node's
-   signature over the hash. The transaction is submitted to Execution
-   for inclusion in the gossiped event stream. (PCES-replay rounds are
-   not signed.)
-3. **Collect peer signatures.**
-   `DefaultStateSignatureCollector#addSignature`
-   ([`DefaultStateSignatureCollector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java))
-   accumulates signatures from `StateSignatureTransaction` payloads sent
-   by peers, adding them to the state's `SigSet` until the
-   signing-weight threshold is reached. Collection is best-effort, not
-   guaranteed: states that have not yet collected a threshold of
-   signatures are parked in the collector's `incompleteStates` map
-   and purged once they fall behind
-   `lastStateRound - stateConfig.roundsToKeepForSigning + 1` (default
-   26 rounds). A purged state still flows downstream — if it was
-   marked for saving (step 4) it is written to disk with an incomplete
-   `SigSet`, and `DefaultStateSnapshotManager` logs the shortfall via
-   `InsufficientSignaturesPayload` and increments
-   `totalUnsignedDiskStates`. Freeze states bypass the parking step:
-   they are expected to lack quorum and are emitted immediately on
-   arrival at the collector.
-4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
-   ([`DefaultSavedStateController.java:111`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java))
-   marks freeze states for saving unconditionally; for non-freeze rounds
-   it tests whether the round's consensus timestamp crosses a
-   `stateConfig.saveStatePeriod` boundary (read at line 116; the period
-   crossing is computed at lines 133-134). When saving is selected, the
-   controller calls `signedState.markAsStateToSave(reason)` (line 92).
-   The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
-   or `PERIODIC_SNAPSHOT`
-   ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
-   on reconnect, `SavedStateController#reconnectStateReceived` applies
-   `RECONNECT` to the incoming state instead. (The enum contains
-   additional values — `ISS`, `FATAL_ERROR`, `PCES_RECOVERY_COMPLETE`
-   — that have no current production caller.)
-5. **Write.** `SignedStateFileWriter#writeSignedStateToDisk` writes inside
-   `executeAndRename`. After the state files are written, it copies PCES
-   files into the round directory by calling
-   `pcesModule.copyPcesFilesRetryOnFailure`
-   ([`SignedStateFileWriter.java:303`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)).
-6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
-   ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
-   destroys states whose reservation count has reached zero, off the hot
-   path.
-
-The freeze-state branch of step 4 is part of the freeze procedure
-described in [freeze-and-upgrade.md](freeze-and-upgrade.md). The
-`RECONNECT` reason set in `reconnectStateReceived` connects to the flow
-described in [reconnect.md](reconnect.md). Those flows are not
-reproduced here.
 
 ## ISS detection
 
