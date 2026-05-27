@@ -120,6 +120,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
@@ -227,6 +228,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
@@ -329,6 +331,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong expectedMinNodeReward = new AtomicLong(0);
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -428,6 +431,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.adjustNodeFees", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -515,6 +519,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.preserveMinNodeRewardBalance", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
@@ -602,6 +607,7 @@ public class RepeatableHip1064Tests {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.minNodeRewardBalance", "1000000000000"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
