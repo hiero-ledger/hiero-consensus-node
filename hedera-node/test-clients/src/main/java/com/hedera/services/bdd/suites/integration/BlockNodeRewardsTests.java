@@ -334,7 +334,6 @@ public final class BlockNodeRewardsTests {
      */
     private static Stream<DynamicTest> blockNodeRewardScenario(@NonNull final TestContext ctx) {
         final List<SpecOperation> ops = new ArrayList<>();
-        ops.add(overriding("blockStream.streamMode", "BOTH"));
         ops.addAll(setupNodesDecliningRewards(ctx));
 
         ops.add(overriding(NODES_MIN_PER_PERIOD_NODE_REWARD_USD, String.valueOf(ctx.minPerPeriodNodeRewardUsd)));
