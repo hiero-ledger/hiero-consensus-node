@@ -8,9 +8,9 @@ last_reviewed: TBD
 
 ## Overview
 
-This document is the canonical reference for the API surface between the **consensus layer** 
-and the **execution layer** (the application built on top of it, e.g., the Hedera services 
-node). It catalogues the interfaces, the direction each one is called in, and the lifecycle 
+This document is the canonical reference for the API surface between the **consensus layer**
+and the **execution layer** (the application built on top of it, e.g., the Hedera services
+node). It catalogues the interfaces, the direction each one is called in, and the lifecycle
 in which each is exercised.
 
 The whole boundary is anchored by a single handshake:
@@ -75,32 +75,32 @@ Optional wiring is added with fluent `with...` methods, notably:
 
 **Live boundary operations** (called by the execution layer in production):
 
-  - `getSelfId()` → `NodeId` — this node's id; the most-called method (e.g. `Hedera`, `BlockStreamManagerImpl`).
-  - `sign(byte[])` → `Signature` — sign data with the node key (backs `AppContext.Gossip.sign`).
-  - `quiescenceCommand(QuiescenceCommand)` — execution→consensus control; instruct the consensus layer on
-    its quiescence state (`BlockStreamManagerImpl`, `BlockRecordManagerImpl`, `QuiescedHeartbeat`).
-  - `start()` — start the consensus layer (`ServicesMain`).
+- `getSelfId()` → `NodeId` — this node's id; the most-called method (e.g. `Hedera`, `BlockStreamManagerImpl`).
+- `sign(byte[])` → `Signature` — sign data with the node key (backs `AppContext.Gossip.sign`).
+- `quiescenceCommand(QuiescenceCommand)` — execution→consensus control; instruct the consensus layer on
+  its quiescence state (`BlockStreamManagerImpl`, `BlockRecordManagerImpl`, `QuiescedHeartbeat`).
+- `start()` — start the consensus layer (`ServicesMain`).
 
 **Subsystem accessors** (the thing crossing the boundary is the returned subsystem, not the method):
 
-  - `getNotificationEngine()` → `NotificationEngine` — the gateway through which the execution layer
-    registers the [notification listeners](#notification-listeners) below.
-  - `getContext()` → `PlatformContext` — the execution layer reaches in for `Configuration` (and metrics /
-    time / file system). Used sparingly.
+- `getNotificationEngine()` → `NotificationEngine` — the gateway through which the execution layer
+  registers the [notification listeners](#notification-listeners) below.
+- `getContext()` → `PlatformContext` — the execution layer reaches in for `Configuration` (and metrics /
+  time / file system). Used sparingly.
 
 **Lifecycle, asymmetric:**
 
-  - `destroy()` — documented as the terminal call (the consensus layer cannot be reused afterward). No
-    production execution-layer caller was found; it is exercised by the Turtle/Container simulation
-    harnesses. Note the asymmetry with `start()`, which the execution layer *does* call.
+- `destroy()` — documented as the terminal call (the consensus layer cannot be reused afterward). No
+  production execution-layer caller was found; it is exercised by the Turtle/Container simulation
+  harnesses. Note the asymmetry with `start()`, which the execution layer *does* call.
 
 **Vestigial — no production caller** (candidates for removal):
 
-  - `getRoster()` → `Roster` — only a test mock calls it; the execution layer and consensus-internal code
-    read the roster from state (`signedState.getRoster()` / `reservedState.getRoster()`) instead.
-  - `getLatestImmutableState(reason)` → `AutoCloseableWrapper<T extends State>` — no caller anywhere except
-    the `NoOpPlatform` test stub. Immutable state is reached through `StateLifecycleManager` instead (by the
-    consensus layer, not the execution layer).
+- `getRoster()` → `Roster` — only a test mock calls it; the execution layer and consensus-internal code
+  read the roster from state (`signedState.getRoster()` / `reservedState.getRoster()`) instead.
+- `getLatestImmutableState(reason)` → `AutoCloseableWrapper<T extends State>` — no caller anywhere except
+  the `NoOpPlatform` test stub. Immutable state is reached through `StateLifecycleManager` instead (by the
+  consensus layer, not the execution layer).
 
 ## Implemented by the execution layer
 
@@ -198,15 +198,15 @@ In addition to the interfaces above, the execution layer can register listeners 
 `Listener<N>` whose dispatch mode and ordering are fixed by a `@DispatchModel` annotation on the
 interface.
 
-| Listener | Notification | Dispatch | Trigger |
-|---|---|---|---|
-| `PlatformStatusChangeListener` (`…/listeners/`) | `PlatformStatusChangeNotification` | SYNC, ORDERED | Platform status changed. *(The execution layer instead consumes status via `ExecutionLayer.newPlatformStatus`.)* |
-| `ReconnectCompleteListener` (`…/listeners/`) | `ReconnectCompleteNotification` | SYNC, ORDERED | A reconnect has completed. |
-| `StateWriteToDiskCompleteListener` (`…/listeners/`) | `StateWriteToDiskCompleteNotification` | SYNC, ORDERED | A state has been written to disk. |
-| `IssListener` (`…/system/state/notifications/`) | `IssNotification` | SYNC, ORDERED | Any ISS (invalid state signature) event. |
-| `AsyncFatalIssListener` (`…/system/state/notifications/`) | `IssNotification` | ASYNC, ORDERED | Fatal ISS events only (`SELF` or `CATASTROPHIC`). The execution layer registers this rather than `IssListener`. |
-| `NewRecoveredStateListener` (`…/system/state/notifications/`) | `NewRecoveredStateNotification` | SYNC, UNORDERED | A state was produced by event-stream recovery. |
-| `StateHashedListener` (`…/system/state/notifications/`) | `StateHashedNotification` | SYNC, UNORDERED | A state has been hashed. |
+|                           Listener                            |              Notification              |    Dispatch     |                                                     Trigger                                                      |
+|---------------------------------------------------------------|----------------------------------------|-----------------|------------------------------------------------------------------------------------------------------------------|
+| `PlatformStatusChangeListener` (`…/listeners/`)               | `PlatformStatusChangeNotification`     | SYNC, ORDERED   | Platform status changed. *(The execution layer instead consumes status via `ExecutionLayer.newPlatformStatus`.)* |
+| `ReconnectCompleteListener` (`…/listeners/`)                  | `ReconnectCompleteNotification`        | SYNC, ORDERED   | A reconnect has completed.                                                                                       |
+| `StateWriteToDiskCompleteListener` (`…/listeners/`)           | `StateWriteToDiskCompleteNotification` | SYNC, ORDERED   | A state has been written to disk.                                                                                |
+| `IssListener` (`…/system/state/notifications/`)               | `IssNotification`                      | SYNC, ORDERED   | Any ISS (invalid state signature) event.                                                                         |
+| `AsyncFatalIssListener` (`…/system/state/notifications/`)     | `IssNotification`                      | ASYNC, ORDERED  | Fatal ISS events only (`SELF` or `CATASTROPHIC`). The execution layer registers this rather than `IssListener`.  |
+| `NewRecoveredStateListener` (`…/system/state/notifications/`) | `NewRecoveredStateNotification`        | SYNC, UNORDERED | A state was produced by event-stream recovery.                                                                   |
+| `StateHashedListener` (`…/system/state/notifications/`)       | `StateHashedNotification`              | SYNC, UNORDERED | A state has been hashed.                                                                                         |
 
 All paths above are under `swirlds-platform-core/src/main/java/com/swirlds/platform/`.
 
