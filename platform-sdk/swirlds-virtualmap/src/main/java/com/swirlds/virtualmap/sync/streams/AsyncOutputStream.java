@@ -169,7 +169,7 @@ public class AsyncOutputStream {
         if (status != Status.RUNNING) {
             throw new IllegalStateException("Stream is not running: " + status);
         }
-        final boolean success = streamQueue.offer(messageBytes, timeout.toMillis(), TimeUnit.MILLISECONDS);
+        final boolean success = streamQueue.offer(messageBytes, timeout.toNanos(), TimeUnit.NANOSECONDS);
         if (!success) {
             throw new MerkleSynchronizationException("Timed out waiting to send data");
         }

@@ -211,7 +211,7 @@ public class AsyncInputStream {
             }
             if (!isAlive()) {
                 // Drain race: the producer may have enqueued one final message
-                // between our last poll and flipping alive=false in its finally.
+                // between our last poll and the background reader transitioning to done as it exits.
                 return readOrNull();
             }
             if (Thread.currentThread().isInterrupted()) {

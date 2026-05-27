@@ -2,6 +2,7 @@
 package com.swirlds.virtualmap.test.fixtures.sync;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -43,7 +44,10 @@ public class BlockingOutputStream extends OutputStream {
      */
     @Override
     public void write(final int b) throws IOException {
-        while (locked.get() && !Thread.currentThread().isInterrupted()) {
+        while (locked.get()) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedIOException();
+            }
             Thread.onSpinWait();
         }
         out.write(b);

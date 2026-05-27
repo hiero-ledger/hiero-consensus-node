@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.sync.streams;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * Strategy to be used yield current thread while waiting for some data or resource.
+ * Strategy to be used to yield the current thread while waiting for some data or resource.
  *
  * <ul>
  *   <li>{@link #SPIN} — calls {@link Thread#onSpinWait()}, yielding a CPU hint without relinquishing

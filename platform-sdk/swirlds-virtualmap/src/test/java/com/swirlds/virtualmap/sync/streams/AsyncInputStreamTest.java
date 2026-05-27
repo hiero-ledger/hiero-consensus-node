@@ -41,11 +41,9 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -131,9 +129,6 @@ class AsyncInputStreamTest {
          * @param consumerTest test consuming async input stream - must read all messages
          */
         private void createStreamAndTest(final byte[] data, final Consumer<AsyncInputStream> consumerTest) {
-            // provided data must have a termination marker in the end
-            assertEquals(-1, data[data.length - 1], "test data doesn't have a termination marker");
-
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
             final AsyncInputStream in = new AsyncInputStream(
                     new DataInputStream(new ByteArrayInputStream(data)), workGroup, DEFAULT_QUEUE_SIZE);
@@ -205,7 +200,7 @@ class AsyncInputStreamTest {
                         "Background message queue should fill up");
                 assertTrue(
                         in.isAlive(),
-                        "Stream should be alive since termination marker is not yer read due to full queue");
+                        "Stream should be alive since termination marker is not yet read due to full queue");
 
                 // reading only one message should unblock background thread to read termination marker
                 int i = 0;
@@ -340,7 +335,8 @@ class AsyncInputStreamTest {
             assertTrue(workGroup.hasExceptions(), "Work group should have an exception");
             assertEquals(1, exceptionCapture.getExceptions().size());
             assertInstanceOf(
-                    ExecutionException.class, exceptionCapture.getExceptions().peek());
+                    MerkleSynchronizationException.class,
+                    exceptionCapture.getExceptions().peek());
             assertTrue(
                     exceptionCapture.getExceptions().peek().getMessage().contains("Message size exceeds maximum size"));
 
@@ -643,21 +639,7 @@ class AsyncInputStreamTest {
             throw new RuntimeException(ex);
         } catch (Throwable ex) {
             workGroup.handleError(ex); // cancel all submitted tasks in case of any error inside test (like assertion)
-        }
-    }
-
-    private static class ExceptionCapture implements Function<Throwable, Boolean> {
-
-        private final ConcurrentLinkedQueue<Throwable> exceptions = new ConcurrentLinkedQueue<>();
-
-        @Override
-        public Boolean apply(Throwable throwable) {
-            exceptions.add(throwable);
-            return true;
-        }
-
-        public ConcurrentLinkedQueue<Throwable> getExceptions() {
-            return exceptions;
+            throw ex;
         }
     }
 }

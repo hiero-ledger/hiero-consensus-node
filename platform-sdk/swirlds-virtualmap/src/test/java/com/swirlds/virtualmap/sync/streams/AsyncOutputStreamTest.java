@@ -34,10 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -566,8 +564,8 @@ class AsyncOutputStreamTest {
             workGroup.waitForTermination();
 
             assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
-            assertEquals(1, exceptionCapture.exceptions.size());
-            assertInstanceOf(IOException.class, exceptionCapture.exceptions.peek());
+            assertEquals(1, exceptionCapture.getExceptions().size());
+            assertInstanceOf(IOException.class, exceptionCapture.getExceptions().peek());
         }
     }
 
@@ -801,22 +799,7 @@ class AsyncOutputStreamTest {
             throw new RuntimeException(ex);
         } catch (Throwable ex) {
             workGroup.handleError(ex);
-        }
-    }
-
-    private static class ExceptionCapture implements java.util.function.Function<Throwable, Boolean> {
-
-        final ConcurrentLinkedQueue<Throwable> exceptions = new ConcurrentLinkedQueue<>();
-
-        @Override
-        public Boolean apply(final Throwable throwable) {
-            // StandardWorkGroup may wrap user exceptions in ExecutionException; unwrap for assertions.
-            if (throwable instanceof ExecutionException && throwable.getCause() != null) {
-                exceptions.add(throwable.getCause());
-            } else {
-                exceptions.add(throwable);
-            }
-            return true;
+            throw ex;
         }
     }
 }
