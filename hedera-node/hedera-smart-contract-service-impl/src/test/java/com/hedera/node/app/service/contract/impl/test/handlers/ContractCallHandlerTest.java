@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
@@ -114,6 +115,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
@@ -148,6 +150,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);

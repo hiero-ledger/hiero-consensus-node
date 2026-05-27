@@ -203,7 +203,7 @@ class TopToBottomTraversalOrderTest {
             }
 
             assertEquals(512, leaves.size(), "nodeReceived must not affect leaf count in simple mode");
-            assertEquals(SIMPLE_FIRST, leaves.get(0), "First leaf must be unchanged");
+            assertEquals(SIMPLE_FIRST, leaves.getFirst(), "First leaf must be unchanged");
             assertEquals(SIMPLE_LAST, leaves.get(511), "Last leaf must be unchanged");
         }
     }
@@ -231,8 +231,8 @@ class TopToBottomTraversalOrderTest {
                 assertEquals(5, Path.getRank(p), "All initial internals must be at rank 5, got path " + p);
             }
             // Must equal paths 31..46
-            assertEquals(CHUNK1_INIT_LO, internals.get(0));
-            assertEquals(CHUNK1_INIT_HI, internals.get(internals.size() - 1));
+            assertEquals(CHUNK1_INIT_LO, internals.getFirst());
+            assertEquals(CHUNK1_INIT_HI, internals.getLast());
         }
 
         @Test
@@ -346,8 +346,8 @@ class TopToBottomTraversalOrderTest {
 
             final List<Long> newInternals = drainInternals(order);
             assertEquals(8, newInternals.size(), "Dirty rank-5 node must enqueue 2^RANK_STEP=8 grand-children");
-            assertEquals(DIRTY_31_CHILDREN_LO, newInternals.get(0));
-            assertEquals(DIRTY_31_CHILDREN_HI, newInternals.get(newInternals.size() - 1));
+            assertEquals(DIRTY_31_CHILDREN_LO, newInternals.getFirst());
+            assertEquals(DIRTY_31_CHILDREN_HI, newInternals.getLast());
             for (long p : newInternals) {
                 assertEquals(8, Path.getRank(p), "Grand-children must be at rank 5+3=8, got path " + p);
             }
@@ -660,14 +660,15 @@ class TopToBottomTraversalOrderTest {
             // The leaf call must trigger a chunk transition (PATH_NOT_AVAILABLE_YET),
             // not return any leaf from chunk 1
             final long leaf = order.getNextLeafPathToSend();
-            assertTrue(
-                    leaf == PATH_NOT_AVAILABLE_YET,
+            assertEquals(
+                    PATH_NOT_AVAILABLE_YET,
+                    leaf,
                     "All chunk-1 leaves must be skipped when all initial internals are clean");
 
             // After transition, chunk-2 internals (47-62) must be available
             final List<Long> chunk2Internals = drainInternals(order);
             assertEquals(16, chunk2Internals.size(), "Chunk-2 must seed 16 fresh internals");
-            assertEquals(CHUNK2_INIT_LO, chunk2Internals.get(0));
+            assertEquals(CHUNK2_INIT_LO, chunk2Internals.getFirst());
         }
     }
 
@@ -737,9 +738,8 @@ class TopToBottomTraversalOrderTest {
 
             final List<Long> chunk2 = drainInternals(order);
             assertEquals(16, chunk2.size(), "Chunk-2 must have 16 initial internals");
-            assertEquals(CHUNK2_INIT_LO, chunk2.get(0), "Chunk-2 first internal must be path 47");
-            assertEquals(
-                    CHUNK2_INIT_HI, chunk2.get(chunk2.size() - 1), "Chunk-2 last initial internal must be path 62");
+            assertEquals(CHUNK2_INIT_LO, chunk2.getFirst(), "Chunk-2 first internal must be path 47");
+            assertEquals(CHUNK2_INIT_HI, chunk2.getLast(), "Chunk-2 last initial internal must be path 62");
             for (long p : chunk2) {
                 assertEquals(5, Path.getRank(p), "Chunk-2 internals must be at rank 5");
             }
@@ -801,8 +801,8 @@ class TopToBottomTraversalOrderTest {
             final List<Long> leaves = driveAllDirty(order);
 
             assertEquals(mixedLast - mixedFirst + 1, leaves.size(), "All leaves in mixed-rank tree must be sent");
-            assertEquals(mixedFirst, leaves.get(0));
-            assertEquals(mixedLast, leaves.get(leaves.size() - 1));
+            assertEquals(mixedFirst, leaves.getFirst());
+            assertEquals(mixedLast, leaves.getLast());
         }
     }
 
@@ -964,7 +964,7 @@ class TopToBottomTraversalOrderTest {
                     16, initInternals.size(), "Must seed 16 initial internals when firstLeafPath == oldFirstLeafPath");
             assertEquals(
                     CHUNK1_INIT_LO,
-                    initInternals.get(0),
+                    initInternals.getFirst(),
                     "Initial internals must start at path 31 (under chunk-1 root=1)");
         }
     }
@@ -1194,8 +1194,8 @@ class TopToBottomTraversalOrderTest {
             final List<Long> leaves = driveAllDirty(order);
 
             assertEquals(P1_LAST - P1_FIRST + 1, leaves.size(), "All 1101 leaves in [1100, 2200] must be sent");
-            assertEquals(P1_FIRST, leaves.get(0));
-            assertEquals(P1_LAST, leaves.get(leaves.size() - 1));
+            assertEquals(P1_FIRST, leaves.getFirst());
+            assertEquals(P1_LAST, leaves.getLast());
         }
 
         @Test
@@ -1235,8 +1235,8 @@ class TopToBottomTraversalOrderTest {
             final List<Long> init = drainInternals(order);
 
             assertEquals(16, init.size(), "Must seed 16 initial internals");
-            assertEquals(CHUNK1_INIT_LO, init.get(0), "First initial internal must be 31 (chunk-1, root=path 1)");
-            assertEquals(CHUNK1_INIT_HI, init.get(init.size() - 1));
+            assertEquals(CHUNK1_INIT_LO, init.getFirst(), "First initial internal must be 31 (chunk-1, root=path 1)");
+            assertEquals(CHUNK1_INIT_HI, init.getLast());
             for (long p : init) {
                 assertEquals(5, Path.getRank(p), "All initial internals must be at rank 5");
             }
@@ -1255,9 +1255,9 @@ class TopToBottomTraversalOrderTest {
             assertEquals(16, init.size(), "Must seed 16 initial internals");
             assertEquals(
                     CHUNK2_INIT_LO,
-                    init.get(0),
+                    init.getFirst(),
                     "First initial internal must be 47 (chunk-2, root=path 2), not 31 (chunk-1)");
-            assertEquals(CHUNK2_INIT_HI, init.get(init.size() - 1));
+            assertEquals(CHUNK2_INIT_HI, init.getLast());
         }
 
         @Test
@@ -1277,7 +1277,7 @@ class TopToBottomTraversalOrderTest {
             }
             // Leaves below firstLeafPath must never appear
             for (long p = CHUNK_FIRST; p < P2_FIRST; p++) {
-                assertTrue(!leafSet.contains(p), "Leaf " + p + " is below firstLeafPath and must not be sent");
+                assertFalse(leafSet.contains(p), "Leaf " + p + " is below firstLeafPath and must not be sent");
             }
             // Chunk-2 must also be processed
             assertTrue(leafSet.contains(1535L), "First leaf of chunk-2 must be sent");
@@ -1444,8 +1444,8 @@ class TopToBottomTraversalOrderTest {
             final List<Long> init = drainInternals(order);
 
             assertEquals(2048, init.size(), "Must seed 2048 initial internals (2^skipRanks = 2^11)");
-            assertEquals(L13_INIT_LO, init.get(0), "First initial internal must be 65535");
-            assertEquals(L13_INIT_HI, init.get(init.size() - 1), "Last initial internal must be 67582");
+            assertEquals(L13_INIT_LO, init.getFirst(), "First initial internal must be 65535");
+            assertEquals(L13_INIT_HI, init.getLast(), "Last initial internal must be 67582");
             for (long p : init) {
                 assertEquals(L13_INIT_RANK, Path.getRank(p), "All initial internals must be at rank " + L13_INIT_RANK);
             }
@@ -1473,9 +1473,8 @@ class TopToBottomTraversalOrderTest {
             final List<Long> next = drainInternals(order);
 
             assertEquals(8, next.size(), "Dirty rank-16 node must enqueue 8 rank-19 grand-children (2^RANK_STEP)");
-            assertEquals(L13_DIRTY_65535_LO, next.get(0), "First rank-19 grand-child of 65535 must be 524287");
-            assertEquals(
-                    L13_DIRTY_65535_HI, next.get(next.size() - 1), "Last rank-19 grand-child of 65535 must be 524294");
+            assertEquals(L13_DIRTY_65535_LO, next.getFirst(), "First rank-19 grand-child of 65535 must be 524287");
+            assertEquals(L13_DIRTY_65535_HI, next.getLast(), "Last rank-19 grand-child of 65535 must be 524294");
             for (long p : next) {
                 assertEquals(19, Path.getRank(p), "Grand-children must be at rank 16+RANK_STEP=19");
             }
@@ -1569,11 +1568,11 @@ class TopToBottomTraversalOrderTest {
                     "First chunk must seed 2^skipRanks = 2^11 = 2048 initial internals");
             assertEquals(
                     47103L,
-                    firstChunkInternals.get(0),
+                    firstChunkInternals.getFirst(),
                     "First initial internal must be 47103 (getLeftGrandChildPath(22, 11))");
             assertEquals(
                     49150L,
-                    firstChunkInternals.get(firstChunkInternals.size() - 1),
+                    firstChunkInternals.getLast(),
                     "Last initial internal must be 49150 (getRightGrandChildPath(22, 11))");
             for (long p : firstChunkInternals) {
                 assertEquals(
@@ -1584,7 +1583,7 @@ class TopToBottomTraversalOrderTest {
             // Verify chunk root is at rank 4: 11 levels up from any initial internal
             assertEquals(
                     4,
-                    Path.getRank(Path.getGrandParentPath(firstChunkInternals.get(0), 11)),
+                    Path.getRank(Path.getGrandParentPath(firstChunkInternals.getFirst(), 11)),
                     "Chunk root (11 levels above initial internal) must be at rank 4");
 
             // Report all first-chunk internals as clean
@@ -1663,7 +1662,7 @@ class TopToBottomTraversalOrderTest {
 
                 // Derive chunk boundaries from the initial internals
                 final int chunkLastRank = Path.getRank(chunkFirstLeaf);
-                final long lastInitInternal = inits.get(inits.size() - 1);
+                final long lastInitInternal = inits.getLast();
                 final long chunkLastLeafPath =
                         Path.getRightGrandChildPath(lastInitInternal, chunkLastRank - INIT_INTERNAL_RANK);
 
@@ -1727,7 +1726,7 @@ class TopToBottomTraversalOrderTest {
             assertTrue(sentLeaves.size() <= 17 * 4, "Too many dirty leaves are sent across all 17 chunks");
             assertTrue(sentLeaves.size() >= 17, "Too few dirty leaves are sent across all 17 chunks");
             assertEquals(16, chunkTransitions, "Must have exactly 16 chunk transitions (17 chunks total)");
-            assertEquals(first, sentLeaves.get(0), "First sent leaf must equal firstLeafPath");
+            assertEquals(first, sentLeaves.getFirst(), "First sent leaf must equal firstLeafPath");
             assertEquals(
                     192_937_986L,
                     sentLeaves.getLast(),

@@ -236,6 +236,7 @@ class EthereumTransactionHandlerTest {
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
@@ -294,6 +295,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
@@ -575,6 +577,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);

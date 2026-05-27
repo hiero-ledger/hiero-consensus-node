@@ -95,19 +95,19 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         requireNonNull(outcome);
         requireNonNull(context);
         requireNonNull(idFactory);
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
         if (outcome.actions() != null) {
-            // (FUTURE) Remove after switching to block stream
-            addContractActions(new ContractActions(outcome.actions()), false);
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support addContractActions.
+            if (streamMode != BLOCKS) {
+                addContractActions(new ContractActions(outcome.actions()), false);
+            }
             // No-op for the RecordStreamBuilder
             addActions(outcome.actions());
         }
         if (outcome.hasTxStorageUsage()) {
             final var txStorageUsage = outcome.txStorageUsageOrThrow();
             final var storageAccesses = txStorageUsage.accesses();
-            // (FUTURE) Remove this check after switching to block stream
-            final var streamMode = context.configuration()
-                    .getConfigData(BlockStreamConfig.class)
-                    .streamMode();
             final boolean traceExplicitWrites = !txStorageUsage.hasChangedKeys();
             addContractStorageSidecarsFromAccesses(this, streamMode, storageAccesses, traceExplicitWrites);
             if (!traceExplicitWrites) {
@@ -237,6 +237,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
             builder.addContractSlotUsages(requireNonNull(both.slotUsages()));
             return;
         }
+        // (FUTURE) Remove this check after switching to block stream
         if (streamMode != BLOCKS && !storageAccesses.isEmpty()) {
             builder.addContractStateChanges(requireNonNull(asPbjStateChanges(storageAccesses)), false);
         }

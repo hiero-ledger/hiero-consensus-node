@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
