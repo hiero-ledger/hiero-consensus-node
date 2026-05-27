@@ -175,6 +175,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStr
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
@@ -1663,30 +1664,31 @@ public class UtilVerbs {
 
     /* ── Stream-mode-aware validation ──
      * These verbs dynamically route to the record or block stream based on the active streamMode.
+     * Accepts both RecordStreamAssertion and BlockStreamAssertion via the common StreamAssertion type.
      * Prefer these over the record-specific or block-specific variants below. */
 
     public static EventualStreamAssertion streamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
         return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, true);
     }
 
     public static EventualStreamAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
         return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, false);
     }
 
     public static EventualStreamAssertion streamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
         return EventualStreamAssertion.streamMustIncludePass(assertion, null, true);
     }
 
     public static EventualStreamAssertion streamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
         return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, true);
     }
 
     public static EventualStreamAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
         return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
     }
 
@@ -1735,13 +1737,16 @@ public class UtilVerbs {
         return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
     }
 
-    /* ── Block-stream-only validation ── */
+    /* ── Block-stream-only validation ──
+     * @deprecated Use the streamMust* variants above which accept both RecordStreamAssertion and BlockStreamAssertion. */
 
+    @Deprecated
     public static EventualBlockStreamAssertion blockStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
         return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(assertion);
     }
 
+    @Deprecated
     public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
         return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);

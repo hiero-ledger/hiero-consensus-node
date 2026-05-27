@@ -13,14 +13,19 @@ import java.util.function.Function;
 
 /**
  * A stream assertion that dynamically routes to either {@link EventualRecordStreamAssertion} or
- * {@link EventualBlockStreamAssertion} based on the active {@code blockStream.streamMode}.
+ * {@link EventualBlockStreamAssertion} based on the active {@code blockStream.streamMode} and
+ * the concrete type of the {@link StreamAssertion} produced by the factory.
  *
- * <p>In RECORDS or BOTH mode, delegates to the record stream path.
- * In BLOCKS mode, wraps the {@link RecordStreamAssertion} in a
- * {@link RecordStreamToBlockAssertionAdapter} and delegates to the block stream path.
+ * <ul>
+ *   <li>{@link BlockStreamAssertion} — always routes to {@link EventualBlockStreamAssertion}
+ *       (blocks are produced in both BOTH and BLOCKS modes).</li>
+ *   <li>{@link RecordStreamAssertion} — in RECORDS/BOTH mode routes to
+ *       {@link EventualRecordStreamAssertion}; in BLOCKS mode adapts via
+ *       {@link RecordStreamToBlockAssertionAdapter} and routes to the block stream path.</li>
+ * </ul>
  */
 public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
-    private final Function<HapiSpec, RecordStreamAssertion> assertionFactory;
+    private final Function<HapiSpec, ? extends StreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
     private final boolean needsBackgroundTraffic;
 
@@ -31,7 +36,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     private AbstractEventualStreamAssertion delegate;
 
     private EventualStreamAssertion(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertionFactory,
             final boolean hasPassedIfNothingFailed,
             @Nullable final Duration timeout,
             final boolean needsBackgroundTraffic) {
@@ -43,12 +48,13 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     }
 
     public static EventualStreamAssertion streamMustIncludeNoFailures(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, final boolean needsBackgroundTraffic) {
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion,
+            final boolean needsBackgroundTraffic) {
         return new EventualStreamAssertion(assertion, true, null, needsBackgroundTraffic);
     }
 
     public static EventualStreamAssertion streamMustIncludePass(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion,
             @Nullable final Duration timeout,
             final boolean needsBackgroundTraffic) {
         return new EventualStreamAssertion(assertion, false, timeout, needsBackgroundTraffic);
@@ -78,28 +84,41 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         requireNonNull(spec);
-        final var streamMode = resolveStreamMode(spec);
-        if (streamMode == BLOCKS) {
-            final long shard = spec.setup().shard();
-            final long realm = spec.setup().realm();
-            final Function<HapiSpec, BlockStreamAssertion> blockFactory =
-                    s -> new RecordStreamToBlockAssertionAdapter(assertionFactory.apply(s), shard, realm);
-            delegate = EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(blockFactory);
-        } else {
-            final EventualRecordStreamAssertion recordAssertion;
-            if (timeout != null) {
-                recordAssertion = hasPassedIfNothingFailed
-                        ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertionFactory)
-                        : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertionFactory, timeout);
+        final var assertion = assertionFactory.apply(spec);
+        if (assertion instanceof BlockStreamAssertion) {
+            @SuppressWarnings("unchecked")
+            final var blockFactory = (Function<HapiSpec, BlockStreamAssertion>) (Function<?, ?>) assertionFactory;
+            delegate = hasPassedIfNothingFailed
+                    ? EventualBlockStreamAssertion.eventuallyAssertingNoFailures(blockFactory)
+                    : EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(blockFactory);
+        } else if (assertion instanceof RecordStreamAssertion) {
+            @SuppressWarnings("unchecked")
+            final var recordFactory = (Function<HapiSpec, RecordStreamAssertion>) (Function<?, ?>) assertionFactory;
+            final var streamMode = resolveStreamMode(spec);
+            if (streamMode == BLOCKS) {
+                final long shard = spec.setup().shard();
+                final long realm = spec.setup().realm();
+                final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
+                        s -> new RecordStreamToBlockAssertionAdapter(recordFactory.apply(s), shard, realm);
+                delegate = EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(adaptedFactory);
             } else {
-                recordAssertion = hasPassedIfNothingFailed
-                        ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertionFactory)
-                        : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertionFactory);
+                final EventualRecordStreamAssertion recordAssertion;
+                if (timeout != null) {
+                    recordAssertion = hasPassedIfNothingFailed
+                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
+                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory, timeout);
+                } else {
+                    recordAssertion = hasPassedIfNothingFailed
+                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
+                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory);
+                }
+                if (needsBackgroundTraffic) {
+                    recordAssertion.withBackgroundTraffic();
+                }
+                delegate = recordAssertion;
             }
-            if (needsBackgroundTraffic) {
-                recordAssertion.withBackgroundTraffic();
-            }
-            delegate = recordAssertion;
+        } else {
+            throw new IllegalArgumentException("Unknown assertion type: " + assertion.getClass());
         }
         delegate.execFor(spec);
         return false;
