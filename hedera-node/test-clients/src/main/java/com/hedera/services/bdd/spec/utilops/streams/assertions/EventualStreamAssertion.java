@@ -19,7 +19,7 @@ import java.util.function.Function;
  * In BLOCKS mode, wraps the {@link RecordStreamAssertion} in a
  * {@link RecordStreamToBlockAssertionAdapter} and delegates to the block stream path.
  */
-public class StreamModeAwareAssertion extends AbstractEventualStreamAssertion {
+public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     private final Function<HapiSpec, RecordStreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
     private final boolean needsBackgroundTraffic;
@@ -30,7 +30,7 @@ public class StreamModeAwareAssertion extends AbstractEventualStreamAssertion {
     @Nullable
     private AbstractEventualStreamAssertion delegate;
 
-    private StreamModeAwareAssertion(
+    private EventualStreamAssertion(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
             final boolean hasPassedIfNothingFailed,
             @Nullable final Duration timeout,
@@ -42,16 +42,16 @@ public class StreamModeAwareAssertion extends AbstractEventualStreamAssertion {
         this.needsBackgroundTraffic = needsBackgroundTraffic;
     }
 
-    public static StreamModeAwareAssertion streamMustIncludeNoFailures(
+    public static EventualStreamAssertion streamMustIncludeNoFailures(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, final boolean needsBackgroundTraffic) {
-        return new StreamModeAwareAssertion(assertion, true, null, needsBackgroundTraffic);
+        return new EventualStreamAssertion(assertion, true, null, needsBackgroundTraffic);
     }
 
-    public static StreamModeAwareAssertion streamMustIncludePass(
+    public static EventualStreamAssertion streamMustIncludePass(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
             @Nullable final Duration timeout,
             final boolean needsBackgroundTraffic) {
-        return new StreamModeAwareAssertion(assertion, false, timeout, needsBackgroundTraffic);
+        return new EventualStreamAssertion(assertion, false, timeout, needsBackgroundTraffic);
     }
 
     @Override
