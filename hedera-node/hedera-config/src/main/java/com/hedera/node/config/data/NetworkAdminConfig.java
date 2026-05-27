@@ -20,6 +20,7 @@ import java.time.Duration;
  * @param upgradeThrottlesFile name of the file containing the post-upgrade throttles
  * @param upgradePropertyOverridesFile name of the file containing the post-upgrade override properties
  * @param upgradePermissionOverridesFile name of the file containing the post-upgrade override permissions
+ * @param diskNetworkExportTss whether disk network exports should include dev-only TSS metadata
  */
 @ConfigData("networkAdmin")
 public record NetworkAdminConfig(
@@ -56,6 +57,10 @@ public record NetworkAdminConfig(
         String diskNetworkExportFile,
 
         @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
+
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean diskNetworkExportTss,
+
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,
 
         @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty
