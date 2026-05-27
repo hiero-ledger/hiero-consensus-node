@@ -837,7 +837,6 @@ public class LeakyContractTestsSuite {
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> bytecodeSidecarExternalizedEvenWithInlineInitcode() {
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 sidecarValidation(),
                 contractCreate("CreateTrivial")
                         .via("inlineCreation")
@@ -878,7 +877,6 @@ public class LeakyContractTestsSuite {
         final var evmAddressOfChildContract = new AtomicReference<BytesValue>();
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 sidecarValidation(),
                 overriding("contracts.evm.version", "v0.34"),
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
