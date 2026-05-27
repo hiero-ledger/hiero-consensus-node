@@ -28,6 +28,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     private final Function<HapiSpec, ? extends StreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
     private final boolean needsBackgroundTraffic;
+    private final boolean replayExistingFiles;
     private boolean stopAfterFirstSuccess = false;
 
     @Nullable
@@ -40,25 +41,32 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
             @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertionFactory,
             final boolean hasPassedIfNothingFailed,
             @Nullable final Duration timeout,
-            final boolean needsBackgroundTraffic) {
+            final boolean needsBackgroundTraffic,
+            final boolean replayExistingFiles) {
         super(hasPassedIfNothingFailed);
         this.assertionFactory = requireNonNull(assertionFactory);
         this.hasPassedIfNothingFailed = hasPassedIfNothingFailed;
         this.timeout = timeout;
         this.needsBackgroundTraffic = needsBackgroundTraffic;
+        this.replayExistingFiles = replayExistingFiles;
     }
 
     public static EventualStreamAssertion streamMustIncludeNoFailures(
             @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion,
             final boolean needsBackgroundTraffic) {
-        return new EventualStreamAssertion(assertion, true, null, needsBackgroundTraffic);
+        return new EventualStreamAssertion(assertion, true, null, needsBackgroundTraffic, false);
     }
 
     public static EventualStreamAssertion streamMustIncludePass(
             @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion,
             @Nullable final Duration timeout,
             final boolean needsBackgroundTraffic) {
-        return new EventualStreamAssertion(assertion, false, timeout, needsBackgroundTraffic);
+        return new EventualStreamAssertion(assertion, false, timeout, needsBackgroundTraffic, false);
+    }
+
+    public static EventualStreamAssertion streamMustIncludePassWithReplay(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return new EventualStreamAssertion(assertion, false, timeout, true, true);
     }
 
     @Override
@@ -94,9 +102,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
         if (assertion instanceof BlockStreamAssertion) {
             @SuppressWarnings("unchecked")
             final var blockFactory = (Function<HapiSpec, BlockStreamAssertion>) (Function<?, ?>) assertionFactory;
-            delegate = hasPassedIfNothingFailed
-                    ? EventualBlockStreamAssertion.eventuallyAssertingNoFailures(blockFactory)
-                    : EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(blockFactory);
+            delegate = createBlockDelegate(blockFactory);
         } else if (assertion instanceof RecordStreamAssertion) {
             @SuppressWarnings("unchecked")
             final var recordFactory = (Function<HapiSpec, RecordStreamAssertion>) (Function<?, ?>) assertionFactory;
@@ -106,9 +112,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 final long realm = spec.setup().realm();
                 final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
                         s -> new RecordStreamToBlockAssertionAdapter(recordFactory.apply(s), shard, realm);
-                delegate = hasPassedIfNothingFailed
-                        ? EventualBlockStreamAssertion.eventuallyAssertingNoFailures(adaptedFactory)
-                        : EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(adaptedFactory);
+                delegate = createBlockDelegate(adaptedFactory);
             } else {
                 final EventualRecordStreamAssertion recordAssertion;
                 if (timeout != null) {
@@ -138,6 +142,20 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     @Override
     protected String assertionDescription() {
         return delegate != null ? delegate.assertionDescription() : "<pending stream mode detection>";
+    }
+
+    private EventualBlockStreamAssertion createBlockDelegate(
+            @NonNull final Function<HapiSpec, BlockStreamAssertion> factory) {
+        if (replayExistingFiles && timeout != null) {
+            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPassWithReplay(factory, timeout);
+        }
+        if (hasPassedIfNothingFailed) {
+            return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(factory);
+        }
+        if (timeout != null) {
+            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(factory, timeout);
+        }
+        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(factory);
     }
 
     private static StreamMode resolveStreamMode(@NonNull final HapiSpec spec) {

@@ -24,7 +24,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -38,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -415,7 +415,7 @@ public class SystemFileExportsTest {
                 getSystemFiles(preGenesisContents::set),
                 // Replay existing block files so we can still see synthetic file creations
                 // emitted at network startup, before this assertion subscribed.
-                blockStreamMustIncludePassWithReplayFrom(
+                streamMustIncludePassWithReplayFrom(
                         selectedBlockItems(
                                 validatorFor(preGenesisContents),
                                 19,

@@ -1693,6 +1693,11 @@ public class UtilVerbs {
         return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
     }
 
+    public static EventualStreamAssertion streamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePassWithReplay(assertion, timeout);
+    }
+
     /* ── Record-stream-only validation ──
      * @deprecated Use the streamMust* variants above which work in both RECORDS/BOTH and BLOCKS modes. */
 
