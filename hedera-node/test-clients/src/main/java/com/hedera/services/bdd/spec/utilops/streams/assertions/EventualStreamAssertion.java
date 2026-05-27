@@ -28,6 +28,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
     private final Function<HapiSpec, ? extends StreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
     private final boolean needsBackgroundTraffic;
+    private boolean stopAfterFirstSuccess = false;
 
     @Nullable
     private final Duration timeout;
@@ -74,6 +75,11 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
         }
     }
 
+    public EventualStreamAssertion stopAfterFirstSuccess() {
+        this.stopAfterFirstSuccess = true;
+        return this;
+    }
+
     @Override
     public void unsubscribe() {
         if (delegate != null) {
@@ -100,7 +106,9 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 final long realm = spec.setup().realm();
                 final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
                         s -> new RecordStreamToBlockAssertionAdapter(recordFactory.apply(s), shard, realm);
-                delegate = EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(adaptedFactory);
+                delegate = hasPassedIfNothingFailed
+                        ? EventualBlockStreamAssertion.eventuallyAssertingNoFailures(adaptedFactory)
+                        : EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(adaptedFactory);
             } else {
                 final EventualRecordStreamAssertion recordAssertion;
                 if (timeout != null) {
@@ -114,6 +122,9 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 }
                 if (needsBackgroundTraffic) {
                     recordAssertion.withBackgroundTraffic();
+                }
+                if (stopAfterFirstSuccess) {
+                    recordAssertion.stopAfterFirstSuccess();
                 }
                 delegate = recordAssertion;
             }
