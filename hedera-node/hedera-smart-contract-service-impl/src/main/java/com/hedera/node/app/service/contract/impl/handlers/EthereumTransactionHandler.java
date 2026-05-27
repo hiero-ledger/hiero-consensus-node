@@ -18,6 +18,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.nonNull;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
@@ -238,7 +239,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
     }
 
-    private static boolean adminKeyMatchesEcdsaPubKey(
+    @VisibleForTesting
+    public static boolean adminKeyMatchesEcdsaPubKey(
             @NonNull final Key adminKey, @NonNull final byte[] compressedPubKey) {
         if (adminKey.key().kind() != KeyOneOfType.ECDSA_SECP256K1) {
             return false;
