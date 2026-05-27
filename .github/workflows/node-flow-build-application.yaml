@@ -20,9 +20,19 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
+    needs:
+      - extract-jdk-version
     with:
       ref: ${{ github.ref }}
       enable-dependency-check: "true"
@@ -39,7 +49,7 @@ jobs:
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "25.0.2"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:
@@ -57,15 +67,14 @@ jobs:
       - mats-tests
     if: ${{ needs.mats-tests.result == 'success' && github.event.repository.visibility == 'public' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
+          checkout: "true"
+          checkout-ref: ${{ github.sha }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-fetch-depth: "0"
 
       - name: Resolve Workflow Reference
         id: resolve-ref
@@ -104,17 +113,14 @@ jobs:
     if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ github.sha }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: ${{ github.sha }}
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-fetch-depth: "0"
 
       - name: Collect run logs in a log file
         env:
