@@ -70,7 +70,21 @@ jobs:
       # as a fallback (for non-sudo macOS dev setups), but on the CI runner we
       # let `npm install -g` go to the system prefix.
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: |
+          # Migration testing requires solo >= 0.73.0 — older versions have a
+          # --local-build-path bug that leaves baseline jars alongside local ones,
+          # causing schema-migration NoSuchMethodError at node startup.
+          # Honor the caller's version if it meets the minimum, otherwise floor it.
+          REQUESTED="${{ inputs.solo-version || 'latest' }}"
+          MIN_VERSION="0.73.0"
+          if [[ "${REQUESTED}" == "latest" ]] || \
+             [[ "$(printf '%s\n' "${REQUESTED#v}" "${MIN_VERSION}" | sort -V | tail -1)" == "${REQUESTED#v}" ]]; then
+            RESOLVED="${REQUESTED}"
+          else
+            echo "Solo version ${REQUESTED} is below required minimum ${MIN_VERSION}; using ${MIN_VERSION}"
+            RESOLVED="${MIN_VERSION}"
+          fi
+          npm install -g "@hashgraph/solo@${RESOLVED}"
 
       # Install kind without creating a cluster; the migration script invokes
       # `kind create cluster -n solo-migration` itself.
