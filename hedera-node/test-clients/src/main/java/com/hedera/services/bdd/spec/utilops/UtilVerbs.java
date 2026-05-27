@@ -172,8 +172,11 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.AssertingBiConsum
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedBlockItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
@@ -1660,56 +1663,71 @@ public class UtilVerbs {
                 }));
     }
 
-    /* Stream validation. */
+    /* ── Stream-mode-aware validation ──
+     * These verbs dynamically route to the record or block stream based on the active streamMode.
+     * Accepts both RecordStreamAssertion and BlockStreamAssertion via the common StreamAssertion type.
+     * Prefer these over the record-specific or block-specific variants below. */
+
+    public static EventualStreamAssertion streamMustIncludeNoFailuresFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, true);
+    }
+
+    public static EventualStreamAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, false);
+    }
+
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, null, true);
+    }
+
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, true);
+    }
+
+    public static EventualStreamAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
+    }
+
+    /* ── Record-stream-only validation ──
+     * @deprecated Use the streamMust* variants above which work in both RECORDS/BOTH and BLOCKS modes. */
+
+    @Deprecated
     public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
                 .withBackgroundTraffic();
     }
 
+    @Deprecated
     public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
     }
 
+    @Deprecated
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
                 .withBackgroundTraffic();
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
+    @Deprecated
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
         return recordStreamMustIncludePassFrom(assertion, timeout, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and that background traffic is running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
+    @Deprecated
     public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
         return recordStreamMustIncludePassFrom(assertion, timeout, false);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and if the background traffic should be running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @param needsBackgroundTraffic whether background traffic should be running
-     * @return the operation that asserts a passing record stream
-     */
     private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
             @NonNull final Duration timeout,
@@ -1720,26 +1738,43 @@ public class UtilVerbs {
         return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
     }
 
-    /**
-     * Returns an operation that asserts that the block stream must include no failures from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts no block stream problems
-     */
+    /* ── Block-stream-only validation ──
+     * @deprecated Use the streamMust* variants above which accept both RecordStreamAssertion and BlockStreamAssertion. */
+
+    @Deprecated
     public static EventualBlockStreamAssertion blockStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
         return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(assertion);
     }
 
-    /**
-     * Returns an operation that asserts that the block stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts a passing block stream
-     */
+    @Deprecated
     public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
         return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+    }
+
+    /**
+     * Returns an op that asserts the block stream eventually contains a pass from the given
+     * assertion within {@code timeout}, opting in to background traffic so blocks keep closing.
+     */
+    public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion, @NonNull final Duration timeout) {
+        requireNonNull(assertion);
+        requireNonNull(timeout);
+        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout)
+                .withBackgroundTraffic();
+    }
+
+    /**
+     * Block-stream equivalent of {@link EventualRecordStreamAssertion#eventuallyAssertingExplicitPassWithReplay}:
+     * also replays any existing block files first so genesis-time items (emitted before the
+     * subscription) can still satisfy the assertion.
+     */
+    public static AbstractEventualStreamAssertion blockStreamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion, @NonNull final Duration timeout) {
+        requireNonNull(assertion);
+        requireNonNull(timeout);
+        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPassWithReplay(assertion, timeout);
     }
 
     public static RunnableOp verify(@NonNull final Runnable runnable) {
@@ -1815,6 +1850,21 @@ public class UtilVerbs {
         requireNonNull(validator);
         requireNonNull(test);
         return spec -> new SelectedItemsAssertion(n, spec, test, validator);
+    }
+
+    /**
+     * Block-stream analog of {@link #selectedItems}. Translates each incoming {@link
+     * com.hedera.hapi.block.stream.Block} back to {@link RecordStreamItem}s so the existing
+     * predicate and {@link VisibleItemsValidator} APIs can be reused under
+     * {@code streamMode=BLOCKS} without re-implementing per-test selection logic.
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> selectedBlockItems(
+            @NonNull final VisibleItemsValidator validator,
+            final int n,
+            @NonNull final BiPredicate<HapiSpec, RecordStreamItem> test) {
+        requireNonNull(validator);
+        requireNonNull(test);
+        return spec -> new SelectedBlockItemsAssertion(n, spec, test, validator);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleNonSyntheticItems(

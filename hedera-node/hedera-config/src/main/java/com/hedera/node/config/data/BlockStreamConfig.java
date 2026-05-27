@@ -26,11 +26,10 @@ import java.time.Duration;
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
-        @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
-        BlockStreamWriterMode writerMode,
+        @ConfigProperty(defaultValue = "FILE") @NodeProperty BlockStreamWriterMode writerMode,
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty
         String blockFileDir,
@@ -69,7 +68,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks) {
 
     /**
