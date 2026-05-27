@@ -395,7 +395,6 @@ class AtomicContractCreateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
-    @HapiTest
     final Stream<DynamicTest> rejectsNegativeGas() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),

@@ -17,7 +17,17 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   copilot-setup-steps:
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
@@ -29,7 +39,7 @@ jobs:
           checkout-fetch-depth: "1"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           java-distribution: "temurin"
           setup-gradle: "true"
           setup-testlens: "true"

@@ -185,13 +185,21 @@ jobs:
                 ]
               }
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   create-tag:
     name: Create Release Tag
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
       - create-branch
-
+      - extract-jdk-version
     if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
     steps:
       - name: Prepare Runner
@@ -204,7 +212,7 @@ jobs:
           checkout-fetch-depth: 0
           setup-java: "true"
           java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           setup-gradle: "true"
 
       - name: Install Semantic Version Tools

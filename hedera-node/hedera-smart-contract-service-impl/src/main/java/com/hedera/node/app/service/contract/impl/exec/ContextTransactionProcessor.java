@@ -25,9 +25,11 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -197,9 +199,15 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 result = result.withSignerNonce(sender.getNonce());
             }
 
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support
+            // addContractBytecode.
+            final var streamMode =
+                    configuration.getConfigData(BlockStreamConfig.class).streamMode();
+
             // For mono-service fidelity, externalize an initcode-only sidecar when a top-level creation fails
-            if (!result.isSuccess() && hevmTransaction.needsInitcodeExternalizedOnFailure()) {
-                // (FUTURE) Remove after switching to block stream
+            if (!result.isSuccess()
+                    && hevmTransaction.needsInitcodeExternalizedOnFailure()
+                    && streamMode != StreamMode.BLOCKS) {
                 final var contractBytecode = ContractBytecode.newBuilder()
                         .initcode(hevmTransaction.payload())
                         .build();
