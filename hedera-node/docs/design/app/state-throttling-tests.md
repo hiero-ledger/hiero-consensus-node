@@ -43,23 +43,10 @@ The test class is `@OrderedInIsolation`; the seven cases run in this fixed order
 
 The test temporarily overrides the network's throttle definitions with
 `hedera-node/test-clients/src/main/resources/testSystemFiles/artificial-limits.json` via
-`SysFileOverrideOp(THROTTLES, ...)`. The buckets and limits set there are what the assertions
-above are computed against:
-
-- `ThroughputLimits` — three throttle groups:
-  - 100 ops/s for a wide "fast ops" group including `CryptoTransfer`, `CryptoCreate`,
-    most `CryptoGet*` queries, `ConsensusSubmitMessage`, `AtomicBatch`, `UtilPrng`, etc.
-  - 3 ops/s for contract-call and file ops (`ContractCall`, `ContractCreate`,
-    `EthereumTransaction`, `FileCreate`/`Update`/`Append`/`Delete`).
-  - 30 ops/s for token and `ScheduleSign` ops (including `TokenMint`).
-- `PriorityReservations` — 2 ops/s **shared** among `ContractCall`, `ContractCreate`,
-  `EthereumTransaction`, and the file mutation ops.
-- `CreationLimits` — three independent throttle groups:
-  - 1 ops/s for `CryptoCreate`.
-  - 1 ops/s for `ConsensusCreateTopic`.
-  - 1 ops/s **shared** among `TokenCreate`, `TokenAssociateToAccount`, `ScheduleCreate`.
-- `FreeQueryLimits` — 100 qps for `CryptoGetAccountBalance`, 1000 qps for
-  `TransactionGetReceipt`.
+`SysFileOverrideOp(THROTTLES, ...)`. The file defines four buckets — `ThroughputLimits`,
+`PriorityReservations`, `CreationLimits`, and `FreeQueryLimits` — whose group rates and
+operation lists determine the expected per-node rates in the table above. See
+`artificial-limits.json` for the current bucket contents.
 
 The test does **not** rely on the production `throttles.json`; the artificial limits are chosen
 small enough that the measurement window (180 s by default) reliably saturates them.

@@ -60,24 +60,13 @@ In addition to TPS-style buckets, there are specialized throttles for:
   and high-volume; see [High-Volume Buckets](#high-volume-buckets-hip-1313)) plus specialized
   throttles (gas/bytes/ops-duration), and performs allow/deny decisions.
 - `SynchronizedThrottleAccumulator` : Thread-safe wrapper used by ingest/query workflows.
-- `ThrottleServiceManager` : Lifecycle orchestrator. Public surface:
-  - `init(state, throttleDefinitions, genesis)` — applies gas/bytes/ops-duration config, rebuilds
-    throttles from the decoded `ThrottleDefinitions`, resets multiplier expectations, and (when
-    not genesis) rehydrates snapshots and congestion-level starts from state.
-  - `recreateThrottles(encoded)` — parses new definitions (from a HAPI file update) and rebuilds.
-  - `refreshThrottleConfiguration()` — re-applies gas/bytes/ops-duration config and resets
-    multipliers without rebuilding bucket throttles.
-  - `saveThrottleSnapshotsAndCongestionLevelStartsTo(state)` — persists current usage and
-    congestion-level starts to the `CongestionThrottleService` singletons.
-  - `resetThrottlesUnconditionally(states)` — restores throttle usage from snapshots without the
-    size-mismatch safety check (used during dispatch screening).
-  - `reclaimFrontendThrottleCapacity(n, function)` — leaks back capacity on this node's ingest
-    throttle after a failed implicit-create or auto-associate.
-  - `numImplicitCreations(body, accountStore)` / `numAutoAssociations(body, relationStore)` —
-    used by `DispatchUsageManager` to compute reclaim amounts.
-  - `updateAllMetrics()` — refreshes throttle gauges (HAPI/cons prefixes via `ThrottleMetrics`).
-    Note: `ThrottleServiceManager` does not read system files; it accepts already-decoded `Bytes`
-    and uses `ThrottleParser` to deserialize them.
+- `ThrottleServiceManager` : Lifecycle orchestrator. Owns the init / rebuild / refresh path for
+  the gas, bytes, and ops-duration configuration; persists and restores `CongestionThrottleService`
+  snapshots (with an unconditional reset variant used during dispatch screening); reclaims
+  frontend capacity on failed implicit creates / auto-associates; and refreshes throttle metric
+  gauges. It does **not** read system files itself — it accepts already-decoded `Bytes` and uses
+  `ThrottleParser` to deserialize them. See `ThrottleServiceManager.java` for the current method
+  set and contracts.
 - `NetworkUtilizationManagerImpl` : Backend/consensus tracking entrypoint used by handle workflow.
 
 ## Component Diagram
@@ -226,18 +215,15 @@ On startup/reconnect, `ThrottleServiceManager.init(...)`:
 1. Applies config (gas/bytes/ops-duration).
 2. Rebuilds the bucket mappings from `ThrottleDefinitions` (incl. high-volume buckets).
 3. Resets congestion multiplier expectations.
-4. Rehydrates from state when **not genesis**:
-- `resetThrottlesFromUsageSnapshots(...)` restores TPS bucket usage via
-`safeResetThrottles`. The list of active throttles to restore is chosen by
-`selectedThrottlesFor(...)`:
-- Prefer `allActiveThrottlesIncludingHighVolume()` when its size matches the snapshot.
-- Otherwise log INFO ("Snapshot size … does not match …, using normal throttles") and
-fall back to `allActiveThrottles()` (normal only) — the **legacy-snapshot** path for
-state saved before high-volume buckets existed.
-- When neither size matches, `selectedThrottlesFor` still returns the all-including-high-volume
-list, but `safeResetThrottles` then silently no-ops because sizes still differ — the
-throttles keep whatever usage they had post-rebuild (which is zero).
-- `syncFromCongestionLevelStarts(...)` restores `generic` and `gas` level starts.
+4. Rehydrates from state when **not genesis**: TPS bucket usage is restored from
+`ThrottleUsageSnapshots`, and `generic` / `gas` congestion level starts are restored from
+`CongestionLevelStarts`.
+
+The snapshot restore is **size-matched** against the active throttle list and has a backwards
+compatibility path: when the snapshot's TPS list is shorter (state saved before high-volume
+buckets existed), the restore falls back to the normal-only throttle list and logs at INFO. If
+neither size matches, the restore is silently skipped and the just-rebuilt throttles keep their
+zero usage. See `ThrottleServiceManager.init` for the exact decision logic.
 
 ### Snapshot ordering
 
@@ -255,20 +241,16 @@ on read. Treat `EPOCH` in `CongestionLevelStarts` as a sentinel for "unset," not
 
 ### Dispatch-time persistence
 
-During a user transaction `DispatchUsageManager.screenForCapacity(...)`:
-1. Calls `resetThrottlesUnconditionally(...)` first — releases capacity reserved by any
-child-dispatch attempts so failed parents do not double-count.
-2. Calls `networkUtilizationManager.trackTxn(...)` and raises `ThrottleException` if the gas or
-native throttle denied the dispatch (`CONSENSUS_GAS_EXHAUSTED` / `THROTTLED_AT_CONSENSUS`).
+Before a dispatch is run, `DispatchUsageManager` resets the backend throttles to their last
+saved usage (so child-dispatch attempts under a failed parent do not double-count) and triggers
+the backend throttle check, raising `ThrottleException` with `CONSENSUS_GAS_EXHAUSTED` or
+`THROTTLED_AT_CONSENSUS` on denial.
 
-After execution, `DispatchUsageManager.finalizeAndSaveUsage(...)`:
-1. For contract operations, calls `leakUnusedGasPreviouslyReserved(...)` to credit unused gas.
-2. On **non-success** USER/NODE dispatches, reclaims frontend capacity for failed
-implicit `CRYPTO_CREATE` and failed auto-associate `TOKEN_ASSOCIATE_TO_ACCOUNT` — but only
-when the dispatch ran on the node that originally accepted the user transaction
-(`usedSelfFrontendThrottleCapacity` check).
-3. Persists snapshots and congestion starts via
-`saveThrottleSnapshotsAndCongestionLevelStartsTo(...)`.
+After the dispatch, it credits back unused gas for contract operations, reclaims frontend
+capacity on **non-success** USER/NODE dispatches whose failed implicit `CRYPTO_CREATE` or
+failed auto-associate `TOKEN_ASSOCIATE_TO_ACCOUNT` originally consumed it on *this* node, and
+persists the updated snapshots and congestion-level starts. See `DispatchUsageManager` for the
+exact entry points (`screenForCapacity`, `finalizeAndSaveUsage`).
 
 ## Schedule Throttle (HSS)
 
