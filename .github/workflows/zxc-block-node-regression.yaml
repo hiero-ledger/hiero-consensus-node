@@ -56,6 +56,8 @@ jobs:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -72,6 +74,7 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
+          setup-gomplate: "true"
 
       # Get version for the checked out hiero-consensus-node
       - name: Get Version of Checkout CN Codebase
@@ -429,6 +432,33 @@ jobs:
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
+      - name: Build Slack Payload Message
+        id: build-payload
+        if: always()
+        env:
+          HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report"
+          STATUS_TEXT: "*Block Node Regression Panel was executed. See status below.*"
+          PANEL_LABEL: "Block Node Regression Panel Result"
+          RESULT: ${{ job.status }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          COLOR="#FF0000"
+          if [[ "${RESULT}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${RESULT}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+          export SLACK_COLOR="${COLOR}"
+          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          {
+            echo "slack_payload<<$EOF"
+            cat slack_payload.json
+            echo "$EOF"
+          } >> "$GITHUB_OUTPUT"
+
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-bn-regression-lin-sm
@@ -440,41 +470,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: |
-            .github/workflows/templates
-          sparse-checkout-cone-mode: false
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
-
-      - name: Build Slack Payload Message
-        id: payload
+      - name: Write Slack Payload
         env:
-          HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report"
-          STATUS_TEXT: "*Block Node Regression Panel was executed. See status below.*"
-          PANEL_LABEL: "Block Node Regression Panel Result"
-          RESULT: ${{ needs.block-node-regression.result }}
-          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
-          WORKFLOW_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          COLOR="#FF0000"
-          if [[ "${{ needs.block-node-regression.result }}" == "success" ]]; then
-            COLOR="#00FF00"
-          elif [[ "${{ needs.block-node-regression.result }}" == "cancelled" ]]; then
-            COLOR="#555555"
-          fi
-          export SLACK_COLOR="${COLOR}"
-          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
+          SLACK_PAYLOAD: ${{ needs.block-node-regression.outputs.slack_payload }}
+        run: echo "$SLACK_PAYLOAD" > slack_payload.json
 
       - name: Report Status to Detailed Test Reports Channel
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
