@@ -879,6 +879,71 @@ class WrapsHistoryProverTest {
         verifyNoInteractions(submissions);
     }
 
+    @Test
+    void postAggregationRetriesPublishOnceWrapsLibraryBecomesReady() {
+        // Models the WRAPS download race: a construction has already been finalized in
+        // bootstrap form (aggregated_node_signatures chain-of-trust proof), then the
+        // POST_AGGREGATION publish attempt finds the native WRAPS library still loading.
+        // The first advance() should noop without submitting a vote, and crucially must
+        // clear voteFuture so the next consensus round re-enters publishIfNeeded. Once
+        // wrapsProverReady() flips true (the proving key archive having finished
+        // extracting), the next advance() must publish the recursive wraps_proof form
+        // so the construction can upgrade per HIP-1200.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // Not ready on the first advance() (download still in flight); ready on the second.
+        given(historyLibrary.wrapsProverReady()).willReturn(false, true);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(
+                        new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        // First advance: wrapsProverReady=false → noop, no vote submitted, phase flagged for retry
+        final var firstOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
+        verifyNoInteractions(submissions);
+        assertSame(
+                WrapsPhase.POST_AGGREGATION,
+                getField("phaseNeedingWrapsReadinessRetry"),
+                "Noop due to WRAPS-not-ready must flag the phase so the next round retries");
+
+        // Second advance: wrapsProverReady=true → real ProofPhaseOutput → explicit vote on wraps_proof
+        final var secondOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        final var proof = captor.getValue();
+        assertTrue(proof.chainOfTrustProofOrThrow().hasWrapsProof(),
+                "Retry must publish a recursive wraps_proof, not another aggregated_node_signatures vote");
+    }
+
     private void setField(String name, Object value) {
         try {
             final var field = WrapsHistoryProver.class.getDeclaredField(name);
