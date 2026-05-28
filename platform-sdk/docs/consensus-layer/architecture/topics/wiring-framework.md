@@ -24,7 +24,7 @@ What the framework provides:
 
 ### TaskScheduler / TaskSchedulerType
 
-A `TaskScheduler<OUT>` (`swirlds-component-framework :: TaskScheduler`) owns a queue, a thread-execution policy, and a built-in primary `OutputWire<OUT>`. The framework primitive for obtaining one is `WiringModel.schedulerBuilder(name).withType(...).build()`. Consensus-layer code rarely calls that directly: the canonical wrapper is `ComponentWiring<COMPONENT, OUT>` (`swirlds-component-framework :: ComponentWiring`), which combines a scheduler with method-reference-based input-wire creation and a deferred binding step.
+A `TaskScheduler<OUT>` (`swirlds-component-framework :: TaskScheduler`) owns a queue, a thread-execution policy, and a built-in primary `OutputWire<OUT>`. The framework primitive for obtaining one is `WiringModel.schedulerBuilder(name).withType(...).build()`. Consensus-layer code rarely calls that directly: the standard wrapper is `ComponentWiring<COMPONENT, OUT>` (`swirlds-component-framework :: ComponentWiring`), which combines a scheduler with method-reference-based input-wire creation and a deferred binding step.
 
 `TaskSchedulerType` (`swirlds-component-framework :: TaskSchedulerType`) chooses the threading policy. Six values exist; see the enum's javadoc for the authoritative descriptions:
 
@@ -59,9 +59,11 @@ eventDeduplicatorWiring.bind(eventDeduplicator);
 
 Binding resolves the method references attached during step 2 to the actual `eventDeduplicator` instance; from this point the wiring is live.
 
-`WiringModel.schedulerBuilder(...)` is an instance method that returns a `TaskSchedulerBuilder<O>`, not a ready scheduler — the call always terminates in `.build()`. In the canonical consensus-layer pattern that terminating call lives inside `ComponentWiring`, not in the module's wiring code. The framework primitive is still used directly for the small set of cases that do not fit the `ComponentWiring` shape — for example, `PassThroughWiring` constructs a no-op identity scheduler, and `GossipWiring` self-builds its scheduler with its own `GossipWiringConfig` (treat the latter as an exception, not a template).
+`WiringModel.schedulerBuilder(...)` is an instance method that returns a `TaskSchedulerBuilder<O>`, not a ready scheduler — the call always terminates in `.build()`. In the usual consensus-layer pattern that terminating call lives inside `ComponentWiring`, not in the module's wiring code. The framework primitive is still used directly for the small set of cases that do not fit the `ComponentWiring` shape — for example, `PassThroughWiring` constructs a no-op identity scheduler, and `GossipWiring` self-builds its scheduler with its own `GossipWiringConfig` (treat the latter as an exception, not a template).
 
-There is no canonical scheduler type for new components — the choice is made case-by-case and lives in the component's `*WiringConfig` record. Type selection is part of the scheduler tuning surface, not a default.
+There is no preferred scheduler type for new components — the choice is made case-by-case and lives in the component's `*WiringConfig` record.
+
+Each scheduler keeps a single **on-ramp counter** of the tasks that have entered it but not yet been handled. A task is on-ramped when it enters the scheduler and *off-ramped* once its handler returns. A `PUT` handoff to a full consumer blocks inside the producing handler, so it cannot return: its task stays on-ramp, the scheduler's counter fills, and backpressure walks upstream to the producer's own inputs (see [Backpressure (wire level)](#backpressure-wire-level)). Capacity bounds the counter and `flush()` drains it.
 
 `flush()` is opt-in via `withFlushingEnabled(true)` and calling it on a scheduler that did not opt in throws `UnsupportedOperationException` (`swirlds-component-framework :: TaskScheduler`). It waits for the scheduler's on-ramp counter to drain to zero — every task that has entered the scheduler has finished processing — and does **not** transitively flush downstream-soldered schedulers (`swirlds-component-framework :: SequentialTaskScheduler` / `ConcurrentTaskScheduler`). In practice `flush()` is always paired with `startSquelching()` / `stopSquelching()`, the scheduler's "drop new tasks" toggle: squelch new arrivals, flush the existing backlog, then stop squelching to resume acceptance. The composite drain is performed module-wide (or system-wide) by calling the trio on each `ComponentWiring` in turn — see `DefaultEventIntakeModule.flush()`. The combined pattern is intricate and a known candidate for future simplification.
 
@@ -71,11 +73,11 @@ The default `UncaughtExceptionHandler` (installed when none is supplied to the b
 
 `InputWire<IN>` (`swirlds-component-framework :: InputWire`) is the entry point of a component. It exposes three put-paths (`put(data)`, `offer(data)`, and `inject(data)`) that an edge selects between via its `SolderType`; their handoff semantics are described under [Soldering](#soldering).
 
-In the canonical pattern, modules do not call `BindableInputWire.bind(...)` directly. They obtain an `InputWire` via `componentWiring.getInputWire(MethodReference)`; `ComponentWiring` lazily creates a `BindableInputWire<IN, OUT>` (`swirlds-component-framework :: BindableInputWire`) for the targeted method on first use, caches it, and binds it later when `componentWiring.bind(component)` is called. The framework method `BindableInputWire.bind(Function<IN, OUT>)` / `bindConsumer(Consumer<IN>)` is therefore an implementation detail that consensus-code normally doesn't touch directly.
+Normally, modules do not call `BindableInputWire.bind(...)` directly. They obtain an `InputWire` via `componentWiring.getInputWire(MethodReference)`; `ComponentWiring` lazily creates a `BindableInputWire<IN, OUT>` (`swirlds-component-framework :: BindableInputWire`) for the targeted method on first use, caches it, and binds it later when `componentWiring.bind(component)` is called. The framework method `BindableInputWire.bind(Function<IN, OUT>)` / `bindConsumer(Consumer<IN>)` is therefore an implementation detail that consensus-code normally doesn't touch directly.
 
 `OutputWire<OUT>` (`swirlds-component-framework :: OutputWire`) is the source of every connection out of a component. Soldering, filters, transformers, and splitters are all methods on `OutputWire`. A scheduler always owns one primary output wire (`getOutputWire()`); secondary output wires for fan-out side-channels are created with `buildSecondaryOutputWire()`.
 
-Primary and secondary output wires behave differently. The primary output wire receives whatever the bound function returns and is fed by the scheduler itself — it participates in the scheduler's on-ramp counter and therefore in `flush()` and `startSquelching()` / `stopSquelching()`. Secondary output wires are owned by the business logic and pushed explicitly; the scheduler is unaware of them, so data emitted via a secondary wire does **not** count towards the scheduler's on-ramp counter and does **not** participate in `flush()`. The component is the sole owner of its output wires: only the scheduler should push onto the primary wire, and only the business logic should push onto any secondaries. As a rule of thumb, a component has a primary wire for its canonical return value and reaches for secondaries only when business logic needs to emit something the scheduler would not naturally produce.
+The two are fed differently: the scheduler forwards a handler's return value onto the primary wire automatically (`swirlds-component-framework :: BindableInputWire`), whereas a secondary wire is pushed explicitly by the component's own code — a rare case, used only when business logic must emit something a return value cannot carry. Primary and secondary are output-wire terms; there is no secondary input wire.
 
 ### Soldering
 
@@ -114,23 +116,7 @@ this.eventWindowDispatcher =
         new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
 ```
 
-`WireListSplitter<T>` (`swirlds-component-framework :: WireListSplitter`) is the canonical concrete transformer: a `List<T>` arriving on its input wire produces one task per element on its output wire. It is built via `OutputWire.buildSplitter(...)`, and `ComponentWiring` exposes it as `getSplitOutput()` for any component whose primary output type is a list. For example, `DefaultEventIntakeModule.validatedEventsOutputWire()` returns the orphan buffer's split output so that downstream components receive one event at a time rather than a batch.
-
-A more advanced chain appears in `PlatformWiring` for the signed-state fan-out:
-
-```java
-// swirlds-platform-core :: PlatformWiring
-final OutputWire<ReservedSignedState> splitReservedSignedStateWire = components
-        .stateSignatureCollectorWiring()
-        .getOutputWire()
-        .buildSplitter("reservedStateSplitter", "reserved state lists");
-final OutputWire<ReservedSignedState> allReservedSignedStatesWire =
-        splitReservedSignedStateWire.buildAdvancedTransformer(new SignedStateReserver("allStatesReserver"));
-```
-
-`SignedStateReserver` implements `AdvancedTransformation<ReservedSignedState, ReservedSignedState>` (`swirlds-component-framework :: AdvancedTransformation`) so each element gets an additional reservation as it passes through and the original is released on cleanup. Simpler conversions look like `outputWire.buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)`.
-
-All three concrete `AdvancedTransformation` implementations in the codebase live under `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/`: `SignedStateReserver`, `StateWithHashComplexityReserver`, and `StateWithHashComplexityToStateReserver`. Every one of them exists to add or transfer a reservation as state objects flow along a wire — reservation handoff is the only current use of the `inputCleanup` / `outputCleanup` hooks.
+`WireListSplitter<T>` (`swirlds-component-framework :: WireListSplitter`) is the framework's list-splitting transformer: a `List<T>` arriving on its input wire produces one task per element on its output wire. It is built via `OutputWire.buildSplitter(...)`, and `ComponentWiring` exposes it as `getSplitOutput()` for any component whose primary output type is a list. For example, `DefaultEventIntakeModule.validatedEventsOutputWire()` returns the orphan buffer's split output so that downstream components receive one event at a time rather than a batch.
 
 ### WiringModel
 
@@ -148,7 +134,7 @@ A single `WiringModel` instance flows through the whole platform: it is construc
 
 ## Backpressure (wire level)
 
-Wire-level backpressure rests on two independent settings. The first is **capacity**, a property of the *consumer*: each scheduler caps the number of unhandled tasks it will hold, configured at build time. In the canonical consensus-layer setup capacity comes from the `TaskSchedulerConfiguration` record passed to `ComponentWiring`'s constructor; the underlying framework method is `TaskSchedulerBuilder.withUnhandledTaskCapacity(...)`. The second is the **`SolderType`**, a property of the *edge*: it decides how a producer reacts when the consumer it feeds is already at capacity (`PUT` blocks, `INJECT` bypasses the cap, `OFFER` drops — see [Soldering](#soldering)). Capacity is therefore set once per scheduler, while the reaction to a full scheduler is chosen edge-by-edge.
+Wire-level backpressure rests on two independent settings. The first is **capacity**, a property of the *consumer*: each scheduler caps the number of unhandled tasks it will hold, configured at build time. In the typical consensus-layer setup capacity comes from the `TaskSchedulerConfiguration` record passed to `ComponentWiring`'s constructor; the underlying framework method is `TaskSchedulerBuilder.withUnhandledTaskCapacity(...)`. The second is the **`SolderType`**, a property of the *edge*: it decides how a producer reacts when the consumer it feeds is already at capacity (`PUT` blocks, `INJECT` bypasses the cap, `OFFER` drops — see [Soldering](#soldering)). Capacity is therefore set once per scheduler, while the reaction to a full scheduler is chosen edge-by-edge.
 
 The principal hazard is cyclic data flow under `PUT`: a producer waiting on a downstream consumer that is itself waiting (transitively) on the producer will deadlock. The wiring model detects cyclic backpressure during validation (`checkForCyclicalBackpressure`) and logs a warning. The standard remedy is to flip exactly one edge in the cycle to `INJECT`, so the cycle no longer transmits backpressure. `PlatformWiring` does this on the genuine feedback loops between modules — for example the event-creator → event-intake edge, where created events flow back into intake and would otherwise close a backpressure cycle.
 
