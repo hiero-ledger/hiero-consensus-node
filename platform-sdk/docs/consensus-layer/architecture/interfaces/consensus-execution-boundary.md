@@ -53,11 +53,15 @@ arguments include:
 - `StateLifecycleManager stateLifecycleManager`
 - `NodeId selfId`, the `appName` / `swirldName`, the consensus-event-stream name
 
-Optional wiring is added with fluent `with...` methods, notably:
+Further wiring is added with fluent `with...` methods, notably:
 
 - `withExecutionLayer(ExecutionLayer)` — registers the `ExecutionLayer` implementation
 - `withStaleEventCallback(Consumer<PlatformEvent>)` — one of the `ApplicationCallbacks`
 - `withConfiguration`, `withPlatformContext`, `withKeysAndCerts`, `withModel`, …
+
+Despite the API suggesting that these parameters are optional, some arguments are actually required
+for the consensus layer to function. For example, the `ExecutionLayer` is required. If it is not
+supplied, the `PlatformBuilder` will throw an exception at runtime when it tries to build the `Platform`.
 
 `build()` returns the `Platform`.
 
@@ -65,7 +69,7 @@ Optional wiring is added with fluent `with...` methods, notably:
 
 ### `Platform`
 
-- **Implemented by:** consensus layer
+- **Provided by:** consensus layer
 - **Called by:** execution layer
 - **Code anchor:** `swirlds-platform-core/src/main/java/com/swirlds/platform/system/Platform.java`
 - **Role:** The handle the execution layer receives from `PlatformBuilder.build()`. It is the execution
@@ -99,8 +103,7 @@ Optional wiring is added with fluent `with...` methods, notably:
 - `getRoster()` → `Roster` — only a test mock calls it; the execution layer and consensus-internal code
   read the roster from state (`signedState.getRoster()` / `reservedState.getRoster()`) instead.
 - `getLatestImmutableState(reason)` → `AutoCloseableWrapper<T extends State>` — no caller anywhere except
-  the `NoOpPlatform` test stub. Immutable state is reached through `StateLifecycleManager` instead (by the
-  consensus layer, not the execution layer).
+  the `NoOpPlatform` test stub. Immutable state is directly passed to `ConsensusStateEventHandler.onPreHandle()`.
 
 ## Implemented by the execution layer
 
@@ -108,7 +111,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
 
 ### `ExecutionLayer`
 
-- **Implemented by:** execution layer
+- **Provided by:** execution layer
 - **Called by:** consensus layer
 - **Code anchor:** `swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java`
 - **Role:** The explicitly-named boundary interface.
@@ -131,7 +134,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
 
 ### `ConsensusStateEventHandler`
 
-- **Implemented by:** execution layer
+- **Provided by:** execution layer
 - **Called by:** consensus layer
 - **Code anchor:** `swirlds-platform-core/src/main/java/com/swirlds/platform/state/ConsensusStateEventHandler.java`
 - **Role:** The execution layer's hooks into the major state lifecycle events. Implementations are expected
@@ -139,11 +142,12 @@ These are the interfaces the execution layer implements (or supplies). The conse
 - **Methods:**
   - `onPreHandle(Event, State, Consumer<ScopedSystemTransaction<StateSignatureTransaction>>)` — called when
     an event is added to the hashgraph; the execution layer pre-handles the event's transactions.
-  - `onHandleConsensusRound(Round, State, Consumer<…>)` — called when a round reaches consensus and is ready
-    to be applied to the working state.
+  - `onHandleConsensusRound(Round, State, Consumer<ScopedSystemTransaction<StateSignatureTransaction>>)` —
+    called when a round reaches consensus and is ready to be applied to the working state. The `Consumer`
+    is used to inform about state signatures from other nodes which are collected and used for ISS
+    detection.
   - `onSealConsensusRound(Round, State)` → `boolean` — called after the consensus layer has made all its
-    changes to the state for the round; returns whether sealing completes a block (i.e. whether the round's
-    state is safe to sign).
+    changes to the state for the round; returns whether sealing completes a block.
   - `onStateInitialized(State, Platform, InitTrigger, SemanticVersion previousVersion)` — called when the
     consensus layer initializes the network state. `InitTrigger` distinguishes `GENESIS` / `RESTART` /
     `RECONNECT` / `EVENT_STREAM_RECOVERY`.
@@ -152,7 +156,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
 
 ### `StateLifecycleManager<S, D>`
 
-- **Implemented by:** execution layer
+- **Provided by:** execution layer
 - **Called by:** consensus layer
 - **Code anchor:** `swirlds-state-api/src/main/java/com/swirlds/state/StateLifecycleManager.java`
 - **Role:** Owns the state lifecycle: the mutable state, the latest immutable state, and snapshot creation /
@@ -180,7 +184,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
 
 ### `ApplicationCallbacks`
 
-- **Implemented by:** execution layer (a record of optional consumers it registers)
+- **Provided by:** execution layer (a record of optional consumers it registers)
 - **Called by:** consensus layer
 - **Code anchor:** `swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java`
 - **Fields (all `@Nullable`):**
@@ -203,7 +207,7 @@ interface.
 | `PlatformStatusChangeListener` (`…/listeners/`)               | `PlatformStatusChangeNotification`     | SYNC, ORDERED   | Platform status changed. *(The execution layer instead consumes status via `ExecutionLayer.newPlatformStatus`.)* |
 | `ReconnectCompleteListener` (`…/listeners/`)                  | `ReconnectCompleteNotification`        | SYNC, ORDERED   | A reconnect has completed.                                                                                       |
 | `StateWriteToDiskCompleteListener` (`…/listeners/`)           | `StateWriteToDiskCompleteNotification` | SYNC, ORDERED   | A state has been written to disk.                                                                                |
-| `IssListener` (`…/system/state/notifications/`)               | `IssNotification`                      | SYNC, ORDERED   | Any ISS (invalid state signature) event.                                                                         |
+| `IssListener` (`…/system/state/notifications/`)               | `IssNotification`                      | SYNC, ORDERED   | Any ISS (inconsistent state signature) event.                                                                    |
 | `AsyncFatalIssListener` (`…/system/state/notifications/`)     | `IssNotification`                      | ASYNC, ORDERED  | Fatal ISS events only (`SELF` or `CATASTROPHIC`). The execution layer registers this rather than `IssListener`.  |
 | `NewRecoveredStateListener` (`…/system/state/notifications/`) | `NewRecoveredStateNotification`        | SYNC, UNORDERED | A state was produced by event-stream recovery.                                                                   |
 | `StateHashedListener` (`…/system/state/notifications/`)       | `StateHashedNotification`              | SYNC, UNORDERED | A state has been hashed.                                                                                         |
@@ -269,7 +273,8 @@ These data types appear in the signatures above and travel across the seam:
 5. **Steady state.** The consensus layer pulls transactions via `ExecutionLayer.getTransactionsForEvent()`,
    pushes events through `onPreHandle`, delivers consensus rounds through `onHandleConsensusRound` /
    `onSealConsensusRound`, reports status via `ExecutionLayer.newPlatformStatus` and health via
-   `reportUnhealthyDuration`, and fires notification listeners as events occur. The execution layer submits
+   `reportUnhealthyDuration`, fires notification listeners as events occur, and submits state signature
+   transactions via `ExecutionLayer.submitStateSignature()`. The execution layer submits them with
    its own transactions into its pool (surfaced again to the consensus layer at `getTransactionsForEvent`).
 6. **Reconnect / restart.** `StateLifecycleManager.initWithState(...)` / `loadSnapshot(...)` swap the state;
    `snapshotOverrideConsumer` and `ReconnectCompleteListener` fire.
