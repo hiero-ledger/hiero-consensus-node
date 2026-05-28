@@ -1,9 +1,8 @@
 ---
-
 title: Quiescence
 kind: architecture-topic
 last_reviewed: TBD
-------------------
+---
 
 # Quiescence
 
