@@ -216,15 +216,18 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
                                     .flatMap(factory -> {
+                                        final var validator = factory.create(spec);
                                         // Validators that walk the event chain across the cutover
-                                        // boundary (EventHash + RedactingEventHash) opt-in to the
-                                        // archived preview prefix; all others receive only the
-                                        // active (post-cutover) blocks. Validators that need
-                                        // pre-cutover state replay read it from the test's
-                                        // preservedPreviewBlocks snapshot directly.
-                                        final List<Block> input =
-                                                factory.wantsArchiveBlocks() ? diskBlocks.all() : diskBlocks.active();
-                                        return factory.create(spec).validationErrorsIn(input, data);
+                                        // boundary (EventHash + RedactingEventHash) need the archived
+                                        // preview prefix; all others receive only the active
+                                        // (post-cutover) blocks. Validators that need pre-cutover
+                                        // state replay read it from the test's preservedPreviewBlocks
+                                        // snapshot directly.
+                                        final List<Block> input = (validator instanceof EventHashBlockStreamValidator
+                                                        || validator instanceof RedactingEventHashBlockStreamValidator)
+                                                ? diskBlocks.all()
+                                                : diskBlocks.active();
+                                        return validator.validationErrorsIn(input, data);
                                     })
                                     .peek(t -> log.error("Block stream validation error", t))
                                     .map(Throwable::getMessage)

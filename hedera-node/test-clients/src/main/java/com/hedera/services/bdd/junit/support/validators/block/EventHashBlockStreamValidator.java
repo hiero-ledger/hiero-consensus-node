@@ -96,11 +96,6 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         }
 
         @Override
-        public boolean wantsArchiveBlocks() {
-            return true;
-        }
-
-        @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
             final var pcesData = readPcesDataFromSpec(spec);
