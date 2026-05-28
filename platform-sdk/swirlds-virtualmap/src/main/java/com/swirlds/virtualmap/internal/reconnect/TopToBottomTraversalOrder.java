@@ -437,7 +437,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 assert next != null : "computeNextChunk returned null despite leafPath <= lastLeafPath";
                 activeChunks.addLast(next);
             }
-            // else: pre-fetched chunk is already the new head
             currentLeafPath.set(leafPath);
             // Proceed to internal nodes of the new chunk
             return PATH_NOT_AVAILABLE_YET;
