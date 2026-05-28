@@ -178,13 +178,6 @@ jobs:
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           sudo apt-get update && sudo apt-get install -y jq
-          COLOR="#FF0000"
-          if [[ "${RESULT}" == "success" ]]; then
-            COLOR="#00FF00"
-          elif [[ "${RESULT}" == "cancelled" ]]; then
-            COLOR="#555555"
-          fi
-          export SLACK_COLOR="${COLOR}"
           PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
           echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
 

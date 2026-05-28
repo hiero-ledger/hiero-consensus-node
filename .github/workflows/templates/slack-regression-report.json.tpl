@@ -1,7 +1,9 @@
+{{- $result := getenv "RESULT" | required "RESULT must be set" -}}
+{{- $color := cond (eq $result "success") "#00FF00" (cond (eq $result "cancelled") "#555555" "#FF0000") -}}
 {
   "attachments": [
     {
-      "color": {{ getenv "SLACK_COLOR" | required "SLACK_COLOR must be set" | data.ToJSON }},
+      "color": {{ $color | data.ToJSON }},
       "blocks": [
         {
           "type": "header",
