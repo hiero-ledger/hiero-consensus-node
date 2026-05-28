@@ -25,10 +25,10 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -122,7 +122,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -230,7 +230,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("blockStream.streamMode", "BOTH"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -334,7 +334,7 @@ public class RepeatableHip1064Tests {
                 overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorWithInactiveNodes(
                                         expectedNodeRewards::get, expectedMinNodeReward::get),
@@ -434,7 +434,7 @@ public class RepeatableHip1064Tests {
                 overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.adjustNodeFees", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -522,7 +522,7 @@ public class RepeatableHip1064Tests {
                 overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.preserveMinNodeRewardBalance", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -610,7 +610,7 @@ public class RepeatableHip1064Tests {
                 overriding("blockStream.streamMode", "BOTH"),
                 overriding("nodes.minNodeRewardBalance", "1000000000000"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.

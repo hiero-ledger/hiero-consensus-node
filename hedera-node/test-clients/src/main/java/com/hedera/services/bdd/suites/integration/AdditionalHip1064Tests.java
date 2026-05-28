@@ -19,10 +19,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -138,7 +138,7 @@ public class AdditionalHip1064Tests {
                                 .build()) // 10% active
                         .build()),
                 waitUntilStartOfNextStakingPeriod(1),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorForThresholdTest(),
                                 1,
@@ -203,7 +203,7 @@ public class AdditionalHip1064Tests {
 
                 // Expect no rewards since nodes are completely inactive; filter by consensus time
                 // to ignore any legitimate reward distributions from before the mutation
-                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
+                streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
@@ -491,7 +491,7 @@ public class AdditionalHip1064Tests {
                         .exposingBalanceTo(nodeRewardBalance::set)
                         .logged(),
                 waitUntilStartOfNextStakingPeriod(1),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 allNodesActiveValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 1,
@@ -553,7 +553,7 @@ public class AdditionalHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // Expect no rewards since all nodes decline
-                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
+                streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
@@ -598,7 +598,7 @@ public class AdditionalHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // Expect no rewards since target is zero
-                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
+                streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
@@ -764,7 +764,7 @@ public class AdditionalHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // System should handle this gracefully without crashing
-                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
+                streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> {
                             // Test passes if system doesn't crash due to invalid data
                             // Log what actually happened for analysis
@@ -996,7 +996,7 @@ public class AdditionalHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // System should handle this gracefully without overflow
-                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
+                streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> {
                             // Test passes if system doesn't crash due to overflow
                             // Rewards may or may not be distributed, but system should be stable

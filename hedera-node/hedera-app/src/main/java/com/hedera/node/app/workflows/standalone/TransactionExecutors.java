@@ -7,7 +7,6 @@ import static com.hedera.node.app.workflows.standalone.impl.NoopVerificationStra
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
@@ -30,14 +29,11 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -221,29 +217,19 @@ public enum TransactionExecutors {
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
         final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
-        final var streamMode = Optional.ofNullable(properties.get("blockStream.streamMode"))
-                .map(StreamMode::valueOf)
-                .orElse(StreamMode.BOTH);
+        final var streamMode = executor.configProvider()
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
         executor.initializer().initialize(state, streamMode);
         final var exchangeRateManager = executor.exchangeRateManager();
         return (transactionBody, consensusNow, tracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
             tracerBinding.runWhere(
                     List.of(tracers), () -> executor.dispatchProcessor().processDispatch(dispatch));
-            final var handleOutput =
-                    dispatch.stack().buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates());
-            if (streamMode != StreamMode.BLOCKS) {
-                return ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
-            }
-            final var records = new java.util.ArrayList<SingleTransactionRecord>();
-            handleOutput
-                    .preferringBlockRecordSource()
-                    .forEachTxnRecord(txnRecord -> records.add(new SingleTransactionRecord(
-                            Transaction.DEFAULT,
-                            txnRecord,
-                            List.of(),
-                            new SingleTransactionRecord.TransactionOutputs(null))));
-            return records;
+            return dispatch.stack()
+                    .buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates())
+                    .singleTransactionRecords();
         };
     }
 

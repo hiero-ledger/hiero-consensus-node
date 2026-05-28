@@ -1,9 +1,8 @@
 ---
-
 title: Voting
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Voting
 

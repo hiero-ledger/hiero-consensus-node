@@ -15,7 +15,8 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -119,7 +120,8 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("reversible user stream items are as expected")
     final Stream<DynamicTest> reversibleUserItemsAsExpected() {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                overriding("blockStream.streamMode", "BOTH"),
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleUserValidator(), "firstCreation", "duplicateCreation")),
                 scheduleCreate(
                                 "scheduledTxn",
@@ -158,7 +160,8 @@ public class NaturalDispatchOrderingTest {
             @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
+                overriding("blockStream.streamMode", "BOTH"),
+                streamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         reversibleChildValidator(), "fullSuccess", "containedRevert", "fullRevert")),
                 nonFungibleToken.treasury().authorizeContract(transferContract),
                 transferContract
@@ -217,7 +220,8 @@ public class NaturalDispatchOrderingTest {
             @Account(centBalance = 7, maxAutoAssociations = UNLIMITED_AUTO_ASSOCIATION_SLOTS)
                     SpecAccount insolventPayer) {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                overriding("blockStream.streamMode", "BOTH"),
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleScheduleValidator(), "committed", "rolledBack")),
                 firstToken.treasury().transferUnitsTo(solventPayer, 10, firstToken),
                 secondToken.treasury().transferUnitsTo(insolventPayer, 10, secondToken),
@@ -267,7 +271,8 @@ public class NaturalDispatchOrderingTest {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                overriding("blockStream.streamMode", "BOTH"),
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
                 outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
                         .via("nestedCreations")),
@@ -302,7 +307,7 @@ public class NaturalDispatchOrderingTest {
     final Stream<DynamicTest> irreversiblePrecedingItemsAsExpected() {
         return hapiTest(
                 withOpContext((spec, opLog) -> triggerAndCloseAtLeastOneFile(spec)), // flush migration records first
-                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
+                streamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         irreversiblePrecedingValidator(), "finalizationBySuccess", "finalizationByFailure")),
                 tokenCreate("unassociatedToken"),
                 // Create two hollow accounts to finalize, first by a top-level success and second by failure
