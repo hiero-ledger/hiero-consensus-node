@@ -144,7 +144,7 @@ These are the interfaces the execution layer implements (or supplies). The conse
     an event is added to the hashgraph; the execution layer pre-handles the event's transactions.
   - `onHandleConsensusRound(Round, State, Consumer<ScopedSystemTransaction<StateSignatureTransaction>>)` —
     called when a round reaches consensus and is ready to be applied to the working state. The `Consumer`
-    is used to inform about state signatures from other nodes which are collected and used for ISS
+    is used to inform the consensus layer about state signatures from other nodes which are collected and used for ISS
     detection.
   - `onSealConsensusRound(Round, State)` → `boolean` — called after the consensus layer has made all its
     changes to the state for the round; returns whether sealing completes a block.
