@@ -38,7 +38,7 @@ Output reaches consumers two ways:
 
 A reported `Duration.ZERO` means all watched schedulers are healthy. A non-zero value means at least one scheduler is over capacity, with the magnitude indicating how long. To avoid spamming consumers, the monitor suppresses repeat reports of the same duration unless the system has been continuously healthy for `platform.wiring.healthyReportThreshold` (default `1s`), at which point a healthy state is re-asserted (`HealthMonitor.checkSystemHealth`, lines 142–157).
 
-[TBD: question for engineer — The health monitor suppresses repeat reports of the same duration unless the system has been healthy for `healthyReportThreshold` (`HealthMonitor.checkSystemHealth`, lines 142, 154). Should KB readers treat the wire-soldered consumers as edge-driven (only deltas arrive) or level-driven (the last value persists)? PCES polls `getUnhealthyDuration()` directly so it always sees the current level; the contract for wire-soldered consumers should be documented per consumer.]
+The wire-soldered consumers (event creator, gossip, transaction acceptance) are therefore **edge-driven**: only deltas arrive, and each consumer's `reportUnhealthyDuration` handler is responsible for tracking the last value it saw. PCES is the exception — it polls `getUnhealthyDuration()` directly and always sees the current level.
 
 ## Reactions
 
@@ -62,9 +62,9 @@ Triggers and rates:
 - While unhealthy, permits are revoked at `sync.permitsRevokedPerSecond` (default `5`).
 - When the system returns to healthy, permits are returned at `sync.permitsReturnedPerSecond` (default `1`).
 - A floor of `sync.minimumHealthyUnrevokedPermitCount` (default `1`) un-revoked permits is enforced as soon as the system becomes healthy, so a recovered system is not stuck at zero permits while it waits for the gradual return rate.
-- `sync.keepSendingEventsWhenUnhealthy` (default `true`) softens the reaction further: when set, the node continues to send its own events during an unhealthy period and only stops receiving and processing remote events.
+- `sync.keepSendingEventsWhenUnhealthy` (default `true`) softens the reaction further: when set, the node continues to send its own events during an unhealthy period and only stops receiving and processing remote events. Continuing to send self events lets the rest of the network build on them, which prevents the local node's recent events — and the user transactions they carry — from going stale and expiring before they reach consensus.
 
-[TBD: question for engineer — When `sync.keepSendingEventsWhenUnhealthy` is `true` (the default), how does the send-only mode interact with the permit revoke/return accounting in `SyncPermitProvider.computeRevokedPermits()`? Are permits still revoked at the same rate while only inbound processing is skipped, or is permit accounting effectively bypassed for send-only syncs?]
+When `sync.keepSendingEventsWhenUnhealthy` is `true`, the health-driven permit revoke path is bypassed entirely: `SyncPermitProvider.computeRevokedPermits()` (line 274) guards the unhealthy-branch delta computation with `if (!keepSendingEventsWhenUnhealthy)`, so permit accounting and the keep-sending mode are mutually exclusive — only one of them reacts to an unhealthy report. Permit accounting still applies on reconnect: `SyncPermitProvider.revokeAll()` (line 194) is invoked when a reconnect begins, and the configured `permitsReturnedPerSecond` then slowly restores permits once the reconnect finishes.
 
 See [gossip.md](gossip.md) for the sync protocol and the broader role of permits.
 
@@ -76,9 +76,7 @@ Trigger: when the unhealthy duration meets or exceeds the configured threshold, 
 
 Wiring: the signal reaches `TransactionPoolNexus` through the execution layer rather than directly off the platform wire. `swirlds-platform-core/.../PlatformWiring` (line 110) solders the health-monitor output to `ExecutionLayer.reportUnhealthyDuration(Duration)`; the Hedera implementation forwards to its `TransactionPoolNexus` (`DefaultSwirldMain.reportUnhealthyDuration`, line 66). The threshold is a Hedera-side config: `transaction.maximumPermissibleUnhealthySeconds` (`HederaConfig`, default `1`), converted to a `Duration` when the nexus is built.
 
-Note: this is a **separate** config key from the event-creator threshold, even though both currently default to one second. The two reactions can be tuned independently.
-
-[TBD: question for engineer — Why is the transaction-acceptance threshold a Hedera config (`transaction.maximumPermissibleUnhealthySeconds`) while event creation uses a platform config (`event.creation.maximumPermissibleUnhealthyDuration`)? Are operators expected to keep them in lockstep, or are they intentionally tunable independently?]
+Note: this is a **separate** config key from the event-creator threshold, even though both currently default to one second. The two reactions are intentionally tunable independently, and operators are not expected to keep them in lockstep. In practice it is preferable to set `transaction.maximumPermissibleUnhealthySeconds` lower than `event.creation.maximumPermissibleUnhealthyDuration` so that transaction acceptance closes before event creation does — otherwise transactions admitted into the pool can expire there with no events left to drain them.
 
 ### PCES replay throttling
 
