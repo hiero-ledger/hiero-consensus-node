@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.network.simulation;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,6 +14,7 @@ import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 class SimulationStats {
     private final List<Duration> c2cs = new ArrayList<>();
     private long numEvents = 0;
+    private long numBytes = 0;
 
     /**
      * Records statistics from a batch of consensus engine outputs produced during a single simulation tick.
@@ -32,21 +34,33 @@ class SimulationStats {
                         .toList())
                 .flatMap(List::stream)
                 .forEach(c2cs::add);
+
+        numBytes += engineOutputs.stream()
+                .map(ConsensusEngineOutput::consensusRounds)
+                .flatMap(List::stream)
+                .flatMap(cr -> cr.getConsensusEvents().stream())
+                .mapToLong(ce -> GossipEvent.PROTOBUF.measureRecord(ce.getGossipEvent()))
+                .sum();
     }
 
     /**
      * Prints a summary of the collected statistics to standard output.
      *
-     * @param nodes       the number of nodes in the simulated network
-     * @param timePassed  the total simulated time that elapsed during the run
+     * @param nodes      the number of nodes in the simulated network
+     * @param timePassed the total simulated time that elapsed during the run
      */
-    void print(final int nodes, final Duration timePassed) {
+    SimulationResult print(final int nodes, final Duration timePassed) {
         final double averageC2C =
                 c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
         final Duration max = c2cs.stream().max(Comparator.naturalOrder()).orElse(Duration.ZERO);
-        System.out.printf("Num nodes: %d%n", nodes);
-        System.out.printf("Avg C2C:   %s%n", Duration.ofNanos((long) averageC2C));
-        System.out.printf("Max C2C:   %s%n", max);
-        System.out.printf("Ev/sec:    %,d%n", (long) (numEvents / ((double) timePassed.toMillis() / 1000)));
+
+        final SimulationResult result = new SimulationResult(
+                nodes,
+                Duration.ofNanos((long) averageC2C),
+                max,
+                (long) (numEvents / ((double) timePassed.toMillis() / 1000)),
+                (long) (numBytes / ((double) timePassed.toMillis() / 1000)));
+        System.out.println(result);
+        return result;
     }
 }
