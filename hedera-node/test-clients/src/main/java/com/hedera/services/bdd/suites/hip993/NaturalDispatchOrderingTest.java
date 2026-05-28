@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -119,6 +120,7 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("reversible user stream items are as expected")
     final Stream<DynamicTest> reversibleUserItemsAsExpected() {
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleUserValidator(), "firstCreation", "duplicateCreation")),
                 scheduleCreate(
@@ -158,6 +160,7 @@ public class NaturalDispatchOrderingTest {
             @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         reversibleChildValidator(), "fullSuccess", "containedRevert", "fullRevert")),
                 nonFungibleToken.treasury().authorizeContract(transferContract),
@@ -217,6 +220,7 @@ public class NaturalDispatchOrderingTest {
             @Account(centBalance = 7, maxAutoAssociations = UNLIMITED_AUTO_ASSOCIATION_SLOTS)
                     SpecAccount insolventPayer) {
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleScheduleValidator(), "committed", "rolledBack")),
                 firstToken.treasury().transferUnitsTo(solventPayer, 10, firstToken),
@@ -267,6 +271,7 @@ public class NaturalDispatchOrderingTest {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
+                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
                 outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
