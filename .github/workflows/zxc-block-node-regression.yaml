@@ -451,13 +451,8 @@ jobs:
             COLOR="#555555"
           fi
           export SLACK_COLOR="${COLOR}"
-          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          {
-            echo "slack_payload<<$EOF"
-            cat slack_payload.json
-            echo "$EOF"
-          } >> "$GITHUB_OUTPUT"
+          PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
+          echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
 
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
