@@ -104,6 +104,45 @@ class TopToBottomTraversalOrderPrefetchTest {
         return leaves;
     }
 
+    /**
+     * Drives the algorithm to completion feeding every internal as dirty, verifying leaf
+     * ordering inline without materializing the full leaf list. Returns the number of
+     * leaves sent. Asserts strict ascending order (which also proves no duplicates).
+     * Use this instead of {@link #driveAllDirty} for large trees to avoid heap pressure
+     * from boxing every leaf into a list.
+     */
+    private static long driveAllDirtyStreaming(
+            final TopToBottomTraversalOrder order, final long expectedFirst, final long expectedLast) {
+        long count = 0;
+        long prev = -1;
+        int stalls = 0;
+        while (true) {
+            final long internal = order.getNextInternalPathToSend();
+            if (internal != INVALID_PATH) {
+                order.nodeReceived(internal, false);
+                stalls = 0;
+                continue;
+            }
+            final long leaf = order.getNextLeafPathToSend();
+            if (leaf == INVALID_PATH) {
+                break;
+            }
+            if (leaf == PATH_NOT_AVAILABLE_YET) {
+                assertTrue(++stalls <= 100_000, "Algorithm stalled waiting for leaf path");
+            } else {
+                if (count == 0) {
+                    assertEquals(expectedFirst, leaf, "First leaf must equal firstLeafPath");
+                }
+                assertTrue(leaf > prev, "Leaves must be in strictly ascending order (no duplicates)");
+                prev = leaf;
+                count++;
+                stalls = 0;
+            }
+        }
+        assertEquals(expectedLast, prev, "Last leaf must equal lastLeafPath");
+        return count;
+    }
+
     @SuppressWarnings("unchecked")
     private static Deque<TopToBottomTraversalOrder.ChunkState> getActiveChunks(final TopToBottomTraversalOrder order)
             throws Exception {
@@ -573,67 +612,50 @@ class TopToBottomTraversalOrderPrefetchTest {
     @DisplayName("6s — End-to-end: pre-fetch correctness on multi-chunk tree")
     class EndToEndTests {
 
+        // Moderate multi-chunk tree: firstLeafPath=100_000 (rank 17),
+        // lastLeafPath=200_000 (rank 18), = 2 * firstLeafPath. chunkRootRank = 1,
+        // so the tree spans several chunks including a rank-change boundary, with
+        // ~100K leaves — large enough to exercise repeated chunk transitions but
+        // small enough to keep heap usage modest in CI.
+        private static final long E2E_FIRST = 100_000L;
+        private static final long E2E_LAST = 200_000L; // 2 * E2E_FIRST
+
         @Test
-        @DisplayName("17-chunk tree completes correctly with depth=1")
+        @DisplayName("Multi-chunk tree completes correctly with depth=1 (all dirty)")
         void multiChunkAllDirtyWithPrefetch() {
-            final long first = 100_000_000L;
-            final long last = 200_000_000L;
             final var order = new TopToBottomTraversalOrder(1);
-            order.start(first, last, first, last);
+            order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
-            final List<Long> leaves = driveAllDirty(order);
-
-            assertEquals(last - first + 1, leaves.size(), "All leaves must be sent");
-            assertEquals(first, leaves.get(0));
-            assertEquals(last, leaves.get(leaves.size() - 1));
-
-            // Verify monotonic ordering
-            for (int i = 1; i < leaves.size(); i++) {
-                assertTrue(leaves.get(i) > leaves.get(i - 1), "Leaves must be in strictly ascending order");
-            }
+            // Streaming verifier checks count, first, last, and strict ascending order
+            // (which implies no duplicates) without materializing the leaf list.
+            final long count = driveAllDirtyStreaming(order, E2E_FIRST, E2E_LAST);
+            assertEquals(E2E_LAST - E2E_FIRST + 1, count, "All leaves must be sent");
         }
 
         @Test
-        @DisplayName("17-chunk tree completes correctly with all-clean and depth=1")
+        @DisplayName("Multi-chunk tree completes correctly with all-clean and depth=1")
         void multiChunkAllCleanWithPrefetch() {
-            final long first = 100_000_000L;
-            final long last = 200_000_000L;
             final var order = new TopToBottomTraversalOrder(1);
-            order.start(first, last, first, last);
+            order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
             final List<Long> leaves = driveAllClean(order);
             assertTrue(leaves.isEmpty(), "No leaves sent in all-clean tree");
         }
 
         @Test
-        @DisplayName("maxLookaheadReached reflects actual pre-fetch depth")
+        @DisplayName("maxLookaheadReached is 0 under the synchronous driver (no stalls)")
         void maxLookaheadTracked() throws Exception {
-            final long first = 100_000_000L;
-            final long last = 200_000_000L;
             final var order = new TopToBottomTraversalOrder(1);
-            order.start(first, last, first, last);
+            order.start(E2E_FIRST, E2E_LAST, E2E_FIRST, E2E_LAST);
 
-            driveAllDirty(order);
+            driveAllDirtyStreaming(order, E2E_FIRST, E2E_LAST);
 
-            // With the synchronous driver (driveAllDirty drains all internals before
-            // checking leaves), stalls don't occur. maxLookahead should be 0.
+            // The synchronous driver drains all internals before checking leaves, so
+            // stalls never occur and pre-fetch is never triggered.
             assertEquals(
                     0,
                     getMaxLookaheadReached(order),
                     "Synchronous driver doesn't trigger stalls, so maxLookahead should be 0");
-        }
-
-        @Test
-        @DisplayName("No duplicate leaves across chunks with pre-fetch enabled")
-        void noDuplicateLeaves() {
-            final long first = 100_000_000L;
-            final long last = 200_000_000L;
-            final var order = new TopToBottomTraversalOrder(1);
-            order.start(first, last, first, last);
-
-            final List<Long> leaves = driveAllDirty(order);
-            final Set<Long> unique = new HashSet<>(leaves);
-            assertEquals(leaves.size(), unique.size(), "No duplicate leaves allowed");
         }
     }
 
