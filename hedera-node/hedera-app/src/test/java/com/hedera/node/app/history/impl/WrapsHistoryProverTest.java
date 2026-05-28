@@ -940,7 +940,8 @@ class WrapsHistoryProverTest {
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
-        assertTrue(proof.chainOfTrustProofOrThrow().hasWrapsProof(),
+        assertTrue(
+                proof.chainOfTrustProofOrThrow().hasWrapsProof(),
                 "Retry must publish a recursive wraps_proof, not another aggregated_node_signatures vote");
     }
 

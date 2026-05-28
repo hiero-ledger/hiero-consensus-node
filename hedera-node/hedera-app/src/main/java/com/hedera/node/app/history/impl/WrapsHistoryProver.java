@@ -433,14 +433,12 @@ public class WrapsHistoryProver implements HistoryProver {
             phaseNeedingWrapsReadinessRetry = null;
         }
         // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
-        final boolean needsWrapsForOutput = phase == POST_AGGREGATION
-                || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
+        final boolean needsWrapsForOutput =
+                phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
         if (needsWrapsForOutput && !historyLibrary.wrapsProverReady()) {
             if (isWrapsReadinessRetry) {
                 log.debug(
-                        "Deferring {} output for construction #{}: WRAPS library is not ready",
-                        phase,
-                        constructionId);
+                        "Deferring {} output for construction #{}: WRAPS library is not ready", phase, constructionId);
             } else {
                 log.info(
                         "Deferring {} output for construction #{}: WRAPS library is not ready (will retry each consensus round until ready)",
@@ -532,7 +530,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                             }
                                             case NoopOutput noopOutput -> {
                                                 if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())) {
-                                                    // Flag instead of clearing voteFuture inline; the outer accept() hasn't returned yet.
+                                                    // Flag instead of clearing voteFuture inline; the outer accept()
+                                                    // hasn't returned yet.
                                                     log.debug(
                                                             "Deferring {} output: {} (will retry next round)",
                                                             phase,
