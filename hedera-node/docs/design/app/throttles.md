@@ -168,8 +168,8 @@ flowchart LR
     - `contracts.maxGasPerSecBackend` (backend)
     - `contracts.throttle.throttleByGas`
 - Bytes throttle (jumbo tx)
-  - **Frontend-only**: `ThrottleServiceManager.applyBytesConfig()` only applies to the ingest
-    accumulator. Backend handle does not re-check excess bytes.
+  - **Frontend-only.** The bytes throttle is configured on the ingest accumulator; the backend
+    handle path does not enforce an excess-bytes ceiling.
   - Enforced on excess bytes for configured functionalities.
   - Config in `JumboTransactionsConfig`:
     - `jumboTransactions.maxBytesPerSec`
@@ -183,89 +183,73 @@ flowchart LR
 
 ## High-Volume Buckets (HIP-1313)
 
-`ThrottleAccumulator` keeps **two** `EnumMap<HederaFunctionality, ThrottleReqsManager>`:
+`ThrottleAccumulator` carries two parallel `HederaFunctionality → requirements` maps: one for
+normal-volume buckets and one for high-volume buckets. Both are rebuilt from the active
+`ThrottleDefinitions` and both contribute to the persisted snapshot list.
 
-- `functionReqs` — normal-volume bucket requirements.
-- `highVolumeFunctionReqs` — separate requirements that drive high-volume pricing tiers.
-
-Both maps are rebuilt by `rebuildFor(ThrottleDefinitions)`. Snapshot persistence (via
-`ThrottleServiceManager.saveThrottleSnapshotsAndCongestionLevelStartsTo`) iterates the
-combined list returned by `allActiveThrottlesIncludingHighVolume()`. High-volume utilization
-is exposed via `ThrottleAccumulator.getHighVolumeThrottleInstantaneousUtilizationBps(function, now)`
-and read through `ThrottleAdviser.highVolumeThrottleUtilization(function)` (wired through
-`NetworkUtilizationManager` and `AppThrottleAdviser`). Handlers use that basis-points reading
-to apply HIP-1313 pricing tiers; the high-volume map does **not** drive allow/deny decisions,
-which remain governed by the normal-volume map.
+High-volume utilization is surfaced to fee-charging handlers through `ThrottleAdviser` (a
+basis-points reading per functionality). Handlers use that reading to apply HIP-1313 pricing
+tiers. Crucially, the high-volume map does **not** drive admission decisions — allow/deny
+remain governed entirely by the normal-volume map.
 
 ## State and Recovery
 
-Throttle state is persisted by `CongestionThrottleService` (service name
-`"CongestionThrottleService"`), whose schema `V0490CongestionThrottleSchema` (version `0.49.0`)
-declares two singletons keyed by `SingletonType` proto ordinals:
+Throttle state is persisted by `CongestionThrottleService` as two singletons:
 
-|            Key             |         Constant on schema          |                         Proto message                          |
-|----------------------------|-------------------------------------|----------------------------------------------------------------|
-| `THROTTLE_USAGE_SNAPSHOTS` | `THROTTLE_USAGE_SNAPSHOTS_STATE_ID` | `proto.ThrottleUsageSnapshots` (TPS list + gas + ops-duration) |
-| `CONGESTION_LEVEL_STARTS`  | `CONGESTION_LEVEL_STARTS_STATE_ID`  | `proto.CongestionLevelStarts` (generic + gas level starts)     |
+- A snapshot of TPS bucket usage plus the gas and ops-duration throttle usage
+  (`ThrottleUsageSnapshots`).
+- The most-recent timestamps at which each congestion-pricing level started, for both the
+  generic (entity-utilization) and gas-utilization multipliers (`CongestionLevelStarts`).
 
-At **genesis**, `CongestionThrottleService.doGenesisSetup` writes the proto `DEFAULT` instances
-into both singletons.
+At genesis these singletons are initialized to their proto defaults. On startup or reconnect,
+`ThrottleServiceManager` applies configuration, rebuilds bucket throttles from the active
+`ThrottleDefinitions`, resets congestion multiplier expectations, and (when not at genesis)
+rehydrates both singletons.
 
-On startup/reconnect, `ThrottleServiceManager.init(...)`:
-1. Applies config (gas/bytes/ops-duration).
-2. Rebuilds the bucket mappings from `ThrottleDefinitions` (incl. high-volume buckets).
-3. Resets congestion multiplier expectations.
-4. Rehydrates from state when **not genesis**: TPS bucket usage is restored from
-`ThrottleUsageSnapshots`, and `generic` / `gas` congestion level starts are restored from
-`CongestionLevelStarts`.
-
-The snapshot restore is **size-matched** against the active throttle list and has a backwards
-compatibility path: when the snapshot's TPS list is shorter (state saved before high-volume
-buckets existed), the restore falls back to the normal-only throttle list and logs at INFO. If
-neither size matches, the restore is silently skipped and the just-rebuilt throttles keep their
-zero usage. See `ThrottleServiceManager.init` for the exact decision logic.
+The snapshot restore is **size-matched** against the active throttle list. When the persisted
+TPS list is shorter than the rebuilt set, the restore falls back to the normal-only throttle
+list — the backwards-compatibility path for state saved before high-volume buckets existed. If
+no size matches, the restore is silently skipped and the rebuilt throttles keep their zero
+usage.
 
 ### Snapshot ordering
 
-`ThrottleUsageSnapshots.tps_throttles` is a positional list. The order **must** match the
-iteration order produced by `allActiveThrottlesIncludingHighVolume()` (or `allActiveThrottles()`
-on legacy fallback). Mismatch is detected only by length — index alignment is implicit. The
-proto file itself flags the ordering as an open question.
+The persisted TPS snapshot list is positional. Its order must match the iteration order of the
+active throttle list at restore time. Size mismatches are detected but index alignment is
+implicit — adding, removing, or reordering buckets requires care because there is no symbolic
+binding between a snapshot entry and the throttle it belongs to.
 
 ### Null vs. EPOCH encoding for congestion-level starts
 
-`ThrottleMultiplier` uses `null` `Instant` to mean "this congestion level has not started at the
-current consensus time." Proto cannot store `null`, so `ThrottleServiceManager.translateToList`
-encodes `null → EPOCH` (1970-01-01T00:00:00Z), and `asMultiplierStarts` decodes `EPOCH → null`
-on read. Treat `EPOCH` in `CongestionLevelStarts` as a sentinel for "unset," not a real start.
+The in-memory multiplier representation uses `null` `Instant` to mean "this congestion level
+has not started at the current consensus time." Because proto cannot store `null`, the unset
+case is encoded as the UNIX epoch (`1970-01-01T00:00:00Z`) on write and decoded back to `null`
+on read. Treat the epoch in `CongestionLevelStarts` as a sentinel for "unset," not a real
+start time.
 
 ### Dispatch-time persistence
 
 Before a dispatch is run, `DispatchUsageManager` resets the backend throttles to their last
-saved usage (so child-dispatch attempts under a failed parent do not double-count) and triggers
-the backend throttle check, raising `ThrottleException` with `CONSENSUS_GAS_EXHAUSTED` or
-`THROTTLED_AT_CONSENSUS` on denial.
+saved usage (so child-dispatch attempts under a failed parent do not double-count) and
+triggers the backend throttle check, raising a throttle exception that maps to
+`CONSENSUS_GAS_EXHAUSTED` or `THROTTLED_AT_CONSENSUS` on denial.
 
 After the dispatch, it credits back unused gas for contract operations, reclaims frontend
-capacity on **non-success** USER/NODE dispatches whose failed implicit `CRYPTO_CREATE` or
-failed auto-associate `TOKEN_ASSOCIATE_TO_ACCOUNT` originally consumed it on *this* node, and
-persists the updated snapshots and congestion-level starts. See `DispatchUsageManager` for the
-exact entry points (`screenForCapacity`, `finalizeAndSaveUsage`).
+capacity on non-success user dispatches whose failed implicit creations or auto-associations
+originally consumed it on *this* node, and persists the updated snapshots and
+congestion-level starts. See `DispatchUsageManager` for the exact entry points.
 
 ## Schedule Throttle (HSS)
 
-The Hedera Schedule Service uses a **separate** throttle, created by
-`AppScheduleThrottleFactory` and exposed as `com.hedera.node.app.spi.throttle.ScheduleThrottle`,
-to gate transactions scheduled for future execution. Important differences from the main
-runtime throttle:
+The Hedera Schedule Service uses a **separate** throttle (`ScheduleThrottle`, built via
+`AppScheduleThrottleFactory`) to gate transactions scheduled for future execution. Differences
+from the main runtime throttle:
 
-- Built on top of a fresh `ThrottleAccumulator` typed `BACKEND_THROTTLE`, configured from the
-  active `ThrottleDefinitions`, optionally seeded with `ThrottleUsageSnapshots`.
-- Polarity is inverted vs. `ThrottleAccumulator.checkAndEnforceThrottle`:
-  `ScheduleThrottle.allow(...)` returns `true` when capacity was consumed (i.e. when the txn is
-  permitted to be scheduled).
-- Its own `usageSnapshots()` view is independent of `CongestionThrottleService` state — HSS
-  manages persistence separately.
+- It runs on a private `ThrottleAccumulator` instance configured from the active throttle
+  definitions, independent of the ingest and backend accumulators.
+- Its persistence is owned by HSS (per scheduled second), not by `CongestionThrottleService`.
+- It exposes an `allow` predicate (returns `true` when capacity is reserved), the opposite
+  polarity of the runtime `checkAndEnforceThrottle` (returns `true` when *throttled*).
 
 ## Status Mapping
 

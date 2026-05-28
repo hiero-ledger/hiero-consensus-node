@@ -25,39 +25,30 @@ listed in that bucket:
 | `checkCryptoCreatesTps` | `CreationLimits`       | `CryptoCreate`            | `CREATION_LIMITS_CRYPTO_CREATE_NETWORK_TPS / N`       |
 | `checkBalanceQps`       | `FreeQueryLimits`      | `CryptoGetAccountBalance` | `BALANCE_QUERY_LIMITS_QPS / N`                        |
 
-`N` is the network size (`hapi.spec.network.size`, default `4`, CI override `3`). Tolerated
-deviation is `7%` of the expected rate.
+`N` is the network size. Each test asserts that the observed rate is within a small percent of
+the expected rate; the exact tolerance and per-bucket constants live in the test class.
 
-The test class is `@OrderedInIsolation`; the seven cases run in this fixed order:
-
-1. `setArtificialLimits` — uploads the test throttle definitions described below.
-2. `checkXfersTps`
-3. `checkFungibleMintsTps`
-4. `checkContractCallsTps`
-5. `checkCryptoCreatesTps`
-6. `checkBalanceQps`
-7. `restoreDevLimits` — restores the original throttle definitions so the embedded network
-   returns to its dev configuration.
+The cases are run in a fixed order: an `@Order(1)` step uploads the artificial throttle
+definitions, the TPS/QPS cases follow, and a final step restores the original definitions so
+the embedded network returns to its dev configuration.
 
 ## Throttle definitions used
 
-The test temporarily overrides the network's throttle definitions with
-`hedera-node/test-clients/src/main/resources/testSystemFiles/artificial-limits.json` via
-`SysFileOverrideOp(THROTTLES, ...)`. The file defines four buckets — `ThroughputLimits`,
-`PriorityReservations`, `CreationLimits`, and `FreeQueryLimits` — whose group rates and
-operation lists determine the expected per-node rates in the table above. See
-`artificial-limits.json` for the current bucket contents.
+The test temporarily overrides the network's throttle definitions with an artificial-limits
+file shipped under `test-clients` test resources. The file defines four buckets —
+`ThroughputLimits`, `PriorityReservations`, `CreationLimits`, and `FreeQueryLimits` — whose
+group rates and operation lists determine the expected per-node rates in the table above.
 
-The test does **not** rely on the production `throttles.json`; the artificial limits are chosen
-small enough that the measurement window (180 s by default) reliably saturates them.
+The test does **not** rely on the production throttle definitions; the artificial limits are
+chosen small enough that the measurement window reliably saturates them.
 
 ## Why the rates divide by `N`
 
 Throttle definitions express network-wide rates. The frontend `ThrottleAccumulator` divides
-capacity by the configured `capacitySplit` (number of nodes that participate in admission
-control), so each node accepts roughly `network rate / N` of each bucket's traffic. The test
-expectations encode that split directly. Setting `hapi.spec.network.size` to a value different
-from the actual node count will skew the assertions.
+capacity by the number of nodes participating in admission control, so each node accepts
+roughly `network rate / N` of each bucket's traffic. The test expectations encode that split
+directly, which means the configured network size must match the actual node count under test
+for the assertions to be meaningful.
 
 ## Background load
 
@@ -68,59 +59,27 @@ buckets stay saturated while the measurement is taken:
 - For `ContractCalls`, the competing client uploads a payable contract and issues `deposit`
   calls — keeping `PriorityReservations` and the `ContractCall` portion of `ThroughputLimits`
   pressured.
-- For all other cases, the competing client creates a topic `"ntb"` and then submits messages
-  to it with `omittingTopicId()` (expecting `INVALID_TOPIC_ID` or `BUSY` precheck). The point is
-  to fill the `ConsensusSubmitMessage` lane of the 100 ops/s `ThroughputLimits` group without
-  actually running consensus work — keeping that bucket pressured so the bucket-under-
-  measurement is the binding constraint.
+- For all other cases, the competing client creates a topic and then submits messages with
+  the topic id omitted, so each request is rejected before consensus but still consumes
+  capacity in the `ConsensusSubmitMessage` lane of `ThroughputLimits`. The effect is to keep
+  that bucket pressured so the bucket-under-measurement is the binding constraint.
 
-`PERMITTED_STATUSES = {BUSY, SUCCESS, RECEIPT_NOT_FOUND}`. The first is expected at the
-throttle's limit; the third is tolerated only when client threads are starved on small CI
-runners.
+`BUSY` is expected at the throttle's limit. Other tolerated outcomes (e.g. transient
+status starvation under resource-constrained CI runners) are enumerated in the test class
+itself rather than redocumented here.
 
-## How to run
+## Run characteristics
 
-Local Gradle target (single-machine subprocess network):
+The suite is driven by a dedicated `hapiTestStateThrottling` Gradle task on `test-clients`,
+and a corresponding CI job runs the same task. Two characteristics are essential to keep in
+mind when interpreting or updating it:
 
-```
-./gradlew :test-clients:hapiTestStateThrottling
-```
-
-In CI this is the same target, executed from the `Node: HAPI Test (State Throttling)` job in
-`.github/workflows/zxc-execute-hapi-tests.yaml` and gated by
-`enable-hapi-tests-state-throttling: true`.
-
-### Tag expression and configuration
-
-From `hedera-node/test-clients/build.gradle.kts`:
-
-- Tag expression: `(STATE_THROTTLING&SERIAL)` — runs only `@Tag(STATE_THROTTLING)` classes that
-  are also tagged `SERIAL`. Other suites exclude `STATE_THROTTLING` via the `miscTags`
-  blocklist so steady-state assertions never compete with parallel test traffic on a shared
-  network.
-- Network size override: `hapiTestStateThrottling` is forced to `3` (see
-  `prCheckNetSizeOverrides`), so the expected per-node rates above use `N = 3` under CI.
-- Property overrides: `nodes.nodeRewardsEnabled=false,quiescence.enabled=true` — the same
-  combination used by `hapiTestMisc`, `hapiTestMiscSerial`, `hapiTestAtomicBatch`, and other
-  suites that need a minimally-busy background network for stable assertions.
-- Initial port: `28600`.
-
-### Tolerance
-
-`TOLERATED_PERCENT_DEVIATION = 7` — `|actual/expected - 1| * 100 ≤ 7`. Flakes typically come
-from CI scheduler jitter; if a single case fails by a small margin in isolation, re-run before
-investigating the throttle subsystem.
-
-## When to update this suite
-
-Update the suite when any of the following change:
-
-- The buckets, operations, or `opsPerSec` values in `artificial-limits.json`.
-- The `capacitySplit` semantics or default network size handling in `ThrottleAccumulator`.
-- The set of `PERMITTED_STATUSES` (e.g. a new precheck outcome appears at the throttle limit).
-
-When `THROUGHPUT_LIMITS_*`, `PRIORITY_RESERVATIONS_*`, `CREATION_LIMITS_*`, or
-`BALANCE_QUERY_LIMITS_QPS` constants in the test class drift from `artificial-limits.json`, the
-assertions silently start measuring the wrong target — keep them in sync.
+- **It must run serially.** The cases measure observed TPS to within a small tolerance, so
+  any parallel HAPI traffic on the same network would invalidate the assertions. The suite is
+  excluded from the catch-all parallel test groupings and is the only suite using its tag.
+- **The network is held quiet.** The CI configuration disables background activity that would
+  otherwise add unrelated traffic to the buckets being measured. The exact override list is
+  defined in the build script and may evolve; the principle is to keep the network minimally
+  busy while the measurement is taken.
 
 **SEE ALSO:** [`throttles.md`](throttles.md) — the throttle subsystem this suite validates.
