@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.virtualmap.internal.Path;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Deque;
 import java.util.Queue;
@@ -83,16 +84,21 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         /** Node path of this chunk's root */
         final long chunkRootPath;
 
-        /** The last leaf path covered by this chunk's subtree */
+        /**
+         * The rightmost descendant of this chunk's root at the leaf rank. For the last
+         * chunk in the traversal, this value may exceed the tree's {@code lastLeafPath}
+         * — callers must clamp against {@code lastLeafPath} when iterating leaves.
+         */
         final long chunkLastLeafPath;
 
         /** The leaf rank of this chunk (either firstLeafRank or lastLeafRank) */
         final int chunkLastRank;
 
         /**
-         * The highest rank at which initial chunk internals are seeded. Equals
-         * {@code chunkRootRank + skipRanks}. Used by {@code skipCleanPaths} to bound
-         * how far up the tree it walks looking for clean ancestors.
+         * The rank at which initial chunk internals are seeded, equal to
+         * {@code chunkRootRank + (chunkLastRank - chunkRootRank) / 2} — the midpoint
+         * of the chunk. Used by {@code skipCleanPaths} to bound how far up the tree
+         * it walks looking for clean ancestors.
          */
         final int chunkFirstCheckedRank;
 
@@ -127,12 +133,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
          * Creates a fully-initialized chunk state with its initial internals already seeded.
          *
          * @param chunkRootPath  the root path of this chunk
-         * @param chunkRootRank  the global chunk root rank (same for all chunks)
          * @param chunkLastRank  the leaf rank of this chunk
          */
-        ChunkState(final long chunkRootPath, final int chunkRootRank, final int chunkLastRank) {
+        ChunkState(final long chunkRootPath, final int chunkLastRank) {
             this.chunkRootPath = chunkRootPath;
             this.chunkLastRank = chunkLastRank;
+            final int chunkRootRank = Path.getRank(chunkRootPath);
             this.chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 
             // Seed initial internals at the midpoint of the chunk
@@ -216,10 +222,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     private final Deque<ChunkState> activeChunks = new ConcurrentLinkedDeque<>();
 
     /**
-     * Monotonic upper bound on paths that have ever belonged to a popped (completed)
-     * chunk. Used by {@link #nodeReceived} to distinguish expected late responses
-     * (TRACE) from paths that were never part of any chunk (ERROR). Updated on every
-     * chunk promotion. Initialized to -1 (no chunks have been popped yet).
+     * The largest {@code chunkLastLeafPath} among all chunks that have finished processing
+     * and been removed from {@link #activeChunks}. Included in error diagnostics if
+     * {@link #nodeReceived} encounters a path with no owning chunk. Only increases over
+     * time, since chunks are processed left-to-right in ascending path order.
      */
     private volatile long lastPoppedChunkRightmost = -1;
 
@@ -236,8 +242,8 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     // ── Observability (mutated only from the view's synchronized block) ──
 
-    /** Total number of chunks fully processed (promoted or finalized) */
-    private int totalChunks;
+    /** Number of chunks that have finished processing (promoted or finalized) */
+    private int completedChunks;
     /** Accumulated stall nanoseconds across all completed chunks */
     private long totalStallNanos;
     /** Accumulated nanoseconds where stalls occurred with all pre-fetch queues empty */
@@ -272,7 +278,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
             final int chunkLastRank = Path.getRank(startingLeaf);
             final long chunkRootPath = Path.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
-            activeChunks.addLast(new ChunkState(chunkRootPath, chunkRootRank, chunkLastRank));
+            activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank));
 
             logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
         }
@@ -280,14 +286,16 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     /**
      * Finds the active chunk whose subtree contains the given internal path, or
-     * {@code null} if no active chunk owns it (late response for a completed chunk,
-     * or a bug). Walks the deque linearly — bounded by prefetch depth + 1.
+     * {@code null} if no active chunk owns it.
+     *
+     * @throws IllegalStateException if no active chunk owns the path
      */
+    @NonNull
     private ChunkState findOwningChunk(final long path) {
         final int rank = Path.getRank(path);
         if (rank <= chunkRootRank) {
-            // Path is at or above chunk root level — not part of any chunk's subtree
-            return null;
+            throw new IllegalStateException("Path " + path + " (rank " + rank + ") is at or above chunk root rank "
+                    + chunkRootRank + " — not part of any chunk's subtree");
         }
         final long ancestor = Path.getGrandParentPath(path, rank - chunkRootRank);
         for (final ChunkState chunk : activeChunks) {
@@ -295,7 +303,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 return chunk;
             }
         }
-        return null;
+        throw new IllegalStateException("nodeReceived for path " + path + " (rank " + rank
+                + ") with no owning chunk; lastPoppedRightmost="
+                + lastPoppedChunkRightmost + " activeChunks=" + activeChunks.size());
     }
 
     @Override
@@ -309,25 +319,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             return;
         }
         final ChunkState chunk = findOwningChunk(path);
-        if (chunk == null) {
-            if (path <= lastPoppedChunkRightmost) {
-                // Late response for a chunk that has already been promoted and discarded.
-                // Expected race between receiver threads and chunk promotion.
-                logger.trace(
-                        RECONNECT.getMarker(), "Late response discarded for path {} (chunk already promoted)", path);
-            } else {
-                // Path belongs to no active chunk and was never in a popped one — bug
-                logger.error(
-                        RECONNECT.getMarker(),
-                        "nodeReceived for path {} (rank {}) with no owning chunk; "
-                                + "lastPoppedRightmost={} activeChunks={}",
-                        path,
-                        Path.getRank(path),
-                        lastPoppedChunkRightmost,
-                        activeChunks.size());
-            }
-            return;
-        }
         final int rank = Path.getRank(path);
         if (isClean) {
             chunk.cleanPaths.add(path);
@@ -410,7 +401,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         final ChunkState chunk = activeChunks.peekFirst();
         assert chunk != null : "activeChunks must not be empty outside simpleMode";
         // Skip all clean leaf paths starting from the current path
-        leafPath = skipCleanPaths(chunk, leafPath, chunk.chunkLastLeafPath);
+        leafPath = skipCleanPaths(chunk, leafPath);
         if (leafPath == Path.INVALID_PATH) {
             // All remaining leaves in the current chunk are clean, promote to next chunk
             leafPath = chunk.chunkLastLeafPath + 1;
@@ -422,7 +413,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // Finalize stall timing and accumulate totals for the completing chunk
             currentChunkStalled = false;
             endStallIfActive(chunk);
-            totalChunks++;
+            completedChunks++;
             totalStallNanos += chunk.chunkStallNanos;
             final int prefetchDepthAtPromotion = activeChunks.size() - 1;
             logger.debug(
@@ -441,8 +432,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             //noinspection NonAtomicOperationOnVolatileField
             lastPoppedChunkRightmost = Math.max(lastPoppedChunkRightmost, chunk.chunkLastLeafPath);
             if (activeChunks.isEmpty()) {
-                // No pre-fetched chunk available, compute the next one
-                activeChunks.addLast(computeNextChunk(chunk));
+                // No pre-fetched chunk available, compute the next one.
+                final ChunkState next = computeNextChunk(chunk);
+                assert next != null : "computeNextChunk returned null despite leafPath <= lastLeafPath";
+                activeChunks.addLast(next);
             }
             // else: pre-fetched chunk is already the new head
             currentLeafPath.set(leafPath);
@@ -550,14 +543,14 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         traversalComplete = true;
         if (lastChunk != null) {
             endStallIfActive(lastChunk);
-            totalChunks++;
+            completedChunks++;
             totalStallNanos += lastChunk.chunkStallNanos;
         }
         logger.info(
                 RECONNECT.getMarker(),
                 "Traversal complete: chunks={} totalStallMs={} prefetchExhaustedMs={} "
                         + "maxLookahead={} configuredDepth={}",
-                totalChunks,
+                completedChunks,
                 TimeUnit.NANOSECONDS.toMillis(totalStallNanos),
                 TimeUnit.NANOSECONDS.toMillis(totalPrefetchExhaustedNanos),
                 maxLookaheadReached,
@@ -571,10 +564,14 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     /**
      * Computes the {@link ChunkState} for the chunk immediately following the given chunk.
      * Handles the rank-change boundary where chunks transition from {@code firstLeafRank}
-     * to {@code lastLeafRank}. Does NOT check termination conditions — the caller must
-     * ensure a next chunk exists before calling this method.
+     * to {@code lastLeafRank}. Returns {@code null} if the tree has no more chunks
+     * (i.e., {@code lastChunk} already covers the last leaf path).
      */
+    @Nullable
     private ChunkState computeNextChunk(final ChunkState lastChunk) {
+        if (lastChunk.chunkLastLeafPath + 1 > lastLeafPath) {
+            return null;
+        }
         long nextChunkRootPath = lastChunk.chunkRootPath + 1;
         int nextChunkLastRank = lastChunk.chunkLastRank;
         if (Path.getRank(nextChunkRootPath) != chunkRootRank) {
@@ -583,14 +580,14 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             assert lastChunk.chunkLastRank == firstLeafRank;
             nextChunkLastRank = lastLeafRank;
         }
-        return new ChunkState(nextChunkRootPath, chunkRootRank, nextChunkLastRank);
+        return new ChunkState(nextChunkRootPath, nextChunkLastRank);
     }
 
     /**
      * Computes the next chunk for pre-fetch purposes, or returns {@code null} if no useful
-     * pre-fetch target exists beyond the given chunk. Returns {@code null} when:
+     * pre-fetch target exists beyond the given chunk. In addition to the end-of-tree check
+     * in {@link #computeNextChunk}, returns {@code null} when:
      * <ul>
-     *   <li>The tree has no more chunks ({@code lastChunk} covers the last leaf)</li>
      *   <li>The next chunk's leaves are entirely past {@code oldLastLeafPath} — those
      *       leaves are sent immediately as dirty without needing internal queries, so
      *       pre-fetching internals for them would waste bandwidth</li>
@@ -608,7 +605,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      *       performance impact.</li>
      * </ul>
      *
-     * <p>Note: these termination conditions apply to pre-fetch only. Promotion uses
+     * <p>These additional checks apply to pre-fetch only. Promotion uses
      * {@link #computeNextChunk} directly, because chunks past the old range still need
      * to be created for the immediate-send leaf path to work correctly, and the rank-change
      * boundary is safe during promotion (the old chunk with the conflicting root has already
@@ -617,9 +614,6 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     @Nullable
     private ChunkState computeNextChunkForPrefetch(final ChunkState lastChunk) {
         final long nextFirstLeaf = lastChunk.chunkLastLeafPath + 1;
-        if (nextFirstLeaf > lastLeafPath) {
-            return null;
-        }
         if (nextFirstLeaf > oldLastLeafPath) {
             return null;
         }
@@ -654,9 +648,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             return;
         }
         final ChunkState lastInDeque = activeChunks.peekLast();
-        if (lastInDeque == null) {
-            return;
-        }
+        assert lastInDeque != null : "activeChunks must not be empty when seeding pre-fetch";
         final ChunkState prefetched = computeNextChunkForPrefetch(lastInDeque);
         if (prefetched != null) {
             activeChunks.addLast(prefetched);
@@ -675,11 +667,12 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * Skip all clean paths starting from the given path at the same rank, up until the limit. If
      * all paths are clean up to and including the limit, Path.INVALID_PATH is returned.
      */
-    private long skipCleanPaths(final ChunkState chunk, long path, final long limit) {
-        long result = skipCleanPaths(chunk, path);
+    private long skipCleanPaths(final ChunkState chunk, long path) {
+        final long limit = chunk.chunkLastLeafPath;
+        long result = skipCleanPath(chunk, path);
         while ((result < limit) && (result != path)) {
             path = result;
-            result = skipCleanPaths(chunk, path);
+            result = skipCleanPath(chunk, path);
         }
         return (result <= limit) ? result : Path.INVALID_PATH;
     }
@@ -689,7 +682,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * skip all paths at the original path's rank in the parent sub-tree and return the first
      * path after that. If no clean parent is found, the original path is returned.
      */
-    private long skipCleanPaths(final ChunkState chunk, final long path) {
+    private long skipCleanPath(final ChunkState chunk, final long path) {
         assert path > 0;
         final int rank = Path.getRank(path);
         long parent = Path.getParentPath(path);

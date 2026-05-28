@@ -106,6 +106,7 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                             "Hash mismatch for root chunk. calculated={} vs VM root={}",
                             calculatedChunkHash,
                             virtualMap.getHash());
+                    return;
                 }
             } else {
                 // Find the parent chunk that contains the hash for hashChunkPath

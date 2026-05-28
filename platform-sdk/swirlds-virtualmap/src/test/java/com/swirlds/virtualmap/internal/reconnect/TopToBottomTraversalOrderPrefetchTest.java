@@ -790,20 +790,32 @@ class TopToBottomTraversalOrderPrefetchTest {
             // Take one pre-fetch internal to confirm they're available
             assertNotEquals(INVALID_PATH, order.getNextInternalPathToSend());
 
-            // Resolve the stall: path 127 (rank 7) → someDirtyPaths, covers leaves 1023–1030
+            // Resolve the stall: path 127 (rank 7) → someDirtyPaths, covers leaves 1023–1030.
+            // The leaf is now sendable, but currentChunkStalled is still true — it's only
+            // cleared by getNextLeafPathToSend(), not by nodeReceived().
             order.nodeReceived(127L, false);
 
-            // Get the leaf — this clears currentChunkStalled
+            // Production call order: internals checked BEFORE leaves. The flag is still
+            // true at this point, so pre-fetch internals are still returned. This is the
+            // expected transient window — one extra pre-fetch internal may be sent between
+            // "stall resolved" and "flag cleared".
+            final long transientInternal = order.getNextInternalPathToSend();
+            assertNotEquals(
+                    INVALID_PATH,
+                    transientInternal,
+                    "Pre-fetch internals must still be returned in the transient window "
+                            + "before getNextLeafPathToSend clears the flag");
+
+            // Now the sender falls through to leaves — this clears currentChunkStalled
             final long leaf = order.getNextLeafPathToSend();
             assertEquals(CHUNK_FIRST, leaf, "Leaf 1023 must be sent after stall resolves");
 
-            // Now: chunk 2's queue still has ~15 internals, but flag is false.
+            // After the flag is cleared: chunk 2's queue still has internals, but
             // getNextInternalPathToSend must return INVALID_PATH (skip pre-fetch).
             assertEquals(
                     INVALID_PATH,
                     order.getNextInternalPathToSend(),
-                    "Pre-fetch internals must be blocked after stall resolves, "
-                            + "even though chunk 2's queue is non-empty");
+                    "Pre-fetch internals must be blocked after getNextLeafPathToSend clears the flag");
         }
 
         @Test
