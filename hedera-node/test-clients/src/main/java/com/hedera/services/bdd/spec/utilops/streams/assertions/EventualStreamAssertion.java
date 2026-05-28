@@ -107,7 +107,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
             @SuppressWarnings("unchecked")
             final var recordFactory = (Function<HapiSpec, RecordStreamAssertion>) (Function<?, ?>) assertionFactory;
             final var streamMode = resolveStreamMode(spec);
-            if (streamMode == BLOCKS) {
+            if (streamMode == BLOCKS && !hasPassedIfNothingFailed) {
                 final long shard = spec.setup().shard();
                 final long realm = spec.setup().realm();
                 final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
