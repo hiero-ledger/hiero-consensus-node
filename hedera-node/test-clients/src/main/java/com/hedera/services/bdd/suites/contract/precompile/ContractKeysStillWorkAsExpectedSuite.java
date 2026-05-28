@@ -69,7 +69,6 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> bReceiverAddr = new AtomicReference<>();
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludePassFrom(
                         recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
                             if (txn.hasNodeStakeUpdate()) {

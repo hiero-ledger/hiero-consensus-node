@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
@@ -69,7 +68,6 @@ public class UpdateNodeAccountTestSubprocess {
                     .resolve("blockStreams");
 
             return hapiTest(
-                    overriding("blockStream.streamMode", "BOTH"),
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
                     // account 6 is the node account of node 3
                     getAccountInfo("6").exposingIdTo(oldNodeAccountId::set),
