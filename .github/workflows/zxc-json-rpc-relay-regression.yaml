@@ -224,15 +224,9 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Write Slack Payload
-        env:
-          SLACK_PAYLOAD: ${{ needs.json-rpc-relay-regression.outputs.slack_payload }}
-        run: echo "$SLACK_PAYLOAD" > slack_payload.json
-
       - name: Report Status to Detailed Test Reports Channel
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+          payload: ${{ needs.json-rpc-relay-regression.outputs.slack_payload }}
