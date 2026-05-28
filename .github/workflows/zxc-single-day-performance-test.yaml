@@ -457,11 +457,11 @@ jobs:
           echo > resources/templates/application.env
           echo > resources/templates/settings.txt
 
-          sed -i -e 's/37748736/131072000/g' resources/config/tss-config.yaml
-          sed -i -e 's/37748736/131072000/g' resources/block-node-tss-values.yaml
+          sed -i -e 's/37748736/300000000/g' resources/config/tss-config.yaml
+          sed -i -e 's/37748736/300000000/g' resources/block-node-tss-values.yaml
 
-          sed -i -e 's/37_748_736/131_072_000/g' src/data/schema/model/solo/tss-schema.ts
-          sed -i -e 's/37_748_736/131_072_000/g' src/data/schema/migration/impl/solo/solo-config-v1-migration.ts
+          sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/model/solo/tss-schema.ts
+          sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/migration/impl/solo/solo-config-v1-migration.ts
 
           task build:compile
           #npm run build
