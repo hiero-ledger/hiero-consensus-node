@@ -268,6 +268,39 @@ class V0740BlockStreamSchemaTest {
     }
 
     @Test
+    void overwritesStaleArchiveFilesOnRepeatedCutover() throws IOException {
+        // Simulates a re-cutover (e.g. a second upgrade attempt) where a prior cutover already left
+        // a *-preview-archive sibling on disk. Files moved out of the active dir use REPLACE_EXISTING,
+        // so same-named stale archive entries are overwritten by the new attempt's content.
+        final var blockDir = tempDir.resolve("blocks");
+        final var subdir = blockDir.resolve("000000000000042");
+        Files.createDirectories(subdir);
+        Files.writeString(subdir.resolve("block-42.blk.gz"), "new-attempt-content");
+
+        // Pre-existing stale archive from a prior cutover, same relative path, old content.
+        final var archiveDir = blockDir.resolveSibling(blockDir.getFileName() + "-preview-archive");
+        final var archivedSubdir = archiveDir.resolve("000000000000042");
+        Files.createDirectories(archivedSubdir);
+        Files.writeString(archivedSubdir.resolve("block-42.blk.gz"), "stale-prior-attempt-content");
+
+        final var blockInfo = validBlockInfo();
+        final var runningHashes = validRunningHashes();
+        final var previewBsi = BlockStreamInfo.newBuilder()
+                .blockNumber(50)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .build();
+
+        givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
+
+        subject.restart(ctx);
+
+        assertTrue(markerCalled.get());
+        // Active copy moved out; stale archive entry overwritten with the new attempt's content.
+        assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
+        assertEquals("new-attempt-content", Files.readString(archivedSubdir.resolve("block-42.blk.gz")));
+    }
+
+    @Test
     void toleratesMissingBlockDirectory() {
         final var blockDir = tempDir.resolve("nonexistent-blocks");
 
