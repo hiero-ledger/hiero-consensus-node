@@ -10,7 +10,7 @@ last_reviewed: TBD
 
 Signed-state management owns the production, signing, persistence, runtime
 reservation, and reclamation of the per-round `SignedState` objects that
-together form the platform's verifiable history. Each round's state is
+form the ledger's history. Each round's state is
 captured immediately after consensus, accumulates signatures from peers
 until quorum, optionally serializes to disk, and is eventually destroyed
 once no live caller holds a reservation.
@@ -26,7 +26,6 @@ In scope:
   to consumers outside the module.
 - Reservation / reference-counting for in-memory access.
 - Asynchronous deletion of unreserved states.
-- Detecting ISS — Inconsistent State Signatures — across peer signatures.
 
 Out of scope (covered by sibling topics):
 
@@ -58,9 +57,13 @@ inside a try-with-resources block whenever possible.
 
 Defined in
 [`SignedStateReference.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/SignedStateReference.java).
-Thread-safe holder for a `SignedState` that internally manages reservations
-on the value it holds. Used wherever multiple threads may swap, read, or
-release references to a single signed state without coordinating manually.
+Effectively an `AtomicReference<SignedState>` with reservation
+bookkeeping: `set(state, reason)` closes the previous reservation and
+takes a new one on the incoming value, and `getAndReserve(reason)`
+returns a fresh `ReservedSignedState` for the caller to close.
+Currently used only by `RecoveryPlatform` in `swirlds-cli`, the offline
+recovery tool. In-node holders use the two nexus classes described
+under [Latest-state exposure](#latest-state-exposure) instead.
 
 ### `StateWithHashComplexity`
 
@@ -101,7 +104,9 @@ A signed state passes through six phases.
    produces a `StateSignatureTransaction` containing this node's
    signature over the hash. The transaction is submitted to Execution
    for inclusion in the gossiped event stream. (PCES-replay rounds are
-   not signed.)
+   not signed again — they reached consensus before the restart and
+   their original signatures are already in this node's PCES log, so
+   re-signing would only duplicate what replay is about to surface.)
 3. **Collect peer signatures.**
    `DefaultStateSignatureCollector#addSignature`
    ([`DefaultStateSignatureCollector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java))
@@ -223,8 +228,12 @@ the most recent state matching a different criterion:
   [`DefaultLatestCompleteStateNexus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/DefaultLatestCompleteStateNexus.java))
   holds the latest signed state that has collected at least the
   signing-weight threshold of signatures. Reconnect teachers serve this
-  state to learners; if the network has fallen far enough behind that no
-  fresh complete state exists, `updateEventWindow` clears the holder.
+  state to learners. The holder is cleared in two cases:
+  `updateEventWindow` drops the state when it ages past
+  `latestConsensusRound - stateConfig.roundsToKeepForSigning + 1` — i.e.
+  when this node has not reached signing quorum on a newer state within
+  the window — and `updatePlatformStatus` drops it when status becomes
+  `FREEZING`. A stale or pre-freeze state is never offered to a learner.
 
 Both follow the Holder pattern from [Reservation in the wiring
 graph](#reservation-in-the-wiring-graph): each setter releases the
@@ -324,21 +333,15 @@ synchronous ones), with a defensive `try { ... } finally { if
 ## ISS detection
 
 Every hashed signed state and every `StateSignatureTransaction` is also
-routed to `DefaultIssDetector`
-([`DefaultIssDetector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/DefaultIssDetector.java)),
-which validates that this node's locally-computed state hash agrees
-with the consensus of peer signatures for the same round. A
-disagreement produces an `IssNotification` — Inconsistent State
-Signature — and falls into one of three categories: `SELF_ISS` (the
-local hash is the outlier), `OTHER_ISS` (some peer is the outlier),
-or `CATASTROPHIC_ISS` (no super-majority hash exists). ISS is a
-serious failure; the detection algorithm, partition reporting, and
-follow-on handling are described in
-[iss-detection.md](iss-detection.md).
+routed to `DefaultIssDetector`, which checks whether this node's local
+hash agrees with the consensus of peer signatures for the same round.
+The detection algorithm, classification, suppression rules, and handler
+behavior are covered in [iss-detection.md](iss-detection.md).
 
 ## Cross-references
 
 - Topics:
+  [iss-detection.md](iss-detection.md),
   [restart-and-pces.md](restart-and-pces.md),
   [reconnect.md](reconnect.md),
   [freeze-and-upgrade.md](freeze-and-upgrade.md).
