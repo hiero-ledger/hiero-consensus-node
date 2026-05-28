@@ -102,10 +102,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         // Otherwise, for finalized accounts with a top-level ECDSA key, verify the signature matches.
         if (account != null && !isHollow(account)) {
             final var adminKey = account.keyOrThrow();
-            if (adminKey.key().kind() == KeyOneOfType.ECDSA_SECP256K1) {
-                validateTruePreCheck(
-                        adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_ETHEREUM_TRANSACTION);
-            }
+            validateTruePreCheck(
+                    adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_ETHEREUM_TRANSACTION);
         }
     }
 
