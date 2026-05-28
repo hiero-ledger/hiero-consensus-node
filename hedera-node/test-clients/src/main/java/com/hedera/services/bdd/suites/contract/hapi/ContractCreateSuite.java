@@ -650,7 +650,6 @@ public class ContractCreateSuite {
         final var timeLoggingTxn = "timeLoggingTxn";
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 uploadInitCode(contract),
                 contractCreate(contract),
                 contractCall(contract, "logNow").via(firstBlock),

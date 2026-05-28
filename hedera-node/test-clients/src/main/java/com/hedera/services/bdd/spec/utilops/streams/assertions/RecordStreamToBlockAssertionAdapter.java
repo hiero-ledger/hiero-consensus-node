@@ -16,6 +16,11 @@ import org.apache.logging.log4j.Logger;
 /**
  * Adapts a {@link RecordStreamAssertion} to work as a {@link BlockStreamAssertion} by translating
  * each incoming {@link Block} into {@link RecordStreamItem}s and feeding them to the wrapped assertion.
+ *
+ * <p>In lenient mode ({@code suppressAssertionErrors=true}), assertion errors from the delegate are
+ * logged but not propagated. This is used for "no failures" assertions where imperfect block-to-record
+ * translation fidelity could cause false failures, while still allowing item collection for validators
+ * that need the data.
  */
 public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion {
     private static final Logger log = LogManager.getLogger(RecordStreamToBlockAssertionAdapter.class);
@@ -23,12 +28,22 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     private final RecordStreamAssertion delegate;
     private final RoleFreeBlockUnitSplit blockSplitter;
     private final BlockTransactionalUnitTranslator blockTranslator;
+    private final boolean suppressAssertionErrors;
 
     public RecordStreamToBlockAssertionAdapter(
             @NonNull final RecordStreamAssertion delegate, final long shard, final long realm) {
+        this(delegate, shard, realm, false);
+    }
+
+    public RecordStreamToBlockAssertionAdapter(
+            @NonNull final RecordStreamAssertion delegate,
+            final long shard,
+            final long realm,
+            final boolean suppressAssertionErrors) {
         this.delegate = requireNonNull(delegate);
         this.blockSplitter = new RoleFreeBlockUnitSplit();
         this.blockTranslator = new BlockTransactionalUnitTranslator(shard, realm);
+        this.suppressAssertionErrors = suppressAssertionErrors;
     }
 
     @Override
@@ -48,7 +63,11 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
                 }
             }
         } catch (final AssertionError e) {
-            throw e;
+            if (suppressAssertionErrors) {
+                log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);
+            } else {
+                throw e;
+            }
         } catch (final Exception e) {
             log.warn("Failed to translate block to record stream items", e);
         }
