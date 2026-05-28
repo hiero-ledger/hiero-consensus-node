@@ -237,11 +237,12 @@ jobs:
 
   # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
   # Mirrors the MATS HAPI matrix but forces blockStream.streamMode=BLOCKS. Excludes
-  # hapi-tests-misc-records-crypto-and-serial (records-mode by design); Crypto is
-  # re-added separately via enable-hapi-tests-crypto. Excluded from set-failure-mode
+  # hapi-tests-misc-records-crypto-and-serial (records-mode by design); the non-records
+  # tasks from that group (Crypto / CryptoEmbedded / CryptoSerial / MiscSerial) are
+  # re-added separately via enable-hapi-tests-crypto-and-misc-serial. Excluded from set-failure-mode
   # so failures stay silent while the BLOCKS transition stabilizes.
   #
-  # MATS (zxc-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto
+  # MATS (zxc-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
   # defaults to false there, so MATS behavior is unchanged.
   xts-hapi-tests-blocks:
     name: XTS HAPI Tests (BLOCKS)
@@ -260,7 +261,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "true"
       enable-hapi-tests-restart: "true"
       enable-hapi-tests-state-throttling: "true"
-      enable-hapi-tests-crypto: "true"
+      enable-hapi-tests-crypto-and-misc-serial: "true"
       enable-network-log-capture: "true"
       stream-mode-override: "BLOCKS"
       java-version: "${{ inputs.java-version }}"
