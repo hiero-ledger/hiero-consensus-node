@@ -2,7 +2,6 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
-import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -11,9 +10,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
-import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -26,7 +23,6 @@ import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -123,30 +119,12 @@ public record HandleOutput(
     /**
      * Returns a list of {@link SingleTransactionRecord}s from this output, regardless of stream mode.
      * In RECORDS/BOTH mode, returns the precomputed records from the legacy record source.
-     * In BLOCKS mode, translates block outputs into {@link SingleTransactionRecord}s with the
-     * original transaction, translated record, and empty sidecars/outputs.
+     * In BLOCKS mode, translates block outputs into {@link SingleTransactionRecord}s.
      */
     public @NonNull List<SingleTransactionRecord> singleTransactionRecords() {
         if (recordSource instanceof LegacyListRecordSource legacy) {
             return legacy.precomputedRecords();
         }
-        requireNonNull(blockRecordSource);
-        final var records = new ArrayList<SingleTransactionRecord>();
-        final var outputs = blockRecordSource.outputs();
-        for (final var output : outputs) {
-            final var context = output.translationContext();
-            final var txnRecord = output.toRecord(BLOCK_ITEMS_TRANSLATOR);
-            final var signedTx = context.signedTx();
-            final var transaction = context.serializedSignedTx() != null
-                    ? Transaction.newBuilder()
-                            .signedTransactionBytes(context.serializedSignedTx())
-                            .build()
-                    : Transaction.newBuilder()
-                            .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
-                            .build();
-            records.add(new SingleTransactionRecord(
-                    transaction, txnRecord, List.of(), new SingleTransactionRecord.TransactionOutputs(null)));
-        }
-        return records;
+        return requireNonNull(blockRecordSource).precomputedRecords();
     }
 }

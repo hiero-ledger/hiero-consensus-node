@@ -25,7 +25,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
@@ -356,7 +355,6 @@ public class Hip1313EnabledTest {
     final Stream<DynamicTest> highVolumeTxnsWorkAsExpectedForCryptoCreate() {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
                 streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
@@ -465,7 +463,6 @@ public class Hip1313EnabledTest {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
                 streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
