@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -132,22 +133,24 @@ class AtomicBatchEthereumCallKeysTest {
                         .sending(100 * ONE_HBAR)
                         // This is the important change, include a top-level signature with the admin key
                         .alsoSigningWithFullPrefix(cryptoKey))),
-                // Finally confirm we ALSO succeed when providing the admin key's
-                // signature via an EthereumTransaction signature
+                // Batch will fail due to the alias signing the eth transaction
+                // is different from the admin key
                 cryptoCreate(RELAYER).balance(10 * THOUSAND_HBAR),
                 sourcing(() -> atomicBatchDefaultOperator(ethereumCall(
-                                contract,
-                                "createFungibleTokenWithSECP256K1AdminKeyPublic",
-                                creationDetails.get().evmAddress(),
-                                adminKey.get())
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .nonce(0)
-                        .signingWith(cryptoKey)
-                        .payingWith(RELAYER)
-                        .sending(50 * ONE_HBAR)
-                        .maxGasAllowance(ONE_HBAR * 10)
-                        .gasLimit(5_000_000L)
-                        .via("creationActivatingAdminKeyViaEthTxSig"))),
+                                        contract,
+                                        "createFungibleTokenWithSECP256K1AdminKeyPublic",
+                                        creationDetails.get().evmAddress(),
+                                        adminKey.get())
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .nonce(0)
+                                .signingWith(cryptoKey)
+                                .payingWith(RELAYER)
+                                .sending(50 * ONE_HBAR)
+                                .maxGasAllowance(ONE_HBAR * 10)
+                                .gasLimit(5_000_000L)
+                                .hasKnownStatus(INVALID_ETHEREUM_TRANSACTION)
+                                .via("creationActivatingAdminKeyViaEthTxSig"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
                         CONTRACT_REVERT_EXECUTED,
