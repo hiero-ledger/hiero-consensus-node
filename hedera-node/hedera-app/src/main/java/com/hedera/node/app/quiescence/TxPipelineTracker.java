@@ -23,7 +23,7 @@ import org.hiero.consensus.model.transaction.Transaction;
  * but not yet observed in a pre-handled or stale event (in-flight). Used by {@link QuiescenceController} to decide
  * whether the node has pending work that should keep it out of {@link QuiescenceCommand#QUIESCE}.
  *
- * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a> for context.
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a> for context.
  */
 @Singleton
 public class TxPipelineTracker {

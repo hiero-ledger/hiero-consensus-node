@@ -38,7 +38,7 @@ import java.util.Optional;
  * If none of the three sources yield a deadline, {@link #findTct()} returns {@code null}. The probe never returns
  * {@link Instant#EPOCH} as a sentinel; an empty result is {@code null}.
  *
- * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a> for context.
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a> for context.
  */
 public class TctProbe {
     private final int maxConsecutiveScheduleSecondsToProbe;

@@ -35,7 +35,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * fixing the bug from issue #25140 where the heartbeat emitted to the platform directly and left the manager
  * holding a stale {@code QUIESCE}.
  *
- * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a> for context.
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a> for context.
  */
 @Singleton
 public class QuiescedHeartbeat {
@@ -47,7 +47,7 @@ public class QuiescedHeartbeat {
     private final Counter heartbeatErrors;
 
     @Nullable
-    private ScheduledFuture<?> heartbeatFuture;
+    private volatile ScheduledFuture<?> heartbeatFuture;
 
     @Inject
     public QuiescedHeartbeat(

@@ -31,7 +31,7 @@ import org.hiero.consensus.model.transaction.Transaction;
  * Tracks all the information needed to determine if the system is quiescent or not. This class is thread-safe, it is
  * expected that all methods may be called concurrently from different threads.
  *
- * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a>
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a>
  * for the feature's design rationale.
  */
 public class QuiescenceController {
@@ -341,7 +341,7 @@ public class QuiescenceController {
         // most recent observed activity; otherwise report DONT_QUIESCE so the platform keeps producing events.
         // This prevents short inter-transaction gaps from putting the network to sleep — without the grace
         // period, the next user transaction would wake the network and consensus time would jump forward,
-        // bulk-expiring entries in the record cache (see docs/quiescence-analysis.md).
+        // bulk-expiring entries in the record cache (see hedera-node/docs/design/app/quiescence-analysis.md).
         if (Duration.between(lastActivityAt.get(), time.instant()).compareTo(config.gracePeriod()) < 0) {
             return QuiescenceCommand.DONT_QUIESCE;
         }

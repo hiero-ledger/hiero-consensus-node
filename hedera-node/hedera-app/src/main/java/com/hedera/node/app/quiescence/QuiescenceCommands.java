@@ -22,7 +22,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * through {@link #update(QuiescenceCommand)} so that heartbeat-driven transitions stay in sync with
  * manager-driven transitions.
  *
- * <p>See <a href="../../../../../../../../docs/quiescence-analysis.md">docs/quiescence-analysis.md</a>
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a>
  */
 @Singleton
 public class QuiescenceCommands {
