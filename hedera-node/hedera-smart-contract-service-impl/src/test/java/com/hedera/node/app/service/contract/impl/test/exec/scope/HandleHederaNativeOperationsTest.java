@@ -36,7 +36,6 @@ import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -138,22 +137,12 @@ class HandleHederaNativeOperationsTest {
     }
 
     @Test
-    void readableAccountStoreIsCachedWithinTransaction() {
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-
-        assertSame(subject.readableAccountStore(), subject.readableAccountStore());
-        verify(storeFactory, times(1)).readableStore(ReadableAccountStore.class);
-    }
-
-    @Test
     void getAccountUsesContextReadableStore() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(NON_SYSTEM_ACCOUNT_ID)).willReturn(true);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID));
-        verify(storeFactory, times(1)).readableStore(ReadableAccountStore.class);
     }
 
     @Test

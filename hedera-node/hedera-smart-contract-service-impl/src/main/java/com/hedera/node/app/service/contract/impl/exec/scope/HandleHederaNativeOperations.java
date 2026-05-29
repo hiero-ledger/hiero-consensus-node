@@ -55,9 +55,6 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
 
     private final EntityIdFactory entityIdFactory;
 
-    @Nullable
-    private ReadableAccountStore cachedReadableAccountStore;
-
     @Inject
     public HandleHederaNativeOperations(
             @NonNull final HandleContext context,
@@ -97,12 +94,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ReadableAccountStore readableAccountStore() {
-        var store = cachedReadableAccountStore;
-        if (store == null) {
-            store = context.storeFactory().readableStore(ReadableAccountStore.class);
-            cachedReadableAccountStore = store;
-        }
-        return store;
+        return context.storeFactory().readableStore(ReadableAccountStore.class);
     }
 
     /**
@@ -197,7 +189,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public void finalizeHollowAccountAsContract(@NonNull final Bytes evmAddress) {
         requireNonNull(evmAddress);
-        final var accountStore = readableAccountStore();
+        final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var config = context.configuration().getConfigData(HederaConfig.class);
         final var hollowAccountId =
                 requireNonNull(accountStore.getAccountIDByAlias(config.shard(), config.realm(), evmAddress));
