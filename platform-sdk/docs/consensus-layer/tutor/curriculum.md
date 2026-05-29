@@ -32,28 +32,28 @@ lessons:
     cluster: pass1
     title: "A transaction's journey to consensus"
     source_topics: [event-creator, event-intake, gossip, hashgraph, signed-state-management]
-    status: not_started
+    status: drafted
   - id: pass1-02-node-falls-behind
     index: 2
     pass: 1
     cluster: pass1
     title: "A node falls behind and reconnects"
     source_topics: [gossip, health-monitor-and-backpressure, reconnect, reasons-not-to-gossip]
-    status: not_started
+    status: drafted
   - id: pass1-03-coordinated-network-upgrade
     index: 3
     pass: 1
     cluster: pass1
     title: "A coordinated network upgrade"
     source_topics: [freeze-and-upgrade, signed-state-management, restart-and-pces]
-    status: not_started
+    status: drafted
   - id: pass1-04-event-creation-under-stress
     index: 4
     pass: 1
     cluster: pass1
     title: "Event creation under stress"
     source_topics: [event-creator, health-monitor-and-backpressure, reasons-not-to-gossip]
-    status: not_started
+    status: drafted
 
   # ---- Pass 2 — Cluster 0: Wiring Framework Foundation ----
   - id: c0-01-schedulers-and-types
