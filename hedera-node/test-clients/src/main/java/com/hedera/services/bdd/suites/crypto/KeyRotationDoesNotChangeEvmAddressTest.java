@@ -16,8 +16,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -68,6 +69,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
@@ -99,6 +101,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
@@ -148,6 +151,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
+                overriding("blockStream.streamMode", "BOTH"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
@@ -176,13 +180,13 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
             @NonNull final Map<UtilStateChange.ECKind, String> accountsToCreate) {
         return new SpecOperation[] {
             // Validate (after all ops executed) that the keys were rotated
-            recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+            streamMustIncludePassWithoutBackgroundTrafficFrom(
                     visibleNonSyntheticItems(
                             keyRotationsValidator(accountsToHaveKeysRotated),
                             accountsToHaveKeysRotated.stream().map(ROTATION_TXN).toArray(String[]::new)),
                     Duration.ofSeconds(15)),
             // Validate (after all ops executed) that our accounts did get created
-            recordStreamMustIncludePassFrom(
+            streamMustIncludePassFrom(
                             visibleNonSyntheticItems(
                                     ecAccountsValidator(evmAddresses, accountsToCreate),
                                     accountsToHaveKeysRotated.toArray(new String[0])),

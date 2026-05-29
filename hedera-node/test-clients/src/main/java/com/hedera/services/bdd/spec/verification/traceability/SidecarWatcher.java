@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.verification.traceability;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.triggerAndCloseAtLeastOneFileIfNotInterrupted;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
+import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
+import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
@@ -24,13 +32,16 @@ import java.util.Queue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
  * A class that simultaneously,
  * <ol>
- *     <li>Listens for the actual sidecars written at the given location via
- *     the {@link StreamFileAccess#STREAM_FILE_ACCESS} utility; and,</li>
+ *     <li>Listens for the actual sidecars from one source — either the legacy V6 sidecar files
+ *     via {@link StreamFileAccess#STREAM_FILE_ACCESS}, or synthesised from the block stream
+ *     when the four-arg constructor is given a block-stream path; and,</li>
  *     <li>Registers expected sidecars.</li>
  * </ol>
  * When a client has registered all its expectations with a {@link SidecarWatcher}
@@ -45,6 +56,8 @@ import org.junit.jupiter.api.Assertions;
 // string literals should not be duplicated
 @SuppressWarnings("java:S1192")
 public class SidecarWatcher {
+    private static final Logger log = LogManager.getLogger(SidecarWatcher.class);
+
     /**
      * The watcher is event-driven (sidecars arrive after a sidecar marker file is noticed).
      * In CI, marker creation/visibility can lag just enough that immediate unsubscribe can race
@@ -55,7 +68,21 @@ public class SidecarWatcher {
     private static final int FINAL_DRAIN_ATTEMPTS = 3;
 
     private final Path streamFilesPath;
+    /**
+     * Handle to the record-stream listener subscription. Set to a no-op when the watcher is in
+     * block-stream-only mode (see the 4-arg constructor).
+     */
     private final Runnable unsubscribe;
+
+    /**
+     * Handle to the block-stream listener subscription, present only when the watcher was
+     * constructed in block-stream-only mode. When set, each new block is translated back into
+     * V6-shape {@link TransactionSidecarRecord}s and pumped through the same drain pipeline as the
+     * legacy on-disk sidecars.
+     */
+    @Nullable
+    private final Runnable unsubscribeBlocks;
+
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
     private final HashSet<TransactionSidecarRecord> seenActualSidecars = new HashSet<>();
@@ -68,12 +95,103 @@ public class SidecarWatcher {
 
     private record ConstructionDetails(String creatingThread, String stackTrace) {}
 
+    /**
+     * Creates a {@link SidecarWatcher} appropriate for the active stream mode.
+     * In BLOCKS mode, sidecars are synthesised from block items; otherwise, V6 sidecar files are used.
+     */
+    public static SidecarWatcher forSpec(@NonNull final HapiSpec spec) {
+        final var streamsLoc = spec.recordStreamsLoc(byNodeId(0));
+        final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+        if (streamMode == BLOCKS) {
+            final var network = spec.targetNetworkOrThrow();
+            final var blockStreamLoc = network.getRequiredNode(byNodeId(0)).getExternalPath(BLOCK_STREAMS_DIR);
+            return new SidecarWatcher(streamsLoc, blockStreamLoc, network.shard(), network.realm());
+        }
+        return new SidecarWatcher(streamsLoc);
+    }
+
     public SidecarWatcher(@NonNull final Path path) {
+        // shard/realm are unused on this overload — only consulted when blockStreamPath != null.
+        this(path, null, 0L, 0L);
+    }
+
+    /**
+     * Constructs a watcher that picks exactly one source for actual sidecars:
+     * <ul>
+     *     <li>If {@code blockStreamPath} is non-null, sidecars are synthesised from each new block
+     *         under that path via {@link BlockTransactionalUnitTranslator} (this is the path used
+     *         under {@code streamMode=BLOCKS}, where no V6 sidecar files are written).</li>
+     *     <li>Otherwise the watcher subscribes to the legacy V6 sidecar files at {@code path}
+     *         (this is the path used under {@code streamMode=RECORDS} or {@code BOTH}).</li>
+     * </ul>
+     * Picking exactly one source avoids the double-delivery race that would otherwise be possible
+     * under {@code BOTH} when a block-derived sidecar differs byte-for-byte from its on-disk twin.
+     * The legacy {@code path} is always retained (so {@link #drainUnseenSidecarsFromDisk()} has a
+     * directory to scan during the final cleanup pass) even when the block-stream source is used.
+     */
+    public SidecarWatcher(
+            @NonNull final Path path, @Nullable final Path blockStreamPath, final long shard, final long realm) {
         this.streamFilesPath = guaranteedExtantDir(path);
-        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(streamFilesPath, new StreamDataListener() {
+        if (blockStreamPath != null) {
+            // Block-stream-only mode: skip the record-stream listener entirely; the legacy dir is
+            // empty under streamMode=BLOCKS so it would deliver nothing anyway.
+            this.unsubscribe = () -> {};
+            this.unsubscribeBlocks = subscribeBlocks(blockStreamPath, shard, realm);
+        } else {
+            // Legacy mode: V6 sidecar files are the only source.
+            this.unsubscribe = STREAM_FILE_ACCESS.subscribe(streamFilesPath, new StreamDataListener() {
+                @Override
+                public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+                    enqueueActualSidecar(sidecar);
+                }
+            });
+            this.unsubscribeBlocks = null;
+        }
+    }
+
+    private Runnable subscribeBlocks(@NonNull final Path blockStreamPath, final long shard, final long realm) {
+        // One translator/split owned by this subscription so alias and nonce state persist
+        // across blocks (BaseTranslator is stateful).
+        final var translator = new BlockTransactionalUnitTranslator(shard, realm);
+        final var split = new RoleFreeBlockUnitSplit();
+        // Single-element array used as a mutable boolean captured by the listener lambda.
+        final boolean[] foundGenesis = {false};
+        return STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(blockStreamPath), new StreamDataListener() {
+            // Replay so genesis sidecars (emitted before this subscription) are still picked up.
             @Override
-            public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
-                enqueueActualSidecar(sidecar);
+            public boolean replayExistingFiles() {
+                return true;
+            }
+
+            @Override
+            public void onNewBlock(@NonNull final Block block) {
+                try {
+                    if (!foundGenesis[0]) {
+                        foundGenesis[0] = translator.scanBlockForGenesis(block);
+                    }
+                    for (final var unit : split.split(block)) {
+                        for (final var record : translator.translate(unit.withBatchTransactionParts())) {
+                            for (final var pbjSidecar : record.transactionSidecarRecords()) {
+                                // Fully qualified to disambiguate from the already-imported
+                                // proto type of the same simple name.
+                                final var protoSidecar = pbjToProto(
+                                        pbjSidecar,
+                                        com.hedera.hapi.streams.TransactionSidecarRecord.class,
+                                        TransactionSidecarRecord.class);
+                                enqueueActualSidecar(protoSidecar);
+                            }
+                        }
+                    }
+                } catch (final RuntimeException e) {
+                    // Don't propagate: a single bad unit shouldn't kill the watcher; the
+                    // expectations-vs-actual diff at the end will surface any real miss.
+                    log.warn("Failed to translate block to sidecars; continuing", e);
+                }
+            }
+
+            @Override
+            public String name() {
+                return "SidecarWatcher#blockStreamPump";
             }
         });
     }
@@ -95,10 +213,14 @@ public class SidecarWatcher {
     }
 
     /**
-     * Ensures that the sidecar watcher is unsubscribed.
+     * Ensures that the sidecar watcher is unsubscribed from both the record stream and (if
+     * configured) the block stream.
      */
     public void ensureUnsubscribed() {
         unsubscribe.run();
+        if (unsubscribeBlocks != null) {
+            unsubscribeBlocks.run();
+        }
     }
 
     /**
@@ -136,6 +258,9 @@ public class SidecarWatcher {
 
         // Stop listening for any more actual sidecars, then drain anything already queued.
         unsubscribe.run();
+        if (unsubscribeBlocks != null) {
+            unsubscribeBlocks.run();
+        }
         drainUnseenSidecarsFromDisk();
         drainActualSidecars();
 
