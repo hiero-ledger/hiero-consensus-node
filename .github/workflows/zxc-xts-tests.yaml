@@ -264,6 +264,8 @@ jobs:
       enable-hapi-tests-crypto-and-misc-serial: "true"
       enable-network-log-capture: "true"
       stream-mode-override: "BLOCKS"
+      writer-mode-override: "FILE"
+      wrapped-record-blocks-override: "false"
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}

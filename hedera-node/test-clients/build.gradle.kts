@@ -343,7 +343,7 @@ tasks.register<Test>("testSubprocess") {
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         (gradle.startParameter.taskNames.mapNotNull { prCheckPropOverrides[it] } +
-                listOfNotNull(streamModeOverrideEntry()))
+                blocksSuiteOverrideEntries())
             .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
@@ -430,14 +430,23 @@ tasks.register<Test>("testSubprocess") {
     maxParallelForks = 1
 }
 
-// Reads the STREAM_MODE_OVERRIDE env var (set by the XTS BLOCKS HAPI job) and
-// returns a comma-appendable "blockStream.streamMode=<VALUE>" entry, or null
-// when unset. Appended last so it wins over any prCheckPropOverrides entry.
+// Reads the *_OVERRIDE env vars (set by the XTS BLOCKS HAPI job) and returns the
+// comma-appendable "blockStream.<prop>=<VALUE>" entries for any that are set.
+// Appended last so they win over any prCheckPropOverrides entry. These pin the
+// BLOCKS-suite coverage against impending changes to the production defaults.
 // (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-fun streamModeOverrideEntry(): String? =
-    System.getenv("STREAM_MODE_OVERRIDE")
-        ?.takeIf { it.isNotBlank() }
-        ?.let { "blockStream.streamMode=$it" }
+fun blocksSuiteOverrideEntries(): List<String> =
+    listOfNotNull(
+        System.getenv("STREAM_MODE_OVERRIDE")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "blockStream.streamMode=$it" },
+        System.getenv("WRITER_MODE_OVERRIDE")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "blockStream.writerMode=$it" },
+        System.getenv("WRAPPED_RECORD_BLOCKS_OVERRIDE")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "blockStream.streamWrappedRecordBlocks=$it" },
+    )
 
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
@@ -491,7 +500,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         (gradle.startParameter.taskNames.mapNotNull { prCheckPropOverrides[it] } +
-                listOfNotNull(streamModeOverrideEntry()))
+                blocksSuiteOverrideEntries())
             .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {

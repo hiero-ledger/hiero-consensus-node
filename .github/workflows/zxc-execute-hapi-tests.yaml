@@ -82,6 +82,16 @@ on:
         type: string
         required: false
         default: ""
+      writer-mode-override:
+        description: "Optional blockStream.writerMode override applied to every HAPI subtask (e.g. 'FILE'). Empty = no override."
+        type: string
+        required: false
+        default: ""
+      wrapped-record-blocks-override:
+        description: "Optional blockStream.streamWrappedRecordBlocks override applied to every HAPI subtask (e.g. 'false'). Empty = no override."
+        type: string
+        required: false
+        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -115,6 +125,8 @@ env:
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
   STREAM_MODE_OVERRIDE: ${{ inputs.stream-mode-override }}
+  WRITER_MODE_OVERRIDE: ${{ inputs.writer-mode-override }}
+  WRAPPED_RECORD_BLOCKS_OVERRIDE: ${{ inputs.wrapped-record-blocks-override }}
 
 jobs:
   hapi-tests-misc:
