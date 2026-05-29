@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -478,10 +479,10 @@ class QuiescedHeartbeatTest {
      * next start may fail or skip-tick. This test drives an exception-recovery cycle and then a clean start,
      * asserting the second start reaches the scheduler with a fresh runnable.
      *
-     * <p>Note on the cancel-count: the first tick's exception path calls {@code stop()}, which cancels
-     * the future and nulls the field. The second {@code start()}'s prologue calls {@code stop()} again,
-     * but it's a no-op because the field is already null. So {@code cancel(false)} is invoked exactly
-     * once across the recovery cycle, not twice.
+     * <p>Note on the cancel-count: the first tick's exception path calls {@code stopIfCurrent(gen)}, which
+     * cancels the future and nulls the field because the generation still matches (no newer start has run). The
+     * second {@code start()}'s prologue calls {@code stop()} again, but it's a no-op because the field is already
+     * null. So {@code cancel(false)} is invoked exactly once across the recovery cycle, not twice.
      */
     @Test
     void heartbeatRecoversCleanlyAfterExceptionAndCanBeRestarted() {
@@ -503,8 +504,8 @@ class QuiescedHeartbeatTest {
 
         // Then - the scheduler is asked to schedule a new runnable (twice now: original + fresh)
         verify(scheduler, times(2)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
-        // The first tick's exception path cancelled the original future. The second start()'s stop() is a
-        // no-op because heartbeatFuture has been nulled by the exception path — so the cancel count is 1.
+        // The first tick's exception path cancelled the original future via stopIfCurrent(gen). The second
+        // start()'s stop() is a no-op because heartbeatFuture has been nulled — so the cancel count is 1.
         verify(scheduledFuture, times(1)).cancel(false);
     }
 
@@ -622,5 +623,41 @@ class QuiescedHeartbeatTest {
 
         verify(quiescenceCommands, times(2)).update(QUIESCE);
         verify(scheduler, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+    }
+
+    /**
+     * Regression test for the stale-tick race (issue #25140): a heartbeat tick that decides to exit must only be
+     * able to cancel the heartbeat it belongs to, never one that a newer {@link QuiescedHeartbeat#start} has already
+     * scheduled. Pre-fix, the exiting tick called the shared {@code stop()} and could cancel the brand-new future,
+     * stranding the node in {@code QUIESCE} with no live heartbeat to discover its next target consensus time.
+     *
+     * <p>The interleaving is reproduced deterministically: capture the first tick's runnable, call {@code start()}
+     * again to supersede it (cancelling the first future and scheduling a second under a fresh generation), and only
+     * then run the stale first tick. The generation gate must keep the second future alive.
+     */
+    @Test
+    void staleHeartbeatTickDoesNotCancelARestartedHeartbeat() {
+        final ScheduledFuture<?> firstFuture = mock(ScheduledFuture.class);
+        final ScheduledFuture<?> secondFuture = mock(ScheduledFuture.class);
+        doReturn(firstFuture, secondFuture)
+                .when(scheduler)
+                .scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+        // The first tick will observe a wake-up and attempt to exit.
+        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+
+        // Start the first heartbeat and capture its tick, but do not run it yet.
+        subject.start(Duration.ofSeconds(1), probe);
+        final var firstTick = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler).scheduleAtFixedRate(firstTick.capture(), anyLong(), anyLong(), any(TimeUnit.class));
+
+        // A newer start() supersedes it: cancels firstFuture and schedules secondFuture under a new generation.
+        subject.start(Duration.ofSeconds(1), probe);
+
+        // Now run the stale first tick. It observes DONT_QUIESCE and tries to stop, but its generation is no longer
+        // current, so it must NOT cancel the freshly-scheduled heartbeat.
+        firstTick.getValue().run();
+
+        verify(firstFuture).cancel(false); // superseded by the second start()
+        verify(secondFuture, never()).cancel(false); // the stale tick must not touch the live heartbeat
     }
 }
