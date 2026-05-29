@@ -55,11 +55,10 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
     /** {@inheritDoc} */
     @Override
     public long blockNo() {
-        // Queries read from a committed state snapshot representing the end of block N.
-        // The trailing block hashes in state cover up to block N-1, so block.number for
-        // queries is N (the last completed block), not N+1 (which the handle path reports
-        // because it is actively building the next block).
-        return blockStreamInfo.blockNumber();
+        // The trailing block hashes in state cover up to blockNumber - 1, so reporting
+        // blockNumber as the current block makes blockhash(block.number - 1) resolvable.
+        // Guard against initial state where blockNumber may be 0 (no blocks completed yet).
+        return Math.max(1, blockStreamInfo.blockNumber());
     }
 
     /** {@inheritDoc} */
