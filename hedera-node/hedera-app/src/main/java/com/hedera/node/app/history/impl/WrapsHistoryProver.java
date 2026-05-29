@@ -58,6 +58,7 @@ import org.apache.logging.log4j.Logger;
 public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
     public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
+    public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -77,6 +78,13 @@ public class WrapsHistoryProver implements HistoryProver {
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
             new EnumMap<>(WrapsPhase.class);
     private final Map<Long, Bytes> explicitHistoryProofHashes = new HashMap<>();
+
+    /**
+     * If non-null, the phase whose last publish returned a WRAPS-not-ready noop;
+     * cleared at the next publishIfNeeded so the publish is retried.
+     */
+    @Nullable
+    private volatile WrapsPhase phaseNeedingWrapsReadinessRetry;
 
     /**
      * If not null, the WRAPS message being signed for the current construction.
@@ -419,10 +427,36 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
+        final boolean isWrapsReadinessRetry = phase == phaseNeedingWrapsReadinessRetry;
+        if (isWrapsReadinessRetry) {
+            consumerOf(phase).accept(null);
+            phaseNeedingWrapsReadinessRetry = null;
+        }
+        // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
+        final boolean needsWrapsForOutput =
+                phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
+        if (needsWrapsForOutput && !historyLibrary.wrapsProverReady()) {
+            if (isWrapsReadinessRetry) {
+                log.debug(
+                        "Deferring {} output for construction #{}: WRAPS library is not ready", phase, constructionId);
+            } else {
+                log.info(
+                        "Deferring {} output for construction #{}: WRAPS library is not ready (will retry each consensus round until ready)",
+                        phase,
+                        constructionId);
+            }
+            phaseNeedingWrapsReadinessRetry = phase;
+            return;
+        }
         if (futureOf(phase) == null
                 && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
-            if (phase == POST_AGGREGATION) {
+            if (isWrapsReadinessRetry) {
+                log.debug(
+                        "Re-attempting publication of {} output on construction #{} after a WRAPS-not-ready noop",
+                        phase,
+                        constructionId);
+            } else if (phase == POST_AGGREGATION) {
                 log.info("Considering publication of vote for genesis WRAPS proof on construction #{}", constructionId);
             } else {
                 log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
@@ -494,11 +528,22 @@ public class WrapsHistoryProver implements HistoryProver {
                                                         .build();
                                                 scheduleVoteWithJitter(constructionId, tssConfig, proof);
                                             }
-                                            case NoopOutput noopOutput ->
-                                                log.info(
-                                                        "Skipping publication of {} output: {}",
-                                                        phase,
-                                                        noopOutput.reason());
+                                            case NoopOutput noopOutput -> {
+                                                if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())) {
+                                                    // Flag instead of clearing voteFuture inline; the outer accept()
+                                                    // hasn't returned yet.
+                                                    log.debug(
+                                                            "Deferring {} output: {} (will retry next round)",
+                                                            phase,
+                                                            noopOutput.reason());
+                                                    phaseNeedingWrapsReadinessRetry = phase;
+                                                } else {
+                                                    log.info(
+                                                            "Skipping publication of {} output: {}",
+                                                            phase,
+                                                            noopOutput.reason());
+                                                }
+                                            }
                                         }
                                     },
                                     executor)
@@ -656,7 +701,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                     signature, signers.stream().toList());
                         } else {
                             if (!historyLibrary.wrapsProverReady()) {
-                                yield new NoopOutput("WRAPS library is not ready");
+                                yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                             }
                             final var isValid = historyLibrary.verifyAggregateSignature(
                                     message,
@@ -708,7 +753,7 @@ public class WrapsHistoryProver implements HistoryProver {
                     }
                     case POST_AGGREGATION -> {
                         if (!historyLibrary.wrapsProverReady()) {
-                            yield new NoopOutput("WRAPS library is not ready");
+                            yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                         }
                         final var signature = requireNonNull(aggregatedSignatureProof)
                                 .chainOfTrustProofOrThrow()
