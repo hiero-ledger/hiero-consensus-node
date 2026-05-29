@@ -29,7 +29,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
-        @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
+        @ConfigProperty(defaultValue = "FILE") @NodeProperty
         BlockStreamWriterMode writerMode,
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty
