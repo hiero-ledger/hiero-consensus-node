@@ -22,12 +22,12 @@ on:
           - "jumpstart"
           - "wrb-streaming"
       jumpstart-starting-tag:
-        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.73.0."
+        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.74.0."
         required: false
         type: string
         default: ""
       jumpstart-upgrade-tag:
-        description: "[Jumpstart] Consensus-node release tag to upgrade the network to (e.g. v0.74.0). Leave blank to upgrade to the local build instead."
+        description: "[Jumpstart] Consensus-node release tag to upgrade the network to. Leave blank to default to v0.75.0-rc.3."
         required: false
         type: string
         default: ""
@@ -128,10 +128,6 @@ jobs:
           kind --version
           kubectl version --client=true
 
-      - name: Build Consensus Node Local Artifacts
-        if: ${{ inputs.jumpstart-upgrade-tag == '' }}
-        run: ${GRADLE_EXEC} assemble
-
       - name: Run WRB Solo Jumpstart Scenario
         run: |
           set -eo pipefail
@@ -140,8 +136,8 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.73.0' }}" \
-              UPGRADE_VERSION="${{ inputs.jumpstart-upgrade-tag }}" \
+              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}" \
+              UPGRADE_TAG="${{ inputs.jumpstart-upgrade-tag || 'v0.75.0-rc.3' }}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
@@ -185,7 +181,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         run: |
-          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+          kind delete cluster -n "wrb-jumpstart"
 
   solo-wrb-block-node-streaming:
     name: "Solo WRB Streaming to Block Node"
