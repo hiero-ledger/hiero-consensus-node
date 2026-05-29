@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -9,6 +10,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
 import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
 import com.hedera.services.stream.proto.RecordStreamItem;
+import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +48,8 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
         this.suppressAssertionErrors = suppressAssertionErrors;
     }
 
+    // TODO: when record stream is removed and BLOCKS becomes the permanent mode, replace this adapter
+    // with a native BlockStreamAssertion that validates EvmTraceData fields directly from block items.
     @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
@@ -54,24 +58,46 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
             for (final var unit : units) {
                 final var records = blockTranslator.translate(unit.withBatchTransactionParts());
                 for (final var record : records) {
-                    final var item = toRecordStreamItem(record);
-                    if (delegate.isApplicableTo(item)) {
-                        if (delegate.test(item)) {
-                            return true;
-                        }
+                    final var passed = testRecord(record);
+                    testSidecars(record);
+                    if (passed) {
+                        return true;
                     }
                 }
-            }
-        } catch (final AssertionError e) {
-            if (suppressAssertionErrors) {
-                log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);
-            } else {
-                throw e;
             }
         } catch (final Exception e) {
             log.warn("Failed to translate block to record stream items", e);
         }
         return false;
+    }
+
+    private boolean testRecord(@NonNull final SingleTransactionRecord record) {
+        final var item = toRecordStreamItem(record);
+        if (!delegate.isApplicableTo(item)) {
+            return false;
+        }
+        try {
+            return delegate.test(item);
+        } catch (final AssertionError e) {
+            if (suppressAssertionErrors) {
+                log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);
+                return false;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private void testSidecars(@NonNull final SingleTransactionRecord record) {
+        for (final var pbjSidecar : record.transactionSidecarRecords()) {
+            final var sidecar = pbjToProto(
+                    pbjSidecar,
+                    com.hedera.hapi.streams.TransactionSidecarRecord.class,
+                    TransactionSidecarRecord.class);
+            if (delegate.isApplicableToSidecar(sidecar)) {
+                delegate.testSidecar(sidecar);
+            }
+        }
     }
 
     private static RecordStreamItem toRecordStreamItem(@NonNull final SingleTransactionRecord record) {
