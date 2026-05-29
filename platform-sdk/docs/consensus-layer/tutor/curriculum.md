@@ -62,35 +62,35 @@ lessons:
     cluster: c0
     title: "Task schedulers and the six scheduler types"
     source_topics: [wiring-framework]
-    status: not_started
+    status: drafted
   - id: c0-02-wires-and-soldering
     index: 6
     pass: 2
     cluster: c0
     title: "Wires, soldering, and in-line transformers"
     source_topics: [wiring-framework]
-    status: not_started
+    status: drafted
   - id: c0-03-backpressure-and-queue-health
     index: 7
     pass: 2
     cluster: c0
     title: "Backpressure modes and the health-monitor wire"
     source_topics: [wiring-framework]
-    status: not_started
+    status: drafted
   - id: c0-04-wiring-model-lifecycle
     index: 8
     pass: 2
     cluster: c0
     title: "The WiringModel: assembly, validation, and lifecycle"
     source_topics: [wiring-framework]
-    status: not_started
+    status: drafted
   - id: c0-syn-wiring-synthesis
     index: 9
     pass: 2
     cluster: c0
     title: "Synthesis: assembling and validating a component graph"
     source_topics: [wiring-framework]
-    status: not_started
+    status: drafted
 
   # ---- Pass 2 — Cluster A.1: Hashgraph Algorithm ----
   - id: a1-01-hashgraph-dag
