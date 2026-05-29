@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -70,6 +71,9 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
         final var enableAtRestart = Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true");
 
         return hapiTest(
+                doingContextual(spec -> org.junit.jupiter.api.Assumptions.assumeTrue(
+                        spec.startupProperties().getStreamMode("blockStream.streamMode") != BLOCKS,
+                        "WRB requires record stream; skipping in BLOCKS-only mode")),
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),

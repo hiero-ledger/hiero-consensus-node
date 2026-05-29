@@ -27,9 +27,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
@@ -68,7 +69,8 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> bReceiverAddr = new AtomicReference<>();
 
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                overriding("blockStream.streamMode", "BOTH"),
+                streamMustIncludePassFrom(
                         recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
                             if (txn.hasNodeStakeUpdate()) {
                                 // Avoid asserting something about an end-of-staking-period NodeStakeUpdate in CI
