@@ -14,7 +14,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,9 +36,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
-import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
-import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -75,7 +72,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 
@@ -125,7 +121,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
-    private final QuiescenceCommands quiescenceCommands;
     private final ConfigProvider configProvider;
 
     private final StreamMode streamMode;
@@ -219,7 +214,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
@@ -230,7 +224,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                quiescenceCommands,
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
                 blockHashSigner,
@@ -244,7 +237,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
@@ -253,7 +245,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
-        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.streamFileProducer = requireNonNull(streamFileProducer);
         this.configProvider = requireNonNull(configProvider);
         this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
@@ -601,24 +592,20 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     /**
-     * If called, checks if the quiescence command has changed and updates the platform accordingly. On a real
-     * transition into {@link QuiescenceCommand#QUIESCE}, also starts the {@link QuiescedHeartbeat} so the controller
-     * gets periodic TCT updates while quiescent.
+     * If called, re-evaluates the node's quiescence status and (when the node has just transitioned into quiescence)
+     * starts the {@link QuiescedHeartbeat}. Delegates to {@link QuiescedHeartbeat#pollAndMaybeStart} so the RECORDS and
+     * BLOCKS stream modes share a single poll-and-start path.
      *
-     * @param state the state to use when constructing the {@link TctProbe}
+     * @param state the state to probe for the next target consensus time
      */
     public void maybeQuiesce(@NonNull final State state) {
-        final var commandNow = quiescenceController.getQuiescenceStatus();
-        if (quiescenceCommands.update(commandNow) && commandNow == QUIESCE) {
-            final var config = configProvider.getConfiguration();
-            final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-            quiescedHeartbeat.start(
-                    blockStreamConfig.quiescedHeartbeatInterval(),
-                    new TctProbe(
-                            blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                            config.getConfigData(StakingConfig.class).periodMins(),
-                            state));
-        }
+        final var config = configProvider.getConfiguration();
+        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        quiescedHeartbeat.pollAndMaybeStart(
+                blockStreamConfig.quiescedHeartbeatInterval(),
+                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                config.getConfigData(StakingConfig.class).periodMins(),
+                state);
     }
 
     private void putLastBlockInfo(@NonNull final State state) {

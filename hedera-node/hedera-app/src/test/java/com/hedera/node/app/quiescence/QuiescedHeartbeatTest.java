@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.State;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
@@ -568,5 +569,58 @@ class QuiescedHeartbeatTest {
 
         verify(counterMock).increment();
         verify(quiescenceCommands).update(DONT_QUIESCE);
+    }
+
+    @Test
+    void pollAndMaybeStartStartsHeartbeatWhenTransitioningIntoQuiesce() {
+        given(controller.getQuiescenceStatus()).willReturn(QUIESCE);
+        given(quiescenceCommands.update(QUIESCE)).willReturn(true);
+        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        subject.pollAndMaybeStart(Duration.ofSeconds(1), 10, 1440L, mock(State.class));
+
+        verify(quiescenceCommands).update(QUIESCE);
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(1000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void pollAndMaybeStartDoesNotStartWhenUpdateReportsNoTransition() {
+        given(controller.getQuiescenceStatus()).willReturn(QUIESCE);
+        // update() returns false: the command was already QUIESCE, so this is not a real transition.
+        given(quiescenceCommands.update(QUIESCE)).willReturn(false);
+
+        subject.pollAndMaybeStart(Duration.ofSeconds(1), 10, 1440L, mock(State.class));
+
+        verify(quiescenceCommands).update(QUIESCE);
+        verifyNoInteractions(scheduler);
+    }
+
+    @Test
+    void pollAndMaybeStartDoesNotStartWhenCommandIsNotQuiesce() {
+        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+        // A real transition, but to DONT_QUIESCE — the heartbeat must not (re)start on a wake-up.
+        given(quiescenceCommands.update(DONT_QUIESCE)).willReturn(true);
+
+        subject.pollAndMaybeStart(Duration.ofSeconds(1), 10, 1440L, mock(State.class));
+
+        verify(quiescenceCommands).update(DONT_QUIESCE);
+        verifyNoInteractions(scheduler);
+    }
+
+    @Test
+    void pollAndMaybeStartStartsHeartbeatOnlyOnTheRealQuiesceTransition() {
+        given(controller.getQuiescenceStatus()).willReturn(QUIESCE);
+        // First poll observes a real transition into QUIESCE; the second sees the command unchanged.
+        given(quiescenceCommands.update(QUIESCE)).willReturn(true).willReturn(false);
+        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+        final var state = mock(State.class);
+
+        subject.pollAndMaybeStart(Duration.ofSeconds(1), 10, 1440L, state);
+        subject.pollAndMaybeStart(Duration.ofSeconds(1), 10, 1440L, state);
+
+        verify(quiescenceCommands, times(2)).update(QUIESCE);
+        verify(scheduler, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
     }
 }

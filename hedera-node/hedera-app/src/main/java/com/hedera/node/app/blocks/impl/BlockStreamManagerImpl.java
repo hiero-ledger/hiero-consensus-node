@@ -22,7 +22,6 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -51,9 +50,7 @@ import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
-import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
-import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -107,7 +104,6 @@ import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -137,7 +133,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
     private final NodeInfo selfNodeInfo;
-    private final QuiescenceCommands quiescenceCommands;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -239,7 +234,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final NodeInfo selfNodeInfo,
-            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
@@ -248,7 +242,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.selfNodeInfo = requireNonNull(selfNodeInfo);
-        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
@@ -479,19 +472,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Starts the quiesced heartbeat with a fresh {@link TctProbe} built from the current state and config. Called
-     * after {@link QuiescenceCommands#update(QuiescenceCommand)} reports a real transition into
-     * {@link QuiescenceCommand#QUIESCE}.
+     * Re-evaluates the node's quiescence status and (when it has just transitioned into quiescence) starts the
+     * {@link QuiescedHeartbeat}. Delegates to {@link QuiescedHeartbeat#pollAndMaybeStart} so the BLOCKS and RECORDS
+     * stream modes share a single poll-and-start path.
      */
-    private void startQuiescedHeartbeat(@NonNull final State state) {
+    private void pollQuiescence(@NonNull final State state) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-        quiescedHeartbeat.start(
+        quiescedHeartbeat.pollAndMaybeStart(
                 blockStreamConfig.quiescedHeartbeatInterval(),
-                new TctProbe(
-                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                        config.getConfigData(StakingConfig.class).periodMins(),
-                        state));
+                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                config.getConfigData(StakingConfig.class).periodMins(),
+                state);
     }
 
     /**
@@ -767,10 +759,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     attempt.chainOfTrustProof());
                         }
                         if (quiescenceEnabled) {
-                            final var commandNow = quiescenceController.getQuiescenceStatus();
-                            if (quiescenceCommands.update(commandNow) && commandNow == QUIESCE) {
-                                startQuiescedHeartbeat(state);
-                            }
+                            pollQuiescence(state);
                         }
                     })
                     .exceptionally(t -> {

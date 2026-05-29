@@ -12,7 +12,6 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
-import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
@@ -45,7 +44,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -118,7 +116,6 @@ public class BlockStreamManagerWrapper {
                 NoOpDependencies.createBenchmarkBoundaryStateChangeListener(configProvider),
                 quiescenceController,
                 new NoOpDependencies.NoOpNodeInfo(),
-                new QuiescenceCommands(new NoOpDependencies.NoOpPlatform(), new NoOpMetrics()),
                 NoOpDependencies.createNoOpInitialStateHash(),
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),

@@ -58,7 +58,6 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
-import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
@@ -163,9 +162,6 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
-
-    @Mock
-    private QuiescenceCommands quiescenceCommands;
 
     @Mock
     private BlockStreamManager.Lifecycle lifecycle;
@@ -283,7 +279,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -309,7 +304,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1622,7 +1616,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1659,7 +1652,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1711,7 +1703,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1758,7 +1749,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
@@ -1801,7 +1791,6 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 quiescenceController,
                 selfNodeInfo,
-                quiescenceCommands,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,

@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -98,8 +99,9 @@ public class QuiescedHeartbeat {
                     try {
                         heartbeat(probe);
                     } catch (final Exception e) {
-                        // Already counted and routed to DONT_QUIESCE inside heartbeat(); just swallow so the
-                        // scheduler does not silently cancel us before stop() has run.
+                        // heartbeat() already incremented the error counter, routed DONT_QUIESCE, and cancelled
+                        // this task via stop() before rethrowing. We catch-and-log here only so the failure is
+                        // visible, instead of being silently suppressed by the executor when a periodic task throws.
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
                 },
@@ -107,6 +109,31 @@ public class QuiescedHeartbeat {
                 heartbeatInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
         log.info("Started quiesced heartbeat at interval {}", heartbeatInterval);
+    }
+
+    /**
+     * Re-evaluates the node's quiescence status and routes any change through the shared
+     * {@link QuiescenceCommands#update(QuiescenceCommand)}; when this poll observes a real transition into
+     * {@link QuiescenceCommand#QUIESCE} it (re)starts the heartbeat with a fresh {@link TctProbe}. This is the single
+     * poll-and-maybe-start site shared by the block-record (RECORDS mode) and block-stream (BLOCKS mode) managers, so
+     * the two stream modes cannot drift apart (issue #25140).
+     *
+     * @param heartbeatInterval                    the interval at which the heartbeat ticks once started
+     * @param maxConsecutiveScheduleSecondsToProbe the probe window for upcoming scheduled-transaction seconds
+     * @param stakePeriodMins                      the staking period in minutes ({@code <= 0} means no stake-period TCT)
+     * @param state                                the state to probe for the next target consensus time
+     */
+    public void pollAndMaybeStart(
+            @NonNull final Duration heartbeatInterval,
+            final int maxConsecutiveScheduleSecondsToProbe,
+            final long stakePeriodMins,
+            @NonNull final State state) {
+        requireNonNull(heartbeatInterval);
+        requireNonNull(state);
+        final var commandNow = controller.getQuiescenceStatus();
+        if (quiescenceCommands.update(commandNow) && commandNow == QUIESCE) {
+            start(heartbeatInterval, new TctProbe(maxConsecutiveScheduleSecondsToProbe, stakePeriodMins, state));
+        }
     }
 
     /**

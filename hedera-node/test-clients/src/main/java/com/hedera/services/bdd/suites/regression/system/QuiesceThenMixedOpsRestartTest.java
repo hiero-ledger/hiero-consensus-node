@@ -107,7 +107,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
                 // Mark the assertion window start AFTER two cycles have completed, so the boot-time and
                 // first-cycle transitions cannot satisfy the assertion below.
-                withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
+                withOpContext((_, _) -> sleepStart.set(Instant.now())),
                 // --- Cycle 3: the cycle that pre-fix could not produce ---
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),

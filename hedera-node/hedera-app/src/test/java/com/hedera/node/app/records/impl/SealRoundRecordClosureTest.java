@@ -167,7 +167,6 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 producer,
                 controller,
                 heartbeat,
-                mock(QuiescenceCommands.class),
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
                 blockHashSigner,
