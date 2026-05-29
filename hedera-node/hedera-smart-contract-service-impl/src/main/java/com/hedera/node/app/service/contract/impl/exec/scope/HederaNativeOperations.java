@@ -106,9 +106,7 @@ public interface HederaNativeOperations {
      */
     @Nullable
     default Account getAccount(final AccountID accountID) {
-        return readableAccountStore().contains(accountID)
-                ? readableAccountStore().getAccountById(accountID)
-                : null;
+        return readableAccountStore().getAccountById(accountID);
     }
 
     /**

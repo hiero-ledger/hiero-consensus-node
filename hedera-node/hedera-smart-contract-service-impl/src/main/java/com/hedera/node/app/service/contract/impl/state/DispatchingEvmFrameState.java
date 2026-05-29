@@ -47,13 +47,13 @@ import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
@@ -107,24 +107,29 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public static final Key HOLLOW_ACCOUNT_KEY =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
-    private static final int INITIAL_CACHE_CAPACITY = 64;
+    private static final int INITIAL_CACHE_CAPACITY = 16;
 
     private final HederaNativeOperations nativeOperations;
     private final HederaEntityResolver hederaEntityResolver;
     final ContractStateStore contractStateStore;
 
     /**
-     * Shared mutable probe used for {@link ConcurrentHashMap#get(Object)} lookups against {@link #slotKeyCache},
+     * Shared mutable probe used for {@link HashMap#get(Object)} lookups against {@link #slotKeyCache},
      * {@link #originalValueCache}, and {@link #liveValueCache}. On a cache miss callers must store an
      * immutable {@link SlotLookupKey#copy()} as the map key.
+     *
+     * <p>These caches are deliberately backed by plain {@link HashMap}s: each
+     * {@code DispatchingEvmFrameState} is scoped to a single Besu world-updater frame and accessed by a
+     * single EVM thread, so concurrent access never occurs and a {@link java.util.concurrent.ConcurrentHashMap}
+     * would only add per-lookup CAS/locking overhead and a larger allocation footprint.
      */
     private final SlotLookupKey probeKey = new SlotLookupKey();
 
-    private final Map<SlotLookupKey, SlotKey> slotKeyCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> originalValueCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> liveValueCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<ContractID, CodeCacheEntry> codeCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<AccountID, Hash> delegationCodeHashCache = new ConcurrentHashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, SlotKey> slotKeyCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> originalValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> liveValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<ContractID, CodeCacheEntry> codeCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<AccountID, Hash> delegationCodeHashCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
 
     /**
      * @param nativeOperations   the Hedera native operation

@@ -140,7 +140,6 @@ class HandleHederaNativeOperationsTest {
     void getAccountUsesContextReadableStore() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(accountStore.contains(NON_SYSTEM_ACCOUNT_ID)).willReturn(true);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID));
     }
@@ -149,7 +148,6 @@ class HandleHederaNativeOperationsTest {
     void getAccountKeyUsesContextReadableStore() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(accountStore.contains(NON_SYSTEM_ACCOUNT_ID)).willReturn(true);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(SOMEBODY);
         assertSame(SOMEBODY.keyOrThrow(), subject.getAccountKey(NON_SYSTEM_ACCOUNT_ID));
     }
@@ -278,7 +276,6 @@ class HandleHederaNativeOperationsTest {
         final var contractAccountId = AccountID.newBuilder()
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
-        given(accountStore.contains(contractAccountId)).willReturn(true);
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
         given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
         given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(true);
@@ -301,7 +298,6 @@ class HandleHederaNativeOperationsTest {
         final var contractAccountId = AccountID.newBuilder()
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
-        given(accountStore.contains(contractAccountId)).willReturn(true);
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
         given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
         given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(false);
@@ -325,7 +321,6 @@ class HandleHederaNativeOperationsTest {
         final var contractAccountId = AccountID.newBuilder()
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
-        given(accountStore.contains(contractAccountId)).willReturn(true);
         given(accountStore.getAccountById(contractAccountId)).willReturn(SOMEBODY);
 
         final var result = subject.transferWithReceiverSigCheck(
