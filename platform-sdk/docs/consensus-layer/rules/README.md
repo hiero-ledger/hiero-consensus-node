@@ -27,9 +27,9 @@ load-bearing — a `retired` rule must not be enforced by review, and a
 
 ## Index
 
-|     ID     | Title | Class | Topics | Status |
-|------------|-------|-------|--------|--------|
-| _none yet_ |       |       |        |        |
+|   ID    |                                   Title                                   |   Class    |         Topics          | Status |
+|---------|---------------------------------------------------------------------------|------------|-------------------------|--------|
+| RUL-001 | A SignedState must remain reserved while any consumer can still access it | structural | signed-state-management | holds  |
 
 <!--
 Row convention, one line per entry, kept in RUL-NNN order:
