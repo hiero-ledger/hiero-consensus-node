@@ -8,7 +8,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
-import com.hedera.node.app.records.impl.BlockStreamInfoRecordInfo;
+import com.hedera.node.app.records.impl.BlockStreamInfoImpl;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -121,9 +121,8 @@ public class QueryContextImpl implements QueryContext {
             // must be sourced from BlockStreamInfo (mirrors the handle-path selection in ParentTxnFactory).
             final var streamMode =
                     configuration.getConfigData(BlockStreamConfig.class).streamMode();
-            blockRecordInfo = streamMode == StreamMode.BLOCKS
-                    ? BlockStreamInfoRecordInfo.from(state)
-                    : BlockRecordInfoImpl.from(state);
+            blockRecordInfo =
+                    streamMode == StreamMode.BLOCKS ? BlockStreamInfoImpl.from(state) : BlockRecordInfoImpl.from(state);
         }
         return blockRecordInfo;
     }
