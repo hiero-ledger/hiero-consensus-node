@@ -42,7 +42,7 @@ jobs:
   migration-testing:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-bn-regression-lin-lg
+    runs-on: hl-cn-migration-lin-lg
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -158,7 +158,7 @@ jobs:
 
   report-migration-testing-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hl-cn-migration-lin-sm
     needs: migration-testing
     if: ${{ always() }}
     steps:
