@@ -21,23 +21,23 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * maintained. Reads from an immutable state snapshot, so it is safe to use from query threads (unlike the live
  * {@link com.hedera.node.app.blocks.BlockStreamManager} singleton, whose fields are mutated by the handle thread).
  */
-public final class BlockStreamInfoRecordInfo implements BlockRecordInfo {
+public final class BlockStreamInfoImpl implements BlockRecordInfo {
 
     private final BlockStreamInfo blockStreamInfo;
 
     /**
-     * Creates a {@code BlockStreamInfoRecordInfo} from the given {@link State}.
+     * Creates a {@code BlockStreamInfoImpl} from the given {@link State}.
      * @param state the state
-     * @return the created {@code BlockStreamInfoRecordInfo}
+     * @return the created {@code BlockStreamInfoImpl}
      */
-    public static BlockStreamInfoRecordInfo from(@NonNull final State state) {
+    public static BlockStreamInfoImpl from(@NonNull final State state) {
         final var blockStreamInfo = requireNonNull(state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                 .get());
-        return new BlockStreamInfoRecordInfo(blockStreamInfo);
+        return new BlockStreamInfoImpl(blockStreamInfo);
     }
 
-    public BlockStreamInfoRecordInfo(@NonNull final BlockStreamInfo blockStreamInfo) {
+    public BlockStreamInfoImpl(@NonNull final BlockStreamInfo blockStreamInfo) {
         this.blockStreamInfo = requireNonNull(blockStreamInfo);
     }
 
@@ -55,7 +55,11 @@ public final class BlockStreamInfoRecordInfo implements BlockRecordInfo {
     /** {@inheritDoc} */
     @Override
     public long blockNo() {
-        return blockStreamInfo.blockNumber() + 1;
+        // Queries read from a committed state snapshot representing the end of block N.
+        // The trailing block hashes in state cover up to block N-1, so block.number for
+        // queries is N (the last completed block), not N+1 (which the handle path reports
+        // because it is actively building the next block).
+        return blockStreamInfo.blockNumber();
     }
 
     /** {@inheritDoc} */
