@@ -106,21 +106,21 @@ lessons:
     cluster: a1
     title: "Rounds and witnesses"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-03-strongly-seeing
     index: 12
     pass: 2
     cluster: a1
     title: "Strongly-seeing and branching"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-04-fame-voting-and-coin-rounds
     index: 13
     pass: 2
     cluster: a1
     title: "Fame voting and coin rounds"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-05-judges-and-consensus-order
     index: 14
     pass: 2
