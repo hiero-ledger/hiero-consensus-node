@@ -127,28 +127,28 @@ lessons:
     cluster: a1
     title: "Judges and consensus order"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-06-birth-round-and-ancient
     index: 15
     pass: 2
     cluster: a1
     title: "Birth round and the ancient threshold"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-07-stale-events
     index: 16
     pass: 2
     cluster: a1
     title: "Stale events"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-syn-hashgraph-synthesis
     index: 17
     pass: 2
     cluster: a1
     title: "Synthesis: one event through the full algorithm"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
 
   # ---- Pass 2 — Cluster A.2: Event Intake ----
   - id: a2-01-validation-pipeline
