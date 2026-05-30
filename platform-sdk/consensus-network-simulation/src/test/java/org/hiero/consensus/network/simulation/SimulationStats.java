@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Accumulates and reports performance statistics gathered during a network simulation run.
@@ -35,12 +36,11 @@ class SimulationStats {
                 .flatMap(List::stream)
                 .forEach(c2cs::add);
 
-        numBytes += engineOutputs.stream()
-                .map(ConsensusEngineOutput::consensusRounds)
-                .flatMap(List::stream)
-                .flatMap(cr -> cr.getConsensusEvents().stream())
-                .mapToLong(ce -> GossipEvent.PROTOBUF.measureRecord(ce.getGossipEvent()))
-                .sum();
+    }
+
+    public void records(final List<PlatformEvent> events) {
+        numBytes +=
+                events.stream().mapToLong(ce -> GossipEvent.PROTOBUF.measureRecord(ce.getGossipEvent())).sum();
     }
 
     /**

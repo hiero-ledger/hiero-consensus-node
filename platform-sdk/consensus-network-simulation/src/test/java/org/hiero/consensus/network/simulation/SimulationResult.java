@@ -3,7 +3,6 @@ package org.hiero.consensus.network.simulation;
 
 import java.time.Duration;
 import java.util.Formatter;
-import org.jspecify.annotations.NonNull;
 
 /**
  * Represents the results of a network simulation run.
@@ -16,7 +15,7 @@ import org.jspecify.annotations.NonNull;
 public record SimulationResult(int nodes, Duration averageC2C, Duration maxC2C, long eventsPerSec, long bytesPerSec) {
 
     @Override
-    public @NonNull String toString() {
+    public String toString() {
         final StringBuilder sb = new StringBuilder();
         final Formatter fmt = new Formatter(sb);
         fmt.format("Num nodes:    %d%n", nodes);
