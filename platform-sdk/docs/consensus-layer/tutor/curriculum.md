@@ -99,7 +99,7 @@ lessons:
     cluster: a1
     title: "The hashgraph DAG"
     source_topics: [hashgraph]
-    status: not_started
+    status: drafted
   - id: a1-02-rounds-and-witnesses
     index: 11
     pass: 2
