@@ -611,9 +611,11 @@ jobs:
 
       - name: Update BlockNodes
         run: |
+          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar)
+          echo "$bnTar=$bnTar"
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${bnTar} \
               ${pod}:/tmp/BN.tar
           done
 
