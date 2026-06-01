@@ -1,51 +1,29 @@
 # Current Status And Next Steps
 
-Date: `2026-05-22`
+Date: `2026-06-01`
 
 ## Status
 
-Production reconnect telemetry is not needed for the first calibration pass.
+Cluster evidence has now been collected for every traversal order. The run artifacts are outside this repository at:
 
-The local subprocess artifacts show that existing node logs and metrics already provide the non-network reconnect
-evidence required by `cluster-reconnectbench-run-protocol.md`:
+```text
+/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
+```
 
-- learner and teacher node IDs;
-- first learner reconnect start and end;
-- learner reconnect duration;
-- reconnect transfer counters;
-- clean and dirty reconnect work shape;
-- learner and teacher state-size ranges;
-- workload and learner-behind context;
-- whether later reconnects happened after the first window.
+Those runs include the required cluster evidence for the first calibration pass. Passive TCP/socket/network evidence was
+also collected around the reconnect window using passive sampling from learner restart through `ACTIVE`. Script code details are intentionally not captured here.
 
-So the cluster run can use a latest-`main` commit without production reconnect code changes. We also do not need a
-separate latest-`main` telemetry worktree just to add Java metrics or logs.
+Production reconnect telemetry was not needed for this pass, and no production/runtime consensus-node behavior changes
+are required for the current analysis.
 
 ## Remaining Work
 
-The next important task is network evidence strategy and script preparation.
+Before processing the collected runs, brainstorm the processing strategy and process. The analysis should start only
+after the docs under `25083-improve-reconnectbench` are cleaned up to remove bloat, so the run processing can proceed
+from a concise and current documentation set.
 
-We need to understand where the cluster shell/script changes should live, then prepare a small script-oriented plan that
-captures:
+After the documentation cleanup, the intended branch workflow is:
 
-- one run per traversal mode from the same baseline;
-- ordinary script output, node logs, node metrics, and config/settings artifacts;
-- commit, image, baseline identifier, traversal mode, learner/teacher candidates, workload, stop duration, and
-  transaction mix/rate when available;
-- RTT evidence between learner and teacher;
-- bandwidth or throughput evidence outside the reconnect window;
-- TCP/window/backpressure samples during the reconnect window, using `ss -ti` or an equivalent if available.
-
-Active bandwidth generators should not run during reconnect. Passive sampling should run during reconnect; active
-throughput checks, if used, should run before or after the reconnect window.
-
-## DevOps Question
-
-The only required DevOps question right now is:
-
-```text
-Where should the cluster run script changes be placed?
-```
-
-Everything else should be prepared on our side first, either as shell snippets or as task-local documentation under
-`25083-improve-reconnectbench`.
+1. Create a new branch from the respective `main` commit where the cluster run happened.
+2. Move the current branch's `ReconnectBench` changes onto that branch.
+3. Process the collected run artifacts and use the results to guide calibration.

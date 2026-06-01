@@ -5,7 +5,7 @@ Date: `2026-05-22`
 ## Scope
 
 This document validates what can be extracted from the local subprocess reconnect artifacts with respect to the
-non-network requirements in `cluster-reconnectbench-run-protocol.md`.
+non-network requirements in `../cluster-evidence-and-calibration/cluster-reconnectbench-run-protocol.md`.
 
 Artifact root:
 

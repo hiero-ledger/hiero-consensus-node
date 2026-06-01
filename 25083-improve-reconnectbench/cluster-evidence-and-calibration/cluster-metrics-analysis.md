@@ -1,7 +1,8 @@
 # Cluster Metrics Analysis For ReconnectBench Calibration
 
-This document captures the current calibration decisions, evidence, and remaining gaps for using cluster metrics under
-`25083-improve-reconnectbench/cluster-metrics/csv` to choose better local `ReconnectBench` parameters.
+This document captures the current calibration decisions, evidence, and remaining gaps for using cluster metrics to choose better local `ReconnectBench` parameters.
+
+Source files were based on reconnect run that was done on May 6, 2026 (they were deleted after info was extracted).
 
 The detailed metric sections are still maintained incrementally. Analyze additional CSV metrics only when they are
 requested, and keep the decision matrix below synchronized with any new evidence.
@@ -1381,10 +1382,7 @@ Important interpretation details:
 - `ping_us_XXMIN = 9999999` is the metric ceiling/default and means there was no new minimum sample during that reset
   interval. It should not be interpreted as a real RTT.
 
-Source files:
-
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats0.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats2.csv`
+Source files were based on reconnect run that was done on May 6, 2026 (they were deleted after info was extracted).
 
 Confirmed reconnect pair:
 
@@ -1488,15 +1486,7 @@ Definition:
 - `bytes_per_sec_sent_XX`: bytes per second sent from this node to peer node `XX`.
 - These are observed application/gossip network byte rates. They are not direct link-capacity measurements.
 
-Source files:
-
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats0.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats1.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats2.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats3.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats4.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats5.csv`
-- `25083-improve-reconnectbench/cluster-metrics/csv/MainNetStats6.csv`
+Source files were based on reconnect run that was done on May 6, 2026 (they were deleted after info was extracted).
 
 Confirmed reconnect window:
 

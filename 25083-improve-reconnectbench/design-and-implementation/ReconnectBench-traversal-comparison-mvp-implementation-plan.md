@@ -1256,7 +1256,7 @@ git commit -m "chore: remove obsolete reconnect delay simulation"
 ## Task 9: Smoke Runs And Calibration Notes
 
 **Files:**
-- Modify: `25083-improve-reconnectbench/ReconnectBench-traversal-comparison-mvp-design.md`
+- Modify: `25083-improve-reconnectbench/design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md`
 
 - [ ] **Step 1: Run loopback smoke benchmark**
 
@@ -1309,7 +1309,7 @@ Append a `## Calibration Notes` section to the design document if it does not al
 - [ ] **Step 5: Commit**
 
 ```bash
-git add 25083-improve-reconnectbench/ReconnectBench-traversal-comparison-mvp-design.md
+git add 25083-improve-reconnectbench/design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md
 git commit -m "docs: record ReconnectBench calibration notes"
 ```
 

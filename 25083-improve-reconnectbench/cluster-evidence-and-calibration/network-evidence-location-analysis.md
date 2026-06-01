@@ -272,7 +272,7 @@ For candidate 1, prepare changes in this shape once we are ready to edit the per
 ## Follow-Up Resolution
 
 The first round of follow-ups is resolved in
-`25083-improve-reconnectbench/network-evidence-and-state-shape-strategy.md`.
+`25083-improve-reconnectbench/cluster-evidence-and-calibration/network-evidence-and-state-shape-strategy.md`.
 
 - `network-node1-0` is the intended learner for this calibration run.
 - Keep baseline/matrix handling simple: run the whole job once per traversal mode instead of building a three-mode

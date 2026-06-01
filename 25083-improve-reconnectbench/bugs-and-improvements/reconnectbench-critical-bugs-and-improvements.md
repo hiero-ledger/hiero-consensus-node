@@ -29,11 +29,11 @@ Only if restore fails does it generate a new state from `teacherAddProbability`,
 Evidence:
 
 - `ReconnectBench.java`: saved maps are restored before generation; generation is fallback only.
-- `local-reconnectbench-averaged-cluster-profile-results.md`: the cluster-profile local run restored existing maps and
+- `../results-and-validation/local-reconnectbench-averaged-cluster-profile-results.md`: the cluster-profile local run restored existing maps and
   explicitly notes that the `0.05/0.05/0.05` JMH probability parameters did not define the tested state.
 - The restored local state has about `49,999,999` learner leaves and `50,121,146` teacher leaves, a net growth of only
   about `121k` leaves.
-- `cluster-metrics-analysis.md` currently points to an append-heavy first approximation for cluster divergence:
+- `../cluster-evidence-and-calibration/cluster-metrics-analysis.md` currently points to an append-heavy first approximation for cluster divergence:
   `teacherAddProbability ~= 0.0053`, `teacherRemoveProbability=0`, with modify rate still diagnostic.
 
 Why this is critical: traversal ranking is state-shape sensitive. A broad synthetic historical divergence with random
@@ -57,7 +57,7 @@ constructs two in-memory `SimulatedNetworkChannel`s directly and places `Buffere
 
 Evidence:
 
-- `ReconnectBench-original-design-specification.md` says the transport below the simulation should be a real loopback TCP
+- `../design-and-implementation/ReconnectBench-original-design-specification.md` says the transport below the simulation should be a real loopback TCP
   socket preserving serialization costs.
 - `PairedStreams.java` constructs `new SimulatedNetworkChannel(networkConfig)` for both directions.
 - `SimulatedNetworkChannel` uses one `ReentrantLock` and one `Condition` per direction.
@@ -88,7 +88,7 @@ Evidence:
 - `SimulatedNetworkChannel.writeRange(...)` blocks when `inflightBytes + bytes.length` exceeds
   `networkInflightBytesLimit`.
 - `SimulatedNetworkChannel.read(...)` frees in-flight capacity only when the receiver reads bytes.
-- `cluster-metrics-analysis.md` reports directional observed traffic: learner-to-teacher around `233-270 Mbps`, and
+- `../cluster-evidence-and-calibration/cluster-metrics-analysis.md` reports directional observed traffic: learner-to-teacher around `233-270 Mbps`, and
   teacher-to-learner around `108-192 Mbps`.
 - Current cluster-profile local runs used `128 MiB` and saw zero capacity waits for `pullTopToBottom` and
   `pullParallelSync`, which proves the cap was neutral for that local profile but does not prove it matches cluster TCP
@@ -115,9 +115,9 @@ teacher and learner synchronizers also run in one local JVM and one local proces
 
 Evidence:
 
-- `ReconnectBench-original-design-specification.md` calls teacher workload important because it affects response timing
+- `../design-and-implementation/ReconnectBench-original-design-specification.md` calls teacher workload important because it affects response timing
   and speculation.
-- `ReconnectBench-traversal-comparison-mvp-design.md` marks teacher workload simulation as a non-goal for the MVP.
+- `../design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md` marks teacher workload simulation as a non-goal for the MVP.
 - `ReconnectBench.java` creates `teacherMapCopy = teacherMap.copy()` but `reconnect()` calls
   `MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, ...)`; no workload runs against
   `teacherMapCopy`.

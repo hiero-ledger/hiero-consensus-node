@@ -368,7 +368,7 @@ These diagnostics should not be part of the default DevOps ask.
 3. Prepare script changes that parameterize `virtualMap.reconnectMode`, restore the same baseline, and collect node
    logs, metrics, script output, and network evidence.
 4. Run one cluster reconnect per traversal mode.
-5. Import the resulting summaries into `25083-improve-reconnectbench/cluster-metrics`.
+5. Import the resulting summaries into `25083-improve-reconnectbench/cluster-evidence-and-calibration/cluster-metrics`.
 6. Update `cluster-metrics-analysis.md` with the new evidence and the local calibration implications.
 
 ## Open Questions For Reconnect Experiment Owner

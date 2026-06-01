@@ -2,7 +2,7 @@
 
 ## Status
 
-This document revises `25083-improve-reconnectbench/ReconnectBench-original-design-specification.md` against the current codebase. It intentionally narrows the first implementation to a traversal-comparison MVP.
+This document revises `25083-improve-reconnectbench/design-and-implementation/ReconnectBench-original-design-specification.md` against the current codebase. It intentionally narrows the first implementation to a traversal-comparison MVP.
 
 The original document remains useful background, especially its explanation of why per-message sleeps make the benchmark untrustworthy. This document is the implementation target for the MVP.
 
