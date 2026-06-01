@@ -33,6 +33,8 @@ has_cancellation() {
   return 1
 }
 
+# read -r: read input with no backslash interpretation; -a: store space-separated words into an array
+# <<< feeds the variable as a one-line string ("success failure success" → arr=("success" "failure" "success"))
 read -ra test_arr <<< "${INPUT_TEST_OUTCOMES}"
 read -ra workflow_arr <<< "${INPUT_WORKFLOW_OUTCOMES}"
 
