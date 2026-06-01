@@ -1,15 +1,17 @@
 # Cluster Metrics Analysis For ReconnectBench Calibration
 
-This document captures the current calibration decisions, evidence, and remaining gaps for using cluster metrics to choose better local `ReconnectBench` parameters.
+This document captures calibration decisions, evidence, and remaining gaps extracted from an older cluster reconnect run.
 
-Source files were based on reconnect run that was done on May 6, 2026 (they were deleted after info was extracted).
+> Historical note: this page analyzes the reconnect run from May 6, 2026. The raw source files were deleted after the
+> findings were extracted, so this page is not a reprocessing target. Treat it as historical evidence and context for
+> the newer cluster run processing work.
 
-The detailed metric sections are still maintained incrementally. Analyze additional CSV metrics only when they are
-requested, and keep the decision matrix below synchronized with any new evidence.
+The detailed metric sections below preserve the extracted reasoning from that deleted data set. Do not extend this page
+by re-analyzing the deleted run; only update it if the archived conclusions need a correction or clearer caveat.
 
 ## Executive Summary
 
-Current confirmed cluster shape:
+Confirmed cluster shape extracted from this run:
 
 - Main reconnect pair: node 0 is the receiver/learner; node 2 is the sender/teacher.
 - Main reconnect window: approximately `2026-05-05 20:11:48-20:22:23 UTC`.
@@ -41,16 +43,16 @@ Current confirmed cluster shape:
   - `receiverReconnectDurationSeconds` includes learner-side virtual-map finalization, but not later controller/platform
     load or state-to-disk snapshot work.
 
-Working conclusion:
+Historical working conclusion from this run:
 
-- The current CSV evidence is enough to propose a better local cluster-profile sweep, but not enough to declare that the
-  local benchmark fully reproduces cluster behavior.
+- The extracted CSV evidence was enough to propose a better local cluster-profile sweep, but not enough to declare that
+  the local benchmark fully reproduces cluster behavior.
 - Before asking for another cluster experiment, it is reasonable to run a small local cluster-profile check using the
   existing saved state and sub-ms latency.
 - Before treating local/cluster traversal ordering as validated, we still need cluster runs with explicit traversal mode,
   reconnect stats/logs, and TCP/window or socket evidence.
 
-## Current Context
+## Context At Time Of Analysis
 
 - Cluster shape: 7 consensus nodes running in Kubernetes via Solo.
 - Hardware target: close to mainnet-class hardware.
@@ -211,7 +213,10 @@ Purpose:
 - Estimate divergence shape.
 - Identify whether cluster reconnect represents append-heavy, modify-heavy, remove-heavy, or mixed divergence.
 
-## Calibration Decision Matrix
+## Historical Calibration Decision Matrix
+
+This matrix records the calibration interpretation from the May 6 run only. Some gaps called out here may be addressed by
+the newer collected cluster artifacts.
 
 These are calibration decisions, not final validation claims. `Use now` means the value is justified for a quick local
 cluster-profile diagnostic. `Diagnostic only` means useful for sensitivity testing but not evidence-backed for this
@@ -227,7 +232,9 @@ cluster. `Blocked` means cluster evidence is required before treating the value 
 | Divergence shape | Partial | Static first-pass approximation: token-association-heavy append gap. For the first confirmed reconnect, `teacherAddProbability ~= 2.21M / 415.3M ~= 0.0053`, `teacherRemoveProbability=0`, and `teacherModifyProbability` remains diagnostic until clean/dirty logs exist. | service-store size, `vmap_*` | Medium; current `ReconnectBench` cannot model teacher growth while reconnect is running. |
 | Traversal matrix | Use locally, blocked for cluster validation | Local diagnostic: same saved teacher/learner state with `pullTopToBottom -> pullParallelSync -> pullTopToBottom`; optionally reverse the order and include `pullTwoPhasePessimistic` if cost is acceptable. | reconnect role/duration metrics | Cluster validation is blocked until explicit cluster traversal-mode runs exist. |
 
-## Evidence Coverage
+## Historical Evidence Coverage
+
+This coverage table applies to the deleted May 6 source files, not to the newer traversal-order cluster artifacts.
 
 Status legend:
 
@@ -251,10 +258,10 @@ Status legend:
 | Same-state traversal matrix on cluster | Blocked | none | required for traversal-order validation | Need explicit cluster runs per mode. |
 | Runtime environment | Partial | operator-provided context | Kubernetes/Solo and mainnet-like hardware | Need exact commit SHA, JVM/heap args, and config. |
 
-### Quick Local Diagnostics
+### Historical Quick Local Diagnostics
 
-These can be run before requesting another cluster experiment. They are intended to test whether the current local
-benchmark behaves plausibly under the best-supported cluster-profile inputs.
+These were proposed before the newer traversal-order cluster artifacts were collected. They are kept here to explain the
+old analysis path, not as the current next step.
 
 1. Run the existing saved teacher/learner state with one-way latency profiles `50`, `150`, and `300` microseconds.
 2. Sweep `150`, `200`, `300`, and `1000` Mbps with a neutral `networkInflightBytesLimit` of at least `128 MiB`.
@@ -262,9 +269,9 @@ benchmark behaves plausibly under the best-supported cluster-profile inputs.
 4. Keep `13 MiB`, `25 MiB`, `100 ms`, and `200 ms` runs labeled as sensitivity diagnostics, not cluster-calibration
    evidence.
 
-### Cluster Validation Blockers
+### Historical Cluster Validation Blockers
 
-These are required before claiming the local benchmark reproduces cluster traversal ordering.
+These were the validation blockers identified from the deleted May 6 source files.
 
 1. Cluster same-state traversal matrix with explicit reconnect mode in logs.
 2. Learner and teacher reconnect logs containing `ReconnectMapMetrics.format()` output.
@@ -276,8 +283,8 @@ These are required before claiming the local benchmark reproduces cluster traver
 
 ## Detailed Findings
 
-The detailed sections below remain metric-oriented. Use the executive summary and evidence coverage sections for current
-decisions; use these findings to audit the raw reasoning behind each conclusion.
+The detailed sections below remain metric-oriented. Use the executive summary and evidence coverage sections for the
+historical conclusions; use these findings to audit the raw reasoning behind each conclusion.
 
 ### Metrics: `startsReconnectAsReceiver`, `startsReconnectAsSender`, `endsReconnectAsReceiver`, And `endsReconnectAsSender`
 
