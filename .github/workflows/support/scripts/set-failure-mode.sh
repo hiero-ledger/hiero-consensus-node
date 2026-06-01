@@ -48,14 +48,16 @@ if [[ "${failure_mode}" == "none" ]]; then
   fi
 fi
 
+# Split each whitespace-delimited input string into a Bash array (-r: no backslash escapes, -a: store as array)
 read -ra job_status_arr <<< "${INPUT_JOB_STATUSES}"
 read -ra job_failure_mode_arr <<< "${INPUT_JOB_FAILURE_MODES}"
 read -ra job_names_arr <<< "${INPUT_JOB_NAMES}"
 
+# "${!job_status_arr[@]}" expands to the list of array indices (0, 1, 2, …)
 for i in "${!job_status_arr[@]}"; do
   status="${job_status_arr[$i]}"
-  mode="${job_failure_mode_arr[$i]:-none}"
-  name="${job_names_arr[$i]:-job-$i}"
+  mode="${job_failure_mode_arr[$i]:-none}"   # default to "none" if the element is unset or empty
+  name="${job_names_arr[$i]:-job-$i}"        # default to "job-<index>" if the element is unset or empty
 
   if [[ "$status" == "failure" ]]; then
     [[ "$mode" == "cancelled" ]] && mode="workflow"
