@@ -58,7 +58,9 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
@@ -260,9 +262,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final VirtualMapState state = initialState.get().getState();
 
             // Set the active roster
-            final ReadablePlatformStateStore store =
+            final ReadablePlatformStateStore platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            RosterStateUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+            final WritableRosterStore rosterStore =
+                    new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+            rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
 
             final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());

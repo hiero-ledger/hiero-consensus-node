@@ -44,7 +44,9 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
@@ -129,9 +131,11 @@ public class ConsensusNodeManager {
         }
 
         // Set active the roster
-        final ReadablePlatformStateStore store =
+        final ReadablePlatformStateStore platformStateStore =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
 
         final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
