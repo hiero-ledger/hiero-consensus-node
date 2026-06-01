@@ -116,7 +116,7 @@ jobs:
 
       - name: Gradle Update Version (Branch Commit)
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
-        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}
+        run: ./gradlew versionAsPrefixedCommit "-PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}"
 
       - name: Build Artifacts
         id: gradle-build
