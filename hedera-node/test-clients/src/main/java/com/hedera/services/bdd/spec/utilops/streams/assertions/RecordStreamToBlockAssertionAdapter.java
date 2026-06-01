@@ -91,9 +91,7 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     private void testSidecars(@NonNull final SingleTransactionRecord record) {
         for (final var pbjSidecar : record.transactionSidecarRecords()) {
             final var sidecar = pbjToProto(
-                    pbjSidecar,
-                    com.hedera.hapi.streams.TransactionSidecarRecord.class,
-                    TransactionSidecarRecord.class);
+                    pbjSidecar, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class);
             if (delegate.isApplicableToSidecar(sidecar)) {
                 delegate.testSidecar(sidecar);
             }
