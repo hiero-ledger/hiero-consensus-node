@@ -20,6 +20,7 @@ import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImplDAB;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusEngineMetrics;
@@ -56,6 +57,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final FreezeRoundController freezeRoundController;
 
+    // TODO turn this into a configuration
+    private final boolean useDABConsensusAlgorithm = true;
     /**
      * Constructor
      *
@@ -77,7 +80,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final long transactionOffsetNanos) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
-        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
+        if (useDABConsensusAlgorithm) {
+            consensus = new ConsensusImplDAB(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
+        } else {
+            consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
+        }
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
         futureEventBuffer =
