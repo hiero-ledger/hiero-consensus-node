@@ -353,8 +353,12 @@ jobs:
           fi
           cd "${{ github.workspace }}"
 
+      - name: Fix size BN
+        run: |
+          cd "${{ github.workspace }}"/target_block_node
+          sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
+
       - name: Compile BN
-        if: false
         run: |
           cd "${{ github.workspace }}"/target_block_node
           ./gradlew app:distTar
@@ -453,9 +457,9 @@ jobs:
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
           #git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
-          echo > resources/templates/application.properties
-          echo > resources/templates/application.env
-          echo > resources/templates/settings.txt
+          #echo > resources/templates/application.properties
+          #echo > resources/templates/application.env
+          #echo > resources/templates/settings.txt
 
           sed -i -e 's/37748736/300000000/g' resources/config/tss-config.yaml
           sed -i -e 's/37748736/300000000/g' resources/block-node-tss-values.yaml
@@ -597,6 +601,25 @@ jobs:
           genesisFile=$(find $HOME/.solo -type f -name 'genesis-network.json')
           bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
           jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+
+      - name: Temp down BlockNodes
+        run: |
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+          done
+
+      - name: Update BlockNodes
+        run: |
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar \
+              ${pod}:/tmp/BN.tar
+          done
+
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; rm -rf app*; tar xf /tmp/BN.tar"
+          done
 
       - name: Update RSA BlockNodes
         run: |
