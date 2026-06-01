@@ -572,4 +572,3 @@ arrivalWaitNanos=71007752034
   - `pullTwoPhasePessimistic` transfers the most total work and the most bytes in both network directions.
 - Because this reused the existing `50M` saved state and the old `0.05/0.05/0.05` generated divergence, this is a
   network-profile diagnostic, not a cluster-shaped state/divergence validation.
-

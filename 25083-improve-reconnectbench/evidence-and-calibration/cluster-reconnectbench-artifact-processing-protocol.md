@@ -152,6 +152,9 @@ For the first learner reconnect in each traversal-mode run, extract:
 - learner state size at reconnect end, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
 - reconnect status.
 
+Use receiver lifecycle start-to-finish as the primary learner reconnect duration. If logs also contain a narrower
+`Finished synchronization` timing, keep it as stage context instead of replacing the full learner duration.
+
 Derived values do not need to be extracted as separate fields if raw counters exist:
 
 ```text

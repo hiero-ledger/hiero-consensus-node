@@ -9,6 +9,7 @@ Last updated: 2026-06-01
 ## Root-Level Task State
 
 - [Current Status And Next Steps](current-status-and-next-steps.md) - Temporary task-state note kept outside the durable documentation buckets.
+- [ReconnectBench Bugs And Improvements](reconnectbench-bugs-and-improvements.md) - Consolidated benchmark-only issue inventory for correctness, simulator behavior, reproducibility, and calibration interpretation.
 
 ## Design And Implementation
 
@@ -16,17 +17,8 @@ Last updated: 2026-06-01
 - [Traversal-Comparison MVP Design](design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md) - Current MVP design for comparing reconnect traversal modes with simulated network behavior.
 - [Traversal-Comparison MVP Implementation Plan](design-and-implementation/ReconnectBench-traversal-comparison-mvp-implementation-plan.md) - Archived step-by-step implementation plan for the already-executed traversal-comparison MVP.
 
-## Bugs And Improvements
+## Evidence And Calibration
 
-- [ReconnectBench Critical Bugs And Improvements](bugs-and-improvements/reconnectbench-critical-bugs-and-improvements.md) - Critical findings from the local-vs-cluster traversal-ordering investigation.
-- [SimulatedNetworkChannel Bugs And Improvements](bugs-and-improvements/simulated-network-channel-bugs-and-improvements.md) - Simulator and benchmark issues that affect correctness, portability, or interpretation.
-
-## Cluster Evidence And Calibration
-
-- [Cluster ReconnectBench Artifact Processing Protocol](cluster-evidence-and-calibration/cluster-reconnectbench-run-protocol.md) - Current extraction protocol for processing collected traversal-order cluster artifacts and mapping results back to local ReconnectBench runs.
-- [Cluster Metrics Analysis](cluster-evidence-and-calibration/cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
-
-## Results And Validation
-
-- [Local Reconnect Artifact Extraction Results](results-and-validation/local-reconnect-telemetry-validation-results.md) - Local validation of reconnect artifact extraction and protocol coverage.
-- [Local ReconnectBench Calibration Notes](results-and-validation/local-reconnectbench-averaged-cluster-profile-results.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
+- [Cluster ReconnectBench Artifact Processing Protocol](evidence-and-calibration/cluster-reconnectbench-artifact-processing-protocol.md) - Current extraction protocol for processing collected traversal-order cluster artifacts and mapping results back to local ReconnectBench runs.
+- [Historical Cluster Metrics Analysis](evidence-and-calibration/historical-cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
+- [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
