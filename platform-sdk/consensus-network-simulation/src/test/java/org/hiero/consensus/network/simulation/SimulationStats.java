@@ -35,12 +35,12 @@ class SimulationStats {
                         .toList())
                 .flatMap(List::stream)
                 .forEach(c2cs::add);
-
     }
 
     public void records(final List<PlatformEvent> events) {
-        numBytes +=
-                events.stream().mapToLong(ce -> GossipEvent.PROTOBUF.measureRecord(ce.getGossipEvent())).sum();
+        numBytes += events.stream()
+                .mapToLong(ce -> GossipEvent.PROTOBUF.measureRecord(ce.getGossipEvent()))
+                .sum();
     }
 
     /**
