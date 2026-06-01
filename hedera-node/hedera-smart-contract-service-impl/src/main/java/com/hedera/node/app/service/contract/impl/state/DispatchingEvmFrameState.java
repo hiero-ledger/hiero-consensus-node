@@ -120,16 +120,15 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      *
      * <p>These caches are deliberately backed by plain {@link HashMap}s: each
      * {@code DispatchingEvmFrameState} is scoped to a single Besu world-updater frame and accessed by a
-     * single EVM thread, so concurrent access never occurs and a {@link java.util.concurrent.ConcurrentHashMap}
-     * would only add per-lookup CAS/locking overhead and a larger allocation footprint.
+     * single EVM thread.
      */
     private final SlotLookupKey probeKey = new SlotLookupKey();
 
-    private final Map<SlotLookupKey, SlotKey> slotKeyCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> originalValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<SlotLookupKey, UInt256> liveValueCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<ContractID, CodeCacheEntry> codeCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
-    private final Map<AccountID, Hash> delegationCodeHashCache = new HashMap<>(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, SlotKey> slotKeyCache = HashMap.newHashMap(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> originalValueCache = HashMap.newHashMap(INITIAL_CACHE_CAPACITY);
+    private final Map<SlotLookupKey, UInt256> liveValueCache = HashMap.newHashMap(INITIAL_CACHE_CAPACITY);
+    private final Map<ContractID, CodeCacheEntry> codeCache = HashMap.newHashMap(INITIAL_CACHE_CAPACITY);
+    private final Map<AccountID, Hash> delegationCodeHashCache = HashMap.newHashMap(INITIAL_CACHE_CAPACITY);
 
     /**
      * @param nativeOperations   the Hedera native operation
