@@ -16,7 +16,7 @@ class VirtualMapConfigTest {
         final ConfigurationBuilder configurationBuilder =
                 ConfigurationBuilder.create().withConfigDataType(VirtualMapConfig.class);
         // then
-        Assertions.assertDoesNotThrow(() -> configurationBuilder.build(), "All default values should be valid");
+        Assertions.assertDoesNotThrow(configurationBuilder::build, "All default values should be valid");
     }
 
     @Test
@@ -28,7 +28,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -42,7 +42,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -56,7 +56,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -70,7 +70,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -84,7 +84,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -97,7 +97,7 @@ class VirtualMapConfigTest {
                 .withConfigDataType(VirtualMapConfig.class);
 
         // then
-        Assertions.assertDoesNotThrow(() -> configurationBuilder.build(), "init must be successful");
+        Assertions.assertDoesNotThrow(configurationBuilder::build, "init must be successful");
     }
 
     @Test
@@ -109,7 +109,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }
@@ -123,7 +123,7 @@ class VirtualMapConfigTest {
 
         // then
         final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
+                ConfigViolationException.class, configurationBuilder::build, "init must end in a violation");
 
         Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
     }

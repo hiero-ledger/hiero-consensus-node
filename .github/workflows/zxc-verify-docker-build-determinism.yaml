@@ -17,7 +17,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25.0.2"
 
     secrets:
       github-token:
@@ -67,7 +66,7 @@ jobs:
 
     steps:
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -77,6 +76,7 @@ jobs:
           java-distribution: "${{ inputs.java-distribution }}"
           java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
 
       - name: Authenticate to Google Cloud
@@ -254,7 +254,7 @@ jobs:
           git config --global core.eol lf
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -264,6 +264,7 @@ jobs:
           java-distribution: "${{ inputs.java-distribution }}"
           java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
 
       - name: Install Python (Linux)

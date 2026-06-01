@@ -346,35 +346,35 @@ public class BlockStreamMetrics {
         final RunningAverageMetric.Config headerAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerSentToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_headerSentToAckLatency = metrics.getOrCreate(headerAckLatencyCfg);
 
         final RunningAverageMetric.Config headerProducedAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerProducedToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_headerProducedToAckLatency = metrics.getOrCreate(headerProducedAckLatencyCfg);
 
         final RunningAverageMetric.Config blockEndSentAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_blockEndSentToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_blockEndSentToAckLatency = metrics.getOrCreate(blockEndSentAckLatencyCfg);
 
         final RunningAverageMetric.Config blockClosedAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_blockClosedToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between the block being complete and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between the block being complete and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_blockClosedToAckLatency = metrics.getOrCreate(blockClosedAckLatencyCfg);
 
         final RunningAverageMetric.Config headerToBlockEndLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerSentToBlockEndSentLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockHeader and streaming the corresponding BlockEnd")
+                        "The average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd")
                 .withFormat("%,.2f");
 
         conn_headerSentToBlockEndSentLatency = metrics.getOrCreate(headerToBlockEndLatencyCfg);
@@ -470,42 +470,42 @@ public class BlockStreamMetrics {
 
     /**
      * Record the latency between sending a block header and receiving the corresponding acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderSentAckLatency(final long latencyMs) {
-        conn_headerSentToAckLatency.update(latencyMs);
+    public void recordHeaderSentAckLatency(final long latencyMicros) {
+        conn_headerSentToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between producing a block header (added to block state) and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderProducedToAckLatency(final long latencyMs) {
-        conn_headerProducedToAckLatency.update(latencyMs);
+    public void recordHeaderProducedToAckLatency(final long latencyMicros) {
+        conn_headerProducedToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between sending a block header and sending the corresponding BlockEnd.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderSentToBlockEndSentLatency(final long latencyMs) {
-        conn_headerSentToBlockEndSentLatency.update(latencyMs);
+    public void recordHeaderSentToBlockEndSentLatency(final long latencyMicros) {
+        conn_headerSentToBlockEndSentLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between sending EndOfBlock and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordBlockEndSentToAckLatency(final long latencyMs) {
-        conn_blockEndSentToAckLatency.update(latencyMs);
+    public void recordBlockEndSentToAckLatency(final long latencyMicros) {
+        conn_blockEndSentToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between the BlockState closed timestamp and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordBlockClosedToAckLatency(final long latencyMs) {
-        conn_blockClosedToAckLatency.update(latencyMs);
+    public void recordBlockClosedToAckLatency(final long latencyMicros) {
+        conn_blockClosedToAckLatency.update(latencyMicros);
     }
 
     /**

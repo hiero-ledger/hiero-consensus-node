@@ -15,6 +15,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -182,7 +183,6 @@ public class GarbageScanner {
     @NonNull
     private IndexedGarbageFileStats createStatsByFileIndexArray() {
         final List<DataFileReader> allCompletedFiles = new ArrayList<>(dataFileCollection.getAllCompletedFiles());
-        allCompletedFiles.removeIf(DataFileReader::isCompactionInProgress);
         allCompletedFiles.sort(Comparator.comparing(DataFileReader::getIndex));
         if (allCompletedFiles.isEmpty()) {
             return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);
@@ -207,11 +207,11 @@ public class GarbageScanner {
      */
     record IndexedGarbageFileStats(int offset, @NonNull GarbageFileStats[] garbageFileStats) {
         @NonNull
-        List<GarbageFileStats> getNonNullGarbageStats() {
-            final List<GarbageFileStats> nonNullStats = new ArrayList<>();
+        Map<DataFileReader, GarbageFileStats> getNonNullGarbageStatsByReader() {
+            final Map<DataFileReader, GarbageFileStats> nonNullStats = new HashMap<>();
             for (final GarbageFileStats stats : garbageFileStats) {
                 if (stats != null) {
-                    nonNullStats.add(stats);
+                    nonNullStats.put(stats.fileReader, stats);
                 }
             }
             return nonNullStats;
