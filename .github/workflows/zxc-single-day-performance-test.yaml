@@ -361,6 +361,7 @@ jobs:
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
+          git checkout main
           ./gradlew app:distTar
           #produces ./block-node/app/build/distributions/app-0.18.0-SNAPSHOT.tar
 
