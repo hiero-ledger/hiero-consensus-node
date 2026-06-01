@@ -20,5 +20,6 @@ Last updated: 2026-06-01
 ## Evidence And Calibration
 
 - [Cluster ReconnectBench Artifact Processing Protocol](evidence-and-calibration/cluster-reconnectbench-artifact-processing-protocol.md) - Current extraction protocol for processing collected traversal-order cluster artifacts and mapping results back to local ReconnectBench runs.
+- [Cluster ReconnectBench Artifact Atlas](evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md) - Exact source-location map for collected cluster run artifacts.
 - [Historical Cluster Metrics Analysis](evidence-and-calibration/historical-cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
 - [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
