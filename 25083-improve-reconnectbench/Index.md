@@ -14,7 +14,7 @@ Last updated: 2026-06-01
 
 - [Original Design Specification](design-and-implementation/ReconnectBench-original-design-specification.md) - Initial planning document for the ReconnectBench redesign.
 - [Traversal-Comparison MVP Design](design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md) - Current MVP design for comparing reconnect traversal modes with simulated network behavior.
-- [Traversal-Comparison MVP Implementation Plan](design-and-implementation/ReconnectBench-traversal-comparison-mvp-implementation-plan.md) - Step-by-step implementation plan for the traversal-comparison MVP.
+- [Traversal-Comparison MVP Implementation Plan](design-and-implementation/ReconnectBench-traversal-comparison-mvp-implementation-plan.md) - Archived step-by-step implementation plan for the already-executed traversal-comparison MVP.
 
 ## Bugs And Improvements
 
@@ -24,11 +24,11 @@ Last updated: 2026-06-01
 ## Cluster Evidence And Calibration
 
 - [Cluster ReconnectBench Calibration Protocol](cluster-evidence-and-calibration/cluster-reconnectbench-run-protocol.md) - Procedure for running cluster calibration, extracting artifacts, and mapping cluster results back to local ReconnectBench runs.
-- [Cluster Metrics Analysis](cluster-evidence-and-calibration/cluster-metrics-analysis.md) - Analysis of cluster metric signals relevant to reconnect calibration.
+- [Cluster Metrics Analysis](cluster-evidence-and-calibration/cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
 - [Network Evidence And State Shape Strategy](cluster-evidence-and-calibration/network-evidence-and-state-shape-strategy.md) - Strategy for passive network evidence, state-shape extraction, artifact confirmation, and future script shape.
 - [Network Evidence Location Analysis](cluster-evidence-and-calibration/network-evidence-location-analysis.md) - Analysis of where to collect network evidence in automation and reconnect scripts.
 
 ## Results And Validation
 
 - [Local Reconnect Artifact Extraction Results](results-and-validation/local-reconnect-telemetry-validation-results.md) - Local validation of reconnect artifact extraction and protocol coverage.
-- [Local ReconnectBench Averaged Cluster-Profile Results](results-and-validation/local-reconnectbench-averaged-cluster-profile-results.md) - Local benchmark results using averaged cluster-profile settings.
+- [Local ReconnectBench Calibration Notes](results-and-validation/local-reconnectbench-averaged-cluster-profile-results.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.

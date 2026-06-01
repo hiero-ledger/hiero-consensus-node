@@ -1,5 +1,8 @@
 # ReconnectBench Traversal-Comparison MVP Implementation Plan
 
+> Historical note: this implementation plan has already been executed. Keep this page as an archive of the original
+> task breakdown and worker instructions, not as an active checklist for current ReconnectBench work.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the current misleading reconnect delay knobs with a testable byte-level network simulator and make `ReconnectBench` useful for comparing `VirtualMapConfig.reconnectMode` traversal modes.
