@@ -351,6 +351,7 @@ public class NetworkSimulationTest {
         final Instant end = start.plus(simulationDuration);
         while (creatorNetwork.getPlatformContext().getTime().now().isBefore(end)) {
             final List<PlatformEvent> events = creatorNetwork.tick(tick);
+            stats.records(events);
             final List<ConsensusEngineOutput> engineOutputs =
                     events.stream().map(consensusEngine::addEvent).toList();
             engineOutputs.stream()
