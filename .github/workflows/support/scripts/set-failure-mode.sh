@@ -60,13 +60,18 @@ for i in "${!job_status_arr[@]}"; do
   name="${job_names_arr[$i]:-job-$i}"        # default to "job-<index>" if the element is unset or empty
 
   if [[ "$status" == "failure" ]]; then
+    # A cancelled job that ultimately failed is treated as a full workflow failure
     [[ "$mode" == "cancelled" ]] && mode="workflow"
     case "$mode" in
+      # "workflow" failure is the most severe — once set it is never downgraded
       workflow) failure_mode="workflow" ;;
+      # "test" failure is only promoted if the mode hasn't already reached "workflow"
       test) [[ "$failure_mode" != "workflow" ]] && failure_mode="test" ;;
     esac
+    # Append this job's name to the comma-separated list; ":+" skips the separator when the list is still empty
     failed_tests="${failed_tests:+${failed_tests}, }${name}"
   elif [[ "$status" == "cancelled" ]]; then
+    # A standalone cancellation only sets failure_mode when nothing worse has been recorded yet
     [[ "$failure_mode" == "none" ]] && failure_mode="cancelled"
     failed_tests="${failed_tests:+${failed_tests}, }${name} (cancelled)"
   fi
