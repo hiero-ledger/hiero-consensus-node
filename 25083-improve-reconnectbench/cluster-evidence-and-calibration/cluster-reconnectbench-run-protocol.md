@@ -1,26 +1,26 @@
-# Cluster ReconnectBench Calibration Protocol
+# Cluster ReconnectBench Artifact Processing Protocol
 
-Date: `2026-05-21`
+Updated: `2026-06-01`
 
 ## Purpose
 
-This document defines the lean cluster run protocol needed to calibrate local `ReconnectBench` against a real cluster.
+This document defines the artifact extraction protocol for the collected cluster ReconnectBench calibration runs.
 
-The goal is not to collect every possible diagnostic artifact. The goal is to answer one practical question:
+The cluster run planning phase is complete. The traversal-order artifacts have been collected under:
 
 ```text
-Can local ReconnectBench, with calibrated state and network inputs, reproduce the same traversal-mode ordering and broad
-reconnect shape observed in the cluster?
+/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
 ```
 
-The protocol should minimize DevOps time. We should prepare the configuration/script changes ourselves, then ask DevOps
-only where the shell changes should live.
+The current goal is to process those artifacts into comparable per-mode evidence, then use that evidence to decide
+whether local `ReconnectBench` can reproduce the same traversal-mode ordering and broad reconnect shape observed in the
+cluster.
 
 ## Core Principle
 
-Start from what local `ReconnectBench` can report, then collect the cluster equivalent.
+Start from what local `ReconnectBench` reports, then extract the cluster equivalent from existing artifacts.
 
-Local `ReconnectBench` currently reports:
+Local `ReconnectBench` reports:
 
 - traversal mode;
 - wall-clock benchmark time;
@@ -29,7 +29,7 @@ Local `ReconnectBench` currently reports:
 - simulated network profile;
 - simulated in-flight/backpressure diagnostics.
 
-The cluster run must therefore provide the real-world equivalents:
+For each cluster traversal run, extract the real-world equivalents:
 
 - traversal mode used for the run;
 - first learner reconnect window and matching teacher peer;
@@ -40,60 +40,95 @@ The cluster run must therefore provide the real-world equivalents:
 
 Everything else is fallback diagnostics.
 
-## Working Assumptions
+## Collected Run Shape
 
-- The cluster test branch should be based on latest `main`, not this prototype branch.
-- No production reconnect log or metric changes are needed for the first cluster calibration pass.
-- The run should be able to start each traversal mode from the same baseline state.
-- Script modifications will be prepared by us once DevOps confirms where those shell changes should live.
-- The only remaining DevOps question should be:
+Keep these run-shape facts with the extraction protocol so the collected artifacts are interpreted in the context in
+which they were produced. Treat them as expected run context to verify from the artifacts, not as substitutes for
+parsing the logs, settings, metrics, and script output.
 
-```text
-Where should the cluster run script changes be placed?
-```
+- The collected data came from the performance-analysis reconnect workflow, not the single-day longevity workflow.
+- The run strategy was one full workflow/job per traversal order, rather than an in-script traversal matrix.
+- The intended traversal orders were:
+  - `pullTopToBottom`
+  - `pullParallelSync`
+  - `pullTwoPhasePessimistic`
+- The intended learner was `network-node1-0` / node `0`.
+- The intended reconnect shape used:
+  - `warmtime=600`
+  - `downtime=1800`
+  - `NofLoops=0`, which was chosen for one reconnect iteration with the script semantics used for this run.
+- The intended NLG state/load shape used `24M` NLG accounts and the default `8K` TPS cap. This was chosen to target
+  roughly `100M` Virtual Map records on the learner and about `10M` additional records of teacher/learner divergence.
+- Load was not removed before the learner restarted; validate the actual workload rate and timing from NLG/client logs.
+- Passive TCP/socket/network evidence was collected around the reconnect window, from learner restart through learner
+  `ACTIVE`. Do not depend on the old draft script details; DevOps debugged and changed the actual implementation.
+- Production reconnect telemetry changes were not part of this pass.
 
-## Traversal Run Matrix
+## Processing Sequence
 
-Target one cluster reconnect per traversal mode:
+For each traversal-order artifact directory:
 
-1. `pullTopToBottom`
-2. `pullParallelSync`
-3. `pullTwoPhasePessimistic`
+1. Identify run context:
+   - traversal mode;
+   - commit SHA;
+   - image tag or digest, if captured;
+   - workload profile and NLG arguments;
+   - learner candidate and stopped pod;
+   - downtime, warmtime, and loop count;
+   - cluster namespace or baseline identifier, if captured.
+2. Identify the first learner reconnect window:
+   - learner node ID;
+   - teacher peer node ID;
+   - learner reconnect start UTC;
+   - learner reconnect end UTC;
+   - learner duration.
+3. Match the teacher context for the same reconnect:
+   - teacher node ID;
+   - learner peer node ID;
+   - teacher reconnect start UTC;
+   - teacher reconnect end UTC when available;
+   - teacher state context when available.
+4. Extract reconnect work-shape counters:
+   - transfers from teacher;
+   - transfers from learner;
+   - internal hashes and internal clean hashes;
+   - internal data and internal clean data;
+   - leaf hashes and leaf clean hashes;
+   - leaf data and leaf clean data.
+5. Extract state and divergence context:
+   - learner state size near reconnect start;
+   - teacher state size near reconnect start;
+   - learner/teacher state gap;
+   - teacher growth while the learner is behind and while reconnect runs, if visible;
+   - workload mix and actual transaction rate while the learner is behind.
+6. Extract network evidence:
+   - RTT evidence from direct probes or existing `ping_us_*` metrics;
+   - bandwidth or observed throughput evidence from metrics, reconnect data usage, or interface counters;
+   - TCP/window/backpressure evidence from passive sampler output such as `ss -tin`.
+7. Record later reconnects:
+   - whether another learner reconnect starts after the first accepted window;
+   - whether the later reconnect should be excluded from traversal-mode timing.
+8. Produce one analysis row for the traversal run and mark whether the run is accepted for calibration.
 
-If cluster time is reduced further, preserve `pullTopToBottom` and `pullParallelSync` first. They are the primary
-comparison for the local benchmark calibration. `pullTwoPhasePessimistic` is still useful because local diagnostics show
-it can behave differently under in-flight constraints.
+Do not mix later reconnects into the first traversal-mode timing result. If a learner immediately enters a second
+reconnect, keep it as state-growth context.
 
-Do not spend cluster time on repeated runs until a first calibration pass exists. A single run per mode is directional,
-not statistically conclusive, but it is enough to check whether the local benchmark is pointed at the right shape.
+## Artifact Sources
 
-## Artifact Extraction Contract
+Expected artifact sources are:
 
-Use the existing low-volume metrics, reconnect lifecycle logs, and VirtualMap path-range/state-info logs that were
-validated locally. Do not add logs on hot paths, and do not add duplicate parsing-only logs. We will receive the full
-cluster artifact bundle and extract the needed fields ourselves from node logs, node metrics, script output, and
-configuration files.
+- ordinary script output;
+- `client.log` and NLG output;
+- node `swirlds.log` files;
+- node metrics and stats CSVs;
+- `settingsUsed.txt`, `config.txt`, and copied configuration files;
+- `version_run.txt` or equivalent run-context files;
+- passive network sampler logs and summaries.
 
-Forbidden for this calibration work:
+Use existing low-volume metrics, reconnect lifecycle logs, `ReconnectMapMetrics` output, and VirtualMap path-range/state
+information. Do not require production telemetry changes for this extraction path.
 
-- per-node traversal logs;
-- per-leaf logs;
-- per-request or per-response logs;
-- per-byte or per-message logs;
-- any logging that can create gigabyte-scale files during reconnect.
-
-Expected artifact sources:
-
-- existing counters updated through metric paths;
-- summary counters already accumulated by reconnect code;
-- existing reconnect lifecycle logs;
-- existing VirtualMap path-range and state-info logs;
-- script output and configuration values that identify the traversal mode and run context.
-
-The fields below define what analysis must extract for each accepted reconnect window. They are not a node logging
-format.
-
-### Learner Summary
+## Learner Summary
 
 For the first learner reconnect in each traversal-mode run, extract:
 
@@ -113,8 +148,8 @@ For the first learner reconnect in each traversal-mode run, extract:
 - leaf clean hashes;
 - leaf data;
 - leaf clean data;
-- learner state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges;
-- learner state size at reconnect end, inferred from existing `firstLeafPath` / `lastLeafPath` ranges;
+- learner state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
+- learner state size at reconnect end, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
 - reconnect status.
 
 Derived values do not need to be extracted as separate fields if raw counters exist:
@@ -126,16 +161,16 @@ leafDirtyHashes = leafHashes - leafCleanHashes
 leafDirtyData = leafData - leafCleanData
 ```
 
-### Teacher Context
+## Teacher Context
 
-For the matching teacher reconnect, extract supporting context:
+For the matching teacher reconnect, extract:
 
 - traversal mode from script output or configuration;
 - teacher node ID;
 - learner peer node ID;
 - teacher reconnect start UTC;
 - teacher reconnect end UTC when available;
-- teacher state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges;
+- teacher state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
 - teacher state size at reconnect end when available, or an explicit unavailable note;
 - reconnect status.
 
@@ -143,16 +178,13 @@ Teacher duration is not a primary calibration target. It is useful for matching 
 learner-side reconnect, but learner reconnect completion is the timing we optimize because the learner can continue
 processing transactions after it reconnects.
 
-Exact reconnect byte totals are not required for this calibration pass. The cluster evidence we need is the network
-environment shape: RTT, throughput/bandwidth evidence, and TCP/window/backpressure evidence. Reconnect transfer counts
-and clean/dirty counters remain the work-shape evidence.
+Exact reconnect byte totals are not required. Network environment shape is the important evidence: RTT,
+throughput/bandwidth evidence, and TCP/window/backpressure evidence. Reconnect transfer counts and clean/dirty counters
+remain the work-shape evidence.
 
-### Run Context From Script Output
+## Run Context
 
-Do not require the run script to produce a separate run-summary file. The expected artifact set is ordinary script
-output, node logs, node metrics, and any explicitly started network sampler output.
-
-When analyzing a run, extract or infer this context from script output and configuration:
+For each run, extract or infer:
 
 ```text
 commit=<git SHA>
@@ -164,17 +196,16 @@ learnerCandidate=<expected learner node id if known>
 teacherCandidate=<expected teacher node id if known>
 workloadProfile=<short name or description>
 learnerBehindDuration=<duration if controlled by script>
-transactionRate=<rate if controlled by script>
-transactionMix=<short description if controlled by script>
+transactionRate=<rate if controlled by script or inferred from logs>
+transactionMix=<short description if controlled by script or inferred from NLG logs>
 configSummary=<path or short config identifier>
 ```
 
-If the script already prints these values, keep that output. If it does not, rely on the normal script output and
-configuration files unless adding a short context print is the simplest way to make the output readable.
+If a field is not present, record it as missing instead of inferring beyond the artifact evidence.
 
-## Divergence Strategy
+## State And Divergence Strategy
 
-Do not try to log exact per-key divergence in the first cluster attempt. That would add too much code and telemetry.
+Do not require exact per-key divergence in the first cluster processing pass.
 
 Infer divergence from coarse run facts:
 
@@ -186,7 +217,7 @@ Infer divergence from coarse run facts:
 - reconnect clean/dirty counters from `ReconnectMapMetrics`;
 - service/store size metrics if already available.
 
-For local `ReconnectBench`, this is enough to classify the cluster shape as approximately:
+For local `ReconnectBench`, classify the cluster shape as approximately:
 
 - append/growth-heavy;
 - modify-heavy;
@@ -196,37 +227,45 @@ For local `ReconnectBench`, this is enough to classify the cluster shape as appr
 The first local approximation should use the starting learner/teacher gap. If the teacher continues growing while
 reconnect runs, record that as cluster behavior to validate later, not as a reason to block the first calibration pass.
 
-## Minimal Run Procedure
+## Network Evidence
 
-For each traversal mode:
+The local benchmark has explicit network settings:
 
-1. Restore the same cluster baseline state.
-2. Set only:
+```text
+networkLatencyMicroseconds
+networkBandwidthMegabitsPerSecond
+networkInflightBytesLimit
+```
 
-   ```text
-   virtualMap.reconnectMode=<mode>
-   ```
+The cluster artifacts therefore need corresponding network evidence from the same test environment.
 
-3. Start the cluster with the selected latest-`main` based test branch/configuration.
-4. Run the same fallen-behind/reconnect scenario.
-5. Capture script output.
-6. Capture full node logs for the run, with learner and teacher logs required.
-7. Capture full metrics exports for all nodes in the run.
-8. Capture required network evidence described below.
-9. Identify the first learner reconnect window and matching teacher peer.
-10. Exclude later reconnects from the traversal-mode timing result.
-11. Record whether the run is accepted for local calibration.
+Extract:
 
-If the learner immediately enters a second reconnect, keep it as a note about state growth during the run. Do not mix it
-into the first traversal-mode result.
+1. RTT between learner and teacher.
+   - Prefer direct pod-to-pod or node-to-node RTT around the reconnect scenario.
+   - Existing cluster `ping_us_*` metrics are acceptable if direct RTT is not available.
+2. Directional bandwidth or throughput evidence.
+   - Prefer existing cluster, pod, or node network metrics for the test environment.
+   - Reconnect MiB divided by synchronization seconds is an observed lower-bound reconnect receive rate, not link
+     capacity.
+3. TCP/window/backpressure evidence during reconnect.
+   - Use passive sampler output such as `ss -tin` for the actual reconnect window when available.
+   - This is the best evidence for whether local `networkInflightBytesLimit` should be neutral or constrained.
+   - If the artifacts cannot provide TCP/window samples, record that as a calibration gap.
+4. Full node metrics for the run.
+   - Metrics help cross-check peer traffic, reconnect counters, and network shape.
+
+Do not use active bandwidth generators as reconnect-window evidence. They can change the thing we are trying to measure.
 
 ## Analysis Output Per Mode
 
-After the artifacts are available, fill this table during analysis:
+Fill one block per accepted traversal run:
 
 ```text
 Traversal mode:
+Artifact directory:
 Commit:
+Image:
 Learner node:
 Teacher node:
 First reconnect start UTC:
@@ -261,71 +300,6 @@ A run is still useful but incomplete if it has duration only. Duration without r
 context cannot validate whether local `ReconnectBench` is modeling the same work shape. Duration without network
 evidence also cannot calibrate the local network simulator.
 
-## Network Evidence
-
-The local benchmark has explicit network settings:
-
-```text
-networkLatencyMicroseconds
-networkBandwidthMegabitsPerSecond
-networkInflightBytesLimit
-```
-
-The cluster run therefore needs corresponding network evidence from the same test environment. This is required
-calibration evidence, not fallback diagnostics.
-
-Required network evidence:
-
-1. RTT between learner and teacher.
-   - Prefer direct pod-to-pod or node-to-node RTT around the reconnect scenario.
-   - Existing cluster ping metrics are acceptable if direct RTT is not available.
-2. Directional bandwidth evidence.
-   - Collect directional throughput outside the reconnect window if the scripts/environment make it practical.
-   - Prefer existing cluster, pod, or node network metrics for the test environment.
-   - Do not add reconnect byte counters only to compute effective reconnect rates.
-3. TCP/window/backpressure evidence during reconnect.
-   - Capture `ss -ti` or equivalent samples for the actual reconnect connection.
-   - This is the best evidence for whether local `networkInflightBytesLimit` should be neutral or constrained.
-   - If the environment cannot provide TCP/window samples, record that as a calibration gap.
-4. Full node metrics for the run.
-   - Metrics are easy to collect and help cross-check peer traffic, reconnect counters, and network shape.
-
-Do not run active bandwidth generators during reconnect. They can change the thing we are trying to measure.
-
-### Timing Network Collection With The Reconnect Flow
-
-The expected test flow is:
-
-```text
-restore baseline -> start cluster -> stop learner -> run workload while learner is behind -> restart learner -> learner
-detects fallen-behind state -> reconnect starts -> reconnect completes
-```
-
-Network collection should follow that flow without perturbing reconnect.
-
-Use passive collection during reconnect:
-
-- start log and metrics capture before restarting the learner;
-- if TCP/window samples are needed, start the teacher-side sampler before restarting the learner and start the
-  learner-side sampler as soon as the learner pod is running;
-- let samplers continue until the learner finish lifecycle log for the first reconnect is observed;
-- stop samplers immediately after the first learner reconnect window completes.
-
-Use active throughput tests outside the reconnect window:
-
-- do not run `iperf3` or other bandwidth-generating tests during reconnect unless the explicit goal is to study
-  interference;
-- run directional throughput checks before the fallen-behind scenario or after the reconnect run, using the same pod
-  placement when possible;
-- use passive metrics during reconnect; do not require exact reconnect byte totals for this calibration pass.
-
-RTT can be collected with minimal interference:
-
-- if both learner and teacher pods exist before the learner is stopped, capture a short baseline RTT sample then;
-- after the learner restarts, capture another short RTT sample as soon as the pod is reachable;
-- if continuous ping is cheap and already allowed, it may run across the reconnect window, but it is not required if
-  existing cluster ping metrics already constrain the latency profile.
-
 ## Mapping Cluster Results Back To Local ReconnectBench
 
 Use the cluster output to choose local parameters in this order:
@@ -349,7 +323,7 @@ If cluster traversal ordering differs from local ordering:
 
 ## Fallback Diagnostics
 
-Use this section only if the required evidence is missing or local/cluster results cannot be explained.
+Use this section only if required evidence is missing or local/cluster results cannot be explained.
 
 Possible fallback artifacts:
 
@@ -358,56 +332,3 @@ Possible fallback artifacts:
 - pod and node descriptions;
 - `/proc/net/dev` or `ip -s link` before/after samples;
 - config file copies for reconnect, virtual map, MerkleDB, socket, and JVM settings.
-
-These diagnostics should not be part of the default DevOps ask.
-
-## Immediate Next Work
-
-1. Keep the cluster test branch based on latest `main`, without production reconnect log or metric changes.
-2. Ask DevOps where the shell/script modifications should live.
-3. Prepare script changes that parameterize `virtualMap.reconnectMode`, restore the same baseline, and collect node
-   logs, metrics, script output, and network evidence.
-4. Run one cluster reconnect per traversal mode.
-5. Import the resulting summaries into `25083-improve-reconnectbench/cluster-evidence-and-calibration/cluster-metrics`.
-6. Update `cluster-metrics-analysis.md` with the new evidence and the local calibration implications.
-
-## Open Questions For Reconnect Experiment Owner
-
-These questions are for the software development colleague who has run reconnect experiments before. They should be
-answered before finalizing the run scripts.
-
-State size:
-
-- What initial state size is large enough to exercise realistic reconnect traversal without making each cluster run too
-  expensive?
-- Should the target be closer to `50M`, `100M`, or `200M` records, and should that number represent one virtual map or
-  aggregate service-state size?
-- What teacher and learner state sizes should exist at the moment reconnect starts?
-- Is there a known state-size threshold below which traversal ordering is misleading?
-
-Learner-behind window:
-
-- How long should the learner be stopped before restart?
-- Should the stop duration be chosen by elapsed time, by target state-size gap, by number of rounds, or by transaction
-  count?
-- Should the learner be restarted as soon as the teacher reaches a target size, or should the script use a fixed
-  stop-and-restart schedule?
-
-Workload and divergence shape:
-
-- What workload should run while the learner is stopped?
-- Which transaction types dominate the desired reconnect scenario: entity creation, token associations, account updates,
-  contract work, deletes, or a mixed profile?
-- Is the intended divergence mostly append/growth-heavy, modify-heavy, remove-heavy, or mixed?
-- Do we already know the transaction rate and transaction mix from previous reconnect experiments?
-- Should the teacher keep processing the same workload while reconnect is running, or should workload pause before the
-  learner restarts?
-
-Local benchmark mapping:
-
-- Which cluster state-size and divergence facts should be treated as the target for local `ReconnectBench`: starting
-  gap, ending gap, or teacher growth during reconnect?
-- If exact divergence is not available, which coarse proxy is preferred: state-size delta, transaction count, elapsed
-  time behind, or workload profile?
-- Are there existing reconnect experiment notes that explain which state shape previously produced useful cluster
-  signal?

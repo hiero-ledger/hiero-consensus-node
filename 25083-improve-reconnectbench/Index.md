@@ -23,10 +23,8 @@ Last updated: 2026-06-01
 
 ## Cluster Evidence And Calibration
 
-- [Cluster ReconnectBench Calibration Protocol](cluster-evidence-and-calibration/cluster-reconnectbench-run-protocol.md) - Procedure for running cluster calibration, extracting artifacts, and mapping cluster results back to local ReconnectBench runs.
+- [Cluster ReconnectBench Artifact Processing Protocol](cluster-evidence-and-calibration/cluster-reconnectbench-run-protocol.md) - Current extraction protocol for processing collected traversal-order cluster artifacts and mapping results back to local ReconnectBench runs.
 - [Cluster Metrics Analysis](cluster-evidence-and-calibration/cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
-- [Network Evidence And State Shape Strategy](cluster-evidence-and-calibration/network-evidence-and-state-shape-strategy.md) - Strategy for passive network evidence, state-shape extraction, artifact confirmation, and future script shape.
-- [Network Evidence Location Analysis](cluster-evidence-and-calibration/network-evidence-location-analysis.md) - Analysis of where to collect network evidence in automation and reconnect scripts.
 
 ## Results And Validation
 
