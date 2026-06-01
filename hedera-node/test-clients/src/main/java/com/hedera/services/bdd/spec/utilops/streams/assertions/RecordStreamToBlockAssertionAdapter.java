@@ -31,6 +31,7 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     private final RoleFreeBlockUnitSplit blockSplitter;
     private final BlockTransactionalUnitTranslator blockTranslator;
     private final boolean suppressAssertionErrors;
+    private boolean foundGenesis = false;
 
     public RecordStreamToBlockAssertionAdapter(
             @NonNull final RecordStreamAssertion delegate, final long shard, final long realm) {
@@ -54,6 +55,9 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
         try {
+            if (!foundGenesis) {
+                foundGenesis = blockTranslator.scanBlockForGenesis(block);
+            }
             final var units = blockSplitter.split(block);
             for (final var unit : units) {
                 final var records = blockTranslator.translate(unit.withBatchTransactionParts());

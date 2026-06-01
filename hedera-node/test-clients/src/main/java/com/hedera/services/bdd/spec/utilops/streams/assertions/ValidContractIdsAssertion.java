@@ -108,6 +108,9 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
 
     @Override
     public boolean testSidecar(@NonNull final TransactionSidecarRecord sidecar) throws AssertionError {
+        if (true) {
+            throw new AssertionError("error");
+        }
         switch (sidecar.getSidecarRecordsCase()) {
             case STATE_CHANGES -> validateStateChangeIds(sidecar);
             case ACTIONS -> validateActionIds(sidecar);
