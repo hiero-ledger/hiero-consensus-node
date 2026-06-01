@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.Bytecode;
+import com.hedera.node.app.service.contract.impl.bonneville.CodeV2;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
@@ -26,7 +27,7 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        return codeFactory.createCode(getCode(), false);
+        return CodeV2.make(getCodePBJ()); // A no-copy code object
     }
 
     @Override
