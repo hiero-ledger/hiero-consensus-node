@@ -45,8 +45,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -149,7 +149,7 @@ class AtomicBatchEthereumCallKeysTest {
                                 .sending(50 * ONE_HBAR)
                                 .maxGasAllowance(ONE_HBAR * 10)
                                 .gasLimit(5_000_000L)
-                                .hasKnownStatus(INVALID_ETHEREUM_TRANSACTION)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .via("creationActivatingAdminKeyViaEthTxSig"))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(

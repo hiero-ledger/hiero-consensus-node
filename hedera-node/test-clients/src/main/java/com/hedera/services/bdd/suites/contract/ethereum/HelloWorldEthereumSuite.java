@@ -67,7 +67,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_T
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
@@ -169,7 +168,7 @@ public class HelloWorldEthereumSuite {
                         .sending(50 * ONE_HBAR)
                         .maxGasAllowance(ONE_HBAR * 10)
                         .gasLimit(5_000_000L)
-                        .hasKnownStatus(INVALID_ETHEREUM_TRANSACTION)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .via("creationActivatingAdminKeyViaEthTxSig")),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",

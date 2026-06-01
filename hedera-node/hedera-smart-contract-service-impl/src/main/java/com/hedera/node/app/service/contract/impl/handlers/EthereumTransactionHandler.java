@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
@@ -102,8 +103,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         // Otherwise, for finalized accounts with a top-level ECDSA key, verify the signature matches.
         if (account != null && !isHollow(account)) {
             final var adminKey = account.keyOrThrow();
-            validateTruePreCheck(
-                    adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_ETHEREUM_TRANSACTION);
+            validateTruePreCheck(adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_SIGNATURE);
         }
     }
 

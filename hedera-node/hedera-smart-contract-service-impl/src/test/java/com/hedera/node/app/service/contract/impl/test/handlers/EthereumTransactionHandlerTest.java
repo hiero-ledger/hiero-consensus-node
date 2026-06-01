@@ -409,7 +409,7 @@ class EthereumTransactionHandlerTest {
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
         given(accountStore.getAliasedAccountById(any())).willReturn(account);
 
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_SIGNATURE);
     }
 
     @Test
@@ -466,7 +466,7 @@ class EthereumTransactionHandlerTest {
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
         given(accountStore.getAliasedAccountById(any())).willReturn(account);
 
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_SIGNATURE);
     }
 
     @Test
