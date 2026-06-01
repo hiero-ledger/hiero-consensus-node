@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static java.util.Objects.requireNonNull;
@@ -178,6 +179,20 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                                     result.pass();
                                     if (stopAfterFirstSuccess) {
                                         unsubscribe.run();
+                                    }
+                                }
+                            }
+                            for (final var pbjSidecar : record.transactionSidecarRecords()) {
+                                final var protoSidecar = pbjToProto(
+                                        pbjSidecar,
+                                        com.hedera.hapi.streams.TransactionSidecarRecord.class,
+                                        TransactionSidecarRecord.class);
+                                if (assertion.isApplicableToSidecar(protoSidecar)) {
+                                    if (assertion.testSidecar(protoSidecar)) {
+                                        result.pass();
+                                        if (stopAfterFirstSuccess) {
+                                            unsubscribe.run();
+                                        }
                                     }
                                 }
                             }
