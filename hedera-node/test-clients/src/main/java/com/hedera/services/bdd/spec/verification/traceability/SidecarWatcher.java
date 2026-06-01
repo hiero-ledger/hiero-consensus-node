@@ -12,6 +12,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -68,6 +69,16 @@ public class SidecarWatcher {
     private static final int FINAL_DRAIN_ATTEMPTS = 3;
 
     private final Path streamFilesPath;
+
+    /**
+     * Block-stream directory and shard/realm retained for the synchronous disk-rescan backstop
+     * ({@link #drainUnseenSidecarsFromBlocks()}). Null when the watcher is in legacy record-stream mode.
+     */
+    @Nullable
+    private final Path blockStreamPath;
+
+    private final long shard;
+    private final long realm;
     /**
      * Handle to the record-stream listener subscription. Set to a no-op when the watcher is in
      * block-stream-only mode (see the 4-arg constructor).
@@ -132,6 +143,9 @@ public class SidecarWatcher {
     public SidecarWatcher(
             @NonNull final Path path, @Nullable final Path blockStreamPath, final long shard, final long realm) {
         this.streamFilesPath = guaranteedExtantDir(path);
+        this.blockStreamPath = blockStreamPath;
+        this.shard = shard;
+        this.realm = realm;
         if (blockStreamPath != null) {
             // Block-stream-only mode: skip the record-stream listener entirely; the legacy dir is
             // empty under streamMode=BLOCKS so it would deliver nothing anyway.
@@ -166,22 +180,7 @@ public class SidecarWatcher {
             @Override
             public void onNewBlock(@NonNull final Block block) {
                 try {
-                    if (!foundGenesis[0]) {
-                        foundGenesis[0] = translator.scanBlockForGenesis(block);
-                    }
-                    for (final var unit : split.split(block)) {
-                        for (final var record : translator.translate(unit.withBatchTransactionParts())) {
-                            for (final var pbjSidecar : record.transactionSidecarRecords()) {
-                                // Fully qualified to disambiguate from the already-imported
-                                // proto type of the same simple name.
-                                final var protoSidecar = pbjToProto(
-                                        pbjSidecar,
-                                        com.hedera.hapi.streams.TransactionSidecarRecord.class,
-                                        TransactionSidecarRecord.class);
-                                enqueueActualSidecar(protoSidecar);
-                            }
-                        }
-                    }
+                    pumpBlockSidecars(block, translator, split, foundGenesis);
                 } catch (final RuntimeException e) {
                     // Don't propagate: a single bad unit shouldn't kill the watcher; the
                     // expectations-vs-actual diff at the end will surface any real miss.
@@ -194,6 +193,37 @@ public class SidecarWatcher {
                 return "SidecarWatcher#blockStreamPump";
             }
         });
+    }
+
+    /**
+     * Translates a single block into V6-shape {@link TransactionSidecarRecord}s and enqueues any not
+     * already seen, returning the count newly enqueued. The given {@code translator}/{@code split} are
+     * stateful and must be fed blocks in order from genesis so alias/nonce state stays consistent.
+     */
+    private int pumpBlockSidecars(
+            @NonNull final Block block,
+            @NonNull final BlockTransactionalUnitTranslator translator,
+            @NonNull final RoleFreeBlockUnitSplit split,
+            final boolean[] foundGenesis) {
+        if (!foundGenesis[0]) {
+            foundGenesis[0] = translator.scanBlockForGenesis(block);
+        }
+        int added = 0;
+        for (final var unit : split.split(block)) {
+            for (final var record : translator.translate(unit.withBatchTransactionParts())) {
+                for (final var pbjSidecar : record.transactionSidecarRecords()) {
+                    // Fully qualified to disambiguate from the already-imported proto type of the same simple name.
+                    final var protoSidecar = pbjToProto(
+                            pbjSidecar,
+                            com.hedera.hapi.streams.TransactionSidecarRecord.class,
+                            TransactionSidecarRecord.class);
+                    if (enqueueActualSidecar(protoSidecar)) {
+                        added++;
+                    }
+                }
+            }
+        }
+        return added;
     }
 
     public static String stackTrace(Throwable t) {
@@ -239,7 +269,7 @@ public class SidecarWatcher {
         // file monitor callbacks, which can lag under debugger pauses or slow CI.
         final long deadlineNanos = System.nanoTime() + EXPECTATIONS_TIMEOUT_NANOS;
         while (!expectedSidecars.isEmpty() && System.nanoTime() < deadlineNanos) {
-            final var drainedAtLeastOne = drainActualSidecars() || drainUnseenSidecarsFromDisk();
+            final var drainedAtLeastOne = drainActualSidecars() || drainUnseenSidecarsFromStorage();
             if (expectedSidecars.isEmpty()) {
                 break;
             }
@@ -252,7 +282,7 @@ public class SidecarWatcher {
         // If still pending, perform a few final forced close+drain attempts before failing.
         for (int i = 0; i < FINAL_DRAIN_ATTEMPTS && !expectedSidecars.isEmpty(); i++) {
             triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
-            drainUnseenSidecarsFromDisk();
+            drainUnseenSidecarsFromStorage();
             drainActualSidecars();
         }
 
@@ -261,7 +291,7 @@ public class SidecarWatcher {
         if (unsubscribeBlocks != null) {
             unsubscribeBlocks.run();
         }
-        drainUnseenSidecarsFromDisk();
+        drainUnseenSidecarsFromStorage();
         drainActualSidecars();
 
         assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
@@ -299,11 +329,13 @@ public class SidecarWatcher {
         return drainedAtLeastOne;
     }
 
-    private void enqueueActualSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+    private boolean enqueueActualSidecar(@NonNull final TransactionSidecarRecord sidecar) {
         synchronized (seenActualSidecars) {
             if (seenActualSidecars.add(sidecar)) {
                 actualSidecars.add(sidecar);
+                return true;
             }
+            return false;
         }
     }
 
@@ -330,6 +362,47 @@ public class SidecarWatcher {
         } catch (final Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Synchronous fallback for block-stream mode, mirroring {@link #drainUnseenSidecarsFromDisk()}:
+     * re-reads all completed blocks from disk and re-derives their sidecars, so a missed asynchronous
+     * {@code onNewBlock} callback (e.g. from CI marker-file visibility lag) cannot leave expectations
+     * falsely pending. Uses a fresh translator replayed from genesis each call; {@link #enqueueActualSidecar}
+     * dedups against sidecars the live listener already delivered.
+     *
+     * @return true if at least one previously-unseen sidecar was enqueued
+     */
+    private boolean drainUnseenSidecarsFromBlocks() {
+        if (blockStreamPath == null) {
+            return false;
+        }
+        try {
+            // Only marker-backed (fully written) blocks, so we never translate a half-flushed block.
+            final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamPath);
+            final var translator = new BlockTransactionalUnitTranslator(shard, realm);
+            final var split = new RoleFreeBlockUnitSplit();
+            final boolean[] foundGenesis = {false};
+            int added = 0;
+            for (final var block : blocks) {
+                added += pumpBlockSidecars(block, translator, split, foundGenesis);
+            }
+            return added > 0;
+        } catch (final UncheckedIOException | IllegalArgumentException e) {
+            // Block files may still be in-flight while this assertion loop is polling.
+            return false;
+        } catch (final RuntimeException e) {
+            log.warn("Failed to re-scan block stream for sidecars; continuing", e);
+            return false;
+        }
+    }
+
+    /**
+     * Drains unseen sidecars from whichever durable source backs this watcher: the block stream
+     * (BLOCKS mode) or the legacy V6 sidecar files (RECORDS/BOTH mode).
+     */
+    private boolean drainUnseenSidecarsFromStorage() {
+        return blockStreamPath != null ? drainUnseenSidecarsFromBlocks() : drainUnseenSidecarsFromDisk();
     }
 
     private void assertIncomingSidecar(final TransactionSidecarRecord actualSidecarRecord) {
