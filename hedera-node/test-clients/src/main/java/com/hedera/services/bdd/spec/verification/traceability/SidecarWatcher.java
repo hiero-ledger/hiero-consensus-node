@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.verification.traceability;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -14,8 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
-import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
-import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.BlockRecordTranslator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -119,7 +117,7 @@ public class SidecarWatcher {
      * Constructs a watcher that picks exactly one source for actual sidecars:
      * <ul>
      *     <li>If {@code blockStreamPath} is non-null, sidecars are synthesised from each new block
-     *         under that path via {@link BlockTransactionalUnitTranslator} (this is the path used
+     *         under that path via {@link BlockRecordTranslator} (this is the path used
      *         under {@code streamMode=BLOCKS}, where no V6 sidecar files are written).</li>
      *     <li>Otherwise the watcher subscribes to the legacy V6 sidecar files at {@code path}
      *         (this is the path used under {@code streamMode=RECORDS} or {@code BOTH}).</li>
@@ -150,12 +148,7 @@ public class SidecarWatcher {
     }
 
     private Runnable subscribeBlocks(@NonNull final Path blockStreamPath, final long shard, final long realm) {
-        // One translator/split owned by this subscription so alias and nonce state persist
-        // across blocks (BaseTranslator is stateful).
-        final var translator = new BlockTransactionalUnitTranslator(shard, realm);
-        final var split = new RoleFreeBlockUnitSplit();
-        // Single-element array used as a mutable boolean captured by the listener lambda.
-        final boolean[] foundGenesis = {false};
+        final var translator = new BlockRecordTranslator(shard, realm);
         return STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(blockStreamPath), new StreamDataListener() {
             // Replay so genesis sidecars (emitted before this subscription) are still picked up.
             @Override
@@ -166,22 +159,8 @@ public class SidecarWatcher {
             @Override
             public void onNewBlock(@NonNull final Block block) {
                 try {
-                    if (!foundGenesis[0]) {
-                        foundGenesis[0] = translator.scanBlockForGenesis(block);
-                    }
-                    for (final var unit : split.split(block)) {
-                        for (final var record : translator.translate(unit.withBatchTransactionParts())) {
-                            for (final var pbjSidecar : record.transactionSidecarRecords()) {
-                                // Fully qualified to disambiguate from the already-imported
-                                // proto type of the same simple name.
-                                final var protoSidecar = pbjToProto(
-                                        pbjSidecar,
-                                        com.hedera.hapi.streams.TransactionSidecarRecord.class,
-                                        TransactionSidecarRecord.class);
-                                enqueueActualSidecar(protoSidecar);
-                            }
-                        }
-                    }
+                    translator.forEachRecord(block, record -> BlockRecordTranslator.protoSidecarsOf(record)
+                            .forEach(SidecarWatcher.this::enqueueActualSidecar));
                 } catch (final RuntimeException e) {
                     // Don't propagate: a single bad unit shouldn't kill the watcher; the
                     // expectations-vs-actual diff at the end will surface any real miss.

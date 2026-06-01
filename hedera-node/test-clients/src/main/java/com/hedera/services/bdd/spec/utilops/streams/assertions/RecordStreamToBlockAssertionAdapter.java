@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
-import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.BlockRecordTranslator;
 import com.hedera.services.stream.proto.RecordStreamItem;
-import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,25 +24,14 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     private static final Logger log = LogManager.getLogger(RecordStreamToBlockAssertionAdapter.class);
 
     private final RecordStreamAssertion delegate;
-    private final RoleFreeBlockUnitSplit blockSplitter;
-    private final BlockTransactionalUnitTranslator blockTranslator;
-    private final boolean suppressAssertionErrors;
-    private boolean foundGenesis = false;
-
-    public RecordStreamToBlockAssertionAdapter(
-            @NonNull final RecordStreamAssertion delegate, final long shard, final long realm) {
-        this(delegate, shard, realm, false);
-    }
+    private final BlockRecordTranslator blockRecordTranslator;
 
     public RecordStreamToBlockAssertionAdapter(
             @NonNull final RecordStreamAssertion delegate,
             final long shard,
-            final long realm,
-            final boolean suppressAssertionErrors) {
+            final long realm) {
         this.delegate = requireNonNull(delegate);
-        this.blockSplitter = new RoleFreeBlockUnitSplit();
-        this.blockTranslator = new BlockTransactionalUnitTranslator(shard, realm);
-        this.suppressAssertionErrors = suppressAssertionErrors;
+        this.blockRecordTranslator = new BlockRecordTranslator(shard, realm);
     }
 
     // TODO: when record stream is removed and BLOCKS becomes the permanent mode, replace this adapter
@@ -54,58 +39,35 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
+        // for passing mutable reference the lambda can write through
+        final boolean[] passed = {false};
         try {
-            if (!foundGenesis) {
-                foundGenesis = blockTranslator.scanBlockForGenesis(block);
-            }
-            final var units = blockSplitter.split(block);
-            for (final var unit : units) {
-                final var records = blockTranslator.translate(unit.withBatchTransactionParts());
-                for (final var record : records) {
-                    final var passed = testRecord(record);
-                    testSidecars(record);
-                    if (passed) {
-                        return true;
-                    }
+            blockRecordTranslator.forEachRecord(block, record -> {
+                if (testRecord(record)) {
+                    passed[0] = true;
                 }
-            }
+                testSidecars(record);
+            });
         } catch (final Exception e) {
             log.warn("Failed to translate block to record stream items", e);
         }
-        return false;
+        return passed[0];
     }
 
     private boolean testRecord(@NonNull final SingleTransactionRecord record) {
-        final var item = toRecordStreamItem(record);
+        final var item = BlockRecordTranslator.toRecordStreamItem(record);
         if (!delegate.isApplicableTo(item)) {
             return false;
         }
-        try {
-            return delegate.test(item);
-        } catch (final AssertionError e) {
-            if (suppressAssertionErrors) {
-                log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);
-                return false;
-            } else {
-                throw e;
-            }
-        }
+
+        return delegate.test(item);
     }
 
     private void testSidecars(@NonNull final SingleTransactionRecord record) {
-        for (final var pbjSidecar : record.transactionSidecarRecords()) {
-            final var sidecar = pbjToProto(
-                    pbjSidecar, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class);
+        for (final var sidecar : BlockRecordTranslator.protoSidecarsOf(record)) {
             if (delegate.isApplicableToSidecar(sidecar)) {
                 delegate.testSidecar(sidecar);
             }
         }
-    }
-
-    private static RecordStreamItem toRecordStreamItem(@NonNull final SingleTransactionRecord record) {
-        return RecordStreamItem.newBuilder()
-                .setTransaction(fromPbj(record.transaction()))
-                .setRecord(fromPbj(record.transactionRecord()))
-                .build();
     }
 }
