@@ -8,6 +8,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BlockRecordTranslator;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,19 +38,18 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
-        // for passing mutable reference the lambda can write through
-        final boolean[] passed = {false};
+        final var passed = new AtomicBoolean(false);
         try {
             blockRecordTranslator.forEachRecord(block, record -> {
                 if (testRecord(record)) {
-                    passed[0] = true;
+                    passed.set(true);
                 }
                 testSidecars(record);
             });
         } catch (final Exception e) {
             log.warn("Failed to translate block to record stream items", e);
         }
-        return passed[0];
+        return passed.get();
     }
 
     private boolean testRecord(@NonNull final SingleTransactionRecord record) {
