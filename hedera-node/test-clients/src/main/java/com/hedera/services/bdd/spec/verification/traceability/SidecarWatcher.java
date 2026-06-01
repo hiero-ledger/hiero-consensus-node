@@ -194,11 +194,10 @@ public class SidecarWatcher {
      * already seen, returning the count newly enqueued. The {@code translator} is stateful and must be
      * fed blocks in order from genesis so alias/nonce state stays consistent.
      */
-    private int pumpBlockSidecars(
-            @NonNull final Block block, @NonNull final BlockRecordTranslator translator) {
+    private int pumpBlockSidecars(@NonNull final Block block, @NonNull final BlockRecordTranslator translator) {
         final var added = new AtomicInteger(0);
-        translator.forEachRecord(block, record ->
-                BlockRecordTranslator.protoSidecarsOf(record).forEach(sidecar -> {
+        translator.forEachRecord(
+                block, record -> BlockRecordTranslator.protoSidecarsOf(record).forEach(sidecar -> {
                     if (enqueueActualSidecar(sidecar)) {
                         added.incrementAndGet();
                     }

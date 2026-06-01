@@ -27,9 +27,7 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
     private final BlockRecordTranslator blockRecordTranslator;
 
     public RecordStreamToBlockAssertionAdapter(
-            @NonNull final RecordStreamAssertion delegate,
-            final long shard,
-            final long realm) {
+            @NonNull final RecordStreamAssertion delegate, final long shard, final long realm) {
         this.delegate = requireNonNull(delegate);
         this.blockRecordTranslator = new BlockRecordTranslator(shard, realm);
     }
