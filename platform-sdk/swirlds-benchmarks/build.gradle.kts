@@ -63,11 +63,18 @@ tasks.register<JMHTask>("jmhVirtualMap") {
 
 tasks.register<JMHTask>("jmhReconnect") {
     includes.set(listOf("ReconnectBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
+    jvmArgs.set(
+        listOf(
+            "-Xms24g",
+            "-Xmx24g",
+            "-XX:+AlwaysPreTouch",
+            "-Xlog:gc*:file=/Users/thenswan/Work/LimeChain/playground/hiero-consensus-node/platform-sdk/swirlds-benchmarks/data/reconnectbench-gc.log:time,uptime,level,tags",
+        )
+    )
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "500"),
+        jmhParamProperty("networkLatencyMicroseconds", "100000"),
     )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
@@ -75,9 +82,11 @@ tasks.register<JMHTask>("jmhReconnect") {
     )
     benchmarkParameters.put(
         "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "131072"),
+        jmhParamProperty("networkInflightBytesLimit", "134217728"),
     )
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "100"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100000"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "5000"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
+    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
 }

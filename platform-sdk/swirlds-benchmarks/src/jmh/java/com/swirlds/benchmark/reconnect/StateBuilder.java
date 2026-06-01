@@ -118,7 +118,8 @@ public record StateBuilder(
         final AtomicLong curSize = new AtomicLong(size - 1);
 
         LongStream.range(1, size).forEach(i -> {
-            storageOptimizer.accept(i);
+            // FIXME: redundant copies of learner map
+            storageOptimizer.accept(i + size);
 
             // Make all random outcomes independent of each other:
             final boolean teacherAdd = isRandomOutcome(random, teacherAddProbability);
