@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -58,6 +59,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@OrderedInIsolation
 public class ContractKeysStillWorkAsExpectedSuite {
     @HapiTest
     final Stream<DynamicTest> approvalFallbacksRequiredWithoutTopLevelSigAccess() {
