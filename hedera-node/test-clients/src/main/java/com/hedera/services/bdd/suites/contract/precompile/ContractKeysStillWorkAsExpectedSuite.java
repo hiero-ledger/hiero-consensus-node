@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
@@ -69,7 +68,6 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> bReceiverAddr = new AtomicReference<>();
 
         return hapiTest(
-                overriding("blockStream.streamMode", "BOTH"),
                 streamMustIncludePassFrom(
                         recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
                             if (txn.hasNodeStakeUpdate()) {

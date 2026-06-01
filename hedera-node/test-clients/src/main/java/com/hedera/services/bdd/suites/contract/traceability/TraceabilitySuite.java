@@ -4867,8 +4867,7 @@ public class TraceabilitySuite {
     @Order(Integer.MAX_VALUE)
     @HapiTest
     public final Stream<DynamicTest> assertSidecars() {
-        return hapiTest(overriding("blockStream.streamMode", "BOTH"), withOpContext((spec, opLog) -> requireNonNull(
-                        GLOBAL_WATCHER.get())
-                .assertExpectations(spec)));
+        return hapiTest(withOpContext(
+                (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
     }
 }
