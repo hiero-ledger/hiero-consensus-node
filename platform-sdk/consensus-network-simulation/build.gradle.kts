@@ -8,6 +8,7 @@ description = "Consensus Network Simulation"
 
 testModuleInfo {
     requires("com.hedera.node.hapi")
+    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.base")
     requires("com.swirlds.common")
     requires("com.swirlds.config.api")
