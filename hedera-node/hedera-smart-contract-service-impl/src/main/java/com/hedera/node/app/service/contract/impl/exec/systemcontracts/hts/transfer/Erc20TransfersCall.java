@@ -10,6 +10,8 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.com
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall.transferGasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -28,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -128,13 +131,17 @@ public class Erc20TransfersCall extends AbstractCall {
                     ? ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))
                     : ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true));
             final var outputData = Bytes.wrap(encodedOutput.array());
-            recordBuilder
-                    .contractCallResult(ContractFunctionResult.newBuilder()
-                            .contractCallResult(outputData)
-                            .build())
-                    .evmCallTransactionResult(EvmTransactionResult.newBuilder()
-                            .resultData(outputData)
-                            .build());
+
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
+            final var streamMode =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
+            if (streamMode != BLOCKS) {
+                recordBuilder.contractCallResult(ContractFunctionResult.newBuilder()
+                        .contractCallResult(outputData)
+                        .build());
+            }
+            recordBuilder.evmCallTransactionResult(
+                    EvmTransactionResult.newBuilder().resultData(outputData).build());
             return gasOnly(successResult(encodedOutput, gasRequirement, recordBuilder), status, false);
         }
     }
