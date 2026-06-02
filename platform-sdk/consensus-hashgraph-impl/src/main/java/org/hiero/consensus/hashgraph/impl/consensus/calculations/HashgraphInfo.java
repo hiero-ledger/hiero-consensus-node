@@ -103,7 +103,7 @@ public class HashgraphInfo {
      * A class with the per-event scratchpad data.
      * This is the memoized data for the functions marked to be memoized in the tech report.
      */
-    public class EventInfo {
+    public static class EventInfo {
         private HashgraphInfo hashgraph;
         private int creator; //an index into nodes[], not the nodeID
         private EventInfo[] parentsSigned;
@@ -212,14 +212,15 @@ public class HashgraphInfo {
             final EventInfo x = this;
             final RoundStateCurr r = roundState.curr;
             final RoundStatePrev rp = roundState.prev;
+            final HashgraphInfo h = hashgraph;
             long parentRound;
 
             if (hashgraph == null) {
                 return null; //this event is expired
             }
-            if (pendingRound != r.pendingRound) {
-                pendingRound = r.pendingRound;
-                numNodes = r.nodes.length;
+            if (h.pendingRound != r.pendingRound) {
+                h.pendingRound = r.pendingRound;
+                h.numNodes = r.nodes.length;
 
                 //set isPrevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
@@ -227,13 +228,13 @@ public class HashgraphInfo {
                 }
 
                 // function totalStake
-                totalStake = 0;
+                h.totalStake = 0;
                 for (long s : r.stake) {
-                    totalStake += s;
+                    h.totalStake += s;
                 }
 
                 // function minNonAncientRound
-                minNonAncientRound =
+                h.minNonAncientRound =
                         Math.max(rp.prevMinNonAncientRound, rp.prevMinJudgeBirthRound - r.targetNumRoundsNonAncient);
 
                 // function voteD
@@ -242,50 +243,50 @@ public class HashgraphInfo {
                     for (EventInfo judge : rp.prevJudges) {
                         t += r.stake[judge.creator];
                     }
-                    voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1) || !supermajority(t)) ? 2 : 1;
+                    h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1) || !h.supermajority(t)) ? 2 : 1;
                 }
             }
 
             // instantiate memos fields if they are null, or the array is the wrong size.
-            if (x.ancestorJudge == null || x.ancestorJudge.length != numNodes) {
-                x.ancestorJudge = new boolean[numNodes]; // only the first rp.prevJudges.length elements will be used
+            if (x.ancestorJudge == null || x.ancestorJudge.length != h.numNodes) {
+                x.ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
             }
-            if (x.lastSee == null || x.lastSee.length != numNodes) {
-                x.lastSee = new EventInfo[numNodes];
+            if (x.lastSee == null || x.lastSee.length != h.numNodes) {
+                x.lastSee = new EventInfo[h.numNodes];
             }
-            if (x.stronglySeeP == null || x.stronglySeeP.length != numNodes) {
-                x.stronglySeeP = new EventInfo[numNodes];
+            if (x.stronglySeeP == null || x.stronglySeeP.length != h.numNodes) {
+                x.stronglySeeP = new EventInfo[h.numNodes];
             }
-            if (x.stronglySeeS1 == null || x.stronglySeeS1.length != numNodes) {
-                x.stronglySeeS1 = new EventInfo[numNodes];
+            if (x.stronglySeeS1 == null || x.stronglySeeS1.length != h.numNodes) {
+                x.stronglySeeS1 = new EventInfo[h.numNodes];
             }
-            if (x.voteE == null || x.voteE.length != numNodes) {
-                x.voteE = new EventInfo[numNodes];
+            if (x.voteE == null || x.voteE.length != h.numNodes) {
+                x.voteE = new EventInfo[h.numNodes];
             }
-            if (x.voteB == null || x.voteB.length != numNodes) {
-                x.voteB = new boolean[numNodes];
+            if (x.voteB == null || x.voteB.length != h.numNodes) {
+                x.voteB = new boolean[h.numNodes];
             }
 
             // function parents
             // put in the parents array only those parents that are non-ancient descendents of judges in the prev round
             {
                 // shrink to recover after branching
-                if (parentsMaxSize > numNodes && x.parentsSigned.length < numNodes) {
-                    parents = new ArrayList<>(numNodes);
-                    parentsMaxSize = 0;
+                if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
+                    h.parents = new ArrayList<>(h.numNodes);
+                    h.parentsMaxSize = 0;
                 }
-                parents.clear();
+                h.parents.clear();
                 for (int i = 0; i < x.parentsSigned.length; i++) {
                     if (x.parentsSigned[i] != null && x.parentsSigned[i].prevJudgeDesc) {
-                        parents.add(x.parentsSigned[i]);
+                        h.parents.add(x.parentsSigned[i]);
                     }
                 }
-                parentsMaxSize = Math.max(parentsMaxSize, x.parentsSigned.length);
+                h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
             }
 
             // function prevJudgeDesc
-            x.prevJudgeDesc = x.isPrevJudge || pendingRound == 1;
-            for (EventInfo parent : parents) {
+            x.prevJudgeDesc = x.isPrevJudge || h.pendingRound == 1;
+            for (EventInfo parent : h.parents) {
                 x.prevJudgeDesc |= parent.prevJudgeDesc;
             }
 
@@ -303,18 +304,18 @@ public class HashgraphInfo {
             // function gen
             {
                 long t = 0;
-                for (EventInfo parent : parents) {
+                for (EventInfo parent : h.parents) {
                     t = Math.max(t, parent.gen);
                 }
                 x.gen = t + 1;
             }
 
             // function parentRound
-            if (parents.isEmpty()) {
+            if (h.parents.isEmpty()) {
                 parentRound = r.pendingRound - 1;
             } else {
                 parentRound = 0;
-                for (EventInfo parent : parents) {
+                for (EventInfo parent : h.parents) {
                     parentRound = Math.max(parentRound, parent.votingRound);
                 }
             }
