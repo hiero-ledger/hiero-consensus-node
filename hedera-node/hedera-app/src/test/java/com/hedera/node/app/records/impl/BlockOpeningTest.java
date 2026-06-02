@@ -6,16 +6,15 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.impl.BlockRecordManagerTestFixtures.NO_OP_BLOCK_HASH_SIGNER;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -28,7 +27,6 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -72,9 +70,6 @@ class BlockOpeningTest {
     private QuiescedHeartbeat quiescedHeartbeat;
 
     @Mock
-    private Platform platform;
-
-    @Mock
     private WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
 
     private BlockRecordManagerImpl subject;
@@ -114,26 +109,14 @@ class BlockOpeningTest {
     }
 
     @Test
-    void maybeQuiesceStartsHeartbeatOnQuiesceCommandChange() {
+    void maybeQuiesceDelegatesToHeartbeat() {
         setupBlockInfo(CONSENSUS_NOW);
-        given(quiescenceController.getQuiescenceStatus()).willReturn(QUIESCE);
-
-        subject.maybeQuiesce(state);
-        subject.maybeQuiesce(state);
-
-        verify(platform, times(1)).quiescenceCommand(QUIESCE);
-        verify(quiescedHeartbeat, times(1)).start(any(), any());
-    }
-
-    @Test
-    void maybeQuiesceDoesNothingWhenCommandRemainsDontQuiesce() {
-        setupBlockInfo(CONSENSUS_NOW);
-        given(quiescenceController.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
 
         subject.maybeQuiesce(state);
 
-        verify(platform, never()).quiescenceCommand(any());
-        verify(quiescedHeartbeat, never()).start(any(), any());
+        // The poll/update/start decision now lives in QuiescedHeartbeat#pollAndMaybeStart (centralized so the
+        // RECORDS and BLOCKS stream modes cannot drift apart); the manager just forwards the config and state.
+        verify(quiescedHeartbeat).pollAndMaybeStart(any(), anyInt(), anyLong(), eq(state));
     }
 
     private void setupBlockInfo(@NonNull final Instant firstConsTimeOfCurrentBlock) {
@@ -153,7 +136,6 @@ class BlockOpeningTest {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,

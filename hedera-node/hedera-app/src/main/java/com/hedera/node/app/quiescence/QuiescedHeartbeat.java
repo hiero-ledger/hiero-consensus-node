@@ -6,7 +6,9 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESC
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
-import com.swirlds.platform.system.Platform;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -29,60 +31,92 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}.
  * <p>
  * The heartbeat is stopped when the {@link QuiescenceController} reports any status other than
- * {@link QuiescenceCommand#QUIESCE} inside the heartbeat.
+ * {@link QuiescenceCommand#QUIESCE} inside the heartbeat. Transitions out of {@code QUIESCE} are routed through
+ * {@link QuiescenceCommands#update(QuiescenceCommand)} so the manager-side {@code lastCommand} stays in sync —
+ * fixing the bug from issue #25140 where the heartbeat emitted to the platform directly and left the manager
+ * holding a stale {@code QUIESCE}.
+ *
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a> for context.
  */
 @Singleton
 public class QuiescedHeartbeat {
     private static final Logger log = LogManager.getLogger(QuiescedHeartbeat.class);
 
-    private final Platform platform;
+    private final QuiescenceCommands quiescenceCommands;
     private final QuiescenceController controller;
     private final ScheduledExecutorService scheduler;
+    private final Counter heartbeatErrors;
 
+    /**
+     * The currently scheduled heartbeat, or {@code null} when none is running. Guarded by {@code this}: all of
+     * {@link #start}, {@link #stop}, {@link #stopIfCurrent} and {@link #shutdown} are {@code synchronized}.
+     */
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
 
+    /**
+     * Monotonically increasing token identifying the live heartbeat. {@link #start} assigns a fresh generation to
+     * each scheduled task and the tick closes over it; a tick may cancel the heartbeat only while its generation is
+     * still current (see {@link #stopIfCurrent}). Without this, a stale tick that decides to exit could cancel a
+     * heartbeat a newer {@link #start} had just scheduled — leaving the node in {@code QUIESCE} with no live
+     * heartbeat to discover its next target consensus time (issue #25140).
+     */
+    private long generation;
+
     @Inject
-    public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
-        this(platform, controller, Executors.newSingleThreadScheduledExecutor(r -> {
-            final var thread = new Thread(r, "quiesced-heartbeat");
-            thread.setDaemon(true);
-            return thread;
-        }));
+    public QuiescedHeartbeat(
+            @NonNull final QuiescenceController controller,
+            @NonNull final QuiescenceCommands quiescenceCommands,
+            @NonNull final Metrics metrics) {
+        this(
+                quiescenceCommands,
+                controller,
+                Executors.newSingleThreadScheduledExecutor(r -> {
+                    final var thread = new Thread(r, "quiesced-heartbeat");
+                    thread.setDaemon(true);
+                    return thread;
+                }),
+                metrics);
     }
 
     /**
      * Package-private constructor for testing that allows injection of a custom scheduler.
-     *
-     * @param controller the quiescence controller
-     * @param scheduler the scheduled executor service
      */
     QuiescedHeartbeat(
-            @NonNull final Platform platform,
+            @NonNull final QuiescenceCommands quiescenceCommands,
             @NonNull final QuiescenceController controller,
-            @NonNull final ScheduledExecutorService scheduler) {
-        this.platform = requireNonNull(platform);
+            @NonNull final ScheduledExecutorService scheduler,
+            @NonNull final Metrics metrics) {
+        this.quiescenceCommands = requireNonNull(quiescenceCommands);
         this.controller = requireNonNull(controller);
         this.scheduler = requireNonNull(scheduler);
+        this.heartbeatErrors = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("quiescence", "heartbeatErrors")
+                        .withDescription("Number of unhandled exceptions thrown inside the quiesced heartbeat tick"));
     }
 
     /**
      * Schedules a heartbeat at the given interval that will last until the {@link QuiescenceController} reports a
      * status other than {@link QuiescenceCommand#QUIESCE}.
      */
-    public void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
+    public synchronized void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
         requireNonNull(heartbeatInterval);
         requireNonNull(probe);
 
-        // Cancel any existing heartbeat
+        // Cancel any existing heartbeat and claim a fresh generation for the new one, so a still-running tick
+        // from the previous heartbeat cannot cancel the task we are about to schedule.
         stop();
+        final long startGeneration = ++generation;
 
         // Schedule the heartbeat task
         heartbeatFuture = scheduler.scheduleAtFixedRate(
                 () -> {
                     try {
-                        heartbeat(probe);
-                    } catch (Exception e) {
+                        heartbeat(probe, startGeneration);
+                    } catch (final Exception e) {
+                        // heartbeat() already incremented the error counter, routed DONT_QUIESCE, and cancelled
+                        // this task via stopIfCurrent() before rethrowing. We catch-and-log here only so the failure
+                        // is visible, instead of being silently suppressed by the executor when a periodic task throws.
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
                 },
@@ -93,9 +127,34 @@ public class QuiescedHeartbeat {
     }
 
     /**
+     * Re-evaluates the node's quiescence status and routes any change through the shared
+     * {@link QuiescenceCommands#update(QuiescenceCommand)}; when this poll observes a real transition into
+     * {@link QuiescenceCommand#QUIESCE} it (re)starts the heartbeat with a fresh {@link TctProbe}. This is the single
+     * poll-and-maybe-start site shared by the block-record (RECORDS mode) and block-stream (BLOCKS mode) managers, so
+     * the two stream modes cannot drift apart (issue #25140).
+     *
+     * @param heartbeatInterval                    the interval at which the heartbeat ticks once started
+     * @param maxConsecutiveScheduleSecondsToProbe the probe window for upcoming scheduled-transaction seconds
+     * @param stakePeriodMins                      the staking period in minutes ({@code <= 0} means no stake-period TCT)
+     * @param state                                the state to probe for the next target consensus time
+     */
+    public void pollAndMaybeStart(
+            @NonNull final Duration heartbeatInterval,
+            final int maxConsecutiveScheduleSecondsToProbe,
+            final long stakePeriodMins,
+            @NonNull final State state) {
+        requireNonNull(heartbeatInterval);
+        requireNonNull(state);
+        final var commandNow = controller.getQuiescenceStatus();
+        if (quiescenceCommands.update(commandNow) && commandNow == QUIESCE) {
+            start(heartbeatInterval, new TctProbe(maxConsecutiveScheduleSecondsToProbe, stakePeriodMins, state));
+        }
+    }
+
+    /**
      * Stops the heartbeat if it is running.
      */
-    public void stop() {
+    public synchronized void stop() {
         if (heartbeatFuture != null) {
             heartbeatFuture.cancel(false);
             heartbeatFuture = null;
@@ -103,9 +162,22 @@ public class QuiescedHeartbeat {
     }
 
     /**
+     * Cancels the heartbeat only if {@code gen} is still the live generation. A heartbeat tick calls this when it
+     * decides to exit, so a stale tick whose heartbeat has already been superseded by a newer {@link #start} cannot
+     * cancel the current heartbeat.
+     *
+     * @param gen the generation the calling tick was scheduled under
+     */
+    private synchronized void stopIfCurrent(final long gen) {
+        if (gen == generation) {
+            stop();
+        }
+    }
+
+    /**
      * Shuts down the scheduler. This should be called when the heartbeat is no longer needed.
      */
-    public void shutdown() {
+    public synchronized void shutdown() {
         log.info("Shutting down quiescence heartbeat");
         stop();
         scheduler.shutdown();
@@ -114,25 +186,25 @@ public class QuiescedHeartbeat {
     /**
      * The heartbeat task that probes for the TCT and updates the controller.
      */
-    private void heartbeat(@NonNull final TctProbe probe) {
+    private void heartbeat(@NonNull final TctProbe probe, final long gen) {
         try {
-            // Probe for the TCT
             final var tct = probe.findTct();
-            // If a non-null TCT is found, set it on the controller
             if (tct != null) {
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();
-            // Check if we should continue running
             if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
-                platform.quiescenceCommand(commandNow);
-                stop();
+                quiescenceCommands.update(commandNow);
+                stopIfCurrent(gen);
             }
         } catch (final Exception e) {
-            // End quiescence and stop the heartbeat to avoid log spam from repeated failures
-            platform.quiescenceCommand(DONT_QUIESCE);
-            stop();
+            heartbeatErrors.increment();
+            // End quiescence and stop the heartbeat to avoid log spam from repeated failures.
+            // update() is a no-op when DONT_QUIESCE is already the recorded last command, so we don't
+            // generate churn on platforms that were never reported as QUIESCE.
+            quiescenceCommands.update(DONT_QUIESCE);
+            stopIfCurrent(gen);
             throw e;
         }
     }

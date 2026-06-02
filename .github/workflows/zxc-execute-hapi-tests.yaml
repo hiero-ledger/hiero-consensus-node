@@ -633,8 +633,8 @@ jobs:
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
 
-  hapi-tests-restart:
-    name: "HAPI Tests (Restart)"
+  hapi-tests-restart-and-quiescence:
+    name: "HAPI Tests (Restart & Quiescence)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     outputs:
@@ -656,44 +656,60 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Restart)
+      - name: HAPI Testing (Restart & Quiescence)
         id: gradle-hapi-restart
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestRestart
+        run: |
+          status=0
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestRestart
+          run_subtask hapiTestQuiescence
+          exit $status
 
-      - name: Publish HAPI Test (Restart) Reports
+      - name: Publish HAPI Test (Restart & Quiescence) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Restart) Results"
+          check_name: "Node: HAPI Test (Restart & Quiescence) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Restart) Report Artifacts
+      - name: Upload HAPI Test (Restart & Quiescence) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Restart) Reports
+          name: HAPI Test (Restart & Quiescence) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
-      - name: Upload HAPI Test (Restart) Network Logs
+      - name: Upload HAPI Test (Restart & Quiescence) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-restart.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Restart) Network Logs
+          name: HAPI Test (Restart & Quiescence) Network Logs
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Restart) Failure Artifacts
+      - name: Upload HAPI Test (Restart & Quiescence) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && steps.gradle-hapi-restart.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Restart) Failure Artifacts
+          name: HAPI Test (Restart & Quiescence) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -994,7 +1010,7 @@ jobs:
       - hapi-tests-simple-fees-and-nd-reconnect
       - hapi-tests-atomic-batch
       - hapi-tests-smart-contracts-and-iss
-      - hapi-tests-restart
+      - hapi-tests-restart-and-quiescence
       - hapi-tests-bn-comms
       - hapi-tests-state-throttling
     if: ${{ always() }}
@@ -1014,7 +1030,7 @@ jobs:
             "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result || 'skipped' }}"
             "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
             "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
-            "${{ needs.hapi-tests-restart.result || 'skipped' }}"
+            "${{ needs.hapi-tests-restart-and-quiescence.result || 'skipped' }}"
             "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
             "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
           )
@@ -1028,7 +1044,7 @@ jobs:
             "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}"
-            "${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-restart-and-quiescence.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
           )

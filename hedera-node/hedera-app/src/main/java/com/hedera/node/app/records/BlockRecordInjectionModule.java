@@ -20,7 +20,6 @@ import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import dagger.Binds;
 import dagger.Module;
@@ -76,7 +75,6 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier,
@@ -91,7 +89,6 @@ public abstract class BlockRecordInjectionModule {
                 streamFileProducer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
                 blockHashSigner,
