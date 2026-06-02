@@ -3,12 +3,18 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlock;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlocks;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockHeader;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockProof;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newEventTransaction;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newStateChanges;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.toBlockState;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.hedera.hapi.block.internal.BufferedBlock;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -17,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,11 +166,47 @@ class BlockBufferIOTest {
     }
 
     @Test
+    void readWritePreservesSerializedItemBytesAndDerivesTypes() throws Exception {
+        // Build a block by adding items in their serialized form (the production path), capturing the exact bytes.
+        final BlockState block = new BlockState(42L);
+        final List<BlockItem> sourceItems =
+                List.of(newBlockHeader(42L), newEventTransaction(), newStateChanges(), newBlockProof(42L));
+        final List<Bytes> expectedBytes = new ArrayList<>();
+        for (final BlockItem item : sourceItems) {
+            final Bytes serialized = BlockItem.PROTOBUF.toBytes(item);
+            block.addItem(serialized, item.item().kind());
+            expectedBytes.add(serialized);
+        }
+        block.closeBlock();
+
+        // Persist and reload through the real IO path.
+        bufferIO.write(List.of(block), 42L);
+        final List<BufferedBlock> readBlocks = bufferIO.read();
+        assertThat(readBlocks).hasSize(1);
+        final BlockState reloaded = toBlockState(readBlocks.getFirst());
+
+        // Every item's serialized bytes survive the round-trip byte-for-byte (no deserialize/re-serialize), and the
+        // item type is correctly re-derived from the bytes on load.
+        assertThat(reloaded.itemCount()).isEqualTo(sourceItems.size());
+        for (int i = 0; i < sourceItems.size(); i++) {
+            final BlockState.BufferedItem bufferedItem = reloaded.bufferedItem(i);
+            assertThat(bufferedItem).isNotNull();
+            assertThat(bufferedItem.serializedItem()).isEqualTo(expectedBytes.get(i));
+            assertThat(bufferedItem.itemType())
+                    .isEqualTo(sourceItems.get(i).item().kind());
+        }
+    }
+
+    @Test
     void insufficientReadDepthIgnoresBlocks() throws IOException {
         final List<BlockState> blocksToWrite = generateRandomBlocks(10);
         bufferIO.write(blocksToWrite, 0);
 
-        final var restrictedSubject = new BlockBufferIO(testDir, 1); // MB KB
+        // The persisted BufferedBlock embeds nested messages (its timestamps and the BlockBytes wrapper), so a max
+        // read depth of 0 (which disallows any nested message) makes every block fail to parse and be skipped. Note
+        // the serialized-bytes format is intentionally shallow: block items are stored as opaque bytes rather than
+        // deeply nested BlockItem messages, so buffer restoration is no longer sensitive to per-item nesting depth.
+        final var restrictedSubject = new BlockBufferIO(testDir, 0);
         final List<BufferedBlock> blocksFromDisk = restrictedSubject.read();
         assertThat(blocksFromDisk).isEmpty();
     }

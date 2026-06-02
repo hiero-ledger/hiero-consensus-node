@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.internal.BufferedBlock;
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -38,13 +38,16 @@ public class BlockTestUtils {
 
     public static void writeBlockToDisk(final BlockState block, final boolean isAcked, final File file)
             throws IOException {
-        final List<BlockItem> items = new ArrayList<>();
+        final List<Bytes> items = new ArrayList<>();
 
         for (int i = 0; i < block.itemCount(); ++i) {
-            items.add(block.blockItem(i));
+            final BlockState.BufferedItem item = block.bufferedItem(i);
+            if (item != null) {
+                items.add(item.serializedItem());
+            }
         }
 
-        final Block blk = new Block(items);
+        final BlockBytes blk = new BlockBytes(items);
         final Instant closedInstant = block.closedTimestamp();
         final Instant openedInstant = block.openedTimestamp();
 

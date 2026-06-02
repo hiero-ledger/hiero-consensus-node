@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class BlockState {
 
+    /** Number of low-order bits in a protobuf tag occupied by the wire type (the remaining bits are the field number). */
+    private static final int PROTOBUF_TAG_TYPE_BITS = 3;
+
     /**
      * The block number associated with this instance.
      */
@@ -99,8 +102,24 @@ public class BlockState {
     }
 
     /**
+     * Adds an item to the block in its serialized form, deriving the item type from the leading protobuf tag of the
+     * serialized bytes (see {@link #itemTypeOf(Bytes)}). This is intended for the path that restores the buffer from
+     * disk, where only the serialized bytes are available — not the deserialized item or its type. The hot path should
+     * use {@link #addItem(Bytes, BlockItem.ItemOneOfType)}, which is given the type directly.
+     *
+     * @param serializedItem the full serialized bytes of a single {@link BlockItem}
+     * @throws IllegalStateException if the block is closed
+     */
+    public void addItem(@Nullable final Bytes serializedItem) {
+        if (serializedItem == null) {
+            return;
+        }
+        addItem(serializedItem, itemTypeOf(serializedItem));
+    }
+
+    /**
      * Adds a deserialized item to the block. This is a convenience that serializes the item and stores its serialized
-     * form; it is intended for non-hot paths (e.g. restoring the buffer from disk) and tests. The hot path should use
+     * form; it is intended for non-hot paths and tests. The hot path should use
      * {@link #addItem(Bytes, BlockItem.ItemOneOfType)} to avoid re-serialization.
      *
      * @param item the item to add
@@ -111,6 +130,27 @@ public class BlockState {
             return;
         }
         addItem(BlockItem.PROTOBUF.toBytes(item), item.item().kind());
+    }
+
+    /**
+     * Determines the {@link BlockItem.ItemOneOfType} of a serialized {@link BlockItem} by reading the field number from
+     * its leading protobuf tag, without deserializing the item. A {@link BlockItem} contains only its {@code item}
+     * oneof, so the first field on the wire is always the set oneof field, and its field number maps one-to-one to the
+     * item type.
+     *
+     * @param serializedItem the full serialized bytes of a single {@link BlockItem}
+     * @return the item type, or {@link BlockItem.ItemOneOfType#UNSET} if the bytes are empty (an unset item) or the
+     * field number is unrecognized
+     */
+    static BlockItem.ItemOneOfType itemTypeOf(@NonNull final Bytes serializedItem) {
+        requireNonNull(serializedItem, "serializedItem must not be null");
+        if (serializedItem.length() == 0L) {
+            return BlockItem.ItemOneOfType.UNSET;
+        }
+        // The leading varint is the protobuf tag: (fieldNumber << 3) | wireType. The field number identifies which
+        // oneof field is set, which corresponds 1:1 to the BlockItem item type.
+        final int tag = serializedItem.toReadableSequentialData().readVarInt(false);
+        return BlockItem.ItemOneOfType.fromProtobufOrdinal(tag >>> PROTOBUF_TAG_TYPE_BITS);
     }
 
     /**

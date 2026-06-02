@@ -3,9 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.internal.BufferedBlock;
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -231,17 +230,17 @@ public class BlockBufferIO {
          * @throws IOException if there was an error while writing the block to disk
          */
         private void writeBlock(final Path path, final BlockState block) throws IOException {
-            // collect the block items to write
-            final List<BlockItem> items = new ArrayList<>(block.itemCount());
+            // collect the serialized block items to write (stored directly, without deserializing/re-serializing)
+            final List<Bytes> items = new ArrayList<>(block.itemCount());
 
             for (int i = 0; i < block.itemCount(); ++i) {
-                final BlockItem item = block.blockItem(i);
+                final BlockState.BufferedItem item = block.bufferedItem(i);
                 if (item != null) {
-                    items.add(item);
+                    items.add(item.serializedItem());
                 }
             }
 
-            final Block blk = new Block(items);
+            final BlockBytes blk = new BlockBytes(items);
             final Instant closedInstant = block.closedTimestamp();
             final Instant openedInstant = block.openedTimestamp();
 
