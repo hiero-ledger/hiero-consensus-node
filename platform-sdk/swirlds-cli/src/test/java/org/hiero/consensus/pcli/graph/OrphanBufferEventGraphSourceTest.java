@@ -88,6 +88,34 @@ class OrphanBufferEventGraphSourceTest {
     }
 
     @Test
+    void resetRestartsIterationFromTheBeginning() {
+        final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+
+        // Consume the source fully.
+        final List<PlatformEvent> firstPass = new ArrayList<>();
+        orphanBufferSource.forEachRemaining(firstPass::add);
+        assertFalse(firstPass.isEmpty(), "Expected events on the first pass");
+        assertFalse(orphanBufferSource.hasNext(), "Source should be exhausted before reset");
+
+        // Reset and consume again.
+        orphanBufferSource.reset();
+        assertTrue(orphanBufferSource.hasNext(), "Source should have events again after reset");
+
+        final List<PlatformEvent> secondPass = new ArrayList<>();
+        orphanBufferSource.forEachRemaining(secondPass::add);
+
+        // The reset source must reproduce the same events in the same order.
+        assertEquals(firstPass.size(), secondPass.size(), "Reset should reproduce the same number of events");
+        for (int i = 0; i < firstPass.size(); i++) {
+            assertEquals(
+                    firstPass.get(i).getDescriptor(),
+                    secondPass.get(i).getDescriptor(),
+                    "Reset should reproduce the same events in the same order");
+        }
+    }
+
+    @Test
     void eventsHaveSequenceNumberComputed() {
         final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
         final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);

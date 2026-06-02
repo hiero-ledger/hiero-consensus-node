@@ -31,7 +31,6 @@ import org.hiero.consensus.test.fixtures.Randotron;
  */
 public class GeneratorEventGraphSource implements EventGraphSource {
 
-
     private final Configuration configuration;
     private final Time time;
     private final long seed;
@@ -54,7 +53,6 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
     /** The timestamp of the previously emitted event. */
     private Instant latestEventTime;
-
 
     /**
      * Creates a new graph generator.

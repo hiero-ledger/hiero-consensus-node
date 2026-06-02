@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.graph;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,10 +28,9 @@ import org.hiero.consensus.orphan.DefaultOrphanBuffer;
  */
 public class OrphanBufferEventGraphSource implements EventGraphSource {
 
-    private final Metrics metrics;
     private final EventGraphSource underlyingSource;
     private final PbjStreamHasher eventHasher;
-    private DefaultOrphanBuffer orphanBuffer;
+    private final DefaultOrphanBuffer orphanBuffer;
 
     /** Buffer of events released from orphan buffer ready to be returned. */
     private LinkedList<PlatformEvent> releasedEventsBuffer;
@@ -45,10 +43,9 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
      */
     public OrphanBufferEventGraphSource(
             @NonNull final EventGraphSource underlyingSource, @NonNull final PlatformContext context) {
-        this.metrics = context.getMetrics();
         this.underlyingSource = underlyingSource;
         this.eventHasher = new PbjStreamHasher();
-        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(context.getMetrics(), new NoOpIntakeEventCounter());
         this.releasedEventsBuffer = new LinkedList<>();
     }
 
@@ -75,7 +72,7 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
 
     @Override
     public void reset() {
-        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
+        this.orphanBuffer.clear();
         this.releasedEventsBuffer = new LinkedList<>();
         underlyingSource.reset();
     }
