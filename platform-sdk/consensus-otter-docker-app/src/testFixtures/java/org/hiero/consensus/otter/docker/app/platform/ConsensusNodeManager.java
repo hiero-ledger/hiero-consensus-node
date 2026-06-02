@@ -52,6 +52,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterStateUtils;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -140,6 +141,7 @@ public class ConsensusNodeManager {
         final WritableRosterStore rosterStore =
                 new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
+        OtterStateUtils.commitState(state);
 
         final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);

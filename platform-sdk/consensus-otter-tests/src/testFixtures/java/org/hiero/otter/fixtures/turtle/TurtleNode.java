@@ -69,6 +69,7 @@ import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterStateUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
@@ -267,6 +268,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final WritableRosterStore rosterStore =
                     new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
             rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
+            OtterStateUtils.commitState(state);
 
             final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());

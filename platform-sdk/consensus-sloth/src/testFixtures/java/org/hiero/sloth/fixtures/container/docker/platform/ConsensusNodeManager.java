@@ -51,6 +51,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.app.SlothExecutionLayer;
+import org.hiero.sloth.fixtures.app.SlothStateUtils;
 import org.hiero.sloth.fixtures.container.docker.metrics.ToFilePrometheusExporter;
 
 /**
@@ -136,6 +137,7 @@ public class ConsensusNodeManager {
         final WritableRosterStore rosterStore =
                 new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
+        SlothStateUtils.commitState(state);
 
         final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
