@@ -55,9 +55,9 @@ Coverage: partial
 Required evidence:
 
 - commit SHA, from artifacts if present or manually supplied if absent;
-- image or version context, if captured;
+- version context, if captured;
 - traversal mode;
-- baseline or namespace identifier, if captured;
+- namespace identifier, if captured;
 - network size;
 - learner candidate and stopped pod;
 - workload profile and NLG arguments;
@@ -97,7 +97,6 @@ Required evidence without exact source mapping:
 
 - exact artifact source for commit SHA if `version_run.txt` does not contain it;
 - exact ordinary script-output file or field for learner candidate, stopped pod, warmtime, downtime, and loop count;
-- exact image tag or digest source if version fields are not sufficient.
 
 ## Reconnect Window And Roles
 
@@ -443,7 +442,6 @@ Mapped sources:
 | `Traversal mode` | Run Context |
 | `Artifact directory` | Run Roots |
 | `Commit` | Run Context |
-| `Image` | Run Context |
 | `Learner node` | Reconnect Window And Roles |
 | `Teacher node` | Reconnect Window And Roles |
 | `First reconnect start UTC` | Reconnect Window And Roles |
@@ -467,7 +465,7 @@ that requires extraction and analysis later.
 
 | Protocol section | Coverage | Required evidence without exact source mapping |
 | --- | --- | --- |
-| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod/timing controls; exact image tag or digest if version fields are insufficient |
+| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod/timing controls |
 | Reconnect Window And Roles | complete | - |
 | Learner Evidence | complete | - |
 | Teacher Evidence | complete | - |

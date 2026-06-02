@@ -535,7 +535,6 @@ Required columns:
 mode
 artifact directory
 commit
-image
 learner node
 teacher node
 first reconnect start

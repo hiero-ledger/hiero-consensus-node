@@ -108,9 +108,7 @@ Extract or infer the following fields for each traversal run:
 
 ```text
 commit=<git SHA>
-image=<image tag or digest>
 mode=<virtualMap.reconnectMode>
-baseline=<baseline restore identifier>
 clusterNamespace=<namespace if captured>
 networkSize=<node count>
 learnerCandidate=<expected learner node id if known>
@@ -283,7 +281,6 @@ Fill one block per accepted traversal run:
 Traversal mode:
 Artifact directory:
 Commit:
-Image:
 Learner node:
 Teacher node:
 First reconnect start UTC:
