@@ -51,9 +51,12 @@ public class HashgraphInfo {
     private long totalStake;
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
+    private ArrayList<EventInfo> parents = new ArrayList<>();
+    private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
+
 
     /** info about a round that is known multiple rounds in advance */
-    public record RoundStateCurr(
+    public record RoundInfoCurr(
             long pendingRound,
             long[] nodes, // NodeID for each node
             long[] stake,
@@ -64,7 +67,7 @@ public class HashgraphInfo {
             int numRoundsAddressBook) {}
 
     /** info about a round that is only available when the previous round reaches consensus */
-    public record RoundStatePrev(
+    public record RoundInfoPrev(
             boolean prevJudgeCon1,
             EventInfo[] prevJudges,
             boolean prevJudgesCopied,
@@ -76,12 +79,7 @@ public class HashgraphInfo {
      * setting, etc. The consensus state should include the full RoundState for the current
      * pending round, and the RoundStateCurr portion of it for the next few rounds.
      */
-    public record RoundState(RoundStateCurr curr, RoundStatePrev prev) {}
-
-    // scratchpad used in update, allocated here to reduce garbage generation and collection
-    private ArrayList<EventInfo> parents = new ArrayList<>();
-    // the largest size this list has ever had. Used to recover from massive branching.
-    private int parentsMaxSize = 0;
+    public record RoundInfo(RoundInfoCurr curr, RoundInfoPrev prev) {}
 
     /** true iff n is a supermajority of the total stake */
     private boolean supermajority(long n) {
@@ -93,9 +91,9 @@ public class HashgraphInfo {
      * reached consensus in previous rounds. This is only needed after a restart or reconnect. In normal operation,
      * those events will already have been marked, when they reached consensus.
      *
-     * @param currRoundState the current round state
+     * @param currRoundInfo the current round state
      */
-    public void setPrevIsConsensus(RoundState currRoundState) {
+    public void setPrevIsConsensus(RoundInfo currRoundInfo) {
         // TODO
     }
 
@@ -143,7 +141,7 @@ public class HashgraphInfo {
 
         /** EventInfo.update returns this (or null if consensus wasn't yet reached). */
         public record UpdateResults(
-                List<EventInfo> consensusEvents, RoundStatePrev nextRoundStatePrev) {}
+                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
          * Mark this event as expired. It should eventually be called on every event, but only after it is ancient.
@@ -204,15 +202,15 @@ public class HashgraphInfo {
          * a (possibly empty) list of the events that reached consensus in this round, and the RoundStatePrev that
          * should be used for the next round.
          *
-         * @param roundState the round state for the current pending round
+         * @param roundInfo the round state for the current pending round
          * @return the consensus results, or null if this event didn't decide this round
          */
-        public UpdateResults update(@NonNull RoundState roundState) {
+        public UpdateResults update(@NonNull RoundInfo roundInfo) {
             // make the names look more like the r and x in the tech report
             final EventInfo x = this;
-            final RoundStateCurr r = roundState.curr;
-            final RoundStatePrev rp = roundState.prev;
-            final HashgraphInfo h = hashgraph;
+            final RoundInfoCurr r = roundInfo.curr;
+            final RoundInfoPrev rp = roundInfo.prev;
+            final HashgraphInfo h = x.hashgraph;
             long parentRound;
 
             if (hashgraph == null) {
@@ -375,7 +373,7 @@ public class HashgraphInfo {
 
             return new UpdateResults(
                     null,
-                    new RoundStatePrev(false,
+                    new RoundInfoPrev(false,
                             null,
                             false,
                             0,
