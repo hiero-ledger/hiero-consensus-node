@@ -11,6 +11,7 @@ import org.hiero.base.Clearable;
 import org.hiero.consensus.hashgraph.impl.consensus.CandidateWitness;
 import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
 import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.ConsensusCalculationsMemos;
 import org.hiero.consensus.hashgraph.impl.metrics.Sequencer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
@@ -23,6 +24,8 @@ import org.hiero.consensus.model.node.NodeId;
  * platform. This data is not relevant after consensus has been calculated.
  */
 public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
+    /** the memoized function memos used during consensus calculations */
+    private final ConsensusCalculationsMemos memos;
     /** the round number in which this event reached a consensus order */
     private long roundReceived = ConsensusConstants.ROUND_UNDEFINED;
     /** is this a witness? (is round > selfParent's round, or there is no self parent?) */
@@ -92,11 +95,17 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
+        this.memos = new ConsensusCalculationsMemos();
     }
 
     //
     // Getters and setters
     //
+
+    @NonNull
+    public ConsensusCalculationsMemos getMemos() {
+        return memos;
+    }
 
     /**
      * @return the base event

@@ -63,7 +63,7 @@ public class ConsensusCalculations {
      * A class with the per-event scratchpad data used by updateEvent, and visible only to it.
      * This is the memoized data for the functions marked to be memoized in the tech report.
      */
-    public class ConsensusCalculationsMemos {
+    public static class ConsensusCalculationsMemos {
         // index into r.nodes for the creator of this event.
         private int creator;
         private ConsensusCalculationsMemos[] parentsSigned;
