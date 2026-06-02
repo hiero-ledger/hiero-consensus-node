@@ -13,8 +13,10 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -64,6 +66,8 @@ public class AsyncInputStream {
 
     private final int sharedQueueSizeThreshold;
 
+    private final LongAdder bytesRead = new LongAdder();
+
     /**
      * Create a new async input stream.
      *
@@ -97,8 +101,12 @@ public class AsyncInputStream {
      */
     private void run() {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
+
+        long readBusyNanos = 0; // reader-thread-only, plain long safe
+        long backpressureSpinNanos = 0;
         try {
             while (!Thread.currentThread().isInterrupted()) {
+                final long t0 = System.nanoTime();
                 final int len = inputStream.readInt();
                 if (len < 0) {
                     logger.info(RECONNECT.getMarker(), "Async input stream is done");
@@ -107,12 +115,16 @@ public class AsyncInputStream {
                 }
                 final byte[] messageBytes = new byte[len];
                 inputStream.readFully(messageBytes, 0, len);
+                readBusyNanos += System.nanoTime() - t0;
+                bytesRead.add(4L + len);
                 inputQueue.add(messageBytes);
                 if (inputQueueSize.incrementAndGet() > sharedQueueSizeThreshold) {
+                    final long s0 = System.nanoTime();
                     while (inputQueueSize.get() > sharedQueueSizeThreshold
                             && !Thread.currentThread().isInterrupted()) {
                         Thread.onSpinWait();
                     }
+                    backpressureSpinNanos += System.nanoTime() - s0;
                 }
             }
         } catch (final IOException e) {
@@ -121,6 +133,12 @@ public class AsyncInputStream {
         } finally {
             finishedLatch.countDown();
         }
+        logger.info(
+                RECONNECT.getMarker(),
+                "AsyncInputStream summary: bytesRead={} readBusyMs={} backpressureSpinMs={}",
+                bytesRead.sum(),
+                TimeUnit.NANOSECONDS.toMillis(readBusyNanos),
+                TimeUnit.NANOSECONDS.toMillis(backpressureSpinNanos));
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
     }
 
