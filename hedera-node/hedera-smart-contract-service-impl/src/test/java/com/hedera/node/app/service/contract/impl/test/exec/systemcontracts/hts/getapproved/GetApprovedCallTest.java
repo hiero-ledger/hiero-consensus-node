@@ -36,8 +36,8 @@ public class GetApprovedCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -46,8 +46,8 @@ public class GetApprovedCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.output());
     }
 
     @Test
@@ -58,13 +58,13 @@ public class GetApprovedCallTest extends CallTestBase {
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(GetApprovedTranslator.ERC_GET_APPROVED
                         .getOutputs()
                         .encode(Tuple.singleton(headlongAddressOf(OPERATOR)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -74,8 +74,8 @@ public class GetApprovedCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.output());
     }
 
     @Test
@@ -85,13 +85,13 @@ public class GetApprovedCallTest extends CallTestBase {
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(GetApprovedTranslator.HAPI_GET_APPROVED
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.getNumber(), headlongAddressOf(OPERATOR)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -101,7 +101,7 @@ public class GetApprovedCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.output());
     }
 }

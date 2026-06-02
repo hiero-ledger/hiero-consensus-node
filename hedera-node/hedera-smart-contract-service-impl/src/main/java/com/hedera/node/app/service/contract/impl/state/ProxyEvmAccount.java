@@ -1,71 +1,63 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
-import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.state.token.Account;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
- * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- *
- * Responsible for retrieving the redirectForAccount proxy contract byte code from {@link EvmFrameState}
- * if the function selector is eligible for proxy redirection.
- * Otherwise, it returns the 0x bytecode.
- *
+ * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a regular account.
+ * Responsible for retrieving the delegation address from the Account entity
+ * and returning the appropriate code - either EIP-7702 delegation indicator or empty.
  */
 public class ProxyEvmAccount extends AbstractProxyEvmAccount {
 
-    /*
-     * Four byte function selectors for the functions that are eligible for proxy redirection
-     * in the Hedera Account Service system contract
-     */
-    private static final Set<Integer> ACCOUNT_PROXY_FUNCTION_SELECTOR = Set.of(
-            // hbarAllowance(address spender)
-            0xbbee989e,
-            // hbarApprove(address spender, int256 amount)
-            0x86aff07c,
-            // setUnlimitedAutomaticAssociations(bool enableAutoAssociations
-            0xf5677e99);
+    private static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_DELEGATION_PREFIX_PJB =
+            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE_DELEGATION_PREFIX.toArray());
 
-    // Only pass in a non-null account address if the function selector is eligible for proxy redirection.
-    // A null address will return the 0x bytecode.
-    @Nullable
-    private Address address;
+    private final Account account;
 
-    public ProxyEvmAccount(final AccountID accountID, @NonNull final DispatchingEvmFrameState state) {
-        super(accountID, state);
-    }
+    public ProxyEvmAccount(final Account account, @NonNull final DispatchingEvmFrameState state) {
+        super(account.accountId(), state);
 
-    @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        // Check to see if the account needs to return the proxy redirect for account bytecode
-        final int selector = functionSelector.size() >= FUNCTION_SELECTOR_LENGTH ? functionSelector.getInt(0) : 0;
-        if (ACCOUNT_PROXY_FUNCTION_SELECTOR.contains(selector)) {
-            address = state.getAddress(accountID);
-        }
-        return codeFactory.createCode(getCode(), false);
+        this.account = account;
     }
 
     @Override
     public @NonNull Bytes getCode() {
-        return state.getAccountRedirectCode(address);
+        if (account.delegationAddress().length() == 0) {
+            return Bytes.EMPTY;
+        } else {
+            return createDelegationIndicator(pbjToTuweniBytes(account.delegationAddress()));
+        }
+    }
+
+    private static Bytes createDelegationIndicator(Bytes delegationAddress) {
+        return Bytes.concatenate(CODE_DELEGATION_PREFIX, delegationAddress);
     }
 
     @Override
     public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
-        return state.getAccountRedirectCodePBJ(address);
+        return createDelegationIndicatorPJB(account.delegationAddress());
+    }
+
+    public static com.hedera.pbj.runtime.io.buffer.Bytes createDelegationIndicatorPJB(
+            com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+        return com.hedera.pbj.runtime.io.buffer.Bytes.merge(CODE_DELEGATION_PREFIX_PJB, delegationAddress);
     }
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getAccountRedirectCodeHash(address);
+        if (account.delegationAddress().length() == 0) {
+            return Code.EMPTY_CODE.getCodeHash();
+        } else {
+            return Hash.wrap(keccak256(getCode()));
+        }
     }
 }

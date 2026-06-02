@@ -221,6 +221,19 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
         return this;
     }
 
+    public TransactionRecordAsserts targetAccountId(String expectedAccountId) {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertEquals(
+                        receipt.getAccountID(), spec.registry().getAccountID(expectedAccountId), "Wrong AccountId!");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
     public TransactionRecordAsserts pseudoRandomBytes() {
         this.<ByteString>registerTypedProvider("prngBytes", spec -> prngBytes -> {
             try {

@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.he
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes32;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
@@ -39,12 +40,10 @@ import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
@@ -60,9 +59,13 @@ import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
@@ -115,17 +118,20 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
-public class TestHelpers {
+public final class TestHelpers {
+
+    private TestHelpers() {}
+
     public static final String LEDGER_ID = "01";
     public static final long shard = 0;
     public static final long realm = 0;
@@ -195,7 +201,9 @@ public class TestHelpers {
     public static final Bytecode BYTECODE = new Bytecode(CALL_DATA);
     public static final Bytes LOG_DATA = Bytes.wrap(new byte[] {6, 6, 6});
     public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[] {9, 8, 7, 6, 5, 4, 3, 2, 1});
-    public static final Bytes TOPIC = Bytes.wrap(new byte[] {11, 21, 31, 41, 51, 61, 71, 81, 91});
+    public static final Bytes TOPIC = Bytes.wrap(new byte[] {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 21, 31, 41, 51, 61, 71, 81, 91
+    });
     public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[] {99, 29, 39, 49, 59, 69, 79, 89, 99});
     public static final Bytes MAINNET_CHAIN_ID = Bytes.fromHex("0127");
     public static final AccountID SENDER_ID =
@@ -512,14 +520,14 @@ public class TestHelpers {
 
     public static final Account ALIASED_SOMEBODY = Account.newBuilder()
             .accountId(A_NEW_ACCOUNT_ID)
-            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .build();
 
     public static final Account PARANOID_SOMEBODY = Account.newBuilder()
             .accountId(B_NEW_ACCOUNT_ID)
             .receiverSigRequired(true)
             .key(AN_ED25519_KEY)
-            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .build();
     public static final Account B_CONTRACT =
             Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).smartContract(true).build();
@@ -528,26 +536,28 @@ public class TestHelpers {
             .accountId(A_NEW_ACCOUNT_ID)
             .balance(123L)
             .build();
-    public static final Bytes CANONICAL_ALIAS = tuweniToPbjBytes(EIP_1014_ADDRESS);
+    public static final Bytes CANONICAL_ALIAS = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
     public static final ContractID CALLED_CONTRACT_EVM_ADDRESS =
             ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build();
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
-    public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
-    public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
-    public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
+    public static final GasCalculator GAS_CALCULATOR = new HederaGasCalculatorImpl();
+    public static final Code CONTRACT_CODE = new Code(pbjToTuweniBytes(CALL_DATA));
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
-            List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.TOPIC))));
+            List.of(LogTopic.of(pbjToTuweniBytes32(TestHelpers.TOPIC))));
     public static final Log SECOND_BESU_LOG = new Log(
             HTS_SYSTEM_CONTRACT_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
-            List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.OTHER_TOPIC))));
+            List.of(LogTopic.of(pbjToTuweniBytes32(TestHelpers.OTHER_TOPIC))));
     public static final List<Log> BESU_LOGS = List.of(BESU_LOG, SECOND_BESU_LOG);
 
-    public static final GasCharges CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, MAX_GAS_ALLOWANCE / 2);
-    public static final GasCharges NO_ALLOWANCE_CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, 0);
+    public static final GasCharges CHARGING_RESULT =
+            new GasCharges(INTRINSIC_GAS, INTRINSIC_GAS, MAX_GAS_ALLOWANCE / 2);
+    public static final GasCharges NO_ALLOWANCE_CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, INTRINSIC_GAS, 0);
+    public static final GasCharges BASE_COST_CHARGING_RESULT =
+            new GasCharges(HederaGasCalculatorImpl.TX_BASE_COST, HederaGasCalculatorImpl.TX_BASE_COST, 0);
 
     public static final String PSEUDORANDOM_SEED_GENERATOR_SELECTOR = "0xd83bf9a1";
     public static final org.apache.tuweni.bytes.Bytes PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS =
@@ -578,6 +588,8 @@ public class TestHelpers {
             0L,
             ContractCreateTransactionBody.DEFAULT,
             null,
+            null,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -590,6 +602,8 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
+            null,
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
             null);
@@ -605,6 +619,8 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
+            null,
             null,
             new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
             null);
@@ -650,7 +666,8 @@ public class TestHelpers {
             null,
             null,
             null,
-            null);
+            null,
+            CodeDelegationResult.EMPTY);
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
             ContractID.newBuilder().contractNum(123L).build(),
@@ -680,7 +697,7 @@ public class TestHelpers {
             .build();
     public static final ContractAction LAZY_CREATE_ACTION = ContractAction.newBuilder()
             .callType(ContractActionType.CALL)
-            .targetedAddress(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .targetedAddress(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .gas(REMAINING_GAS)
             .build();
 
@@ -779,9 +796,9 @@ public class TestHelpers {
         assertEquals(expected.gasRequirement(), actual.gasRequirement());
         final var expectedResult = expected.result();
         final var actualResult = actual.result();
-        assertEquals(expectedResult.getState(), actualResult.getState());
-        assertEquals(expectedResult.getOutput(), actualResult.getOutput());
-        assertEquals(expectedResult.getHaltReason(), actualResult.getHaltReason());
+        assertEquals(expectedResult.state(), actualResult.state());
+        assertEquals(expectedResult.output(), actualResult.output());
+        assertEquals(expectedResult.haltReason(), actualResult.haltReason());
         assertEquals(expectedResult.isRefundGas(), actualResult.isRefundGas());
     }
 
@@ -795,26 +812,36 @@ public class TestHelpers {
         return wellKnownHapiCall(null, VALUE);
     }
 
+    public static HederaEvmTransaction wellKnownHapiCall(
+            @Nullable final List<AccessListItem> accessLists, @Nullable List<CodeDelegation> codeDelegations) {
+        return wellKnownHapiCall(null, VALUE, GAS_LIMIT, accessLists, codeDelegations);
+    }
+
     public static HederaEvmTransaction wellKnownRelayedHapiCall(final long value) {
         return wellKnownHapiCall(RELAYER_ID, value);
     }
 
     public static HederaEvmTransaction wellKnownRelayedHapiCallWithGasLimit(final long gasLimit) {
-        return wellKnownHapiCall(RELAYER_ID, VALUE, gasLimit);
+        return wellKnownHapiCall(RELAYER_ID, VALUE, gasLimit, null, null);
     }
 
     public static HederaEvmTransaction wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance(
             final long gasPrice, final long maxGasAllowance) {
-        return wellKnownHapiCall(RELAYER_ID, VALUE, GAS_LIMIT, gasPrice, maxGasAllowance);
+        return wellKnownHapiCall(RELAYER_ID, VALUE, GAS_LIMIT, gasPrice, maxGasAllowance, null, null);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(@Nullable final AccountID relayer, final long value) {
-        return wellKnownHapiCall(relayer, value, GAS_LIMIT);
+        return wellKnownHapiCall(relayer, value, GAS_LIMIT, null, null);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(
-            @Nullable final AccountID relayer, final long value, final long gasLimit) {
-        return wellKnownHapiCall(relayer, value, gasLimit, USER_OFFERED_GAS_PRICE, MAX_GAS_ALLOWANCE);
+            @Nullable final AccountID relayer,
+            final long value,
+            final long gasLimit,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable List<CodeDelegation> codeDelegations) {
+        return wellKnownHapiCall(
+                relayer, value, gasLimit, USER_OFFERED_GAS_PRICE, MAX_GAS_ALLOWANCE, accessLists, codeDelegations);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(
@@ -822,7 +849,9 @@ public class TestHelpers {
             final long value,
             final long gasLimit,
             final long userGasPrice,
-            final long maxGasAllowance) {
+            final long maxGasAllowance,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable List<CodeDelegation> codeDelegations) {
         return new HederaEvmTransaction(
                 SENDER_ID,
                 relayer,
@@ -835,6 +864,8 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
+                accessLists,
+                codeDelegations,
                 null,
                 null);
     }
@@ -865,6 +896,8 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
+                null,
                 null,
                 null);
     }
@@ -913,11 +946,12 @@ public class TestHelpers {
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final Address address) {
-        return asHeadlongAddress(address.toArrayUnsafe());
+        return asHeadlongAddress(address.getBytes().toArrayUnsafe());
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final long entityNum) {
-        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum));
+        final var addressBytes =
+                org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum).getBytes());
         final var addressAsInteger = addressBytes.toUnsignedBigInteger();
         return com.esaulpaugh.headlong.abi.Address.wrap(
                 com.esaulpaugh.headlong.abi.Address.toChecksumAddress(addressAsInteger));
@@ -944,10 +978,9 @@ public class TestHelpers {
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(final byte[] subSelector, final Address tokenAddress) {
-        return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HtsCallAttempt.REDIRECT_FOR_TOKEN.selector()),
-                tokenAddress,
-                org.apache.tuweni.bytes.Bytes.of(subSelector));
+        return org.apache.tuweni.bytes.Bytes.wrap(HtsCallAttempt.LEGACY_REDIRECT_FOR_TOKEN
+                .encodeCall(Tuple.of(asHeadlongAddress(tokenAddress), subSelector))
+                .array());
     }
 
     // Encode given a ByteBuffer and accountId input bytes for a call to a given contract.
@@ -959,18 +992,16 @@ public class TestHelpers {
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(
             final byte[] subSelector, final Address accountAddress) {
-        return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HasCallAttempt.REDIRECT_FOR_ACCOUNT.selector()),
-                accountAddress,
-                org.apache.tuweni.bytes.Bytes.of(subSelector));
+        return org.apache.tuweni.bytes.Bytes.wrap(HasCallAttempt.LEGACY_REDIRECT_FOR_ACCOUNT
+                .encodeCall(Tuple.of(asHeadlongAddress(accountAddress), subSelector))
+                .array());
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectScheduleTxn(
             final byte[] subSelector, final Address scheduleAddress) {
-        return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HssCallAttempt.REDIRECT_FOR_SCHEDULE_TXN.selector()),
-                scheduleAddress,
-                org.apache.tuweni.bytes.Bytes.of(subSelector));
+        return org.apache.tuweni.bytes.Bytes.wrap(HssCallAttempt.LEGACY_REDIRECT_FOR_SCHEDULE_TXN
+                .encodeCall(Tuple.of(asHeadlongAddress(scheduleAddress), subSelector))
+                .array());
     }
 
     public static org.apache.tuweni.bytes.Bytes asBytesResult(final ByteBuffer encoded) {
@@ -1007,6 +1038,8 @@ public class TestHelpers {
                 HederaEvmVersion.VERSION_066,
                 processor,
                 HederaEvmVersion.VERSION_067,
+                processor,
+                HederaEvmVersion.VERSION_070,
                 processor);
     }
 
@@ -1061,11 +1094,6 @@ public class TestHelpers {
             return this;
         }
 
-        public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
-            return this;
-        }
-
         public Tuple build() {
             return tokenTransferList;
         }
@@ -1073,24 +1101,6 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
-    }
-
-    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
-
-    public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
-        final var transferList = TransferList.newBuilder();
-        List<AccountAmount> list = new ArrayList<>();
-        for (TestHbarTransfer hbarTransfer : hbarTransfers) {
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.receiver())
-                    .amount(hbarTransfer.amount())
-                    .build());
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.sender())
-                    .amount(-hbarTransfer.amount())
-                    .build());
-        }
-        return transferList.build();
     }
 
     public record TestTokenTransfer(
@@ -1133,8 +1143,8 @@ public class TestHelpers {
     }
 
     public static LogTopic convertAccountToLog(final Account account) {
-        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes.wrap(LogBuilder.expandByteArrayTo32Length(
-                ConversionUtils.priorityAddressOf(account).toArray())));
+        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes32.wrap(LogBuilder.expandByteArrayTo32Length(
+                ConversionUtils.priorityAddressOf(account).getBytes().toArray())));
     }
 
     private static HederaEvmTransactionResult explicitSuccessFrom(
@@ -1163,6 +1173,18 @@ public class TestHelpers {
                 null,
                 actions,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
+    }
+
+    /**
+     * Create GasCharges when `intrinsicGas` == `minimumGasUsed`.
+     * For not it is used just for the tests purposes.
+     *
+     * @param intrinsicGas the intrinsic gas cost of a transaction
+     * @return The gas requirements of the transaction
+     */
+    public static GasCharges gasChargesFromIntrinsicGas(long intrinsicGas) {
+        return new GasCharges(intrinsicGas, intrinsicGas, 0L);
     }
 }

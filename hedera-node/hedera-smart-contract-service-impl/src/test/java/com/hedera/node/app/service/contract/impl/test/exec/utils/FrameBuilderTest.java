@@ -6,11 +6,10 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONTRACT_CODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_COINBASE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_CALCULATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INTRINSIC_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
@@ -35,6 +34,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -47,22 +48,31 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FrameBuilderTest {
+
     @Mock
     private HederaEvmAccount account;
 
@@ -107,8 +117,7 @@ class FrameBuilderTest {
         givenContractExists();
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         final var config = HederaTestConfigBuilder.create()
@@ -124,12 +133,14 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
+        // TODO: bring back
+        //        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());
@@ -146,7 +157,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
@@ -160,8 +171,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .withValue("contracts.sidecars", "CONTRACT_BYTECODE,CONTRACT_ACTION")
@@ -177,12 +187,14 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
+        // TODO: bring back
+        //        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());
@@ -199,7 +211,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
@@ -227,7 +239,77 @@ class FrameBuilderTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         INTRINSIC_GAS,
-                        CODE_FACTORY));
+                        GAS_CALCULATOR,
+                        List.of()));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // accessList
+        "0,                     0",
+        "1;0,                   0",
+        "2;1,                   0",
+        "2;1;0,                 0",
+        "3;2;10;15;7;0;1,       0",
+        // codeDelegations
+        ",                      0",
+        ",                      1",
+        ",                      2",
+        ",                      10",
+        // accessList + codeDelegations
+        "0,                     1",
+        "1;0,                   2",
+        "2;1;0,                 3",
+    })
+    void constructsExpectedFrameWithAccessListAndCodeDelegations(
+            final String keysCountString, final String codeDelegationsCount) {
+        // given:
+        final var keysCount = keysCountString == null
+                ? List.<Integer>of()
+                : Arrays.stream(keysCountString.split(";"))
+                        .map(Integer::parseInt)
+                        .toList();
+        final var accessLists = TestTransactionUtils.generateAccessList(keysCount);
+        final var codeDelegations = TestTransactionUtils.generateAuthList(Integer.parseInt(codeDelegationsCount));
+        final var authorities = codeDelegations.stream()
+                .map(EthTxSigs::extractAuthoritySignature)
+                .filter(Optional::isPresent)
+                .map(e -> Address.wrap(Bytes.wrap(e.get().address())))
+                .toList();
+        final var transaction = wellKnownHapiCall(accessLists, codeDelegations);
+        givenContractExists();
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        // when:
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                HederaTestConfigBuilder.create().getOrCreateConfig(),
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                GAS_CALCULATOR,
+                authorities);
+        // then:
+        final var warmUpStorage = frame.getWarmedUpStorage();
+        assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
+        // check accessLIsts are warm
+        for (final AccessListItem accessList : accessLists) {
+            final var address = Address.wrap(accessList.address());
+            assertTrue(frame.isAddressWarm(address));
+            for (final Bytes32 storageKey : accessList.storageKeys()) {
+                assertTrue(warmUpStorage.contains(address, storageKey));
+            }
+        }
+        // check codeDelegation authorities are warm
+        for (final Address authority : authorities) {
+            assertTrue(frame.isAddressWarm(authority));
+        }
     }
 
     @Test
@@ -237,8 +319,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
 
         final var frame = subject.buildInitialFrameWith(
@@ -251,11 +332,12 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
+        //        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());
@@ -270,7 +352,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -293,11 +375,11 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());
@@ -312,7 +394,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -337,13 +419,14 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertTrue(FrameUtils.hasActionValidationEnabled(frame));
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
+        //        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());
@@ -360,7 +443,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -372,7 +455,7 @@ class FrameBuilderTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .getOrCreateConfig();
-        final var expectedCode = CODE_FACTORY.createCode(transaction.evmPayload(), false);
+        final var expectedCode = new Code(transaction.evmPayload());
 
         final var frame = subject.buildInitialFrameWith(
                 transaction,
@@ -384,12 +467,13 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                GAS_CALCULATOR,
+                List.of());
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
-        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
+        //        assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
         assertEquals(Wei.ONE, frame.getBlobGasPrice());

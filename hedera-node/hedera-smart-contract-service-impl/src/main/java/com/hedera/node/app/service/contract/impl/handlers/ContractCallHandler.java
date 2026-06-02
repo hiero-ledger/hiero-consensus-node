@@ -16,6 +16,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -47,7 +48,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     @Inject
     public ContractCallHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, entityIdFactory, component);
@@ -65,7 +66,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
         outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCall(outcome, component.hederaOperations());
+        throwIfUnsuccessfulCall(outcome, component.hederaOperations(), component.rootProxyWorldUpdater());
     }
 
     @Override
@@ -92,11 +93,10 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
-
-            // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            // accessLists and codeDelegations are null because both are not supported for 'ContractCall'
+            final var gasRequirements = gasCalculator.transactionGasRequirements(
+                    Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
+            validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
             throw e;

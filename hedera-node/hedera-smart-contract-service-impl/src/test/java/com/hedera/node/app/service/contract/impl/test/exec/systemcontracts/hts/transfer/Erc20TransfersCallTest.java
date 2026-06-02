@@ -42,14 +42,15 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class Erc20TransfersCallTest extends CallTestBase {
-    private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
+    private static final Address FROM_ADDRESS =
+            ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
@@ -90,8 +91,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.output());
     }
 
     @Test
@@ -116,8 +117,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.output());
         // check that events was added
         assertEquals(1, logs.size());
         assertEquals(3, logs.getFirst().getTopics().size());
@@ -149,9 +150,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(
-                asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.output());
     }
 
     @Test
@@ -169,8 +169,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.output());
     }
 
     private void givenSynthIdHelperWithFrom() {

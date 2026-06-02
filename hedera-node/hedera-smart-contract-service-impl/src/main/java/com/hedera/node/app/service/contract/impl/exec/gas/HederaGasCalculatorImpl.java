@@ -7,29 +7,29 @@ import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
 import static com.swirlds.base.units.UnitConstants.MINUTES_TO_SECONDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.config.data.CacheConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.CancunGasCalculator;
+import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
 
 /**
  * FUTURE(#12991): GasCalculators for specific EVM versions should be injected based on
- * `evm.version` configuration setting, just like EVM modules themselves.  Right now (0.49-0.50
- * timeframe) it is ok to just fix our CustomGasCalculator at Besu's Cancun level because the only
- * changes it has over Besu's Shanghai level is that it has defaults for blob gas prices, and those
- * methods are never called at the Shanghai level anyway, nor at the Cancun level because we don't
- * support blobs.
- * too many parents
+ * `evm.version` configuration setting, just like EVM modules themselves.  Updating to inherit
+ * from PragueGasCalculator.
  */
 @SuppressWarnings("java:S110")
 @Singleton
-public class CustomGasCalculator extends CancunGasCalculator {
-    private static final long TX_DATA_ZERO_COST = 4L;
-    private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
-    private static final long TX_BASE_COST = 21_000L;
+public class HederaGasCalculatorImpl extends PragueGasCalculator implements HederaGasCalculator {
+    public static final long TX_DATA_ZERO_COST = 4L;
+    public static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
+    public static final long TX_BASE_COST = 21_000L;
     private static final int LOG_CONTRACT_ID_SIZE = 24;
     private static final int LOG_TOPIC_SIZE = 32;
     private static final int LOG_BLOOM_SIZE = 256;
@@ -38,25 +38,61 @@ public class CustomGasCalculator extends CancunGasCalculator {
      * Default constructor for injection.
      */
     @Inject
-    public CustomGasCalculator() {
+    public HederaGasCalculatorImpl() {
         // Dagger2
     }
 
-    // We won't use the baseline cost for now
-    // should revisit with the Pectra support epic
     @Override
-    public long transactionIntrinsicGasCost(
-            final Bytes payload, final boolean isContractCreate, final long baselineCost) {
+    public GasCharges transactionGasRequirements(
+            @NonNull final Bytes payload,
+            final boolean isContractCreate,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable final List<CodeDelegation> codeDelegations) {
+        final int zeros = payloadZeroBytes(payload);
+        final long intrinsicGas =
+                transactionIntrinsicGas(payload, zeros, isContractCreate, accessLists, codeDelegations);
+        // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
+        final long floorGas = transactionFloorCost(payload, zeros);
+        return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
+    }
+
+    protected static int payloadZeroBytes(@NonNull final Bytes payload) {
         int zeros = 0;
-        for (int i = 0; i < payload.size(); i++) {
-            if (payload.get(i) == 0) {
-                ++zeros;
+
+        if (!payload.isEmpty()) {
+            final byte[] payloadArray = payload.toArrayUnsafe();
+            for (final var p : payloadArray) {
+                if (p == 0) {
+                    zeros++;
+                }
             }
         }
+        return zeros;
+    }
+
+    protected long transactionIntrinsicGas(
+            @NonNull final Bytes payload,
+            final int zeros,
+            final boolean isContractCreate,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable final List<CodeDelegation> codeDelegations) {
         final int nonZeros = payload.size() - zeros;
-
-        long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
-
+        int accessListStorageKeyCount = 0;
+        if (accessLists != null) {
+            for (final var item : accessLists) {
+                accessListStorageKeyCount += item.storageKeys().size();
+            }
+        }
+        final var accessListCost =
+                accessLists != null ? accessListGasCost(accessLists.size(), accessListStorageKeyCount) : 0;
+        final var delegationCost = codeDelegations != null ? delegateCodeGasCost(codeDelegations.size()) : 0;
+        final long cost = TX_BASE_COST
+                + TX_DATA_ZERO_COST * zeros
+                + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros
+                // accessList part of intrinsic gas
+                + accessListCost
+                // authorizationList part of intrinsic gas
+                + delegationCost;
         return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 
@@ -79,11 +115,12 @@ public class CustomGasCalculator extends CancunGasCalculator {
 
     /**
      * Gas charge to do a signature verification for an ED key.
-     *
+     * <p>
      * Based on the cost of system resources used.
-     *
+     * <p>
      * FUTURE: Gas for system contract method calls needs to be a) determined by measurement of
      * resources consumed, and b) incorporated into the fee schedule.
+     *
      * @return the hardcoded gas cost for ED verification
      */
     public long getEdSignatureVerificationSystemContractGasCost() {
@@ -114,7 +151,7 @@ public class CustomGasCalculator extends CancunGasCalculator {
      * and number of topics.
      *
      * @param numberOfTopics the number of topics in the log
-     * @param dataSize the size of the data in the log
+     * @param dataSize       the size of the data in the log
      * @return an idealized computation of the number of bytes needed to store a log with the given data size
      */
     private static long logSize(final int numberOfTopics, final long dataSize) {

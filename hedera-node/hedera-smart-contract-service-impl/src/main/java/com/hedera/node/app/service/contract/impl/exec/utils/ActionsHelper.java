@@ -38,7 +38,7 @@ public class ActionsHelper {
                 .gas(frame.getRemainingGas())
                 .callDepth(frame.getDepth() + 1)
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)))
-                .targetedAddress(tuweniToPbjBytes(targetAddress))
+                .targetedAddress(tuweniToPbjBytes(targetAddress.getBytes()))
                 .error(MISSING_ADDRESS_ERROR)
                 .callOperationType(
                         asCallOperationType(frame.getCurrentOperation().getOpcode()))

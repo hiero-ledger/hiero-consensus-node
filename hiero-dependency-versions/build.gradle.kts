@@ -8,7 +8,7 @@ dependencies {
     }
 }
 
-val besu = "25.2.2"
+val besu = "26.2.0"
 val bouncycastle = "1.83"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
@@ -24,7 +24,7 @@ val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.33.5"
 val blockNodeProtobufSources = "0.30.2"
 val testContainers = "2.0.3"
-val tuweni = "2.4.2"
+val tuweni = "2.7.2"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
@@ -43,7 +43,7 @@ dependencies.constraints {
     api("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jackson") {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
-    api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
+    api("com.github.ben-manes.caffeine:caffeine:3.2.3") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
@@ -82,7 +82,7 @@ dependencies.constraints {
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.21.0") { because("org.apache.commons.codec") }
-    api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
+    api("commons-io:commons-io:2.21.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.20.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
@@ -100,9 +100,18 @@ dependencies.constraints {
         because("org.eclipse.collections.impl")
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
-    api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.3.0") {
+    api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
+    api("org.hyperledger.besu:secp256k1:1.4.2") {
         because("org.hyperledger.besu.nativelib.secp256k1")
+    }
+    api("org.hyperledger.besu:gnark:1.4.2")
+    api("org.hyperledger.besu:secp256r1:1.4.2")
+    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.hyperledger.besu:blake2bf:1.4.2") {
+        because("org.hyperledger.besu.nativelib.blake2bf")
+    }
+    api("org.hyperledger.besu:boringssl:1.4.2") {
+        because("org.hyperledger.besu.nativelib.boringssl")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
@@ -114,8 +123,8 @@ dependencies.constraints {
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
     api("org.yaml:snakeyaml:2.5") { because("org.yaml.snakeyaml") }
-    api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
-    api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
+    api("io.consensys.tuweni:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
+    api("io.consensys.tuweni:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
         because("uk.org.webcompere.systemstubs.core")
     }

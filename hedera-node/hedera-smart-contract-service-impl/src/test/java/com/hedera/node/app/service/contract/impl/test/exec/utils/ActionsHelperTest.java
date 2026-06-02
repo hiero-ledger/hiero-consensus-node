@@ -122,7 +122,7 @@ class ActionsHelperTest {
                 .gas(REMAINING_GAS)
                 .callDepth(STACK_DEPTH + 1)
                 .callingContract(CALLED_CONTRACT_ID)
-                .targetedAddress(tuweniToPbjBytes(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .targetedAddress(tuweniToPbjBytes(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes()))
                 .error(Bytes.wrap("INVALID_SOLIDITY_ADDRESS".getBytes()))
                 .callOperationType(CallOperationType.OP_CALL)
                 .build();

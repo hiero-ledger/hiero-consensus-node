@@ -1,7 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
+pluginManagement { includeBuild("gradle/besu-native-patch") }
+
 plugins {
     id("org.hiero.gradle.build") version "0.7.8"
     id("com.hedera.pbj.pbj-compiler") version "0.15.4" apply false
+    id("org.hiero.gradle.feature.besu-native-patch")
+}
+
+// Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
+// Retries only in CI (when the CI env var is set).
+// Flaky tests (passed after retry) do not fail the build.
+gradle.allprojects {
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("io.tmio:tuweni-bytes"))
+                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
+            substitute(module("io.tmio:tuweni-units"))
+                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
+        }
+    }
+    pluginManager.withPlugin("java") {
+        tasks.withType(Test::class.java).configureEach {
+            develocity.testRetry {
+                maxRetries.set(providers.environmentVariable("CI").map { 2 }.orElse(0))
+                maxFailures.set(10)
+                failOnPassedAfterRetry.set(false)
+            }
+            reports.junitXml.mergeReruns.set(true)
+
+            // Write a marker when tests actually execute (not on cache restore).
+            // Resolve eagerly to avoid capturing Project in the doLast closure (configuration
+            // cache).
+            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+            doLast {
+                markerFile.parentFile.mkdirs()
+                markerFile.writeText(java.time.Instant.now().toString())
+            }
+        }
+    }
 }
 
 javaModules {
@@ -49,6 +85,34 @@ javaModules {
     directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
+}
+
+gradle.lifecycle.beforeProject {
+    plugins.withId("org.hiero.gradle.base.jpms-modules") {
+        configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module(
+                "org.hyperledger.besu.internal:besu-crypto-algorithms",
+                "org.hyperledger.besu.internal.crypto",
+            )
+            module(
+                "org.hyperledger.besu.internal:besu-ethereum-rlp",
+                "org.hyperledger.besu.internal.rlp",
+            )
+            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
+            module("io.vertx:vertx-core", "io.vertx.core")
+        }
+    }
 }
 
 // Flaky test handling

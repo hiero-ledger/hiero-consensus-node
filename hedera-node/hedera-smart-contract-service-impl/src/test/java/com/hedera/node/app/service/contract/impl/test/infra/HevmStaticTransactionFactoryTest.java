@@ -2,16 +2,11 @@
 package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_EVM_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.QueryHeader;
@@ -21,13 +16,13 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HevmStaticTransactionFactoryTest {
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock
     private QueryContext context;
@@ -64,6 +59,8 @@ class HevmStaticTransactionFactoryTest {
                     b.functionParameters(CALL_DATA);
                 }))
                 .build();
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(ALIASED_SOMEBODY);
         var transaction = subject.fromHapiQuery(query);
@@ -88,6 +85,8 @@ class HevmStaticTransactionFactoryTest {
                 TransactionBody.newBuilder().transactionID(transactionID).build();
         final var payment = Transaction.newBuilder().body(txBody).build();
         final var queryHeader = QueryHeader.newBuilder().payment(payment).build();
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
 
         final var query = Query.newBuilder()
@@ -141,11 +140,15 @@ class HevmStaticTransactionFactoryTest {
 
     @Test
     void fromQueryFailsWithGasBelowFixedLowerBound() {
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(ResponseCodeEnum.INSUFFICIENT_GAS, builder -> builder.gas(20_999L));
     }
 
     @Test
     void fromQueryFailsOverMaxGas() {
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
