@@ -166,28 +166,15 @@ jobs:
     needs: migration-testing
     if: ${{ always() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout repo for template
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref || '' }}
-          fetch-depth: 1
-          sparse-checkout: |
-            .github/workflows/templates
-          sparse-checkout-cone-mode: false
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{secrets.GITHUB_TOKEN}}"
+          setup-gomplate: "true"
 
       - name: Build Slack Payload Message
         id: payload
