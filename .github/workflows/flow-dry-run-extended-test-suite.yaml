@@ -60,7 +60,7 @@ on:
       enable-migration-testing-panel:
         required: true
         type: boolean
-        default: false
+        default: true
         description: "Run Migration Testing Panel"
       execute-state-validator-build:
         required: true

@@ -52,7 +52,7 @@ on:
       enable-migration-testing-panel:
         type: string
         description: "Run Migration Testing Panel"
-        default: "false"
+        default: "true"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
