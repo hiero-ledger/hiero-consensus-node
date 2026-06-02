@@ -285,11 +285,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     }
 
     /**
-     * Finds the active chunk whose subtree contains the given internal path, or
-     * {@code null} if no active chunk owns it. A {@code null} return should not occur
-     * under normal operation: a chunk cannot be completed and removed from the deque
-     * while responses for its internals are still in flight, because every leaf
-     * resolution requires a fully completed drill-down chain.
+     * Finds the active chunk whose subtree contains the given internal path.
      *
      * @throws IllegalStateException if no active chunk owns the path
      */
