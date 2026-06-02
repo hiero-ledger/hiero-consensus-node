@@ -412,6 +412,9 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     @Override
     public void clear() {
         super.clear();
+        if (memos != null) {
+            memos.setParentsSigned(null);
+        }
         clearMetadata();
     }
 
