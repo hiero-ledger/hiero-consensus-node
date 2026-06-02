@@ -370,7 +370,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
-    uses: ./.github/workflows/zxc-migration-testing.yaml
+    uses: ./.github/workflows/825-call-migration-testing.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       custom-job-name: "${{ inputs.custom-job-label }} Migration Testing"
