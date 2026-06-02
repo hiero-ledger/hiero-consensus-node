@@ -52,7 +52,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Tag(TestComponentTags.RECONNECT)
 class AsyncOutputStreamTest {
 
-    private static final int DEFAULT_BUFFER_SIZE = 100;
+    private static final int DEFAULT_QUEUE_SIZE = 100;
     private static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofMillis(50);
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 
@@ -71,7 +71,7 @@ class AsyncOutputStreamTest {
                     () -> new AsyncOutputStream(
                             null,
                             mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
+                            DEFAULT_QUEUE_SIZE,
                             DEFAULT_FLUSH_INTERVAL,
                             DEFAULT_TIMEOUT));
         }
@@ -85,7 +85,7 @@ class AsyncOutputStreamTest {
                     () -> new AsyncOutputStream(
                             mock(DataOutputStream.class),
                             null,
-                            DEFAULT_BUFFER_SIZE,
+                            DEFAULT_QUEUE_SIZE,
                             DEFAULT_FLUSH_INTERVAL,
                             DEFAULT_TIMEOUT));
         }
@@ -99,7 +99,7 @@ class AsyncOutputStreamTest {
                     () -> new AsyncOutputStream(
                             mock(DataOutputStream.class),
                             mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
+                            DEFAULT_QUEUE_SIZE,
                             null,
                             DEFAULT_TIMEOUT));
         }
@@ -113,14 +113,14 @@ class AsyncOutputStreamTest {
                     () -> new AsyncOutputStream(
                             mock(DataOutputStream.class),
                             mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
+                            DEFAULT_QUEUE_SIZE,
                             DEFAULT_FLUSH_INTERVAL,
                             null));
         }
 
         @ParameterizedTest
-        @DisplayName("Constructor rejects non-positive bufferSize")
         @ValueSource(ints = {-1, 0})
+        @DisplayName("Constructor rejects non-positive bufferSize")
         void constructorRejectsBadBufferSize(int bufferSize) {
             assertThrows(
                     IllegalArgumentException.class,
@@ -132,54 +132,40 @@ class AsyncOutputStreamTest {
                             DEFAULT_TIMEOUT));
         }
 
-        @Test
+        @ParameterizedTest
+        @ValueSource(ints = {-1, 0})
         @DisplayName("Constructor rejects non-positive flushInterval")
-        void constructorRejectsBadFlushInterval() {
+        void constructorRejectsBadFlushInterval(int flushIntervalMs) {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new AsyncOutputStream(
                             mock(DataOutputStream.class),
                             mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
-                            Duration.ZERO,
-                            DEFAULT_TIMEOUT));
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> new AsyncOutputStream(
-                            mock(DataOutputStream.class),
-                            mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
-                            Duration.ofMillis(-1),
+                            DEFAULT_QUEUE_SIZE,
+                            Duration.ofMillis(flushIntervalMs),
                             DEFAULT_TIMEOUT));
         }
 
-        @Test
+        @ParameterizedTest
+        @ValueSource(longs = {-1L, 0L})
         @DisplayName("Constructor rejects non-positive timeout")
-        void constructorRejectsBadTimeout() {
+        void constructorRejectsBadTimeout(long timeoutMs) {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new AsyncOutputStream(
                             mock(DataOutputStream.class),
                             mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
+                            DEFAULT_QUEUE_SIZE,
                             DEFAULT_FLUSH_INTERVAL,
-                            Duration.ZERO));
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> new AsyncOutputStream(
-                            mock(DataOutputStream.class),
-                            mock(StandardWorkGroup.class),
-                            DEFAULT_BUFFER_SIZE,
-                            DEFAULT_FLUSH_INTERVAL,
-                            Duration.ofMillis(-1)));
+                            Duration.ofMillis(timeoutMs)));
         }
 
         @Test
-        @DisplayName("Status is NOT_STARTED and isAlive is false before start")
-        void notAliveBeforeStart() {
+        @DisplayName("Status is NOT_STARTED and queue is empty before start")
+        void notStartedAndEmptyBeforeStart() {
             final AsyncOutputStream out = newOut(mock(DataOutputStream.class), mock(StandardWorkGroup.class));
             assertEquals(AsyncOutputStream.Status.NOT_STARTED, out.getStatus());
-            assertFalse(out.isAlive(), "isAlive must be false before start()");
+            assertEquals(0, out.getQueueSize(), "queue size should be empty");
         }
 
         @Test
@@ -216,15 +202,14 @@ class AsyncOutputStreamTest {
             testAndAwaitTermination(workGroup, out::done);
 
             assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
-            assertFalse(out.isAlive(), "Stream should not be alive after termination");
 
             verifyOrderedMessages(0, byteOut.toByteArray());
         }
 
         @Test
-        @DisplayName("Less than buffer size messages drain in order followed by -1")
-        void lessMessagesThanBuffer() throws IOException {
-            final int count = DEFAULT_BUFFER_SIZE - 1;
+        @DisplayName("Less than queue size messages drain in order followed by -1")
+        void lessMessagesThanQueueSize() throws IOException {
+            final int count = DEFAULT_QUEUE_SIZE - 1;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "drain-less", null);
             final AsyncOutputStream out = newOut(new DataOutputStream(byteOut), workGroup);
@@ -270,7 +255,7 @@ class AsyncOutputStreamTest {
             producer.setDaemon(true);
             producer.start();
 
-            // Producer must be blocked by backpressure: at most buffer + one in-flight.
+            // Producer must be blocked by backpressure: at most queue size + one in-flight.
             MILLISECONDS.sleep(150);
             final int snapshot = messagesSent.get();
             assertTrue(producer.isAlive(), "Producer thread should be alive");
@@ -356,7 +341,7 @@ class AsyncOutputStreamTest {
             final Duration flushInterval = Duration.ofMillis(50);
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "flush-tick", null);
             final AsyncOutputStream out = new AsyncOutputStream(
-                    new DataOutputStream(flushCounter), workGroup, DEFAULT_BUFFER_SIZE, flushInterval, DEFAULT_TIMEOUT);
+                    new DataOutputStream(flushCounter), workGroup, DEFAULT_QUEUE_SIZE, flushInterval, DEFAULT_TIMEOUT);
             out.start();
 
             testAndAwaitTermination(workGroup, () -> {
@@ -364,7 +349,7 @@ class AsyncOutputStreamTest {
                 // Wait long enough for the writer to wake from poll() and flush at least once.
                 assertEventuallyTrue(
                         () -> flushCount.get() >= 1,
-                        Duration.ofSeconds(2),
+                        flushInterval.plus(Duration.ofMillis(100)),
                         "writer should flush within a few flushInterval cycles");
 
                 out.done();
@@ -398,7 +383,7 @@ class AsyncOutputStreamTest {
             final Duration flushInterval = Duration.ofMillis(5);
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "flush-busy", null);
             final AsyncOutputStream out = new AsyncOutputStream(
-                    new DataOutputStream(slowOut), workGroup, DEFAULT_BUFFER_SIZE, flushInterval, DEFAULT_TIMEOUT);
+                    new DataOutputStream(slowOut), workGroup, DEFAULT_QUEUE_SIZE, flushInterval, DEFAULT_TIMEOUT);
             out.start();
 
             testAndAwaitTermination(workGroup, () -> {
@@ -433,7 +418,7 @@ class AsyncOutputStreamTest {
             final AsyncOutputStream out = newOut(outputStream, workGroup);
 
             out.start();
-            assertTrue(out.isAlive(), "Stream should be alive");
+            assertEquals(AsyncOutputStream.Status.RUNNING, out.getStatus(), "Stream should be running");
 
             assertThrows(IllegalStateException.class, out::start, "Second start should throw an exception");
 
@@ -452,8 +437,7 @@ class AsyncOutputStreamTest {
 
             final AsyncOutputStream out = newOut(outputStream, workGroup);
             assertThrows(MerkleSynchronizationException.class, out::start);
-            assertFalse(out.isAlive(), "Stream should not be alive");
-            assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
+            assertEquals(AsyncOutputStream.Status.DONE, out.getStatus(), "Stream should be done");
 
             verify(workGroup, times(1)).execute(eq("async-output-stream"), any(Runnable.class));
             verify(workGroup, times(1)).handleError(cause);
@@ -482,7 +466,6 @@ class AsyncOutputStreamTest {
                     AsyncOutputStream.Status.FINISHING,
                     out.getStatus(),
                     "done() should flip status to FINISHING while writer is still draining");
-            assertTrue(out.isAlive(), "isAlive should still be true during FINISHING");
 
             assertThrows(
                     IllegalStateException.class,
@@ -492,7 +475,6 @@ class AsyncOutputStreamTest {
             blockingOut.unlock();
             workGroup.waitForTermination();
             assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
-            assertFalse(out.isAlive());
 
             assertThrows(
                     IllegalStateException.class,
@@ -537,6 +519,7 @@ class AsyncOutputStreamTest {
             blockingOut.unlock();
             out.done();
             workGroup.waitForTermination();
+            assertEquals(AsyncOutputStream.Status.DONE, out.getStatus(), "Stream should not be alive");
         }
 
         @Test
@@ -625,7 +608,7 @@ class AsyncOutputStreamTest {
             final AsyncOutputStream out = new AsyncOutputStream(
                     new DataOutputStream(byteOut),
                     workGroup,
-                    DEFAULT_BUFFER_SIZE,
+                    DEFAULT_QUEUE_SIZE,
                     DEFAULT_FLUSH_INTERVAL,
                     DEFAULT_TIMEOUT);
             out.start();
@@ -756,7 +739,7 @@ class AsyncOutputStreamTest {
     // ---------------------------------------------------------------------
 
     private static AsyncOutputStream newOut(final DataOutputStream out, final StandardWorkGroup workGroup) {
-        return new AsyncOutputStream(out, workGroup, DEFAULT_BUFFER_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
+        return new AsyncOutputStream(out, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
     }
 
     private void verifyOrderedMessages(int messagesCount, byte[] data) throws IOException {

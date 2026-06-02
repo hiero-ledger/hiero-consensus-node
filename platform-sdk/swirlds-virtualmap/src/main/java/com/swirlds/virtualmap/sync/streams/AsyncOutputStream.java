@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -68,20 +69,19 @@ public class AsyncOutputStream {
     private final DataOutputStream outputStream;
 
     /** Bounded buffer providing backpressure for {@link #sendAsync(byte[])}. */
-    private final BlockingQueue<byte[]> streamQueue;
+    private final BlockingQueue<byte[]> outputQueue;
 
     /** Maximum time the background thread waits for a new message before flushing buffered data. */
     private final Duration flushInterval;
 
     /** Maximum time {@link #sendAsync(byte[])} will wait when the buffer is full. */
-    private final Duration timeout;
+    private final long timeoutNanos;
 
     private final StandardWorkGroup workGroup;
 
-    // Single writer per transition: start() sets RUNNING under sync; done() sets FINISHING under
-    // sync (guarded — no-op unless RUNNING); the background thread sets DONE on exit.
-    // Volatile is sufficient for visibility.
-    private volatile Status status = Status.NOT_STARTED;
+    // Single writer per transition: start() sets RUNNING atomically; done() sets FINISHING atomically
+    // (guarded — no-op unless RUNNING); the background thread sets DONE on exit.
+    private final AtomicReference<Status> status = new AtomicReference<>(Status.NOT_STARTED);
 
     /**
      * Constructs a new instance.
@@ -108,16 +108,16 @@ public class AsyncOutputStream {
         if (bufferSize <= 0) {
             throw new IllegalArgumentException("bufferSize must be greater than 0");
         }
-        if (flushInterval.isNegative() || flushInterval.isZero()) {
+        if (!flushInterval.isPositive()) {
             throw new IllegalArgumentException("flushInterval must be positive");
         }
-        if (timeout.isNegative() || timeout.isZero()) {
+        if (!timeout.isPositive()) {
             throw new IllegalArgumentException("timeout must be positive");
         }
 
-        this.streamQueue = new LinkedBlockingQueue<>(bufferSize);
+        this.outputQueue = new LinkedBlockingQueue<>(bufferSize);
         this.flushInterval = flushInterval;
-        this.timeout = timeout;
+        this.timeoutNanos = timeout.toNanos();
     }
 
     /**
@@ -126,16 +126,15 @@ public class AsyncOutputStream {
      * @throws IllegalStateException          if the stream has already been started or terminated
      * @throws MerkleSynchronizationException if the background thread cannot be submitted for execution
      */
-    public synchronized void start() {
-        if (status != Status.NOT_STARTED) {
-            throw new IllegalStateException("Stream status has already been set: " + status);
+    public void start() {
+        if (!status.compareAndSet(Status.NOT_STARTED, Status.RUNNING)) {
+            throw new IllegalStateException("Stream status has already been set: " + status.get());
         }
-        status = Status.RUNNING;
 
         try {
             workGroup.execute(THREAD_NAME, this::run);
         } catch (Exception e) {
-            status = Status.DONE;
+            status.set(Status.DONE);
             workGroup.handleError(e); // terminate other tasks that already running
             throw new MerkleSynchronizationException("Background writing thread cannot be submitted for execution", e);
         }
@@ -149,10 +148,8 @@ public class AsyncOutputStream {
      * <p>Calls made before {@link #start()} or after the stream has reached {@link Status#FINISHING}
      * or {@link Status#DONE} are silent no-ops.
      */
-    public synchronized void done() {
-        if (status == Status.RUNNING) {
-            status = Status.FINISHING;
-        }
+    public void done() {
+        status.compareAndSet(Status.RUNNING, Status.FINISHING);
     }
 
     /**
@@ -166,28 +163,27 @@ public class AsyncOutputStream {
      * @throws MerkleSynchronizationException if the enqueue timed out because the buffer stayed full
      */
     public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
-        if (status != Status.RUNNING) {
+        if (status.get() != Status.RUNNING) {
             throw new IllegalStateException("Stream is not running: " + status);
         }
-        final boolean success = streamQueue.offer(messageBytes, timeout.toNanos(), TimeUnit.NANOSECONDS);
+        final boolean success = outputQueue.offer(messageBytes, timeoutNanos, TimeUnit.NANOSECONDS);
         if (!success) {
             throw new MerkleSynchronizationException("Timed out waiting to send data");
         }
     }
 
     /**
-     * Returns {@code true} while the background writer thread is running, which includes both
-     * {@link Status#RUNNING} (accepting new work) and {@link Status#FINISHING} (draining).
-     */
-    public boolean isAlive() {
-        return status == Status.RUNNING || status == Status.FINISHING;
-    }
-
-    /**
      * @return current lifecycle status of the background writer thread. Visible for tests.
      */
     Status getStatus() {
-        return status;
+        return status.get();
+    }
+
+    /**
+     * @return current output queue size
+     */
+    int getQueueSize() {
+        return outputQueue.size();
     }
 
     /**
@@ -203,8 +199,8 @@ public class AsyncOutputStream {
         long lastFlushNanos = System.nanoTime();
         boolean dirty = false;
         try {
-            while (status == Status.RUNNING && !Thread.currentThread().isInterrupted()) {
-                final byte[] msg = streamQueue.poll(flushIntervalNanos, TimeUnit.NANOSECONDS);
+            while (status.get() == Status.RUNNING && !Thread.currentThread().isInterrupted()) {
+                final byte[] msg = outputQueue.poll(flushIntervalNanos, TimeUnit.NANOSECONDS);
                 if (msg != null) {
                     writeMessage(msg);
                     dirty = true;
@@ -218,7 +214,7 @@ public class AsyncOutputStream {
 
             // Drain any remaining queued messages submitted before done() was called.
             byte[] msg;
-            while ((msg = streamQueue.poll()) != null) {
+            while ((msg = outputQueue.poll()) != null) {
                 writeMessage(msg);
             }
 
@@ -232,7 +228,7 @@ public class AsyncOutputStream {
             logger.warn(RECONNECT.getMarker(), "Async output stream failed due to I/O error", e);
             workGroup.handleError(e);
         } finally {
-            status = Status.DONE;
+            status.set(Status.DONE);
             logger.debug(RECONNECT.getMarker(), "Background writer thread stopped");
         }
     }

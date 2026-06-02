@@ -170,7 +170,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         mapStats.incrementTransfersFromLearner();
 
         // wait for response
-        final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.SPIN);
+        final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);
         if (rootResponseBytes == null) {
             throw new MerkleSynchronizationException("Stream closed before root node response was received");
         }

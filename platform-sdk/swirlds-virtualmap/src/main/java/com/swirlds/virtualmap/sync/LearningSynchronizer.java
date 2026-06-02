@@ -91,8 +91,8 @@ public class LearningSynchronizer {
      * @throws InterruptedException if the current thread is interrupted
      */
     private void receiveTree() throws InterruptedException {
-        final AsyncInputStream in =
-                new AsyncInputStream(inputStream, workGroup, reconnectConfig.asyncStreamBufferSize());
+        final AsyncInputStream in = new AsyncInputStream(
+                inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();

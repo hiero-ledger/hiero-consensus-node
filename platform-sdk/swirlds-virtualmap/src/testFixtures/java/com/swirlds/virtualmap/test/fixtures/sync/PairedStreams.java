@@ -6,6 +6,8 @@ import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -16,20 +18,14 @@ import java.net.Socket;
  */
 public class PairedStreams implements AutoCloseable {
 
-    protected BufferedOutputStream teacherOutputBuffer;
-    protected DataOutputStream teacherOutput;
+    private final Socket teacherSocket;
+    private final Socket learnerSocket;
+    private final ServerSocket server;
 
-    protected BufferedInputStream teacherInputBuffer;
-    protected DataInputStream teacherInput;
-
-    protected BufferedOutputStream learnerOutputBuffer;
-    protected DataOutputStream learnerOutput;
-    protected BufferedInputStream learnerInputBuffer;
-    protected DataInputStream learnerInput;
-
-    protected Socket teacherSocket;
-    protected Socket learnerSocket;
-    protected ServerSocket server;
+    private final DataOutputStream teacherOutput;
+    private final DataInputStream teacherInput;
+    private final DataOutputStream learnerOutput;
+    private final DataInputStream learnerInput;
 
     /**
      * Create a new pair of connected streams over a loopback socket.
@@ -42,16 +38,16 @@ public class PairedStreams implements AutoCloseable {
         teacherSocket = new Socket("127.0.0.1", server.getLocalPort());
         learnerSocket = server.accept();
 
-        teacherOutputBuffer = new BufferedOutputStream(teacherSocket.getOutputStream());
+        OutputStream teacherOutputBuffer = new BufferedOutputStream(teacherSocket.getOutputStream());
         teacherOutput = new DataOutputStream(teacherOutputBuffer);
 
-        teacherInputBuffer = new BufferedInputStream(teacherSocket.getInputStream());
+        InputStream teacherInputBuffer = new BufferedInputStream(teacherSocket.getInputStream());
         teacherInput = new DataInputStream(teacherInputBuffer);
 
-        learnerOutputBuffer = new BufferedOutputStream(learnerSocket.getOutputStream());
+        OutputStream learnerOutputBuffer = new BufferedOutputStream(learnerSocket.getOutputStream());
         learnerOutput = new DataOutputStream(learnerOutputBuffer);
 
-        learnerInputBuffer = new BufferedInputStream(learnerSocket.getInputStream());
+        InputStream learnerInputBuffer = new BufferedInputStream(learnerSocket.getInputStream());
         learnerInput = new DataInputStream(learnerInputBuffer);
     }
 

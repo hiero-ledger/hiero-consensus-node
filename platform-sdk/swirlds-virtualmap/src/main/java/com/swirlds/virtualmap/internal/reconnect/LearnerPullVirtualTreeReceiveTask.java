@@ -79,7 +79,7 @@ public class LearnerPullVirtualTreeReceiveTask {
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final byte[] responseBytes = in.readOrWait(YieldStrategy.SPIN);
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (responseBytes == null) {
                     break;
                 }

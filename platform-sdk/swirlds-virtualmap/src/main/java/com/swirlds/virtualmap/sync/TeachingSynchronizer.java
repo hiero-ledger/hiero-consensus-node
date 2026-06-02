@@ -87,8 +87,8 @@ public class TeachingSynchronizer {
      * Perform reconnect in the role of the teacher.
      */
     public void synchronize() throws InterruptedException {
-        final AsyncInputStream in =
-                new AsyncInputStream(inputStream, workGroup, reconnectConfig.asyncStreamBufferSize());
+        final AsyncInputStream in = new AsyncInputStream(
+                inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
