@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
@@ -104,6 +105,37 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private record DataOrException(
             @Nullable StreamFileAccess.RecordStreamData data,
             @Nullable Exception e) {}
+
+    /**
+     * Bundles parsed blocks split by source layer. {@link #active} are the blocks read from the
+     * live block-stream directory (post-cutover, or the only layer when cutover did not run).
+     * {@link #archived} are the blocks moved into the sibling {@code *-preview-archive} directory
+     * by {@link com.hedera.node.app.blocks.schemas.V0740BlockStreamSchema} at cutover (always
+     * pre-cutover preview blocks; empty otherwise). Block nodes don't have an archive concept, so
+     * blocks sourced from a block node always populate only {@link #active}.
+     */
+    record DiskBlocks(@NonNull List<Block> active, @NonNull List<Block> archived) {
+        /** Empty bundle marker for when no blocks were found. */
+        static DiskBlocks empty() {
+            return new DiskBlocks(List.of(), List.of());
+        }
+
+        /** True when neither layer has any blocks. */
+        boolean isEmpty() {
+            return active.isEmpty() && archived.isEmpty();
+        }
+
+        /** Returns archived (pre-cutover) followed by active (post-cutover), preserving order. */
+        List<Block> all() {
+            if (archived.isEmpty()) {
+                return active;
+            }
+            final var combined = new ArrayList<Block>(archived.size() + active.size());
+            combined.addAll(archived);
+            combined.addAll(active);
+            return combined;
+        }
+    }
 
     public StreamValidationOp() {
         this.recordStreamValidators = List.of(
@@ -165,7 +197,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 sleepFor(STREAM_FILE_WAIT.toMillis()));
         readMaybeBlockStreamsFor(spec)
                 .ifPresentOrElse(
-                        blocks -> {
+                        diskBlocks -> {
                             // Re-read the record streams since they may have been updated
                             readMaybeRecordStreamDataFor(spec)
                                     .ifPresentOrElse(
@@ -183,8 +215,20 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             final var data = requireNonNull(dataRef.get());
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                     .filter(factory -> factory.appliesTo(spec))
-                                    .map(factory -> factory.create(spec))
-                                    .flatMap(v -> v.validationErrorsIn(blocks, data))
+                                    .flatMap(factory -> {
+                                        final var validator = factory.create(spec);
+                                        // Validators that walk the event chain across the cutover
+                                        // boundary (EventHash + RedactingEventHash) need the archived
+                                        // preview prefix; all others receive only the active
+                                        // (post-cutover) blocks. Validators that need pre-cutover
+                                        // state replay read it from the test's preservedPreviewBlocks
+                                        // snapshot directly.
+                                        final List<Block> input = (validator instanceof EventHashBlockStreamValidator
+                                                        || validator instanceof RedactingEventHashBlockStreamValidator)
+                                                ? diskBlocks.all()
+                                                : diskBlocks.active();
+                                        return validator.validationErrorsIn(input, data);
+                                    })
                                     .peek(t -> log.error("Block stream validation error", t))
                                     .map(Throwable::getMessage)
                                     .collect(joining(ERROR_PREFIX));
@@ -199,10 +243,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (isStreamingWrappedRecordBlocks(spec)) {
             readMaybeBlockNodeStreamsFor(spec).ifPresent(blockNodeBlocks -> {
                 final var data = requireNonNull(dataRef.get());
+                // Block node streams don't have an archive layer; pass the active list.
+                final var blockNodeList = blockNodeBlocks.active();
                 final var maybeErrors = WRB_BLOCK_VALIDATOR_FACTORIES.stream()
                         .filter(factory -> factory.appliesTo(spec))
                         .map(factory -> factory.create(spec))
-                        .flatMap(v -> v.validationErrorsIn(blockNodeBlocks, data))
+                        .flatMap(v -> v.validationErrorsIn(blockNodeList, data))
                         .peek(t -> log.error("Block node WRB stream validation error", t))
                         .map(Throwable::getMessage)
                         .collect(joining(ERROR_PREFIX));
@@ -228,7 +274,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return false;
     }
 
-    static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
+    static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         // Try ThreadLocal first, then fall back to the shared AtomicReference
         // (DynamicTest execution threads in concurrent mode don't inherit ThreadLocal values)
         var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
@@ -263,46 +309,57 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return readBlocksFromDisk(spec);
     }
 
-    private static Optional<List<Block>> readBlocksFromDisk(@NonNull final HapiSpec spec) {
+    private static Optional<DiskBlocks> readBlocksFromDisk(@NonNull final HapiSpec spec) {
         final var blockStreamDirs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_PARENT_DIR))
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
-        // Pick the node directory with the most block files (compare by count first,
-        // then sort only the winner to avoid unnecessary sorting of discarded lists)
+        // Pick the node with the most total block files across its active + archive layers.
         Path bestDir = null;
-        List<Path> bestPaths = null;
+        BlockPaths bestPaths = null;
         for (final var dir : blockStreamDirs) {
-            try (final var stream = Files.walk(dir)) {
-                final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
-                        .toList();
-                if (bestPaths == null || paths.size() > bestPaths.size()) {
-                    bestDir = dir;
-                    bestPaths = paths;
-                }
-            } catch (Exception ignore) {
-                // We will try the next node's directory
+            final var paths = collectBlockPaths(dir);
+            if (bestPaths == null || paths.total() > bestPaths.total()) {
+                bestDir = dir;
+                bestPaths = paths;
             }
         }
-        if (bestPaths == null || bestPaths.isEmpty()) {
+        if (bestPaths == null || bestPaths.total() == 0) {
             return Optional.empty();
         }
-        bestPaths = bestPaths.stream()
-                .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
-                .toList();
-        // Parse the winner's block files and pair each block with its source path
         final var otherDirs = new ArrayList<>(blockStreamDirs);
         otherDirs.remove(bestDir);
-        final var result = new ArrayList<Block>(bestPaths.size());
-        for (final var blockPath : bestPaths) {
-            final var relativePath = bestDir.relativize(blockPath);
+        final var activeBlocks = parseBlocks(bestDir, bestPaths.active(), otherDirs);
+        final var archivedBlocks = parseBlocks(bestDir, bestPaths.archived(), otherDirs);
+        if (activeBlocks.isEmpty() && archivedBlocks.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new DiskBlocks(activeBlocks, archivedBlocks));
+    }
+
+    /**
+     * Dedups the given paths by block number (first wins), parses each, and falls back to a
+     * peer node directory if a block is unreadable or incomplete.
+     */
+    private static List<Block> parseBlocks(
+            @NonNull final Path baseDir, @NonNull final List<Path> paths, @NonNull final List<Path> otherDirs) {
+        if (paths.isEmpty()) {
+            return List.of();
+        }
+        final var byBlockNumber = new TreeMap<Long, Path>();
+        for (final var p : paths) {
+            byBlockNumber.putIfAbsent(BlockStreamAccess.extractBlockNumber(p), p);
+        }
+        final var deduped = new ArrayList<>(byBlockNumber.values());
+        final var result = new ArrayList<Block>(deduped.size());
+        for (final var blockPath : deduped) {
+            final var relativePath = baseDir.relativize(blockPath);
             Block block;
             try {
                 block = BlockStreamAccess.blockFrom(blockPath);
             } catch (Exception e) {
                 log.warn("Failed to parse block file {}", blockPath, e);
-                // Try the same file from other node directories to avoid a gap
                 final var fallback = findCompleteBlockIn(otherDirs, relativePath);
                 if (fallback != null) {
                     result.add(fallback);
@@ -314,11 +371,61 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 result.add(block);
                 continue;
             }
-            // Incomplete block — try the same relative path under other node directories
             final var replacement = findCompleteBlockIn(otherDirs, relativePath);
             result.add(replacement != null ? replacement : block);
         }
-        return result.isEmpty() ? Optional.empty() : Optional.of(result);
+        return result;
+    }
+
+    /**
+     * Holds block file paths split by source layer for a single node directory.
+     *
+     * @param active paths from the live block-stream directory
+     * @param archived paths from the sibling {@code *-preview-archive} directory (may be empty)
+     */
+    private record BlockPaths(
+            @NonNull List<Path> active, @NonNull List<Path> archived) {
+        int total() {
+            return active.size() + archived.size();
+        }
+    }
+
+    /**
+     * Collects block file paths from the active block-stream directory and, separately, from any
+     * sibling preview archive populated by cutover (see {@code V0740BlockStreamSchema} and issue
+     * 25424). When cutover happened, the active dir holds authoritative post-cutover blocks
+     * numbered from the cutover block onward, while the archive holds the entire pre-cutover
+     * stream — which may run past the cutover block number because cutover synchronizes the
+     * block stream number to the record stream's last block. Anything archived at or above the
+     * first active block number is a transient pre-cutover overshoot that doesn't continue the
+     * post-cutover chain, so we drop it; only archived blocks strictly below the active range
+     * chain cleanly into the post-cutover suffix.
+     */
+    private static BlockPaths collectBlockPaths(@NonNull final Path activeDir) {
+        final var activePaths = new ArrayList<Path>();
+        try (final var stream = Files.walk(activeDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(activePaths::add);
+        } catch (Exception ignore) {
+            // Empty or unreadable active dir falls through; archive (if any) is still consulted.
+        }
+        final Path archiveDir = activeDir.resolveSibling(activeDir.getFileName() + "-preview-archive");
+        if (!Files.isDirectory(archiveDir)) {
+            return new BlockPaths(activePaths, List.of());
+        }
+        final long minActiveBlockNumber = activePaths.stream()
+                .mapToLong(BlockStreamAccess::extractBlockNumber)
+                .filter(n -> n >= 0)
+                .min()
+                .orElse(Long.MAX_VALUE);
+        final var archivedPaths = new ArrayList<Path>();
+        try (final var stream = Files.walk(archiveDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                    .filter(p -> BlockStreamAccess.extractBlockNumber(p) < minActiveBlockNumber)
+                    .forEach(archivedPaths::add);
+        } catch (Exception ignore) {
+            // Skip if we can't walk the archive; absence is normal pre-cutover.
+        }
+        return new BlockPaths(activePaths, archivedPaths);
     }
 
     /**
@@ -342,31 +449,45 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             if (!Files.exists(dir)) {
                 continue;
             }
-            final List<Path> candidates;
-            // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
-            try (final var stream = Files.walk(dir, 2)) {
-                candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
-                        .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
-                        .toList();
-            } catch (Exception ignore) {
-                continue;
+            // Scan the active dir and (if present) its preview archive populated at cutover.
+            final var roots = new ArrayList<Path>();
+            roots.add(dir);
+            final Path archive = dir.resolveSibling(dir.getFileName() + "-preview-archive");
+            if (Files.isDirectory(archive)) {
+                roots.add(archive);
             }
-            for (final var candidatePath : candidates) {
-                try {
-                    final var block = BlockStreamAccess.blockFrom(candidatePath);
-                    final var items = block.items();
-                    if (!items.isEmpty() && items.getLast().hasBlockProof()) {
-                        return block;
-                    }
+            for (final var root : roots) {
+                final List<Path> candidates;
+                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+                try (final var stream = Files.walk(root, 2)) {
+                    candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                            .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
+                            .toList();
                 } catch (Exception ignore) {
-                    // Try the next candidate
+                    continue;
+                }
+                for (final var candidatePath : candidates) {
+                    try {
+                        final var block = BlockStreamAccess.blockFrom(candidatePath);
+                        final var items = block.items();
+                        if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                            return block;
+                        }
+                    } catch (Exception ignore) {
+                        // Try the next candidate
+                    }
                 }
             }
         }
+        log.warn(
+                "No proof-bearing block found for block #{} across {} dir(s): {}",
+                BlockStreamAccess.extractBlockNumber(relativePath),
+                otherDirs.size(),
+                otherDirs);
         return null;
     }
 
-    private static Optional<List<Block>> readBlocksFromBlockNodes(
+    private static Optional<DiskBlocks> readBlocksFromBlockNodes(
             @NonNull final HapiSpec spec, @NonNull final BlockNodeNetwork blockNodeNetwork) {
         // Determine the configured block node mode from the first entry
         final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
@@ -403,7 +524,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             log.info("Merged {} pending blocks from disk, {} total blocks", pendingBlocks.size(), blocks.size());
         }
 
-        return Optional.of(blocks);
+        // Block-node sources don't carry a preview-archive layer.
+        return Optional.of(new DiskBlocks(blocks, List.of()));
     }
 
     @Nullable
@@ -574,7 +696,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         }
     }
 
-    static Optional<List<Block>> readMaybeBlockNodeStreamsFor(@NonNull final HapiSpec spec) {
+    static Optional<DiskBlocks> readMaybeBlockNodeStreamsFor(@NonNull final HapiSpec spec) {
         var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
         if (blockNodeNetwork == null) {
             blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
