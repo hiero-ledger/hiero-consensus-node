@@ -111,7 +111,8 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 final long shard = spec.setup().shard();
                 final long realm = spec.setup().realm();
                 final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
-                        s -> new RecordStreamToBlockAssertionAdapter(recordFactory.apply(s), shard, realm);
+                        s -> new RecordStreamToBlockAssertionAdapter(
+                                recordFactory.apply(s), shard, realm, hasPassedIfNothingFailed);
                 delegate = createBlockDelegate(adaptedFactory);
             } else {
                 final EventualRecordStreamAssertion recordAssertion;

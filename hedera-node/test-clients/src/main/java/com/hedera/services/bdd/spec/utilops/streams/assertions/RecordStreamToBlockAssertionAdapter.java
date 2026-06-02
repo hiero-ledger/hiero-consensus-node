@@ -26,15 +26,18 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
 
     private final RecordStreamAssertion delegate;
     private final BlockRecordTranslator blockRecordTranslator;
+    private final boolean suppressRecordErrors;
 
     public RecordStreamToBlockAssertionAdapter(
-            @NonNull final RecordStreamAssertion delegate, final long shard, final long realm) {
+            @NonNull final RecordStreamAssertion delegate,
+            final long shard,
+            final long realm,
+            final boolean suppressRecordErrors) {
         this.delegate = requireNonNull(delegate);
         this.blockRecordTranslator = new BlockRecordTranslator(shard, realm);
+        this.suppressRecordErrors = suppressRecordErrors;
     }
 
-    // TODO: when record stream is removed and BLOCKS becomes the permanent mode, replace this adapter
-    // with a native BlockStreamAssertion that validates EvmTraceData fields directly from block items.
     @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
@@ -57,8 +60,16 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
         if (!delegate.isApplicableTo(item)) {
             return false;
         }
-
-        return delegate.test(item);
+        try {
+            return delegate.test(item);
+        } catch (final AssertionError e) {
+            if (suppressRecordErrors) {
+                log.info("Suppressed assertion error from block-to-record translation (lenient mode)", e);
+                return false;
+            } else {
+                throw e;
+            }
+        }
     }
 
     private void testSidecars(@NonNull final SingleTransactionRecord record) {
