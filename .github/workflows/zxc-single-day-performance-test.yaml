@@ -605,13 +605,6 @@ jobs:
           bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
           jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
 
-      - name: Temp down BlockNodes
-        run: |
-          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
-          do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
-          done
-
       - name: Update BlockNodes
         run: |
           ls "${{ github.workspace }}"/target_block_node
@@ -626,7 +619,7 @@ jobs:
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar; cp -r app*/plugins $bnVersion/; ls -lt"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; cp -r app*/plugins plugins; tar xf /tmp/BN.tar; cp -r plugins $bnVersion/; ls -lt"
           done
 
       - name: Update RSA BlockNodes
