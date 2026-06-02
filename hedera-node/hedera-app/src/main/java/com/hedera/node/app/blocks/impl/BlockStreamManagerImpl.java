@@ -9,6 +9,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
@@ -18,7 +19,6 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
@@ -54,7 +54,6 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -379,7 +378,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
         final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
                 ? HASH_OF_ZERO
-                : BlockRecordInfoUtils.blockHashByBlockNumber(
+                : BlockImplUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
                         blockStreamInfo.blockNumber() - 1);
@@ -1277,7 +1276,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          */
         @Nullable
         Bytes hashOfBlock(final long blockNo) {
-            return BlockRecordInfoUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
+            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
         }
 
         /**

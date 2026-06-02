@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -90,7 +91,7 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         // The last completed block's own hash is not persisted in its own state, so the state-resident trailing
         // hashes only reach blockNumber - 1. Reconstruct it and append so the set covers up to blockNumber, letting
         // queries resolve blockhash(block.number - 1) for the most recent block exactly as BlockRecordInfoImpl does.
-        return BlockRecordInfoUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo);
+        return BlockImplUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo);
     }
 
     private Bytes extendedBlockHashes() {
