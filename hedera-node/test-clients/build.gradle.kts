@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import org.hiero.gradle.environment.EnvAccess
 import java.lang.management.ManagementFactory
+import org.hiero.gradle.environment.EnvAccess
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -39,7 +39,8 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                         memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
                     }
                 } else {
-                    val os = ManagementFactory.getOperatingSystemMXBean()
+                    val os =
+                        ManagementFactory.getOperatingSystemMXBean()
                             as com.sun.management.OperatingSystemMXBean
                     os.totalMemorySize / 1024.0 / 1024.0 / 1024.0
                 }
