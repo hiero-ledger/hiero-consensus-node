@@ -10,11 +10,7 @@ Cluster evidence has now been collected for every traversal order. The run artif
 /Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
 ```
 
-Those runs contain the collected artifact families for the first calibration pass. Passive TCP/socket/network evidence
-was also collected around the reconnect window using passive sampling from learner restart through `ACTIVE`.
-
-Production reconnect telemetry was not needed for this pass, and no production/runtime consensus-node behavior changes
-are required for the current analysis.
+Those runs contain the collected artifact families for the calibration pass.
 
 Source of truth: task-local docs listed below. Artifact sufficiency is determined during extraction and verification.
 Missing, ambiguous, or not-applicable evidence must be recorded per the strategy.
