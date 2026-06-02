@@ -232,8 +232,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                                                     instanceof EventHashBlockStreamValidator
                                                             || validator
                                                                     instanceof RedactingEventHashBlockStreamValidator)
-                                                    ? diskBlocks.all()
-                                                    : diskBlocks.active();
+                                                    ? blocks.all()
+                                                    : blocks.active();
                                             return validator.validationErrorsIn(input, data);
                                         })
                                         .peek(t -> log.error("Block stream validation error", t))
