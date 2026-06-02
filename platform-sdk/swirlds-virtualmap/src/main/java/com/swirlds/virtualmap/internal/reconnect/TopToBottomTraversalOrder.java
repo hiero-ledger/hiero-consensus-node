@@ -416,7 +416,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
             leafPath = chunk.chunkLastLeafPath + 1;
             if (leafPath > lastLeafPath) {
-                // This was the last chunk. Done
+                // This was the last chunk. Advance currentLeafPath past the end so any
+                // subsequent call terminates at the top-of-method guard (the deque is now
+                // empty), then finalize.
+                currentLeafPath.set(leafPath);
                 finalizeTraversal(chunk);
                 return Path.INVALID_PATH;
             }
