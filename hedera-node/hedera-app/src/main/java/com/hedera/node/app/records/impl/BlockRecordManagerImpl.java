@@ -92,6 +92,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private static final Logger logger = LogManager.getLogger(BlockRecordManagerImpl.class);
 
     private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
+    private static final BlockRecordManager.Lifecycle NO_OP_BLOCK_LIFECYCLE = new BlockRecordManager.Lifecycle() {
+        @Override
+        public void onOpenBlock(@NonNull final State state) {
+            // No-op
+        }
+
+        @Override
+        public void onCloseBlock(@NonNull final State state) {
+            // No-op
+        }
+    };
 
     private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
@@ -125,6 +136,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final int recordFileVersion;
     private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
     private final BlockHashSigner blockHashSigner;
+    private final BlockRecordManager.Lifecycle blockLifecycle;
 
     /**
      * Supplier of a fresh {@link BlockItemWriter} (in practice a {@code GrpcBlockItemWriter}) used to forward
@@ -215,6 +227,32 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger) {
+        this(
+                configProvider,
+                state,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
+                initTrigger,
+                NO_OP_BLOCK_LIFECYCLE);
+    }
+
+    public BlockRecordManagerImpl(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final State state,
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final InitTrigger initTrigger,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -224,6 +262,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
         this.wrbWriterSupplier = requireNonNull(wrbWriterSupplier);
         this.blockHashSigner = requireNonNull(blockHashSigner);
+        this.blockLifecycle = requireNonNull(blockLifecycle);
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.streamMode = blockStreamConfig.streamMode();
@@ -317,14 +356,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     public @NonNull CompletableFuture<Void> noOpenWrbWritersFuture() {
         synchronized (noOpenWrbWritersFutureLock) {
             if (openWrbWriters.isEmpty()) {
-                logger.info("noOpenWrbWritersFuture requested with no open WRB writers");
+                logger.debug("noOpenWrbWritersFuture requested with no open WRB writers");
                 return CompletableFuture.completedFuture(null);
             }
             if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 noOpenWrbWritersFuture = new CompletableFuture<>();
-                logger.info("Recreated noOpenWrbWritersFuture with open WRB writers {}", openWrbWriters.keySet());
+                logger.debug("Recreated noOpenWrbWritersFuture with open WRB writers {}", openWrbWriters.keySet());
             }
-            logger.info(
+            logger.debug(
                     "noOpenWrbWritersFuture requested; openWrbWriters={}, futureDone={}",
                     openWrbWriters.keySet(),
                     noOpenWrbWritersFuture.isDone());
@@ -358,9 +397,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             openWrbWriters.put(blockNumber, writer);
             if (wasEmpty) {
                 noOpenWrbWritersFuture = new CompletableFuture<>();
-                logger.info("Created noOpenWrbWritersFuture after opening WRB writer for block #{}", blockNumber);
+                logger.debug("Created noOpenWrbWritersFuture after opening WRB writer for block #{}", blockNumber);
             }
-            logger.info("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+            logger.debug("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
         }
     }
 
@@ -369,13 +408,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final CompletableFuture<Void> futureToComplete;
         synchronized (noOpenWrbWritersFutureLock) {
             openWrbWriters.remove(blockNumber, writer);
-            logger.info("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+            logger.debug("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
             if (!openWrbWriters.isEmpty() || noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 return;
             }
             futureToComplete = noOpenWrbWritersFuture;
         }
-        logger.info("Completing noOpenWrbWritersFuture after closing WRB writer for block #{}", blockNumber);
+        logger.debug("Completing noOpenWrbWritersFuture after closing WRB writer for block #{}", blockNumber);
         futureToComplete.complete(null);
     }
 
@@ -383,13 +422,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final CompletableFuture<Void> futureToComplete;
         synchronized (noOpenWrbWritersFutureLock) {
             openWrbWriters.clear();
-            logger.info("Cleared all WRB writers during close");
+            logger.debug("Cleared all WRB writers during close");
             if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 return;
             }
             futureToComplete = noOpenWrbWritersFuture;
         }
-        logger.info("Completing noOpenWrbWritersFuture after clearing WRB writers");
+        logger.debug("Completing noOpenWrbWritersFuture after clearing WRB writers");
         futureToComplete.complete(null);
     }
 
@@ -409,60 +448,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(platformState);
         return platformState.freezeTime() != null
                 && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull final State state) {
-        if (!writeWrappedRecordFileBlockHashesToDisk()) {
-            return;
-        }
-        final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-        final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        appendWrappedRecordFileBlockHashesToDisk(
-                currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-    }
-
-    @Override
-    public void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state) {
-        try {
-            // Treat the current in-progress block as "just finished", writing its data to state or disk as appropriate
-            final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-            if (blockCreationTime == null) {
-                logger.info(
-                        "Skipping write of wrapped record-file block data for block {} because firstConsTimeOfCurrentBlock is null",
-                        currentBlockNumber);
-                return;
-            }
-
-            final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, currentBlockNumber);
-            // Update the in-memory values
-            final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
-                    currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
-            if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
-                appendMigrationWrappedHashes(state, currentBlockNumber, wrappedRecordFileBlockHashes);
-            }
-            if (migrationRootHashVotingComplete(state)) {
-                // Persist the updated values to BlockInfo only after voting finalizes
-                lastBlockInfo = lastBlockInfo
-                        .copyBuilder()
-                        .previousWrappedRecordBlockRootHash(previousWrappedRecordBlockRootHash)
-                        .wrappedIntermediatePreviousBlockRootHashes(
-                                prevWrappedRecordBlockHashes.intermediateHashingState())
-                        .wrappedIntermediateBlockRootsLeafCount(prevWrappedRecordBlockHashes.leafCount())
-                        .build();
-                putLastBlockInfo(state);
-                logger.info(
-                        "Persisted live wrapped record block root hash (as of block {}): {}",
-                        currentBlockNumber,
-                        previousWrappedRecordBlockRootHash);
-            }
-        } catch (final Exception e) {
-            logger.warn("Failed to persist final wrapped record-file block hashes prior to freeze", e);
-        }
     }
 
     /**
@@ -498,6 +483,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
+                blockLifecycle.onOpenBlock(state);
                 quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
             }
 
@@ -948,6 +934,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
         }
 
+        if (streamMode == RECORDS) {
+            blockLifecycle.onCloseBlock(state);
+        }
         final var recordFileHashFuture = streamFileProducer.finishCurrentBlock();
         observeRecordFileHash(closedBlockNo, recordFileHashFuture);
         if (streamMode == RECORDS) {

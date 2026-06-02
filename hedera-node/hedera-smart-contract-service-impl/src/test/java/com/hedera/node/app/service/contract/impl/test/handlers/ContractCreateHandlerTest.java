@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CRE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
@@ -145,6 +146,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
@@ -196,6 +198,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);

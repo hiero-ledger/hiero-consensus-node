@@ -1430,7 +1430,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 () -> {
                     statisticsUpdater.updateStoreFileStats(this);
                     statisticsUpdater.updateOffHeapStats(this);
-                });
+                },
+                true, // deduplicateMirroredEntries — HDHM store
+                keyToPath.getNumOfBuckets()); // index size = total bucket count
     }
 
     /**
@@ -1459,12 +1461,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     public void runHashChunkStoreCompaction() {
         compactionCoordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, chunkStoreScanner);
-        compactionCoordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, this::newHashChunkStoreCompactor, merkleDbConfig);
+        compactionCoordinator.submitCompactionTasks(
+                ID_TO_HASH_CHUNK, this::newHashChunkStoreCompactor, merkleDbConfig, hashChunkStore.getFileCollection());
     }
 
     public void runPathToKeyValueStoreCompaction() {
         compactionCoordinator.submitScanIfNotRunning(PATH_TO_KEY_VALUE, pathToKeyValueStoreScanner);
-        compactionCoordinator.submitCompactionTasks(PATH_TO_KEY_VALUE, this::newKeyValueStoreCompactor, merkleDbConfig);
+        compactionCoordinator.submitCompactionTasks(
+                PATH_TO_KEY_VALUE, this::newKeyValueStoreCompactor, merkleDbConfig, keyValueStore.getFileCollection());
     }
 
     public void runKeyToPathStoreCompaction() {
@@ -1473,7 +1477,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             return;
         }
         compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectKeyToPathScanner);
-        compactionCoordinator.submitCompactionTasks(OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig);
+        compactionCoordinator.submitCompactionTasks(
+                OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig, keyToPath.getFileCollection());
     }
 
     public void awaitForCurrentCompactionsToComplete(final long timeoutMillis) {

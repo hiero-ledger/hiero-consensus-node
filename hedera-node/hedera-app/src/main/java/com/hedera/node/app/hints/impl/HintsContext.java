@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -220,6 +221,7 @@ public class HintsContext {
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
+        private final ScheduledFuture<?> timeoutFuture;
 
         public Signing(
                 @NonNull final Bytes blockHash,
@@ -241,7 +243,7 @@ public class HintsContext {
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            executor.schedule(
+            timeoutFuture = executor.schedule(
                     () -> {
                         if (!future.isDone()) {
                             log.warn(
@@ -275,6 +277,17 @@ public class HintsContext {
         }
 
         /**
+         * Cancels this signing process.
+         */
+        @Override
+        public void cancel() {
+            timeoutFuture.cancel(false);
+            if (completed.compareAndSet(false, true)) {
+                future.cancel(false);
+            }
+        }
+
+        /**
          * Incorporates a node's pre-validated partial signature into the aggregation. If including this node's
          * weight passes the required threshold, completes the future returned from {@link #future()} with the
          * aggregated signature.
@@ -302,9 +315,10 @@ public class HintsContext {
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
-                final boolean valid = !validateSignature
-                        || library.verifyAggregate(
-                                aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
+                final boolean valid = aggregatedSignature != null
+                        && (!validateSignature
+                                || library.verifyAggregate(
+                                        aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator));
                 if (valid) {
                     future.complete(aggregatedSignature);
                     final long elapsedNanos = System.nanoTime() - startNanos;

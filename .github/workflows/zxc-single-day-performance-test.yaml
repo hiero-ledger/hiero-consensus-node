@@ -54,6 +54,10 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
     secrets:
       slack-report-webhook:
         required: true
@@ -79,7 +83,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.14.1
+  NLG_VERSION: 0.14.3
 
   #Thresholds for performance
   #benchmarks
@@ -119,15 +123,13 @@ jobs:
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       grafana-url: ${{ steps.set-k8s-cluster.outputs.grafana-url }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Check Test Asset
         id: set-k8s-cluster
@@ -189,7 +191,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25
+          java-version: "${{ inputs.java-version }}"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
@@ -435,6 +437,20 @@ jobs:
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
+      - name: JDK25 for NLG pod
+        run: |
+          set +x
+          set +e
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c "\
+          apt update; \
+          apt install -y wget apt-transport-https gpg; \
+          wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
+          echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
+          apt update; \
+          apt install -y temurin-25-jdk"
+
       - name: Deploy Validator
         run: |
           set +x
@@ -475,28 +491,31 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          /usr/bin/helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-          sleep 180
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f merkledb-values.yaml
+          sleep 30
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
+          merklebenchpod="merklebench"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "\
+          cd /host/mnt/nodefs; \
+          if [ -d cryptobench ]; then rm -rf cryptobench; fi; \
+          if [ -f cryptobench ]; then rm -f cryptobench; fi; \
+          mkdir /host/mnt/nodefs/cryptobench"
 
           # Copy run version
 
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/host/mnt/nodefs/cryptobench/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/host/mnt/nodefs/cryptobench/
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /host/mnt/nodefs/cryptobench/; tar xvfz SwirldsMerkleDB.tgz; ls -l"
 
       - name: JDK25 for SwirldsMerkleDB test
         run: |
           set +x
           set +e
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "\
-          rm -rf /opt/java/openjdk; \
+          merklebenchpod="merklebench"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "\
+          apt update; \
           apt install -y wget apt-transport-https gpg; \
           wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
           echo \"deb https://packages.adoptium.net/artifactory/deb \$(awk -F= '/^VERSION_CODENAME/{print\$2}' /etc/os-release) main\" | tee /etc/apt/sources.list.d/adoptium.list; \
@@ -518,10 +537,9 @@ jobs:
           set +x
           set +e
 
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-
-          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
+          merklebenchpod="merklebench"
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
+          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
         run: |
@@ -761,7 +779,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -940,7 +958,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 25
+          java-version: "${{ inputs.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -1090,15 +1108,16 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /app; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
+          merklebenchpod="merklebench"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /host/mnt/nodefs/cryptobench; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${merklebenchpod}:/host/mnt/nodefs/cryptobench/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "rm -rf /host/mnt/nodefs/cryptobench"
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks_logs.tgz "${{ github.workspace }}"/report/swirlds-benchmarks_logs.tgz
           cd "${{ github.workspace }}"/report
           tar xfz swirlds-benchmarks_logs.tgz
           cd "${{ github.workspace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" delete deployment merklebench-network-load-generator
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" delete pod merklebench
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
@@ -1153,6 +1172,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1170,6 +1190,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-SmartContractLoadTest:
     needs:
@@ -1187,6 +1208,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-HeliSwapLoadTest:
     needs:
@@ -1204,6 +1226,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+      java-version: "${{ inputs.java-version }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator
@@ -1413,15 +1436,13 @@ jobs:
       - performance-tests-start
       - single-day-performance-test-result
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
