@@ -24,8 +24,11 @@ Coverage is source-mapping coverage only:
 - `partial`: some required fields are mapped, and at least one required field still lacks an exact source mapping.
 - `missing`: no exact source mapping exists yet for the section's required evidence.
 
-Do not record extracted values in this atlas. Record only paths, file patterns, log patterns, metric names, and unmapped
-required evidence.
+Do not record extracted values in this atlas. Record only paths, file patterns, log patterns, metric names, and required
+evidence without exact source mapping.
+
+Use `historical-cluster-metrics-analysis.md` for metric-name and interpretation guidance only. Do not import historical
+run values as evidence for the current run roots.
 
 ## Run Roots
 
@@ -51,13 +54,12 @@ Coverage: partial
 
 Required evidence:
 
-- commit SHA;
-- image tag or digest, if captured;
+- commit SHA, from artifacts if present or manually supplied if absent;
+- image or version context, if captured;
 - traversal mode;
 - baseline or namespace identifier, if captured;
 - network size;
 - learner candidate and stopped pod;
-- teacher candidate, if known before reconnect matching;
 - workload profile and NLG arguments;
 - learner-behind duration, warmtime, downtime, and loop count;
 - transaction rate and transaction mix;
@@ -91,11 +93,11 @@ Mapped sources:
 - `<podLogRoot>/network-node<N>_logs/config/api-permission.properties`
 - `<podLogRoot>/network-node<N>_logs/config/.archive/genesis-network.json`
 
-Unmapped required evidence:
+Required evidence without exact source mapping:
 
-- exact ordinary script-output file or field for learner candidate, stopped pod, teacher candidate, warmtime, downtime,
-  and loop count;
-- exact image tag or digest source if `version_run.txt` version fields are not sufficient.
+- exact artifact source for commit SHA if `version_run.txt` does not contain it;
+- exact ordinary script-output file or field for learner candidate, stopped pod, warmtime, downtime, and loop count;
+- exact image tag or digest source if version fields are not sufficient.
 
 ## Reconnect Window And Roles
 
@@ -196,7 +198,7 @@ Use `swirlds.log` for the accepted reconnect window.
 
 ## Teacher Evidence
 
-Coverage: partial
+Coverage: complete
 
 Required evidence:
 
@@ -220,10 +222,17 @@ teacherLog=<teacherLogDir>/swirlds.log
   - `TeacherPullVirtualTreeReceiveTask: Teacher task: duration=`
   - `TeacherPullVirtualTreeReceiveTask: Teaching is complete as requested by the learner`
   - `TeachingSynchronizer: Finished sending tree`
+- Stats files for sampled teacher state size around reconnect start and end:
 
-Unmapped required evidence:
+```text
+<podLogRoot>/network-node<N>_logs/stats/MainNetStats<M>.csv
+```
 
-- exact source for teacher state size at reconnect end if the sender log does not contain an end-state path range.
+- Relevant stats column:
+  - `vmap_size_state`
+
+`vmap_size_state` is sampled teacher state-size evidence. It does not prove the exact reserved teacher snapshot sent
+over reconnect.
 
 ## Reconnect Work-Shape Counters
 
@@ -336,7 +345,7 @@ Mapped sources:
 
 ## State And Divergence Evidence
 
-Coverage: partial
+Coverage: complete
 
 Required evidence:
 
@@ -369,16 +378,29 @@ Mapped sources:
 ```
 
 - Relevant stats columns:
+  - `vmap_size_state`
+  - `accountsUsed`
+  - `contractsUsed`
+  - `nftsUsed`
+  - `tokenAssociationsUsed`
+  - `tokensUsed`
+  - `topicsUsed`
   - `vmap_lifecycle_nodeCacheSizeB_state`
   - `vmap_queries_addedEntities_state`
   - `vmap_queries_readEntities_state`
   - `vmap_queries_removedEntities_state`
   - `vmap_queries_updatedEntities_state`
+  - `vmap_lifecycle_flushCount_state`
+  - `vmap_lifecycle_flushDurationMs_state`
+  - `vmap_lifecycle_hashDurationMs_state`
+  - `vmap_lifecycle_mergeDurationMs_state`
+  - `vmap_lifecycle_flushBackpressureMs_state`
+  - `vmap_lifecycle_familySizeBackpressureMs_state`
+  - `vmap_lifecycle_pipelineSize_state`
 
-Unmapped required evidence:
-
-- exact source for teacher growth while reconnect runs if path ranges and listed stats columns are insufficient;
-- exact service/store size metric names beyond the listed VirtualMap columns, if needed.
+Use `vmap_size_state` and service-store `*Used` counters for state size and coarse divergence. Do not use first/last
+`vmap_queries_*` deltas as divergence totals. Keep `vmap_lifecycle_*` metrics separate from traversal and network
+interpretation; they are storage/lifecycle stage evidence.
 
 ## Later Reconnects
 
@@ -443,15 +465,15 @@ Mapped sources:
 This section summarizes source-mapping coverage only. It does not determine whether any run is accepted for calibration;
 that requires extraction and analysis later.
 
-| Protocol section | Coverage | Remaining unmapped required evidence |
+| Protocol section | Coverage | Required evidence without exact source mapping |
 | --- | --- | --- |
-| Run Context | partial | ordinary script-output source for learner/stopped-pod/timing controls; exact image tag or digest if version fields are insufficient |
+| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod/timing controls; exact image tag or digest if version fields are insufficient |
 | Reconnect Window And Roles | complete | - |
 | Learner Evidence | complete | - |
-| Teacher Evidence | partial | exact source for teacher state size at reconnect end if absent from sender log |
+| Teacher Evidence | complete | - |
 | Reconnect Work-Shape Counters | complete | - |
 | Network Evidence | complete | - |
 | Workload Evidence | complete | - |
-| State And Divergence Evidence | partial | exact teacher-growth source during reconnect; additional service/store size metric names if needed |
+| State And Divergence Evidence | complete | - |
 | Later Reconnects | complete | - |
 | Analysis Output Per Mode | complete | - |

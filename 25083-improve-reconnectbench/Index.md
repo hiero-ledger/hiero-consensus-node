@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-06-01
+Last updated: 2026-06-02
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -21,5 +21,6 @@ Last updated: 2026-06-01
 
 - [Cluster ReconnectBench Artifact Processing Protocol](evidence-and-calibration/cluster-reconnectbench-artifact-processing-protocol.md) - Current extraction protocol for processing collected traversal-order cluster artifacts and mapping results back to local ReconnectBench runs.
 - [Cluster ReconnectBench Artifact Atlas](evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md) - Exact source-location map for collected cluster run artifacts.
+- [Agentic Evidence Extraction Strategy](evidence-and-calibration/agentic-evidence-extraction-strategy.md) - Active operating procedure for agentic, Markdown-only cluster evidence extraction and verification.
 - [Historical Cluster Metrics Analysis](evidence-and-calibration/historical-cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
 - [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
