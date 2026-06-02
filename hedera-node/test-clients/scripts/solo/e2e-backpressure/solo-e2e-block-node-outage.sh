@@ -9,8 +9,8 @@ export SOLO_CLUSTER_NAME="solo"
 export SOLO_NAMESPACE="solo"
 export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
 export SOLO_DEPLOYMENT="solo-deployment"
-export MIRROR_NODE_VERSION="v0.155.0-rc1"
-export BLOCK_NODE_VERSION="v0.34.0-rc1"
+export MIRROR_NODE_VERSION="v0.154.0"
+export BLOCK_NODE_VERSION="v0.34.0"
 NODE_ALIASES="node1,node2,node3,node4"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
@@ -114,7 +114,6 @@ cleanup() {
 
   log "Destroying Solo resources and Kind cluster"
   if command -v solo >/dev/null 2>&1; then
-    solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
     solo relay node destroy --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo block node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
@@ -318,7 +317,6 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
 #log "Deploying mirror node, JSON-RPC relay, and explorer"
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --force
-solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
 
 log "Starting port-forwards for consensus node and mirror REST"
 kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >"${CN_PORT_FORWARD_LOG}" 2>&1 &
@@ -327,7 +325,7 @@ kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest "${MIRROR_REST_LOC
 MIRROR_PORT_FORWARD_PID="$!"
 
 log "Waiting for mirror REST to become available"
-wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
+wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/accounts/0.0.2" 60 5
 
 log "Preparing JS SDK scenario runner"
 write_sdk_verifier
