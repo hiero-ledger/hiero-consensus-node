@@ -24,8 +24,10 @@ import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -162,7 +164,8 @@ public class ReconnectCoordinator {
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
         platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final ReadableRosterStore rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         this.injectRosterHistory(rosterHistory);
 
         final int roundsNonAncient =

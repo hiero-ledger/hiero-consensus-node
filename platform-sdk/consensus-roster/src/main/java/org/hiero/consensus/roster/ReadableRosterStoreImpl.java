@@ -13,8 +13,12 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -100,29 +104,44 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
         return latestRoundRosterPair.activeRosterHash();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Nullable
     @Override
     public Bytes getPreviousRosterHash() {
-        final var rosterHistory = getRosterHistory();
+        final var rosterHistory = requireNonNull(rosterState.get()).roundRosterPairs();
         return rosterHistory.size() > 1 ? rosterHistory.get(1).activeRosterHash() : null;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
     @Override
-    public @NonNull List<RoundRosterPair> getRosterHistory() {
-        return requireNonNull(rosterState.get()).roundRosterPairs().stream()
-                .filter(pair -> rosterMap.contains(new ProtoBytes(pair.activeRosterHash())))
-                .toList();
+    public RosterHistory getRosterHistory() {
+        final List<RoundRosterPair> roundRosterPairs = requireNonNull(rosterState.get()).roundRosterPairs();
+        final Map<Bytes, Roster> mappedRosterMap = roundRosterPairs.stream()
+                .collect(Collectors.toMap(RoundRosterPair::activeRosterHash, pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
+        return new RosterHistory(roundRosterPairs, mappedRosterMap);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Nullable
     @Override
-    public @Nullable Bytes getCandidateRosterHash() {
+    public Bytes getCandidateRosterHash() {
         return Optional.ofNullable(rosterState.get())
                 .map(RosterState::candidateRosterHash)
                 .filter(bytes -> bytes.length() > 0)
                 .orElse(null);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean isTransplantInProgress() {
         return rosterState.get() != null && requireNonNull(rosterState.get()).transplantInProgress();
     }

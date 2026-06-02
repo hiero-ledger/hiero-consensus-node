@@ -275,22 +275,9 @@ class WritableRosterStoreTest {
                 roster3,
                 "Returned active roster should be the same as the one set");
 
-        final List<RoundRosterPair> rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(2, rosterHistory.size(), "Roster history should contain 2 entries");
-
-        final Bytes roster2Hash = RosterUtils.hash(roster2).getBytes();
-        final Bytes roster3Hash = RosterUtils.hash(roster3).getBytes();
-
-        assertTrue(
-                rosterHistory.contains(new RoundRosterPair(2, roster2Hash)),
-                "Roster history should contain the second roster");
-        assertTrue(
-                rosterHistory.contains(new RoundRosterPair(3, roster3Hash)),
-                "Roster history should contain the third roster");
-        assertFalse(
-                rosterHistory.contains(
-                        new RoundRosterPair(1, RosterUtils.hash(roster1).getBytes())),
-                "Roster history should not contain the first roster");
+        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
+        assertEquals(roster3, rosterHistory.getCurrentRoster());
+        assertEquals(roster2, rosterHistory.getPreviousRoster());
     }
 
     @Test
@@ -307,10 +294,9 @@ class WritableRosterStoreTest {
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
-        final List<RoundRosterPair> history = readableRosterStore.getRosterHistory();
-        assertEquals(1, history.size());
-        assertEquals(rosterHash, history.getFirst().activeRosterHash());
-        assertEquals(rosterHash, history.getLast().activeRosterHash());
+        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
+        assertEquals(roster, rosterHistory.getCurrentRoster());
+        assertEquals(roster, rosterHistory.getPreviousRoster());
     }
 
     @Test
