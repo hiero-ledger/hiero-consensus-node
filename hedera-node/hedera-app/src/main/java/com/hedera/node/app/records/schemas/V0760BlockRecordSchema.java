@@ -37,9 +37,12 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
         if (ctx.isGenesis()) {
             return;
         }
-        final var dir =
-                ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).wrappedRecordHashesDir();
-        final Path file = Paths.get(dir).resolve(DEFAULT_FILE_NAME);
+        final var cfg = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
+        if (!cfg.deleteStaleWrappedRecordHashesFile()) {
+            log.info("Skipping wrapped record hashes file deletion (deleteStaleWrappedRecordHashesFile=false)");
+            return;
+        }
+        final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
         try {
             if (Files.deleteIfExists(file)) {
                 log.info("Deleted stale wrapped record hashes file {}", file);

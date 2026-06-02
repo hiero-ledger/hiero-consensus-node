@@ -88,10 +88,26 @@ class V0760BlockRecordSchemaTest {
         assertTrue(Files.exists(dirInsteadOfFile));
     }
 
+    @Test
+    void migrateLeavesFileAloneWhenFeatureFlagDisabled(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.deleteStaleWrappedRecordHashesFile()).willReturn(false);
+
+        subject.migrate(ctx);
+
+        assertTrue(Files.exists(file));
+        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
+    }
+
     private void givenUpgradeWithDir(final String dir) {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.deleteStaleWrappedRecordHashesFile()).willReturn(true);
         given(blockRecordStreamConfig.wrappedRecordHashesDir()).willReturn(dir);
     }
 }

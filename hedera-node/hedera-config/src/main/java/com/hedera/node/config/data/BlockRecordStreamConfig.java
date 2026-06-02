@@ -24,6 +24,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param wrappedRecordHashesDir the directory to write wrapped record hashes into
  * @param computeHashesFromWrappedRecordBlocks whether to enable computing block hashes from wrapped record blocks
  * @param liveWritePrevWrappedRecordHashes whether to enable live block wrapping of record file items
+ * @param deleteStaleWrappedRecordHashesFile whether the 0.76 migration should delete the stale wrapped-record-hashes.pb
+ *                                           file from {@code wrappedRecordHashesDir}; set to false to postpone cleanup
  */
 @ConfigData("hedera.recordStream")
 public record BlockRecordStreamConfig(
@@ -64,4 +66,6 @@ public record BlockRecordStreamConfig(
         boolean computeHashesFromWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean liveWritePrevWrappedRecordHashes) {}
+        boolean liveWritePrevWrappedRecordHashes,
+
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean deleteStaleWrappedRecordHashesFile) {}
