@@ -2336,8 +2336,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 migrationResult);
     }
 
-    private static void closeVotingBlock(
-            final BlockRecordManagerImpl mgr, final State state, final long seconds) {
+    private static void closeVotingBlock(final BlockRecordManagerImpl mgr, final State state, final long seconds) {
         final var t = InstantUtils.instant(seconds, 1);
         mgr.startUserTransaction(t, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t, List.of())), state);
@@ -2356,7 +2355,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .get());
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
-                        BLOCKS_STATE_ID, openInfo.copyBuilder().votingComplete(true).build())
+                        BLOCKS_STATE_ID,
+                        openInfo.copyBuilder().votingComplete(true).build())
                 .commit();
         mgr.closeCurrentRecordFileIfOpen(state);
         return requireNonNull(state.getReadableStates(BlockRecordService.NAME)
