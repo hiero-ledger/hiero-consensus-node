@@ -8,6 +8,7 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -76,9 +77,16 @@ public class LearnerPullVirtualTreeReceiveTask {
      * stream signals completion via {@link Path#INVALID_PATH}.
      */
     private void run() {
+        long readBlockedNanos = 0;
+        long applyNanos = 0;
+        long responseCount = 0;
+        final long startNanos = System.nanoTime();
+
         try {
             while (!Thread.currentThread().isInterrupted()) {
+                final long t0 = System.nanoTime();
                 final byte[] responseBytes = in.readAnticipatedMessage();
+                final long t1 = System.nanoTime();
                 if (responseBytes == null) {
                     if (!in.isAlive()) {
                         break;
@@ -92,6 +100,7 @@ public class LearnerPullVirtualTreeReceiveTask {
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }
+                final long t2 = System.nanoTime();
                 expectedResponses.decrementAndGet();
                 if (path == Path.INVALID_PATH) {
                     logger.info(
@@ -109,9 +118,20 @@ public class LearnerPullVirtualTreeReceiveTask {
                     }
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
+                readBlockedNanos += (t1 - t0);
+                applyNanos += (t2 - t1);
+                responseCount++;
             }
         } catch (final Exception ex) {
             workGroup.handleError(ex);
         }
+
+        logger.info(
+                RECONNECT.getMarker(),
+                "Learner receive breakdown: responses={} wallMs={} readBlockedMs={} applyMs={}",
+                responseCount,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
+                TimeUnit.NANOSECONDS.toMillis(readBlockedNanos),
+                TimeUnit.NANOSECONDS.toMillis(applyNanos));
     }
 }

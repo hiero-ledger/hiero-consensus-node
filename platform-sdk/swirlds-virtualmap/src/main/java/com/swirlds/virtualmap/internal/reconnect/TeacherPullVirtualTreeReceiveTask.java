@@ -100,11 +100,16 @@ public class TeacherPullVirtualTreeReceiveTask {
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
     private void run() {
+        long readBlockedNanos = 0; // waiting for a request to arrive (teacher starved)
+        long produceNanos = 0; // loadHash + loadLeaf (teacher's MerkleDB data path)
+        long serializeAndSendNanos = 0; // serialize + sendAsync (enqueue to async out)
+
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
+                final long t0 = System.nanoTime();
                 final byte[] requestBytes = in.readAnticipatedMessage();
                 if (requestBytes == null) {
                     if (!in.isAlive()) {
@@ -113,6 +118,8 @@ public class TeacherPullVirtualTreeReceiveTask {
                     Thread.sleep(0, 1);
                     continue;
                 }
+                readBlockedNanos += System.nanoTime() - t0;
+
                 final PullVirtualTreeRequest request =
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
@@ -120,6 +127,8 @@ public class TeacherPullVirtualTreeReceiveTask {
                     logger.info(RECONNECT.getMarker(), "Teaching is complete as requested by the learner");
                     break;
                 }
+                final long t1 = System.nanoTime();
+
                 final long path = request.path();
                 final Hash learnerHash = request.hash();
                 assert learnerHash != null;
@@ -133,18 +142,26 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final VirtualLeafBytes<?> leafData = (!isClean && view.isLeaf(path)) ? view.loadLeaf(path) : null;
                 final long firstLeafPath = view.getReconnectState().getFirstLeafPath();
                 final long lastLeafPath = view.getReconnectState().getLastLeafPath();
+                produceNanos += System.nanoTime() - t1;
+
+                final long t2 = System.nanoTime();
                 final PullVirtualTreeResponse response =
                         new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
                 out.sendAsync(serializeMessage(response));
+                serializeAndSendNanos += System.nanoTime() - t2;
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
             logger.info(
                     RECONNECT.getMarker(),
-                    "Teacher task: duration={}ms, requests={}, rate={}",
+                    // ── EXTEND the existing line ──
+                    "Teacher task: duration={}ms, requests={}, rate={}, readBlockedMs={}, produceMs={}, serializeAndSendMs={}",
                     end - start,
                     requestCounter,
-                    requestRate);
+                    requestRate,
+                    NANOSECONDS.toMillis(readBlockedNanos),
+                    NANOSECONDS.toMillis(produceNanos),
+                    NANOSECONDS.toMillis(serializeAndSendNanos));
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();

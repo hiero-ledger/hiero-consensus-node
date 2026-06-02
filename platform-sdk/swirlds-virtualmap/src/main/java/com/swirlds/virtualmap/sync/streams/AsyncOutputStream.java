@@ -14,6 +14,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -75,6 +76,8 @@ public class AsyncOutputStream {
      */
     private final AtomicBoolean isDone = new AtomicBoolean(false);
 
+    private final LongAdder bytesWritten = new LongAdder();
+
     /**
      * Constructs a new instance using the given underlying {@link DataOutputStream} and
      * {@link StandardWorkGroup}.
@@ -111,17 +114,23 @@ public class AsyncOutputStream {
      */
     public void run() {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
+        long writerBusyNanos = 0;
+        long writerIdleNanos = 0;
         try {
             while ((!isDone.get() || !streamQueue.isEmpty())
                     && !Thread.currentThread().isInterrupted()) {
                 flushIfRequired();
+                final long t0 = System.nanoTime();
                 boolean workDone = handleQueuedMessages();
                 if (!workDone) {
                     workDone = flush();
                     if (!workDone) {
+                        writerIdleNanos += System.nanoTime() - t0;
                         Thread.onSpinWait();
+                        continue;
                     }
                 }
+                writerBusyNanos += System.nanoTime() - t0;
             }
             // Handle remaining queued messages
             boolean wasNotEmpty = true;
@@ -137,6 +146,13 @@ public class AsyncOutputStream {
             } catch (final IOException e) {
                 throw new MerkleSynchronizationException(e);
             }
+            final long totalBytes = bytesWritten.sum();
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "AsyncOutputStream summary: bytesWritten={} writerBusyMs={} writerIdleMs={}",
+                    totalBytes,
+                    TimeUnit.NANOSECONDS.toMillis(writerBusyNanos),
+                    TimeUnit.NANOSECONDS.toMillis(writerIdleNanos));
         } catch (final Exception e) {
             workGroup.handleError(e);
         }
@@ -197,6 +213,7 @@ public class AsyncOutputStream {
     protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
         outputStream.writeInt(messageBytes.length);
         outputStream.write(messageBytes);
+        bytesWritten.add(4L + messageBytes.length);
     }
 
     /**
