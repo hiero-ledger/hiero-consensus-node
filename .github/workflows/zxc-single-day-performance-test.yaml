@@ -617,16 +617,16 @@ jobs:
           ls "${{ github.workspace }}"/target_block_node
           ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
           bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar)
+          bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
           echo "$bnTar=$bnTar"
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${bnTar} \
-              ${pod}:/tmp/BN.tar
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${bnTar} ${pod}:/tmp/BN.tar
           done
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; rm -rf app*; tar xf /tmp/BN.tar"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar; cp -r app*/plugins $bnVersion/; ls -lt"
           done
 
       - name: Update RSA BlockNodes
@@ -660,8 +660,17 @@ jobs:
               block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
           done
 
+      - name: Temp down BlockNodes
+        run: |
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+          done
+
       - name: Start BlockNodes
         run: |
+          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar)
+          bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
@@ -669,7 +678,7 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
               bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
-              bash -c "nohup bash /opt/hiero/block-node/app*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+              bash -c "nohup bash /opt/hiero/block-node/${bnVersion}/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
 
       - name: Start CNs
