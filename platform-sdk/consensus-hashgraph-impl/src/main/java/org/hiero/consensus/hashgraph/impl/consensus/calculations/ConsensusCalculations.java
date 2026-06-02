@@ -11,21 +11,39 @@ import java.util.List;
  * defines the class ConsensusCalculationsMemos that holds the memoized function results
  * for each event. It defines the RoundState record, which holds the full round state,
  * the RoundStatePrev record, which holds those fields starting with "prev", and the
- * updateEventResults record, which is returned by updateEvent. This implements the
+ * updateEventResults record, which is returned by updateEvent. This file is self-contained,
+ * and does not depend on anything other than standard Java libraries. It implements the
  * equations from the tech report Swirlds-TR-2016-01.<p>
  *
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
- * It should define the parents array for each event, with references to its parents, and
- * ensure that ancient events are disconnected eventually, so the parent references to them
- * are set to null. Though this doesn't have to happen immediately when they become ancient. <p>
+ * It should instantiate a RoundState for each round (current and the next few in the future),
+ * and should instantiate a ConsensusCalculationsMemos object for each event.<p>
+ *
+ * The network's overall state should include the RoundState for the pending round, and the
+ * RoundStateCurr for the next few rounds. An implementation might also include a "roster"
+ * for these and all the non-ancient previous rounds. The roster might contain info such as
+ * the public keys for all the nodes, used to verify their signatures. This class doesn't
+ * use rosters. It only uses the RoundState, and its two parts.<p>
+ *
+ * For the memos object for an event, both of its setter functions should be called. The creator
+ * should be set to the index (not nodeID) of the node that created that event. And the parents should
+ * be set to an array of the parents that were listed in the signed event that was gossiped.
+ * The parents must be in the same order. It's ok if there are some nulls in that array.
+ * And it's ok if some (or all or none) of the ancient parents are removed or replaced
+ * with null. When an event is ancient, it should eventually have its parents array either set
+ * to null, or filled with elements that are all null. Though this doesn't have to happen
+ * immediately when it becomes ancient. It can happen later (when "expired").<p>
  *
  * For a hashgraph, this class should be instantiated once. The updateEvent method should be
- * called on each event (on the schedule described in the comments for updateEvent). If a
- * call to updateEvent returns a non-null value, then the event was a "keystone event"
- * (caused consensus to be reached), and the returned record will contain the list of all the
- * events that reached consensus in that round. Which might be an empty list if none reached
- * consensus. It will also return the RoundStatePrev record, which should be used to build a
- * new roundState.
+ * called on each event for each round, according to the schedule described in the comments
+ * for the updateEvent method. <p>
+ *
+ * If a call to updateEvent returns a non-null value, then the event caused consensus to be
+ * reached for that round (a "keystone event"). In that case, it doesn't return null.
+ * The returned record will contain the list of all the events that reached consensus in that round.
+ * Which might be an empty list if none reached consensus. It will also return the
+ * RoundStatePrev record, which should be used to build the roundState for the next round.
+ *
  */
 public class ConsensusCalculations {
     // The following are scratchpad variables rewritten by updateEvent each time it is called.
@@ -105,18 +123,6 @@ public class ConsensusCalculations {
             this.creator = creator;
         }
 
-        /**
-         * Set whether this event is a judge in the previous round. This must be set for an event before calling
-         * updateEvent on it. One way to do that is when round r reaches consensus and it is time to start on
-         * round r+1, first set it to false for all events in r-1, then set it to true for all judges in r. In
-         * that order, since an event might be in both sets.
-         *
-         * @param isPrevJudge true iff this event is a judge in the previous round
-         */
-        public void setIsPrevJudge(boolean isPrevJudge) {
-            this.isPrevJudge = isPrevJudge;
-        }
-
         /** True iff this event has reached consensus. (If false, it may still reach consensus later). */
         public boolean getIsConsensus() {
             return isConsensus;
@@ -175,21 +181,18 @@ public class ConsensusCalculations {
      * This must be passed the complete round state for the pending round. <p>
      *
      * When there is a reconnect (or during PCES replay for a restart), there will be a period before all
-     * the previous judges have been received. Do not call updateEvent during that period.  It should only
-     * be called when all the judges from the previous round have been added to the hashgraph. At that point,
-     * it should be called on all the appropriate events as if it is starting a new round. <p>
+     * the previous judges have been added to the hashgraph. Do not call updateEvent during that period.
+     * It should only be called when all the judges from the previous round have been added to the hashgraph.
+     * At that point, it should be called on all the non-ancient events in the hashgraph (not just those
+     * with prevJudgeDesc==true, as it normally does for a new round).<p>
      *
-     * This could be passed the true round state for the next round. Or it could be passed an empty
-     * round state for the next round. Either way, it will fill in the "prev" fields in it if this
-     * event reaches consensus (is a keystone event). If it is just a blank round state, then the "prev"
-     * fields must eventually be copied to the real round state, when it exists. <p>
+     * This is sometimes called on a batch of events, because it is the start of a new round,
+     * or because the last of the previous judges was finally added after a reset. For such a
+     * batch, it should be called on all those events in topological order. So if it is to be called
+     * on both an event and its parent, the call on the parent must come first.<p>
      *
-     * Update the consensus calculations for event x, for round r. If x is a keystone event
-     * (so it decides the round), then return a list of the events that reached consensus,
-     * and fill in all the "prev" fields in nextR, which is the round state for the next round. <p>
-     *
-     * This will only read (not write) r.
-     * This will only write (not read) nextR. It will only write the fields with names starting with "prev".
+     * This will only read (not write) roundState.
+     * This will write to the ConsensusCalculationsMemos for this event, and perhaps some others.
      * For each event that reaches consensus, this will fill in its fields isConsensus,
      * consensusOrder, and consensusTimestamp.
      *
@@ -207,6 +210,11 @@ public class ConsensusCalculations {
         if (pendingRound != r.pendingRound) {
             pendingRound = r.pendingRound;
             numNodes = r.nodes.length;
+
+            //set isPrevJudge to true for the judges in the previous round
+            for (ConsensusCalculationsMemos judge : rp.prevJudges) {
+                judge.isPrevJudge = true;
+            }
 
             // function totalStake
             totalStake = 0;
@@ -327,6 +335,8 @@ public class ConsensusCalculations {
 
         // function roundDecided
 
+        // if roundDecided is false, return null
+
         // function roundJudges
 
         // function receivedEvents
@@ -345,6 +355,20 @@ public class ConsensusCalculations {
 
         // function consensusTimestamp
 
-        return new UpdateEventResults(null, new RoundStatePrev(false, null, false, 0, 0, 0));
+        //set isPrevJudge to false for the judges in the previous round
+        for (ConsensusCalculationsMemos judge : rp.prevJudges) {
+            judge.isPrevJudge = true;
+        }
+
+        //TODO set isPrevJudge to true for roundJudges (the judges that were just found)
+
+        return new UpdateEventResults(
+                null,
+                new RoundStatePrev(false,
+                        null,
+                        false,
+                        0,
+                        0,
+                        0));
     }
 }
