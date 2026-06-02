@@ -3,6 +3,13 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 
 module org.hiero.consensus.hashgraph.impl {
+    exports org.hiero.consensus.hashgraph.impl.consensus.calculations to
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.gui,
+            org.hiero.consensus.hashgraph.impl.test.fixtures,
+            org.hiero.consensus.network.simulation,
+            org.hiero.consensus.network.simulation.test.fixtures;
     exports org.hiero.consensus.hashgraph.impl to
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gossip.impl.test.fixtures,

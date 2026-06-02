@@ -11,9 +11,11 @@ import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -23,19 +25,30 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.structures.SequentialRingBuffer;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.ConsensusCalculationsMemos;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.RoundState;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.RoundStateCurr;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.RoundStatePrev;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.ConsensusCalculations.UpdateEventResults;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -44,44 +57,38 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.roster.RosterLookup;
 
 /**
- * All the code for calculating the consensus for events in a hashgraph. This calculates the
- * consensus timestamp and consensus order, according to the hashgraph consensus algorithm.
+ * All the code for calculating the consensus for events in a hashgraph. This calculates the consensus timestamp and
+ * consensus order, according to the hashgraph consensus algorithm.
  *
  * <p>Every method in this file is private, except for some getters and the addEvent method.
- * Therefore, if care is taken so that only one thread at a time can be in the call to addEvent,
- * then only one thread at a time will be anywhere in this is class (except for the getters). None
- * of the variables are volatile, so calls to the getters by other threads may not see effects of
- * addEvent immediately.
+ * Therefore, if care is taken so that only one thread at a time can be in the call to addEvent, then only one thread at
+ * a time will be anywhere in this is class (except for the getters). None of the variables are volatile, so calls to
+ * the getters by other threads may not see effects of addEvent immediately.
  *
  * <p>The consensus order is calculated incrementally: each time a new event is added to the
- * hashgraph, it immediately finds the consensus order for all the older events for which that is
- * possible. It uses a fundamental theorem that was not included in the tech report. That theorem
- * is:
+ * hashgraph, it immediately finds the consensus order for all the older events for which that is possible. It uses a
+ * fundamental theorem that was not included in the tech report. That theorem is:
  *
  * <p>Theorem: If every known witness in round R in hashgraph A has its fame decided by A, and
- * S_{A,R} is the set of known famous witnesses in round R in hashgraph A, and if at least one event
- * created in round R+2 is known in A, then S_{A,R} is immutable and will never change as the
- * hashgraph grows in the future. Furthermore, any consistent hashgraph B will have an S_{B,R} that
- * is a subset of S_{A,R}, and as B grows during gossip, it will eventually be the case that S_{B,R}
- * = S_{A,R} with probability one.
+ * S_{A,R} is the set of known famous witnesses in round R in hashgraph A, and if at least one event created in round
+ * R+2 is known in A, then S_{A,R} is immutable and will never change as the hashgraph grows in the future. Furthermore,
+ * any consistent hashgraph B will have an S_{B,R} that is a subset of S_{A,R}, and as B grows during gossip, it will
+ * eventually be the case that S_{B,R} = S_{A,R} with probability one.
  *
  * <p>Proof: the R+2 event strongly sees more than 2/3 of members having R+1 witnesses that vote NO
- * on the fame of any unknown R event X that will be discovered in the future. Any future R+2 voter
- * will strongly see a (possibly) different set of more than 2/3 of the R+1 population, and the
- * intersection of the two sets will all be NO votes for the new voter. So the new voter will see
- * less than 1/3 YES votes, and more than 1/3 NO votes, and will therefore vote no. Therefore every
- * R+3 voter will see unanimous NO votes, and will decide NO. Therefore X will not be famous. So the
- * set of famous in R will never grow in the future. (And so the consensus theorems imply that B
- * will eventually agree).
+ * on the fame of any unknown R event X that will be discovered in the future. Any future R+2 voter will strongly see a
+ * (possibly) different set of more than 2/3 of the R+1 population, and the intersection of the two sets will all be NO
+ * votes for the new voter. So the new voter will see less than 1/3 YES votes, and more than 1/3 NO votes, and will
+ * therefore vote no. Therefore every R+3 voter will see unanimous NO votes, and will decide NO. Therefore X will not be
+ * famous. So the set of famous in R will never grow in the future. (And so the consensus theorems imply that B will
+ * eventually agree).
  *
  * <p>In other words, you never know whether new events and witnesses will be added to round R in
- * the future. But if all the known witnesses in that round have their fame decided (and if a round
- * R+2 event is known), then you know for sure that there will never be any more famous witnesses
- * discovered for round R. So you can safely calculate the received round and consensus time stamp
- * for every event that will have a received round of R. This is the key to the incremental
- * algorithm: as soon as all known witnesses in R have their fame decided (and there is at least one
- * R+2 event), then we can decide the consensus for a new batch of events: all those with received
- * round R.
+ * the future. But if all the known witnesses in that round have their fame decided (and if a round R+2 event is known),
+ * then you know for sure that there will never be any more famous witnesses discovered for round R. So you can safely
+ * calculate the received round and consensus time stamp for every event that will have a received round of R. This is
+ * the key to the incremental algorithm: as soon as all known witnesses in R have their fame decided (and there is at
+ * least one R+2 event), then we can decide the consensus for a new batch of events: all those with received round R.
  *
  * <p>There will be at least one famous event in each round. This is a theorem in the tech report,
  * but both the theorem and its proof should be adjusted to say the following:
@@ -93,24 +100,22 @@ import org.hiero.consensus.roster.RosterLookup;
  * decided at the latest when one event in round R+3 is known.
  *
  * <p>Proof: Each voter in R+1 strongly sees more than 2n/3 witnesses in R, therefore each witness
- * in R is on average strongly seen by more than 2n/3 of the voters in R+1. There must be at least
- * one that is not below average, so let X be an R witness that is strongly seen by more than 2n/3
- * round R+1 voters. Those voters will vote YES on the fame of X, because they see X. Any round R+2
- * witness will receive votes from more than 2n/3 round R+1 voters, therefore it will receive a
- * majority of its votes for X being YES, therefore it will either vote or decide YES. If any R+2
- * witness decides, then X is known to be famous at that time. If none do, then as soon as an R+3
- * witness exists, it will see unanimous YES votes, and it will decide YES. So X will be known to be
- * famous after the first witness of R+3 is known (or earlier).
+ * in R is on average strongly seen by more than 2n/3 of the voters in R+1. There must be at least one that is not below
+ * average, so let X be an R witness that is strongly seen by more than 2n/3 round R+1 voters. Those voters will vote
+ * YES on the fame of X, because they see X. Any round R+2 witness will receive votes from more than 2n/3 round R+1
+ * voters, therefore it will receive a majority of its votes for X being YES, therefore it will either vote or decide
+ * YES. If any R+2 witness decides, then X is known to be famous at that time. If none do, then as soon as an R+3
+ * witness exists, it will see unanimous YES votes, and it will decide YES. So X will be known to be famous after the
+ * first witness of R+3 is known (or earlier).
  *
  * <p>In normal operation, with everyone online and everyone honest, we might expect that all of the
- * round R witnesses will be known to be famous after the first event of round R+2 is known. But
- * even in the worst case, where some computers are down (even honest ones), and many dishonest
- * members are branching, the theorem still guarantees at least one famous witness is known by R+3.
+ * round R witnesses will be known to be famous after the first event of round R+2 is known. But even in the worst case,
+ * where some computers are down (even honest ones), and many dishonest members are branching, the theorem still
+ * guarantees at least one famous witness is known by R+3.
  *
  * <p>It is another theorem that the d12 and d2 algorithm have more than two thirds of the
- * population creating unique famous witnesses (judges) in each round. It is a theorem that d1 does,
- * too, for the algorithm described in 2016, and is conjectured to be true for the 2019 version,
- * too.
+ * population creating unique famous witnesses (judges) in each round. It is a theorem that d1 does, too, for the
+ * algorithm described in 2016, and is conjectured to be true for the 2019 version, too.
  *
  * <p>Another new theorem used here:
  *
@@ -118,15 +123,14 @@ import org.hiero.consensus.roster.RosterLookup;
  * then X will not be famous (so there is no need to hold the elections).
  *
  * <p>Proof: If an event X currently exists in round R+2, then when the new event Y is added to
- * round R, it won't be an ancestor of X, nor of the witnesses that X strongly sees. Therefore, X
- * will collect unanimous votes of NO for the fame of Y, so X will decide that Y is not famous.
- * Therefore, once a round R+2 event is added to the hashgraph, the set of possible unique famous
- * witnesses for round R is fixed, and the unique famous witnesses will end up being a subset of it.
+ * round R, it won't be an ancestor of X, nor of the witnesses that X strongly sees. Therefore, X will collect unanimous
+ * votes of NO for the fame of Y, so X will decide that Y is not famous. Therefore, once a round R+2 event is added to
+ * the hashgraph, the set of possible unique famous witnesses for round R is fixed, and the unique famous witnesses will
+ * end up being a subset of it.
  *
  * <p>NOTE: for concision, all of the above talks about things like "2/3 of the members" or "2/3 of
- * the witnesses". In every case, it should be interpreted to actually mean "members whose stake
- * adds up to more than 2/3 of the total stake", and "witnesses created by members whose stake is
- * more than 2/3 of the total".
+ * the witnesses". In every case, it should be interpreted to actually mean "members whose stake adds up to more than
+ * 2/3 of the total stake", and "witnesses created by members whose stake is more than 2/3 of the total".
  */
 public class ConsensusImplDAB implements Consensus {
 
@@ -143,30 +147,28 @@ public class ConsensusImplDAB implements Consensus {
     /** used for searching the hashgraph */
     private final AncestorSearch search = new AncestorSearch();
     /**
-     * recently added events. this list is used for recalculating metadata once a new round is
-     * decided. as soon as events reach consensus or become stale, they are discarded from this
-     * list.
+     * recently added events. this list is used for recalculating metadata once a new round is decided. as soon as
+     * events reach consensus or become stale, they are discarded from this list.
      */
     private final List<EventImpl> recentEvents = new LinkedList<>();
     /** stores all round information */
     private final ConsensusRounds rounds;
     /**
-     * Number of events that have reached consensus order. This is used for setting consensus order
-     * numbers in events, so it must be part of the signed state.
+     * Number of events that have reached consensus order. This is used for setting consensus order numbers in events,
+     * so it must be part of the signed state.
      */
     private long numConsensus = FIRST_CONSENSUS_NUMBER;
 
     /**
-     * The last consensus timestamp. This is equal to the consensus time of the last transaction in
-     * the last event that reached consensus. This is null if no event has reached consensus yet.
-     * As each event reaches its consensus, its timestamp is moved forward (if necessary) to be
-     * after this time by n {@link ConsensusConstants#MIN_TRANS_TIMESTAMP_INCR_NANOS} nanoseconds,
-     * if the event had n transactions (or n=1 if no transactions).
+     * The last consensus timestamp. This is equal to the consensus time of the last transaction in the last event that
+     * reached consensus. This is null if no event has reached consensus yet. As each event reaches its consensus, its
+     * timestamp is moved forward (if necessary) to be after this time by n
+     * {@link ConsensusConstants#MIN_TRANS_TIMESTAMP_INCR_NANOS} nanoseconds, if the event had n transactions (or n=1 if
+     * no transactions).
      */
     private Instant lastConsensusTime = null;
     /**
-     * if consensus is not starting from genesis, this instance is used to accurately calculate the
-     * round for events
+     * if consensus is not starting from genesis, this instance is used to accurately calculate the round for events
      */
     private InitJudges initJudges = null;
     /** The rate limited logger for rounds without a super majority of weight on judges */
@@ -182,18 +184,30 @@ public class ConsensusImplDAB implements Consensus {
     private boolean pcesMode = false;
 
     /**
-     * Nanoseconds to add to the first transaction's timestamp in an event. This allows space for the
-     * execution layer to insert items before the first transaction. Provided by the execution layer at startup.
+     * Nanoseconds to add to the first transaction's timestamp in an event. This allows space for the execution layer to
+     * insert items before the first transaction. Provided by the execution layer at startup.
      */
     private final long transactionOffsetNanos;
+
+    private final ConsensusCalculations consensusCalculations = new ConsensusCalculations();
+    private RoundState roundState;
+    /** When fully dynamic address book is implemented, this will be a configurable value. It is the number of rounds
+     * between a roster being known (as a result of handling a round's transactions or the execution layer requesting
+     * it be adopted) and it being used to calculate consensus. */
+    private static final int NUM_ROUNDS_ROSTER = 5;
+    /** A map used to lookup events from the memos object. Once an event reaches consensus and is returned in a round,
+     * the entry is no longer needed in this map. It mirrors recentEvents. */
+    private final Map<ConsensusCalculationsMemos, EventImpl> memosEventMap = new IdentityHashMap<>();
+    /** stores the minimum judge ancient identifier for all decided and non-expired rounds */
+    private final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage;
 
     /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      *
-     * @param configuration         the configuration
-     * @param time                  the time source
-     * @param consensusMetrics      metrics related to consensus
-     * @param roster                the global address book, which never changes
+     * @param configuration          the configuration
+     * @param time                   the time source
+     * @param consensusMetrics       metrics related to consensus
+     * @param roster                 the global address book, which never changes
      * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
      */
     public ConsensusImplDAB(
@@ -211,6 +225,8 @@ public class ConsensusImplDAB implements Consensus {
         this.rosterLookup = new RosterLookup(roster);
 
         this.rounds = new ConsensusRounds(config, roster);
+        this.minimumJudgeStorage =
+                new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, config.roundsExpired() * 2);
 
         this.noSuperMajorityLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.noJudgeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -218,8 +234,8 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Load consensus from a snapshot. This will continue consensus from the round of the snapshot
-     * once all the required events are provided.
+     * Load consensus from a snapshot. This will continue consensus from the round of the snapshot once all the required
+     * events are provided.
      */
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
@@ -260,18 +276,16 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Add an event to consensus. It must already have been instantiated, checked for being a
-     * duplicate of an existing event, had its signature created or checked. It must also be linked
-     * to its parents.
+     * Add an event to consensus. It must already have been instantiated, checked for being a duplicate of an existing
+     * event, had its signature created or checked. It must also be linked to its parents.
      *
      * <p>This method will add it to consensus and propagate all its effects. So if the consensus
-     * order can now be calculated for an event (which wasn't possible before), then it will do so
-     * and return a list of consensus rounds.
+     * order can now be calculated for an event (which wasn't possible before), then it will do so and return a list of
+     * consensus rounds.
      *
      * <p>It is possible that adding this event will decide the fame of the last candidate witness
-     * in a round, and so the round will become decided, and so a batch of events will reach
-     * consensus. The list of events that reached consensus (if any) will be returned in a consensus
-     * round.
+     * in a round, and so the round will become decided, and so a batch of events will reach consensus. The list of
+     * events that reached consensus (if any) will be returned in a consensus round.
      *
      * @param event the event to be added
      * @return A list of consensus rounds or an empty list if no consensus was reached
@@ -281,10 +295,7 @@ public class ConsensusImplDAB implements Consensus {
     public List<ConsensusRound> addEvent(@NonNull final EventImpl event) {
         try {
             recentEvents.add(event);
-            // set its round to undefined so that it gets calculated
-            event.setRoundCreated(ConsensusConstants.ROUND_UNDEFINED);
-            ConsensusRound consensusRound;
-
+            memosEventMap.put(event.getMemos(), event);
             final boolean lastJudgeFound = checkInitJudges(event);
 
             if (waitingForInitJudges()) {
@@ -292,20 +303,48 @@ public class ConsensusImplDAB implements Consensus {
                 return List.of();
             }
 
+            ConsensusRound consensusRound;
+
             if (lastJudgeFound) {
-                // when we find the last init judge, we have to recalculate the metadata for all events
-                consensusRound = recalculateAndVote();
+                // when we find the last init judge, we have to create the round state objects
+                final ConsensusCalculationsMemos[] judgeMemos = initJudges.getJudges().stream()
+                        .map(EventImpl::getMemos)
+                        .toList()
+                        .toArray(ConsensusCalculationsMemos[]::new);
+                final long minJudgeBirthRound = initJudges.getJudges().stream()
+                        .mapToLong(EventImpl::getBirthRound)
+                        .min()
+                        .orElseThrow();
+                final RoundStatePrev prevRoundState = new RoundStatePrev(
+                        false, judgeMemos, false, config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
+                final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
+                final long[] nodeIds =
+                        rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
+                final long[] weights =
+                        rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
+                final RoundStateCurr currRoundState = new RoundStateCurr(
+                        rounds.getElectionRoundNumber(),
+                        nodeIds,
+                        weights,
+                        config.coinFreq(),
+                        false,
+                        false,
+                        config.roundsNonAncient(),
+                        NUM_ROUNDS_ROSTER);
+                roundState = new RoundState(currRoundState, prevRoundState);
+                // TODO - how does this method know what the events are?
+                consensusCalculations.setPrevIsConsensus(roundState);
+                consensusRound = updateRecentEventMemos();
             } else {
-                // this is the most common case, we are not looking for init judges so we simply calculate the
-                // metadata for the event and vote if it's a witness
-                consensusRound = calculateAndVote(event);
+                // this is the most common case, we are not looking for init judges so we simply
+                consensusRound = updateEventMemos(event);
             }
 
             final List<ConsensusRound> rounds = new ArrayList<>();
             while (consensusRound != null) {
                 rounds.add(consensusRound);
 
-                consensusRound = recalculateAndVote();
+                consensusRound = updateRecentEventMemos();
             }
             return rounds;
         } catch (final Exception e) {
@@ -314,10 +353,110 @@ public class ConsensusImplDAB implements Consensus {
         }
     }
 
+    @Nullable
+    private ConsensusRound updateEventMemos(@NonNull final EventImpl event) {
+        consensusMetrics.addedEvent(event);
+        final UpdateEventResults results = consensusCalculations.updateEvent(roundState, event.getMemos());
+
+        if (results != null) {
+            final RoundStatePrev justDecidedRound = results.nextRoundStatePrev();
+            final long decidedRoundNumber = roundState.curr().pendingRound();
+            final List<EventImpl> judgeEvents = Arrays.stream(
+                            results.nextRoundStatePrev().prevJudges())
+                    .map(memosEventMap::get)
+                    .toList();
+            final List<JudgeId> judgeIds = judgeEvents.stream()
+                    .map(j -> JudgeId.newBuilder()
+                            .judgeHash(j.getBaseHash().getBytes())
+                            .creatorId(j.getCreatorId().id())
+                            .build())
+                    .toList();
+            final MinimumJudgeInfo minimumJudgeInfo = MinimumJudgeInfo.newBuilder()
+                    .round(decidedRoundNumber)
+                    .minimumJudgeBirthRound(justDecidedRound.prevMinJudgeBirthRound())
+                    .build();
+            updateMinimumJudgeInfo(minimumJudgeInfo);
+
+            final MinimumJudgeInfo info = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
+            final long nonExpiredThreshold =
+                    info == null ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED : info.minimumJudgeBirthRound();
+
+            updateRoundState(results);
+
+            final List<PlatformEvent> consensusEvents = results.consensusEvents().stream()
+                    .map(memosEventMap::get)
+                    .map(EventImpl::getBaseEvent)
+                    .toList();
+            return new ConsensusRound(
+                    rosterLookup.getRoster(),
+                    consensusEvents,
+                    new EventWindow(
+                            decidedRoundNumber,
+                            // by default, we set the birth round for new events to the pending round
+                            decidedRoundNumber + 1,
+                            justDecidedRound.prevMinNonAncientRound(),
+                            nonExpiredThreshold),
+                    new ConsensusSnapshot(
+                            decidedRoundNumber,
+                            rounds.getMinimumJudgeInfoList(),
+                            numConsensus,
+                            toPbjTimestamp(lastConsensusTime),
+                            judgeIds),
+                    pcesMode,
+                    time.now());
+        }
+
+        return null;
+    }
+
+    private void updateMinimumJudgeInfo(final MinimumJudgeInfo minimumJudgeInfo) {
+        minimumJudgeStorage.add(roundState.curr().pendingRound(), minimumJudgeInfo);
+        // Delete the oldest rounds with round number which is expired
+        minimumJudgeStorage.removeOlderThan(roundState.curr().pendingRound() - config.roundsExpired());
+    }
+
+    @Nullable
+    private ConsensusRound updateRecentEventMemos() {
+        for (final Iterator<EventImpl> iterator = recentEvents.iterator(); iterator.hasNext(); ) {
+            final EventImpl insertedEvent = iterator.next();
+
+            if (!insertedEvent.getMemos().getPrevJudgeDesc()) {
+                iterator.remove();
+                continue;
+            }
+
+            final ConsensusRound consensusRound = updateEventMemos(insertedEvent);
+            if (consensusRound != null) {
+                return consensusRound;
+            }
+        }
+        return null;
+    }
+
+    private void updateRoundState(@NonNull final UpdateEventResults updateEventResults) {
+        // When fully dynamic address book is enabled, we will have a map from round to rosterLookup or from round to
+        // roster (and we will create the rosterLookup as needed).
+        final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
+        final long[] nodeIds =
+                rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
+        final long[] weights =
+                rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
+
+        final RoundStateCurr newRoundStateCurrent = new RoundStateCurr(
+                roundState.curr().pendingRound() + 1,
+                nodeIds,
+                weights,
+                config.coinFreq(),
+                false,
+                false,
+                config.roundsNonAncient(),
+                NUM_ROUNDS_ROSTER);
+        roundState = new RoundState(newRoundStateCurrent, updateEventResults.nextRoundStatePrev());
+    }
+
     /**
-     * Round fame is calculated for one round at a time. If fame has been decided for a round, we
-     * recalculate the metadata for all non-ancient non-consensus events. This may trigger another
-     * round having its fame decided.
+     * Round fame is calculated for one round at a time. If fame has been decided for a round, we recalculate the
+     * metadata for all non-ancient non-consensus events. This may trigger another round having its fame decided.
      *
      * @return a consensus round if fame has been decided, null otherwise
      */
@@ -432,9 +571,8 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Checks if an event is an init judge. If it is, it will set its round created and judge flags.
-     * if it's the last missing judge, it will also mark events which have previously reached
-     * consensus and return true.
+     * Checks if an event is an init judge. If it is, it will set its round created and judge flags. if it's the last
+     * missing judge, it will also mark events which have previously reached consensus and return true.
      *
      * @param event the event to check
      * @return true if the event is the last init judge we are looking for
@@ -481,8 +619,7 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Calculate metadata for an event and memoize it. This is done to avoid deep recursion of these
-     * methods later.
+     * Calculate metadata for an event and memoize it. This is done to avoid deep recursion of these methods later.
      *
      * @param event the event to calculate metadata for
      */
@@ -498,8 +635,7 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Vote on all candidate witnesses in the current election round. This call could decide a
-     * round.
+     * Vote on all candidate witnesses in the current election round. This call could decide a round.
      *
      * @param votingWitness the event that will vote
      */
@@ -567,10 +703,9 @@ public class ConsensusImplDAB implements Consensus {
      * Calculates a counting vote for the candidate witness by the voting witness.
      *
      * <p>Suppose that the election is being held for round ER, and the witness voting is in round
-     * VR. The voting witness looks at all witness it can strongly see from round VR-1. For each of
-     * these witnesses, it looks at their vote for the election witness. It adds up all the stake of
-     * the witnesses voting yes, and the stake of those voting no. If either of the stake sums is a
-     * supermajority, the fame of the election witness is decided.
+     * VR. The voting witness looks at all witness it can strongly see from round VR-1. For each of these witnesses, it
+     * looks at their vote for the election witness. It adds up all the stake of the witnesses voting yes, and the stake
+     * of those voting no. If either of the stake sums is a supermajority, the fame of the election witness is decided.
      *
      * <p>So the outcome of this voting is two booleans:
      *
@@ -580,7 +715,7 @@ public class ConsensusImplDAB implements Consensus {
      * </ol>
      *
      * @param candidateWitness the witness being voted on
-     * @param stronglySeen the witnesses VR-1 that the voting witness can strongly see
+     * @param stronglySeen     the witnesses VR-1 that the voting witness can strongly see
      * @return the outcome of the vote
      */
     @NonNull
@@ -623,9 +758,9 @@ public class ConsensusImplDAB implements Consensus {
      *       signature of the event)
      * </ol>
      *
-     * @param votingWitness the witness that is voting
+     * @param votingWitness    the witness that is voting
      * @param candidateWitness the witness being voted on
-     * @param countingVote the counting vote
+     * @param countingVote     the counting vote
      */
     private void coinVote(
             @NonNull final EventImpl votingWitness,
@@ -673,8 +808,7 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Find all the witnesses that event can strongly see, in the round before the supplied event's
-     * round created.
+     * Find all the witnesses that event can strongly see, in the round before the supplied event's round created.
      *
      * @param event the event to find who it sees
      * @return a list of witnesses
@@ -692,13 +826,11 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * This round has been decided, this means that the fame of all known witnesses in that round
-     * has been decided, and so any new witnesses discovered in the future will be guaranteed to not
-     * be famous.
+     * This round has been decided, this means that the fame of all known witnesses in that round has been decided, and
+     * so any new witnesses discovered in the future will be guaranteed to not be famous.
      *
      * <p>Since fame for this round is now decided, it is now possible to decide consensus and time
-     * stamps for events in earlier rounds. If it's an ancestor of all the famous witnesses, then it
-     * reaches consensus.
+     * stamps for events in earlier rounds. If it's an ancestor of all the famous witnesses, then it reaches consensus.
      *
      * @param roundElections the round information of the decided round
      * @return the consensus round
@@ -791,15 +923,14 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Find all events that are ancestors of the judges in round and update them. A non-consensus
-     * event that is an ancestor of all of them should be marked as consensus, and have its
-     * consensus roundReceived and timestamp set. This should not be called on any round greater
-     * than R until after it has been called on round R.
+     * Find all events that are ancestors of the judges in round and update them. A non-consensus event that is an
+     * ancestor of all of them should be marked as consensus, and have its consensus roundReceived and timestamp set.
+     * This should not be called on any round greater than R until after it has been called on round R.
      *
-     * @param judges the judges for this round
-     * @param decidedRound the info for the round with the unique famous witnesses, which is also
-     *     the round received for these events reaching consensus now
-     * @param whitening a XOR of all judge hashes in this round
+     * @param judges       the judges for this round
+     * @param decidedRound the info for the round with the unique famous witnesses, which is also the round received for
+     *                     these events reaching consensus now
+     * @param whitening    a XOR of all judge hashes in this round
      */
     private @NonNull List<EventImpl> findConsensusEvents(
             @NonNull final List<EventImpl> judges, final long decidedRound, @NonNull final byte[] whitening) {
@@ -827,8 +958,7 @@ public class ConsensusImplDAB implements Consensus {
     /**
      * Set event.isConsensus to true, set its consensusTimestamp, and record speed statistics.
      *
-     * @param event the event to modify, with event.getRecTimes() containing all the times judges
-     *     first saw it
+     * @param event         the event to modify, with event.getRecTimes() containing all the times judges first saw it
      * @param receivedRound the round in which event was received
      */
     private static void setIsConsensusTrue(@NonNull final EventImpl event, final long receivedRound) {
@@ -844,14 +974,12 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * Set event.consensusOrder for every event that just reached consensus, and update the count
-     * numConsensus accordingly. The last event in events is marked as being the last received in
-     * its round. Consensus timestamps are adjusted, if necessary, to ensure that each event in
-     * consensus order is later than the previous one, by enough nanoseconds so that each
-     * transaction can be given a later timestamp than the last.
+     * Set event.consensusOrder for every event that just reached consensus, and update the count numConsensus
+     * accordingly. The last event in events is marked as being the last received in its round. Consensus timestamps are
+     * adjusted, if necessary, to ensure that each event in consensus order is later than the previous one, by enough
+     * nanoseconds so that each transaction can be given a later timestamp than the last.
      *
-     * @param events the events to set (such that a for(EventImpl e:events) loop visits them in
-     *     consensus order)
+     * @param events the events to set (such that a for(EventImpl e:events) loop visits them in consensus order)
      */
     private void setConsensusOrder(@NonNull final Collection<EventImpl> events) {
         for (final EventImpl e : events) {
@@ -889,6 +1017,7 @@ public class ConsensusImplDAB implements Consensus {
      * Check if this event is relevant for consensus calculation. If an event has a round of -infinity we don't care
      * about what it sees. This is a performance optimization, to stop traversing the part of the graph that has no
      * impact on consensus.
+     *
      * @param e the event to check
      * @return true if this event is relevant for consensus
      */
@@ -901,8 +1030,8 @@ public class ConsensusImplDAB implements Consensus {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Checks if this event is a witness. The {@link EventImpl#isWitness()} is set based on this
-     * method, so this is considered to be the definition of what a witness is.
+     * Checks if this event is a witness. The {@link EventImpl#isWitness()} is set based on this method, so this is
+     * considered to be the definition of what a witness is.
      *
      * <p>(selfParent(x) = ∅) ∨ (round(x) > round(selfParent(x))
      *
@@ -932,8 +1061,8 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The parent round (max of parents' rounds) of event x (function from SWIRLDS-TR-2020-01). This
-     * result is not memoized.
+     * The parent round (max of parents' rounds) of event x (function from SWIRLDS-TR-2020-01). This result is not
+     * memoized.
      *
      * @param x the event being queried
      * @return the parent round of x
@@ -954,9 +1083,9 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The last event created by m that is an ancestor of x (function from SWIRLDS-TR-2020-01). This
-     * has aggressive memoization: the first time it is called with a given x, it immediately
-     * calculates and stores results for all m. This result is memoized.
+     * The last event created by m that is an ancestor of x (function from SWIRLDS-TR-2020-01). This has aggressive
+     * memoization: the first time it is called with a given x, it immediately calculates and stores results for all m.
+     * This result is memoized.
      *
      * @param x the event being queried
      * @param m the member ID of the creator
@@ -1017,11 +1146,11 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The witness y created by m that is seen by event x through an event z created by m2 (function
-     * from SWIRLDS-TR-2020-01). This result is not memoized.
+     * The witness y created by m that is seen by event x through an event z created by m2 (function from
+     * SWIRLDS-TR-2020-01). This result is not memoized.
      *
-     * @param x the event being queried
-     * @param m the creator of y, the event seen
+     * @param x  the event being queried
+     * @param m  the creator of y, the event seen
      * @param m2 the creator of z, the intermediate event through which x sees y
      * @return the event y that is created by m and seen by x through an event by m2
      */
@@ -1039,13 +1168,13 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The witness created by m in the parent round of x that x strongly sees (function from
-     * SWIRLDS-TR-2020-01). This result is memoized.
+     * The witness created by m in the parent round of x that x strongly sees (function from SWIRLDS-TR-2020-01). This
+     * result is memoized.
      *
      * <p>This method is called multiple times by both round() and stronglySeeP1(). A measure of the
-     * total time spent in this method gives an indication of how much time is being devoted to what
-     * can be thought of as a kind of generalized dot product (not a literal dot product). So it is
-     * timed and it updates the statistic for that.
+     * total time spent in this method gives an indication of how much time is being devoted to what can be thought of
+     * as a kind of generalized dot product (not a literal dot product). So it is timed and it updates the statistic for
+     * that.
      *
      * @param x the event being queried
      * @param m the member ID of the creator
@@ -1104,9 +1233,8 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The round-created for event x (first round is 1), or 0 if x is null (function from
-     * SWIRLDS-TR-2020-01). It also stores the round number with x.setRoundCreated(). This result is
-     * memoized.
+     * The round-created for event x (first round is 1), or 0 if x is null (function from SWIRLDS-TR-2020-01). It also
+     * stores the round number with x.setRoundCreated(). This result is memoized.
      *
      * <p>If the event has a hash in the hash lists given to the ConsensusImpl constructor, then the
      * roundCreated is set to that round number, rather than calculating it from the parents.
@@ -1219,8 +1347,8 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The self-ancestor of x in the same round that is a witness (function from
-     * SWIRLDS-TR-2020-01). This result is memoized.
+     * The self-ancestor of x in the same round that is a witness (function from SWIRLDS-TR-2020-01). This result is
+     * memoized.
      *
      * @param x the event being queried
      * @return The ancestor of x in the same round that is a witness, or null if x is null
@@ -1245,12 +1373,11 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * The earliest witness that is an ancestor of x in the same round as x (function from
-     * SWIRLDS-TR-2020-01). This result is memoized.
+     * The earliest witness that is an ancestor of x in the same round as x (function from SWIRLDS-TR-2020-01). This
+     * result is memoized.
      *
      * @param x the event being queried
-     * @return the earliest witness that is an ancestor of x in the same round as x, or null if x is
-     *     null
+     * @return the earliest witness that is an ancestor of x in the same round as x, or null if x is null
      */
     private @Nullable EventImpl firstWitnessS(@Nullable final EventImpl x) {
         if (x == null) {
@@ -1287,22 +1414,20 @@ public class ConsensusImplDAB implements Consensus {
      *
      * @param x the event being queried
      * @param m the member ID of the creator
-     * @return event by m that x strongly sees in the round before the created round of x, or null
-     *     if none
+     * @return event by m that x strongly sees in the round before the created round of x, or null if none
      */
     private @Nullable EventImpl stronglySeeS1(@Nullable final EventImpl x, final long m) {
         return timedStronglySeeP(firstWitnessS(x), m);
     }
 
     /**
-     * The first witness in round r that is a self-ancestor of x, where r is the round of the last
-     * event by m that is seen by x (function from SWIRLDS-TR-2020-01). This result is not memoized.
+     * The first witness in round r that is a self-ancestor of x, where r is the round of the last event by m that is
+     * seen by x (function from SWIRLDS-TR-2020-01). This result is not memoized.
      *
      * @param x the event being queried
      * @param m the member ID of the creator
-     * @return firstSelfWitnessS(lastSee ( x, m)), which is the first witness in round r that is a
-     *     self-ancestor of x, where r is the round of the last event by m that is seen by x, or
-     *     null if none
+     * @return firstSelfWitnessS(lastSee ( x, m)), which is the first witness in round r that is a self-ancestor of x,
+     * where r is the round of the last event by m that is seen by x, or null if none
      */
     private @Nullable EventImpl firstSee(@Nullable final EventImpl x, final long m) {
         return firstSelfWitnessS(lastSee(x, m));
