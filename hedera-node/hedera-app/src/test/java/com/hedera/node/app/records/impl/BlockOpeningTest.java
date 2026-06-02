@@ -157,6 +157,7 @@ class BlockOpeningTest {
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
     }
 }

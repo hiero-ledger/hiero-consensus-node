@@ -229,7 +229,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RESTART)) {
+                InitTrigger.RESTART,
+                null)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
             }
@@ -330,7 +331,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RESTART)) {
+                InitTrigger.RESTART,
+                null)) {
             blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
             // write a blocks & record files
             int transactionCount = 0;
@@ -516,7 +518,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -544,7 +547,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));
@@ -636,7 +640,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                     diskWriter,
                     () -> mock(BlockItemWriter.class),
                     NO_OP_BLOCK_HASH_SIGNER,
-                    trigger);
+                    trigger,
+                    null);
         }
 
         private void processBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {

@@ -137,7 +137,8 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
                 blockHashSigner,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
         return new Context(manager, producer, app.workingStateAccessor().getState());
     }
 
