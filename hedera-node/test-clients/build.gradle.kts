@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.hiero.gradle.environment.EnvAccess
+import java.lang.management.ManagementFactory
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -38,10 +39,9 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                         memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
                     }
                 } else {
-                    // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
-                    // This is the Gradle daemon's max heap, not physical RAM, but provides a
-                    // reasonable lower bound for scaling test settings
-                    Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
+                    val os = ManagementFactory.getOperatingSystemMXBean()
+                            as com.sun.management.OperatingSystemMXBean
+                    os.totalMemorySize / 1024.0 / 1024.0 / 1024.0
                 }
             } catch (_: Exception) {
                 16.0
