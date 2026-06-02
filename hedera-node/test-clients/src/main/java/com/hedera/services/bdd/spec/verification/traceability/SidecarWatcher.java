@@ -307,7 +307,6 @@ public class SidecarWatcher {
         TransactionSidecarRecord actualSidecar;
         while ((actualSidecar = actualSidecars.poll()) != null) {
             drainedAtLeastOne = true;
-            System.out.println("Observed sidecar: " + actualSidecar);
             final var expectedAtHead = expectedSidecars.peek();
             final boolean matchesConsensusTimestamp = expectedAtHead != null
                     && expectedAtHead.expectedSidecarRecord().matchesConsensusTimestampOf(actualSidecar);
