@@ -19,7 +19,6 @@ tasks.withType<JavaCompile>().configureEach {
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
@@ -31,6 +30,8 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
+    requires("com.swirlds.merkledb")
+    requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")

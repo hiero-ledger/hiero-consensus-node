@@ -46,7 +46,7 @@ jobs:
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Parameters
         id: set-parameters
@@ -62,6 +62,15 @@ jobs:
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
 
+  extract-jdk-version:
+    name: Extract Java Version
+    needs: fetch-xts-candidate
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
@@ -76,7 +85,7 @@ jobs:
       commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "main"
@@ -256,6 +265,7 @@ jobs:
       - fetch-xts-candidate
       - parameters
       - state-validator-uberjar
+      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -271,7 +281,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
-      enable-e2e-regression-panel: "true"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -294,6 +304,7 @@ jobs:
       - fetch-xts-candidate
       - parameters
       - state-validator-uberjar
+      - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -307,8 +318,8 @@ jobs:
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
-      enable-e2e-regression-panel: "true"
       enable-chaos-otter-test-suite: "true"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -322,7 +333,7 @@ jobs:
     if: ${{ needs.xts-execution.result == 'success' }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -389,7 +400,7 @@ jobs:
       !cancelled() }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: main
@@ -439,7 +450,7 @@ jobs:
 
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: main
