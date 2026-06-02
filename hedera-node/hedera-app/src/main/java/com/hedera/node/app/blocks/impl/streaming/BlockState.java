@@ -4,6 +4,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -27,10 +29,11 @@ public class BlockState {
      */
     private final AtomicInteger itemIndex = new AtomicInteger(-1);
     /**
-     * Map that contains all items associated with this block. Each item in the map is specified by an integer key that
-     * represents the order in which the item was added to the block.
+     * Map that contains all items associated with this block. Each item is stored in its serialized form (paired with
+     * its item type) to reduce memory usage compared to retaining the deserialized {@link BlockItem} object graph. Each
+     * item in the map is specified by an integer key that represents the order in which the item was added to the block.
      */
-    private final ConcurrentMap<Integer, BlockItem> blockItems = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Integer, BufferedItem> bufferedItems = new ConcurrentHashMap<>();
     /**
      * The timestamp associated with when this block was closed.
      */
@@ -70,7 +73,35 @@ public class BlockState {
     }
 
     /**
-     * Adds an item to the block.
+     * Adds an item to the block in its serialized form.
+     *
+     * @param serializedItem the full serialized bytes of a single {@link BlockItem}
+     * @param itemType the type of the item being added
+     * @throws IllegalStateException if the block is closed
+     */
+    public void addItem(@Nullable final Bytes serializedItem, @NonNull final BlockItem.ItemOneOfType itemType) {
+        if (serializedItem == null) {
+            return;
+        }
+        requireNonNull(itemType, "itemType must not be null");
+
+        if (closedTimestamp != null) {
+            throw new IllegalStateException("Block is closed; adding more items is not permitted");
+        }
+
+        final int index = itemIndex.incrementAndGet();
+        bufferedItems.put(index, new BufferedItem(serializedItem, itemType));
+        if (itemType == BlockItem.ItemOneOfType.BLOCK_HEADER) {
+            openedNanos = System.nanoTime();
+            openedTimestamp = Instant.now();
+        }
+        sizeBytes += serializedItem.length();
+    }
+
+    /**
+     * Adds a deserialized item to the block. This is a convenience that serializes the item and stores its serialized
+     * form; it is intended for non-hot paths (e.g. restoring the buffer from disk) and tests. The hot path should use
+     * {@link #addItem(Bytes, BlockItem.ItemOneOfType)} to avoid re-serialization.
      *
      * @param item the item to add
      * @throws IllegalStateException if the block is closed
@@ -79,18 +110,7 @@ public class BlockState {
         if (item == null) {
             return;
         }
-
-        if (closedTimestamp != null) {
-            throw new IllegalStateException("Block is closed; adding more items is not permitted");
-        }
-
-        final int index = itemIndex.incrementAndGet();
-        blockItems.put(index, item);
-        if (item.hasBlockHeader()) {
-            openedNanos = System.nanoTime();
-            openedTimestamp = Instant.now();
-        }
-        sizeBytes += item.protobufSize();
+        addItem(BlockItem.PROTOBUF.toBytes(item), item.item().kind());
     }
 
     /**
@@ -150,13 +170,33 @@ public class BlockState {
     }
 
     /**
-     * Retrieve a single block item by its index (insertion order).
+     * Retrieve a single buffered (serialized) block item by its index (insertion order).
+     *
+     * @param index the index of the block item to retrieve
+     * @return the buffered block item, or null if no item has the specified index
+     */
+    public @Nullable BufferedItem bufferedItem(final int index) {
+        return bufferedItems.get(index);
+    }
+
+    /**
+     * Retrieve a single block item by its index (insertion order), deserializing it from its stored bytes. This is a
+     * convenience for non-hot paths (e.g. persistence and tests); the hot path should use {@link #bufferedItem(int)} to
+     * avoid deserialization.
      *
      * @param index the index of the block item to retrieve
      * @return the block item, or null if no item has the specified index
      */
     public @Nullable BlockItem blockItem(final int index) {
-        return blockItems.get(index);
+        final BufferedItem item = bufferedItems.get(index);
+        if (item == null) {
+            return null;
+        }
+        try {
+            return BlockItem.PROTOBUF.parse(item.serializedItem());
+        } catch (final ParseException e) {
+            throw new RuntimeException("Failed to parse buffered block item at index " + index, e);
+        }
     }
 
     /**
@@ -173,13 +213,13 @@ public class BlockState {
         }
         final BlockState that = (BlockState) o;
         return blockNumber == that.blockNumber
-                && Objects.equals(blockItems, that.blockItems)
+                && Objects.equals(bufferedItems, that.bufferedItems)
                 && Objects.equals(closedTimestamp, that.closedTimestamp);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blockNumber, blockItems, closedTimestamp);
+        return Objects.hash(blockNumber, bufferedItems, closedTimestamp);
     }
 
     @Override
@@ -187,7 +227,7 @@ public class BlockState {
         return "BlockState{" + "blockNumber="
                 + blockNumber + ", closedTimestamp="
                 + closedTimestamp + ", blockItemCount="
-                + blockItems.size() + '}';
+                + bufferedItems.size() + '}';
     }
 
     /**
@@ -243,5 +283,41 @@ public class BlockState {
      */
     public long blockEndSentNanos() {
         return blockEndSentNanos;
+    }
+
+    /**
+     * A single block item stored in its serialized form along with the metadata required to stream it to a block node
+     * without deserializing it.
+     *
+     * @param serializedItem the full serialized bytes of a single {@link BlockItem}
+     * @param itemType the type of the item
+     */
+    public record BufferedItem(
+            @NonNull Bytes serializedItem, @NonNull BlockItem.ItemOneOfType itemType) {
+        public BufferedItem {
+            requireNonNull(serializedItem, "serializedItem must not be null");
+            requireNonNull(itemType, "itemType must not be null");
+        }
+
+        /**
+         * @return the size of the serialized item in bytes
+         */
+        public int size() {
+            return (int) serializedItem.length();
+        }
+
+        /**
+         * @return true if this item is a block header, else false
+         */
+        public boolean isHeader() {
+            return itemType == BlockItem.ItemOneOfType.BLOCK_HEADER;
+        }
+
+        /**
+         * @return true if this item is a block proof, else false
+         */
+        public boolean isProof() {
+            return itemType == BlockItem.ItemOneOfType.BLOCK_PROOF;
+        }
     }
 }

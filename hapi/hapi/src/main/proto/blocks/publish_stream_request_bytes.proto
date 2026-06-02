@@ -1,0 +1,100 @@
+/**
+ * # Publish Stream Request (serialized block items)
+ * A consensus-node-internal mirror of `org.hiero.block.api.PublishStreamRequest` whose block
+ * items are carried as already-serialized `bytes` instead of nested `BlockItem` messages.
+ *
+ * The block buffer stores block items in their serialized form to reduce memory usage. This
+ * message lets those serialized bytes be streamed to a Block-Node without first deserializing
+ * them into `BlockItem` objects only to immediately re-serialize them.
+ *
+ * Because a protobuf `bytes` field and an embedded `message` field share the same wire
+ * representation (`[tag][length][payload]`), a `PublishStreamRequestBytes` whose `block_items`
+ * entries are full serialized `BlockItem`s encodes to the exact same bytes as the equivalent
+ * `org.hiero.block.api.PublishStreamRequest`. The Block-Node therefore requires no changes and
+ * this message is used only within the consensus node.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+
+syntax = "proto3";
+
+package com.hedera.hapi.block.internal;
+
+// SPDX-License-Identifier: Apache-2.0
+import "block-node/api/block_stream_publish_service.proto";
+import "block-node/api/shared_message_types.proto";
+
+option java_package = "com.hedera.hapi.block.internal.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.internal">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * An ordered set of serialized block items.
+ *
+ * This mirrors `org.hiero.block.api.BlockItemSet` field-for-field on the wire; each entry is the
+ * full serialized form of a single `com.hedera.hapi.block.stream.BlockItem`.
+ */
+message BlockItemSetBytes {
+  /**
+   * An ordered list of serialized `BlockItem`s.
+   * <p>
+   * Each element MUST be the full serialized bytes of exactly one
+   * `com.hedera.hapi.block.stream.BlockItem`.
+   */
+  repeated bytes block_items = 1;
+}
+
+/**
+ * A request from a Publisher to deliberately end a publish stream.
+ *
+ * This mirrors `org.hiero.block.api.PublishStreamRequest.EndStream` field-for-field on the wire,
+ * reusing its `Code` enum directly. It is declared here (rather than referencing the nested
+ * upstream message) so this consensus-node-only message remains self-contained.
+ */
+message EndStreamBytes {
+  /**
+   * A stream end code indicating the reason the stream ended.
+   */
+  org.hiero.block.api.PublishStreamRequest.EndStream.Code end_code = 1;
+
+  /**
+   * The number of the earliest block available from the Publisher.
+   */
+  uint64 earliest_block_number = 2;
+
+  /**
+   * The number of the latest (last acknowledged) block available from the Publisher.
+   */
+  uint64 latest_block_number = 3;
+}
+
+/**
+ * A request to publish a stream of blocks using serialized block items.
+ *
+ * This mirrors `org.hiero.block.api.PublishStreamRequest` field-for-field on the wire. The
+ * `end_of_block` arm reuses the upstream `BlockEnd` message directly.
+ */
+message PublishStreamRequestBytes {
+  oneof request {
+    /**
+     * A stream item containing one or more serialized `BlockItem`s.
+     */
+    BlockItemSetBytes block_items = 1;
+
+    /**
+     * A message when the Publisher is deliberately ending the stream.
+     */
+    EndStreamBytes end_stream = 2;
+
+    /**
+     * A message indicating the end of a block.
+     */
+    org.hiero.block.api.BlockEnd end_of_block = 3;
+  }
+}
