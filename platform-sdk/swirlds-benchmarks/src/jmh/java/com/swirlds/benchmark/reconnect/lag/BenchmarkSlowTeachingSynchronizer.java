@@ -4,7 +4,7 @@ package com.swirlds.benchmark.reconnect.lag;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.virtualmap.sync.TeacherTreeView;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +29,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      *
      * @param in the input stream for receiving data from the learner
      * @param out the output stream for sending data to the learner
-     * @param view the teacher's view into the merkle tree
+     * @param teacherMap the teacher's map
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
@@ -41,7 +41,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
     public BenchmarkSlowTeachingSynchronizer(
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final TeacherTreeView view,
+            @NonNull final VirtualMap teacherMap,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
@@ -49,7 +49,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
             final double delayNetworkFuzzRangePercent,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
-        super(Time.getCurrent(), getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
+        super(Time.getCurrent(), getStaticThreadManager(), in, out, teacherMap, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

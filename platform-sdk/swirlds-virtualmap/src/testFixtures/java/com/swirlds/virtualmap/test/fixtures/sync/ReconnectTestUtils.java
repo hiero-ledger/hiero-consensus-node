@@ -109,7 +109,7 @@ public final class ReconnectTestUtils {
                             getStaticThreadManager(),
                             streams.getTeacherInput(),
                             streams.getTeacherOutput(),
-                            teacherMap.buildTeacherView(reconnectConfig),
+                            teacherMap,
                             streams::disconnect,
                             reconnectConfig) {
                         @Override

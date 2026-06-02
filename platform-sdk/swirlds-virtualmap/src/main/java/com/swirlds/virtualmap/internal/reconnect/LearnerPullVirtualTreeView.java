@@ -35,9 +35,6 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * needs access both to the original state and records, and the current reconnect state and records.
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
- *
- * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
- * teacher side.
  */
 public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 

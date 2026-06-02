@@ -117,7 +117,7 @@ public class MerkleBenchmarkUtils {
                         getStaticThreadManager(),
                         streams.getTeacherInput(),
                         streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
+                        desiredTree,
                         () -> {
                             try {
                                 streams.disconnect();
@@ -149,7 +149,7 @@ public class MerkleBenchmarkUtils {
                 teacher = new BenchmarkSlowTeachingSynchronizer(
                         streams.getTeacherInput(),
                         streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
+                        desiredTree,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,

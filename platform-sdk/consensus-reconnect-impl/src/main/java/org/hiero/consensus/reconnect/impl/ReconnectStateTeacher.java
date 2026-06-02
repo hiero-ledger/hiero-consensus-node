@@ -14,7 +14,7 @@ import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.sync.TeacherTreeView;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
@@ -45,7 +45,7 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView teacherView;
+    private final VirtualMap teacherMap;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -106,9 +106,7 @@ public class ReconnectStateTeacher {
         roster = signedState.getRoster();
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        // The teacher view will be closed by TeacherSynchronizer in reconnect() below
-        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
+        teacherMap = virtualMapState.getRoot();
 
         logReconnectStart(signedState);
     }
@@ -224,7 +222,7 @@ public class ReconnectStateTeacher {
                 threadManager,
                 new DataInputStream(connection.getDis()),
                 new DataOutputStream(connection.getDos()),
-                teacherView,
+                teacherMap,
                 connection::disconnect,
                 reconnectConfig);
         synchronizer.synchronize();

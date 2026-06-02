@@ -26,7 +26,6 @@ import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -42,9 +41,6 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
-import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeView;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
-import com.swirlds.virtualmap.sync.TeacherTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -66,7 +62,6 @@ import org.hiero.base.ValueReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A Merkle tree that virtualizes all of its children, such that the child nodes
@@ -510,7 +505,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     rehashIterator.close();
                     final var message = "Full rehash failed";
                     logger.error(EXCEPTION.getMarker(), message, exception);
-                    throw new MerkleSynchronizationException(message, exception);
+                    throw new RuntimeException(message, exception);
                 });
 
         final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
@@ -522,14 +517,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     assert leafBytes != null : "Leaf record should not be null";
                     try {
                         rehashIterator.supply(leafBytes);
-                    } catch (final MerkleSynchronizationException e) {
-                        throw e;
                     } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        throw new MerkleSynchronizationException(
+                        throw new RuntimeException(
                                 "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
-                    } catch (final Exception e) {
-                        throw new MerkleSynchronizationException("Failed to handle a leaf during full rehashing", e);
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -548,14 +539,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
-            throw new MerkleSynchronizationException(message, e);
+            throw new RuntimeException(message, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             final var message = "Interrupted while full rehashing";
-            throw new MerkleSynchronizationException(message, e);
+            throw new RuntimeException(message, e);
         } catch (TimeoutException e) {
             final var message = "Wasn't able to finish full rehashing in time";
-            throw new MerkleSynchronizationException(message, e);
+            throw new RuntimeException(message, e);
         }
     }
 
@@ -1292,28 +1283,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         return dataSourceBuilder.snapshot(null, dataSource);
-    }
-
-    /*
-     * Reconnect Implementation
-     **/
-
-    /**
-     * Creates a virtual view for this map to use by reconnect teacher. The view is used
-     * to access all nodes and hashes in the virtual tree. The view must not share any
-     * data with this map, so if any changes are made to the map, they aren't reflected
-     * in the view.
-     *
-     * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
-     */
-    public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
-        return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM,
-                    VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC,
-                    VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new TeacherPullVirtualTreeView(reconnectConfig, this);
-            default ->
-                throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
-        };
     }
 
     /**
