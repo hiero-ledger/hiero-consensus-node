@@ -205,7 +205,7 @@ public class RandomSignedStateGenerator {
         final WritableStates writableRosterStates = stateInstance.getWritableStates(RosterStateId.SERVICE_NAME);
         final WritableRosterStore rosterStore = new WritableRosterStore(writableRosterStates);
         rosterStore.putActiveRoster(rosterInstance, roundInstance);
-        ((CommittableWritableStates)writableRosterStates).commit();
+        ((CommittableWritableStates) writableRosterStates).commit();
 
         if (signatureVerifier == null) {
             signatureVerifier = SignatureVerificationTestUtils::verifySignature;
