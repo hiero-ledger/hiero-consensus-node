@@ -21,6 +21,7 @@ on:
         options:
           - "jumpstart"
           - "wrb-streaming"
+          - "block-node-outage-backpressure"
       jumpstart-starting-tag:
         description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.73.0."
         required: false
@@ -318,6 +319,94 @@ jobs:
             ${{ runner.temp }}/wrb-block-node-streaming-script.log
             ${{ runner.temp }}/wrb-block-node-streaming-diagnostics/**
             hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  solo-block-node-outage-backpressure:
+    name: "Solo Block Node Outage (Backpressure)"
+    needs:
+      - extract-jdk-version
+    if: ${{ inputs.scenario == 'block-node-outage-backpressure' }}
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 120
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ github.token }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "20.18.0"
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
+
+      - name: Build Consensus Node Local Artifacts
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run Block Node Outage Backpressure Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-backpressure/solo-e2e-block-node-outage.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 100m \
+            env \
+              ARTIFACT_DIR="${RUNNER_TEMP}/backpressure-artifacts" \
+              KEEP_NETWORK="false" \
+            "${SCRIPT_PATH}"
+
+      - name: Upload Block Node Outage Backpressure Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Block Node Outage Backpressure Artifacts
+          path: |
+            ${{ runner.temp }}/backpressure-artifacts/**
           if-no-files-found: warn
           retention-days: 7
 
