@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.util.Objects.requireNonNull;
@@ -8,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
@@ -22,8 +24,17 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * {@link com.hedera.node.app.blocks.BlockStreamManager} singleton, whose fields are mutated by the handle thread).
  */
 public final class BlockStreamInfoImpl implements BlockRecordInfo {
+    private static final int NUM_TRAILING_BLOCKS = 256;
 
     private final BlockStreamInfo blockStreamInfo;
+
+    /**
+     * Lazily-computed trailing block hashes extended with the (reconstructed) hash of the last completed block,
+     * so {@code blockhash(block.number - 1)} resolves for the most recent block — see
+     * {@link #blockHashByBlockNumber(long)}.
+     */
+    @Nullable
+    private Bytes extendedBlockHashes;
 
     /**
      * Creates a {@code BlockStreamInfoImpl} from the given {@link State}.
@@ -55,10 +66,9 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
     /** {@inheritDoc} */
     @Override
     public long blockNo() {
-        // The trailing block hashes in state cover up to blockNumber - 1, so reporting
-        // blockNumber as the current block makes blockhash(block.number - 1) resolvable.
-        // Guard against initial state where blockNumber may be 0 (no blocks completed yet).
-        return Math.max(1, blockStreamInfo.blockNumber());
+        // Matches BlockRecordInfoImpl (lastBlockNumber + 1) and the handle path exactly: the current block is
+        // one past the last completed block. At genesis (blockNumber == -1) this is 0, as in records mode.
+        return blockStreamInfo.blockNumber() + 1;
     }
 
     /** {@inheritDoc} */
@@ -72,8 +82,22 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
     @Nullable
     @Override
     public Bytes blockHashByBlockNumber(final long blockNo) {
-        // The rightmost hash in the trailing block hashes is for block (blockNumber - 1)
-        return BlockRecordInfoUtils.blockHashByBlockNumber(
-                blockStreamInfo.trailingBlockHashes(), blockStreamInfo.blockNumber() - 1, blockNo);
+        final long lastCompleted = blockStreamInfo.blockNumber();
+        if (lastCompleted < 0) {
+            // No block has completed yet, so no hashes are available.
+            return null;
+        }
+        // The last completed block's own hash is not persisted in its own state, so the state-resident trailing
+        // hashes only reach blockNumber - 1. Reconstruct it and append so the set covers up to blockNumber, letting
+        // queries resolve blockhash(block.number - 1) for the most recent block exactly as BlockRecordInfoImpl does.
+        return BlockRecordInfoUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo);
+    }
+
+    private Bytes extendedBlockHashes() {
+        if (extendedBlockHashes == null) {
+            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+            extendedBlockHashes = appendHash(lastBlockHash, blockStreamInfo.trailingBlockHashes(), NUM_TRAILING_BLOCKS);
+        }
+        return extendedBlockHashes;
     }
 }
