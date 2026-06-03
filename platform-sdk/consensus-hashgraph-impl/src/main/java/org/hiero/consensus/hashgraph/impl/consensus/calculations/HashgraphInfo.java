@@ -4,60 +4,66 @@ package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
  * no dependencies other than on the standard Java libraries. The HashgraphInfo class
- * contains the subclass EventInfo and the record types RoundState, RoundStateCurr,
- * and RoundStatePrev. All of these have getters and no setters. This file implements the
- * equations from the tech report Swirlds-TR-2016-01.<p>
+ * contains the inner class EventInfo and the record types RoundInfo, RoundInfoCore,
+ * and RoundInfoPrev. All of these have getters and no setters. When the caller instantiates
+ * these classes and records, passing arrays to the constructors, the contents of those arrays must
+ * never be changed. This file implements the equations from the tech report Swirlds-TR-2016-01.<p>
  *
  * A single HashgraphInfo should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.<p>
  *
  * An EventInfo should be instantiated for each event. The update methods for all the events are
- * called to calculate consensus. At some time many rounds after an event becomes
- * ancient, it should have its expire method called to clean up memory by erasing all its
- * references to even older events.<p>
+ * called to calculate consensus. At some time after an event becomes
+ * ancient, it should have its clear method called to clean up memory by erasing all its
+ * references to even older events. This can happen immediately after it becomes ancient, or
+ * many rounds later when it expires, or at any other time after becoming ancient.<p>
  *
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
- * It should instantiate a RoundState for the current pending round. It should instantiate the
- * RoundStateCurr for the next several rounds. After a round reaches consensus, its RoundStatePrev
- * is calculated, which can be combined with the RoundStateCurr to get the RoundState for the
- * next round.<p>
+ * It should instantiate a RoundInfo for the pending round (the round for which consensus is
+ * currently being calculated). It should instantiate the RoundInfoCore for the next several rounds.
+ * After a round reaches consensus, its RoundInfoPrev is calculated, which can be combined with the
+ * RoundInfoCore to form the RoundInfo for the next round.<p>
  *
- * The network's overall state should include the RoundState for the pending round, and the
- * RoundStateCurr for the next few rounds. An implementation might also include a "roster"
+ * The network's overall consensus state should include the RoundInfo for the pending round (the round currently
+ * being calculated), and the RoundInfoCore for the next few rounds. An implementation might also include a "roster"
  * for these and for all the non-ancient previous rounds. The roster might contain info such as
  * the public keys for all the nodes, used to verify their signatures. This class doesn't
- * use rosters. It only uses the RoundState, and its two parts.<p>
+ * use rosters. It only uses the RoundInfo, and its two parts.<p>
  *
  * For a hashgraph, this class should be instantiated once. The EventInfo.update method should be
  * called on each event for each round, according to the schedule described in the comments
  * for the update method. <p>
  *
  * If a call to EventInfo.update returns a non-null value, then the event caused consensus to be
- * reached for that round (a "keystone event"). In that case, it doesn't return null.
- * The returned record will contain the list of all the events that reached consensus in that round.
- * Which might be an empty list if none reached consensus. It will also return the
- * RoundStatePrev record, which should be used to build the roundState for the next round.
+ * reached for that round (a "keystone event"). In that case, it returns a record that contains
+ * the list of all the events that reached consensus in that round.
+ * Which might be an empty list if none reached consensus. It also contains a
+ * RoundInfoPrev record, which should be used to build the RoundInfo for the next round.
  */
 public class HashgraphInfo {
     // these fields are used in EventInfo.update and are updated the first time it is called
     // with any given pending round.
     private long pendingRound;
     private int numNodes;
+    private long[] nodeIDs;
+    private Map<Long, Integer> nodeIdToIndex;
     private long totalStake;
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>();
     private EventInfo selfParent;
     private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
-
+    private boolean nodesChanged; //true for round 1 and for any round where nodes[] differs from the round before it
 
     /** info about a round that is known multiple rounds in advance */
-    public record RoundInfoCurr(
+    public record RoundInfoCore(
             long pendingRound,
             long[] nodes, // NodeID for each node
             long[] stake,
@@ -76,11 +82,11 @@ public class HashgraphInfo {
             long prevNumCons,
             long prevMinJudgeBirthRound) {}
 
-    /** The round state with info about nodes, weights, previous judges, per-round
-     * setting, etc. The consensus state should include the full RoundState for the current
-     * pending round, and the RoundStateCurr portion of it for the next few rounds.
+    /** The round info with info about nodes, weights, previous judges, per-round
+     * setting, etc. The consensus state should include the full RoundInfo for the
+     * pending round, and the RoundInfoCore portion of it for the next few rounds.
      */
-    public record RoundInfo(RoundInfoCurr curr, RoundInfoPrev prev) {}
+    public record RoundInfo(RoundInfoCore curr, RoundInfoPrev prev) {}
 
     /** true iff n is a supermajority of the total stake */
     private boolean supermajority(long n) {
@@ -88,11 +94,11 @@ public class HashgraphInfo {
     }
 
     /**
-     * Given the round state for the current round, set the isConsensus fields for all the non-ancient events that
+     * Given the round info for the pending round, set the isConsensus fields for all the non-ancient events that
      * reached consensus in previous rounds. This is only needed after a restart or reconnect. In normal operation,
      * those events will already have been marked, when they reached consensus.
      *
-     * @param currRoundInfo the current round state
+     * @param currRoundInfo round info for the pending round (the round currently being calculated)
      */
     public void setPrevIsConsensus(RoundInfo currRoundInfo) {
         // TODO
@@ -104,9 +110,9 @@ public class HashgraphInfo {
      */
     public static class EventInfo {
         private HashgraphInfo hashgraph;
-        private int creator; //an index into nodes[], not the nodeID
+        private final long creatorNodeID; //nodeID of this event's creator
         private EventInfo[] parentsSigned;
-        private EventInfo event;
+        private int creator; //index into the nodes array of this event's creator
         private boolean[] ancestorJudge;
         private boolean prevJudgeDesc;
         private long gen;
@@ -123,6 +129,10 @@ public class HashgraphInfo {
         private Instant consensusTimestamp;
         private boolean isPrevJudge;
 
+        /** True iff this event is the descendent of at least one judge from the previous round. */
+        public boolean getPrevJudgeDesc() {
+            return prevJudgeDesc;
+        }
         /** True iff this event has reached consensus. (If false, it may still reach consensus later). */
         public boolean getIsConsensus() {
             return isConsensus;
@@ -130,10 +140,6 @@ public class HashgraphInfo {
         /** The consensus order of this event, starting at 1 for genesis (or 0 if getIsConsensus is false). */
         public long getConsensusOrder() {
             return consensusOrder;
-        }
-        /** True iff this event is the descendent of at least one judge from the previous round. */
-        public boolean getPrevJudgeDesc() {
-            return prevJudgeDesc;
         }
         /** The consensus timestamp for this event (or null if getIsConsensus is false). */
         public Instant getConsensusTimestamp() {
@@ -148,20 +154,21 @@ public class HashgraphInfo {
          * to pass in null, or an array of all nulls, or an empty array.
          *
          * @param hashgraph which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
-         * @param creatorIndex the index into round state nodes[] (not the nodeID) of the creator of this event
+         * @param creator the nodeID of the creator of this event
          * @param parents array of parents, in the same order as in the signed event that is gossiped.
          */
-        public EventInfo(@NonNull HashgraphInfo hashgraph, int creatorIndex, EventInfo[] parents) {
+        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, EventInfo[] parents) {
             this.hashgraph = hashgraph;
-            this.creator = creatorIndex;
+            this.creatorNodeID = creator;
             this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
         }
 
         /**
-         * Mark this event as expired. It should eventually be called on every event, but only after it is ancient.
-         * After being expired, any future call to updateEvent will return null.
+         * Erase all references from this event to its ancestor events. It should eventually be called on every event,
+         * but only after it is ancient. After being cleared, any future call to update will return null. This must be
+         * called eventually on every event, to allow the garbage collector to free memory.
          */
-        public void expireEvent() {
+        public void clear() {
             //to reduce garbage collection, these arrays could be saved and reused for the next new event.
             hashgraph = null;
             parentsSigned = null;
@@ -182,7 +189,7 @@ public class HashgraphInfo {
          * reached for a round, it should then be called on all existing events for which prevJudgeDesc
          * is true. (It may set some of them to false). <p>
          *
-         * This must be passed the complete round state for the pending round. <p>
+         * This must be passed the complete round info for the pending round (the round currently being calculated). <p>
          *
          * When there is a reconnect (or during PCES replay for a restart), there will be a period before all
          * the previous judges have been added to the hashgraph. Do not call updateEvent during that period.
@@ -195,34 +202,68 @@ public class HashgraphInfo {
          * batch, it should be called on all those events in topological order. So if it is to be called
          * on both an event and its parent, the call on the parent must come first.<p>
          *
-         * This will only read (not write) roundState.
+         * This will only read (not write) roundInfo.
          * This will write to the EventInfo fields for this event, and perhaps other events.
          * For each event that reaches consensus, this will fill in its fields isConsensus,
          * consensusOrder, and consensusTimestamp.<p>
          *
          * If the update of this event didn't reach consensus for this round, this will return null. If it did
          * reach consensus, this is a "keystone event". In that case, it returns an UpdateResults that contains
-         * a (possibly empty) list of the events that reached consensus in this round, and the RoundStatePrev that
-         * should be used for the next round.
+         * a (possibly empty) list of the events that reached consensus in this round and the RoundInfoPrev that
+         * should be used for the next round. <p>
          *
-         * @param roundInfo the round state for the current pending round
+         * When this method is called for the first time on a new hashgraph in memory, it can be passed
+         * any roundInfo. In every future call, it must be passed a roundInfo that either has the same
+         * pendingRound as the previous call or has a pendingRound that is one greater than the previous call.
+         *
+         * @param roundInfo the round info for the pending round (the round currently being calculated)
          * @return the consensus results, or null if this event didn't decide this round
          */
         public UpdateResults update(@NonNull RoundInfo roundInfo) {
             // make the names look more like the r and x in the tech report
             final EventInfo x = this;
-            final RoundInfoCurr r = roundInfo.curr;
+            final RoundInfoCore r = roundInfo.curr;
             final RoundInfoPrev rp = roundInfo.prev;
             final HashgraphInfo h = x.hashgraph;
             long parentRound;
 
             if (hashgraph == null) {
-                return null; //this event is expired
+                return null; //this event is cleared
             }
+            //if this is a new round (or the first round called on this hashgraph), calculate all the functions of round
             if (h.pendingRound != r.pendingRound) {
-                //this is a new round, so calculate all the functions of round
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
+
+                //set h.nodesChanged to true if the node array changed this round (or it's the first time called).
+                if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
+                    h.nodesChanged = true;
+                } else {
+                    for (int i=0; i<h.numNodes; i++) {
+                        if (h.nodeIDs[i] != r.nodes[i]) {
+                            h.nodesChanged = true;
+                            break;
+                        }
+                    }
+                }
+                //if it did change, then update the nodeIdToIndex to map from nodeID to index
+                if (h.nodesChanged) {
+                    h.nodeIDs = r.nodes;
+                    if (h.nodeIdToIndex == null) {
+                        h.nodeIdToIndex = new HashMap<>();
+                    } else {
+                        h.nodeIdToIndex.clear();
+                    }
+                    for (int i=0; i<h.numNodes; i++) {
+                        h.nodeIdToIndex.put(h.nodeIDs[i], i);
+                    }
+                }
+
+                //if this is the first time this event has updated, or if this round has a changed address book,
+                //then recalculate the index for the creator
+                if (x.lastSee == null || h.nodesChanged) {
+                    x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
+                }
 
                 //set isPrevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
@@ -246,11 +287,11 @@ public class HashgraphInfo {
                         t += r.stake[judge.creator];
                     }
                     h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1)
-                                                   || !h.supermajority(t)) ? 2 : 1;
+                            || !h.supermajority(t)) ? 2 : 1;
                 }
             }
 
-            // instantiate memos fields if they are null, or the array is the wrong size.
+            // instantiate fields if they are null, or the array is the wrong size.
             if (x.ancestorJudge == null || x.ancestorJudge.length != h.numNodes) {
                 x.ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
             }
@@ -270,6 +311,11 @@ public class HashgraphInfo {
                 x.voteB = new boolean[h.numNodes];
             }
 
+            //if this is a round where the address book changed, then recalculate the creator index
+            if (h.nodesChanged) {
+                x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
+            }
+
             // function parents
             // put in the h.parents array only those parents that are non-ancient descendents of judges in the prev round
             if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
@@ -285,7 +331,7 @@ public class HashgraphInfo {
             }
             h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
             h.selfParent = (h.parents.isEmpty()
-                            || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
+                    || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
             // function prevJudgeDesc
             x.prevJudgeDesc = x.isPrevJudge || h.pendingRound == 1;
@@ -329,7 +375,7 @@ public class HashgraphInfo {
                     x.lastSee[m] = x;
                 } else {
                     //find k = max(map(s1,votingRound))
-                    long k=1; //start at 1 to ensure max({}) = 1
+                    long k = 1; //start at 1 to ensure max({}) = 1
                     for (EventInfo parent : h.parents) {
                         EventInfo y = parent.lastSee[m];
                         if (y != null && y.votingRound > k) {
@@ -348,7 +394,7 @@ public class HashgraphInfo {
                         if (y != null && y.votingRound == k) {
                             //y is in s2
                             //w comes from first(s2), so only set it once
-                            w = (w!=null) ? w : y.firstSelfWitnessS;
+                            w = (w != null) ? w : y.firstSelfWitnessS;
                             s2empty = false;
                             if (y.firstSelfWitnessS == w) {
                                 //y is in s3
@@ -365,12 +411,9 @@ public class HashgraphInfo {
             }
 
             // function seeThru
-            {
-                EventInfo p = h.selfParent;
-                
-            }
 
             // function stronglySeeP
+ 
 
             // function votingRound
 
