@@ -14,7 +14,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
@@ -22,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -36,6 +36,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.nio.ByteBuffer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -52,6 +54,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HtsSystemContractTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
+
     @Mock
     private Call call;
 
@@ -166,7 +175,7 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
-        frameUtils.when(() -> configOf(frame)).thenReturn(DEFAULT_CONFIG);
+        frameUtils.when(() -> configOf(frame)).thenReturn(BOTH_MODE_CONFIG);
 
         final long gasRequirement = 123L;
         // FullResult with a non-null recordBuilder triggers the dispatchedRecordBuilder branch
@@ -181,6 +190,51 @@ class HtsSystemContractTest {
 
         verify(dispatchedRecordBuilder).status(INSUFFICIENT_GAS);
         verify(dispatchedRecordBuilder).contractCallResult(any());
+        verify(dispatchedRecordBuilder).evmCallTransactionResult(any());
+    }
+
+    @Test
+    void dispatchedResultWithInsufficientGasSkipsLegacyCallResultInBlocksMode() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> configOf(frame)).thenReturn(BLOCKS_MODE_CONFIG);
+
+        final long gasRequirement = 123L;
+        final var pricedResult =
+                gasOnly(successResult(ByteBuffer.allocate(0), gasRequirement, dispatchedRecordBuilder), SUCCESS, false);
+        given(call.execute(frame)).willReturn(pricedResult);
+        given(attempt.senderId()).willReturn(SENDER_ID);
+        given(frame.getRemainingGas()).willReturn(gasRequirement - 1);
+
+        assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+
+        verify(dispatchedRecordBuilder).status(INSUFFICIENT_GAS);
+        verify(dispatchedRecordBuilder, never()).contractCallResult(any());
+        verify(dispatchedRecordBuilder).evmCallTransactionResult(any());
+    }
+
+    @Test
+    void dispatchedResultWithSufficientGasSkipsLegacyCallResultInBlocksMode() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> configOf(frame)).thenReturn(BLOCKS_MODE_CONFIG);
+
+        final long gasRequirement = 123L;
+        final var pricedResult =
+                gasOnly(successResult(ByteBuffer.allocate(0), gasRequirement, dispatchedRecordBuilder), SUCCESS, false);
+        given(call.execute(frame)).willReturn(pricedResult);
+        given(attempt.senderId()).willReturn(SENDER_ID);
+        given(frame.getRemainingGas()).willReturn(gasRequirement + 1);
+
+        assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+
+        verify(dispatchedRecordBuilder, never()).contractCallResult(any());
         verify(dispatchedRecordBuilder).evmCallTransactionResult(any());
     }
 

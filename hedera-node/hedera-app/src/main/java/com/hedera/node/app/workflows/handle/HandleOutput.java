@@ -14,6 +14,7 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -113,5 +114,17 @@ public record HandleOutput(
 
     public @NonNull RecordSource preferringBlockRecordSource() {
         return blockRecordSource != null ? blockRecordSource : requireNonNull(recordSource);
+    }
+
+    /**
+     * Returns a list of {@link SingleTransactionRecord}s from this output, regardless of stream mode.
+     * In RECORDS/BOTH mode, returns the precomputed records from the legacy record source.
+     * In BLOCKS mode, translates block outputs into {@link SingleTransactionRecord}s.
+     */
+    public @NonNull List<SingleTransactionRecord> singleTransactionRecords() {
+        if (recordSource instanceof LegacyListRecordSource legacy) {
+            return legacy.precomputedRecords();
+        }
+        return requireNonNull(blockRecordSource).precomputedRecords();
     }
 }

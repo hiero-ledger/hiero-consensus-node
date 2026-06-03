@@ -162,11 +162,11 @@ jobs:
           COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
-          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
-          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
   report-success:
     name: Report SDLT execution success
