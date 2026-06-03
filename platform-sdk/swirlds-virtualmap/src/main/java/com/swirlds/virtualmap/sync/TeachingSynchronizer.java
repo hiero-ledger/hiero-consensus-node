@@ -142,7 +142,7 @@ public class TeachingSynchronizer {
             try {
                 teacherView.close();
             } catch (IOException e) {
-                logger.error(EXCEPTION.getMarker(), "Error while attempting to close data source");
+                logger.error(EXCEPTION.getMarker(), "Error while attempting to close data source", e);
             }
         }
 

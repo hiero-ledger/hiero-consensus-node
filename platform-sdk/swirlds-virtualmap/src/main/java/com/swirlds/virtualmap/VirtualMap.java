@@ -539,7 +539,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
-            throw new RuntimeException(message, e);
+            throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             final var message = "Interrupted while full rehashing";

@@ -98,8 +98,8 @@ public class LearningSynchronizer {
      * Perform reconnect in the role of the learner blocking until it's finished.
      *
      * @param originalMap original learner virtual map
-     * @param in data input stream for reading requests from the learner
-     * @param out data output stream for sending responses to the learner
+     * @param in data input stream for reading requests from the teacher
+     * @param out data output stream for sending responses to the teacher
      * @param breakConnection action to break the connection, which should be called if a reconnect-related exception is encountered and the connection should be closed.
      *
      * @return the synchronized virtual map

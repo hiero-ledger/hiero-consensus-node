@@ -119,7 +119,7 @@ public final class VirtualMapLearner {
      * <p> Some original map fields are remembered so they can be used to construct new {@link VirtualMap} at the end of reconnect process.
      * The original map's data source is shut down and an independent copy is created for the reconnect process,
      * which will be updated with new leaves and hashes as they are received from the teacher.
-     **
+     *
      * @param originalMap the learner's current virtual map; must not be {@code null}
      * @param reconnectConfig reconnect configuration for this operation; must not be {@code null}
      * @param mapStats collector for reconnect metrics; must not be {@code null}
