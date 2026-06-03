@@ -291,6 +291,12 @@ public class HashgraphInfo {
                 }
             }
 
+            // if this is a round where the address book changed, or if this is the first time this event has
+            // ever been updated, then recalculate the creator index
+            if (h.nodesChanged || x.lastSee == null) {
+                x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
+            }
+
             // instantiate fields if they are null, or the array is the wrong size.
             if (x.ancestorJudge == null || x.ancestorJudge.length != h.numNodes) {
                 x.ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
@@ -309,11 +315,6 @@ public class HashgraphInfo {
             }
             if (x.voteB == null || x.voteB.length != h.numNodes) {
                 x.voteB = new boolean[h.numNodes];
-            }
-
-            //if this is a round where the address book changed, then recalculate the creator index
-            if (h.nodesChanged) {
-                x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
             }
 
             // function parents
