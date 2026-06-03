@@ -3,9 +3,16 @@ package com.hedera.node.app.records.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,14 +20,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Migration schema for release 0.76 that deletes the stale on-disk
+ * Migration schema for release 0.76.
+ *
+ * <p>{@link #restart(MigrationContext)} initializes jumpstart wrapped-record voting metadata
+ * during an upgrade if the jumpstart data is present, publishes the existing block record info
+ * and running hashes as shared values for the block-stream cutover (consumed by
+ * {@code V0740BlockStreamSchema}), and deletes the stale on-disk
  * {@value com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter#DEFAULT_FILE_NAME}
- * file if it exists. The file was used by earlier releases to record per-block hashes for the
- * block-stream cutover and is no longer needed once a node has reached 0.76.
+ * file when {@code writeWrappedRecordFileBlockHashesToDisk} is disabled.
+ *
+ * <p>The cutover/jumpstart restart logic mirrors {@link V0750BlockRecordSchema} because the
+ * platform invokes {@code restart()} only on the latest schema per service; without this
+ * carry-over the shared values consumed by {@code V0740BlockStreamSchema} and the voting init
+ * would silently stop running on the 0.75 → 0.76 boundary.
  */
 public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
     private static final Logger log = LogManager.getLogger(V0760BlockRecordSchema.class);
@@ -28,18 +45,66 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(76).patch(0).build();
 
+    private static final int DEADLINE_BLOCK_NUMBER_BUFFER = 10;
+
+    private static final String SHARED_BLOCK_RECORD_INFO = "SHARED_BLOCK_RECORD_INFO";
+    private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
+
     public V0760BlockRecordSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @Override
-    public void migrate(@NonNull final MigrationContext<SemanticVersion> ctx) {
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         if (ctx.isGenesis()) {
             return;
         }
+        if (ctx.isUpgrade(ctx.appConfig()
+                        .getConfigData(VersionConfig.class)
+                        .servicesVersion()
+                        .copyBuilder()
+                        .build(""
+                                + ctx.appConfig()
+                                        .getConfigData(HederaConfig.class)
+                                        .configVersion())
+                        .build())
+                && ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
+            final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            final var existingBlockInfo = blockInfoSingleton.get();
+            if (existingBlockInfo == null) {
+                log.info("Skipping wrapped record voting initialization because BlockInfo singleton does not exist");
+                return;
+            }
+            if (hasJumpstartData(ctx)) {
+                final long votingCompletionDeadlineBlockNumber =
+                        existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                        .migrationRootHashVotes(List.of())
+                        .build());
+                log.info(
+                        "Initialized wrapped record voting singleton with deadline={}",
+                        votingCompletionDeadlineBlockNumber);
+            }
+        }
+        if (ctx.appConfig().getConfigData(BlockStreamConfig.class).enableCutover()) {
+            final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            ctx.sharedValues().put(SHARED_BLOCK_RECORD_INFO, blockInfoSingleton.get());
+            ctx.sharedValues()
+                    .put(
+                            SHARED_RUNNING_HASHES,
+                            ctx.newStates()
+                                    .getSingleton(RUNNING_HASHES_STATE_ID)
+                                    .get());
+        }
+        deleteStaleWrappedRecordHashesFile(ctx);
+    }
+
+    private static void deleteStaleWrappedRecordHashesFile(@NonNull final MigrationContext<SemanticVersion> ctx) {
         final var cfg = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
-        if (!cfg.deleteStaleWrappedRecordHashesFile()) {
-            log.info("Skipping wrapped record hashes file deletion (deleteStaleWrappedRecordHashesFile=false)");
+        if (cfg.writeWrappedRecordFileBlockHashesToDisk()) {
             return;
         }
         final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
@@ -50,5 +115,9 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
         } catch (final IOException e) {
             log.warn("Failed to delete stale wrapped record hashes file {}", file, e);
         }
+    }
+
+    private static boolean hasJumpstartData(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        return ctx.appConfig().getConfigData(BlockStreamJumpstartConfig.class).blockNum() > 0;
     }
 }

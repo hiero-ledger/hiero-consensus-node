@@ -120,8 +120,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 false,
                 wrappedRecordHashesDir.toString(),
                 true,
-                false,
-                true);
+                false);
     }
 
     @TearDown(Level.Trial)
