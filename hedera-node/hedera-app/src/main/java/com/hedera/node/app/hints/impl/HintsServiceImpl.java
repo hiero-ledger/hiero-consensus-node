@@ -139,6 +139,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
             throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
         }
+        // Submit under the construction captured by the signing attempt, not whatever construction is active after a
+        // possible handoff.
         final var submissionFuture =
                 component.submissions().submitPartialSignature(signing.constructionId(), blockHash);
         submissionFuture.exceptionally(t -> {

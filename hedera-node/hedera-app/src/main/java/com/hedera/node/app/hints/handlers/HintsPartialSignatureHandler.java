@@ -149,6 +149,11 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         }
     }
 
+    /**
+     * Incorporates only into a signing attempt created for the construction id carried by the transaction body.
+     * This guards the handoff window where a partial signature for the previous construction can reach consensus
+     * after the active construction has already advanced.
+     */
     private void incorporateIfConstructionMatches(
             @NonNull final HintsPartialSignatureTransactionBody op, @NonNull final Bytes crs, final long creatorId) {
         final var signing = getOrCreateSigningFor(op);
@@ -157,6 +162,11 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         }
     }
 
+    /**
+     * Finds or creates a signing attempt for the transaction body's construction id, never merely for the
+     * currently-active construction. The signing map is keyed by block hash, so the explicit construction check is
+     * what prevents a handoff from mixing partial signatures between adjacent constructions.
+     */
     private @Nullable HintsContext.Signing getOrCreateSigningFor(
             @NonNull final HintsPartialSignatureTransactionBody op) {
         final var existing = signings.get(op.message());
@@ -176,6 +186,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         return asMatchingSigning(raced, op.constructionId());
     }
 
+    /**
+     * Returns the signing only if it was opened under the requested construction id.
+     */
     private @Nullable HintsContext.Signing asMatchingSigning(
             @Nullable final BlockHashSigning signing, final long constructionId) {
         return signing instanceof HintsContext.Signing hintsSigning && hintsSigning.constructionId() == constructionId
@@ -194,7 +207,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     }
 
     /**
-     * Validates the given partial signature.
+     * Validates the given partial signature against its own construction id. If there is already a matching signing
+     * attempt for the block hash, use that signing's captured scheme; otherwise the context can still validate against
+     * its active or immediately previous construction snapshot.
      * <p>
      * @param partialSignature the partial signature to validate
      * @return whether the partial signature is valid

@@ -54,6 +54,10 @@ public class HintsContext {
 
     private volatile ConstructionSnapshots constructionSnapshots = ConstructionSnapshots.EMPTY;
 
+    /**
+     * The active and immediately previous construction snapshots. Keeping both covers the handoff window where
+     * partial signatures for the just-finished block can arrive after the active construction id has advanced.
+     */
     private record ConstructionSnapshots(
             @Nullable ConstructionSnapshot active, @Nullable ConstructionSnapshot previous) {
         private static final ConstructionSnapshots EMPTY = new ConstructionSnapshots(null, null);
@@ -69,6 +73,10 @@ public class HintsContext {
         }
     }
 
+    /**
+     * Immutable view of all construction data needed to validate partial signatures and aggregate a block signature.
+     * A signing attempt closes over one of these snapshots so later handoffs cannot change its weights or keys.
+     */
     private record ConstructionSnapshot(
             long constructionId,
             @NonNull HintsConstruction construction,
@@ -193,6 +201,10 @@ public class HintsContext {
 
     /**
      * Creates a new asynchronous signing process for the given block hash under the active construction.
+     * <p>
+     * This is only used when synchronously opening the local node's signing attempt at block close; incoming partial
+     * signature transactions must instead name the construction id they were produced for.
+     *
      * @param blockHash     the block hash
      * @param onCompletion a callback to run when the signing process completes
      * @return the signing process
@@ -206,6 +218,10 @@ public class HintsContext {
 
     /**
      * Creates a new asynchronous signing process for the given block hash under a known recent construction.
+     * <p>
+     * This is the handoff-safe path for partial signatures that reach consensus after the active construction changes:
+     * the transaction's construction id selects the snapshot to close over.
+     *
      * @param blockHash the block hash
      * @param constructionId the construction id to sign under
      * @param onCompletion a callback to run when the signing process completes
@@ -355,6 +371,8 @@ public class HintsContext {
 
         /**
          * The construction id of the hinTS scheme being used for the signing attempt.
+         * This identifies the snapshot captured when the signing was opened, even if a later handoff updates the
+         * context's active construction.
          */
         public long constructionId() {
             return constructionId;
@@ -362,6 +380,8 @@ public class HintsContext {
 
         /**
          * Validates a partial signature against this signing attempt's hinTS scheme.
+         * This rejects signatures for a different construction id or block hash so a handoff cannot feed the attempt
+         * with otherwise valid partial signatures from the adjacent construction.
          *
          * @param nodeId the node ID
          * @param crs the final CRS used by the network

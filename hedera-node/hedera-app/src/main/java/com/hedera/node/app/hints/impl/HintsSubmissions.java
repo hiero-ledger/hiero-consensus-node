@@ -108,6 +108,9 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Attempts to submit a hinTS partial signature for the given construction id.
+     * <p>
+     * The construction id is explicit so signing uses the same key material as the signing attempt that requested the
+     * submission, even if the active construction has changed during a handoff.
      *
      * @param constructionId the construction id to sign under
      * @param message the message to sign
