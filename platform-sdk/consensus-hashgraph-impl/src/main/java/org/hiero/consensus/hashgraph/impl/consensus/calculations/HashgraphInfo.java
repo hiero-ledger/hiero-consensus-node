@@ -52,6 +52,7 @@ public class HashgraphInfo {
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>();
+    private EventInfo selfParent;
     private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
 
 
@@ -139,9 +140,22 @@ public class HashgraphInfo {
             return consensusTimestamp;
         }
 
-        /** EventInfo.update returns this (or null if consensus wasn't yet reached). */
-        public record UpdateResults(
-                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {}
+        /**
+         * Instantiate the EventInfo object for an event. The parents array should contain the parents in the same
+         * order as they are listed in the signed event that is gossiped. If there is a self-parent in the array, it
+         * must be in the first position. It is ok if the parents array is missing some or all of the ancient parents.
+         * It is ok if the array contains some null elements. If an event has no non-ancient parents, then it is ok
+         * to pass in null, or an array of all nulls, or an empty array.
+         *
+         * @param hashgraph which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
+         * @param creatorIndex the index into round state nodes[] (not the nodeID) of the creator of this event
+         * @param parents array of parents, in the same order as in the signed event that is gossiped.
+         */
+        public EventInfo(@NonNull HashgraphInfo hashgraph, int creatorIndex, EventInfo[] parents) {
+            this.hashgraph = hashgraph;
+            this.creator = creatorIndex;
+            this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
+        }
 
         /**
          * Mark this event as expired. It should eventually be called on every event, but only after it is ancient.
@@ -159,20 +173,9 @@ public class HashgraphInfo {
             voteB = null;
         }
 
-        /**
-         * Instantiate the EventInfo object for an event. It is ok if the parents array is missing some or all
-         * of the ancient parents. It is ok if the array contains some null elements. If an event has no
-         * non-ancient parents, then it is ok to pass in null, or an array of all nulls, or an empty array.
-         *
-         * @param hashgraph which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
-         * @param creatorIndex the index into round state nodes[] (not the nodeID) of the creator of this event
-         * @param parents array of parents, in the same order as in the signed event that is gossiped.
-         */
-        public EventInfo(@NonNull HashgraphInfo hashgraph, int creatorIndex, EventInfo[] parents) {
-            this.hashgraph = hashgraph;
-            this.creator = creatorIndex;
-            this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
-        }
+        /** EventInfo.update returns this (or null if consensus wasn't yet reached). */
+        public record UpdateResults(
+                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
          * This should be called for each event, just before it is added to the hashgraph. When consensus is
@@ -217,6 +220,7 @@ public class HashgraphInfo {
                 return null; //this event is expired
             }
             if (h.pendingRound != r.pendingRound) {
+                //this is a new round, so calculate all the functions of round
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
 
@@ -241,7 +245,8 @@ public class HashgraphInfo {
                     for (EventInfo judge : rp.prevJudges) {
                         t += r.stake[judge.creator];
                     }
-                    h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1) || !h.supermajority(t)) ? 2 : 1;
+                    h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1)
+                                                   || !h.supermajority(t)) ? 2 : 1;
                 }
             }
 
@@ -266,21 +271,21 @@ public class HashgraphInfo {
             }
 
             // function parents
-            // put in the parents array only those parents that are non-ancient descendents of judges in the prev round
-            {
+            // put in the h.parents array only those parents that are non-ancient descendents of judges in the prev round
+            if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
                 // shrink to recover after branching
-                if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
-                    h.parents = new ArrayList<>(h.numNodes);
-                    h.parentsMaxSize = 0;
-                }
-                h.parents.clear();
-                for (int i = 0; i < x.parentsSigned.length; i++) {
-                    if (x.parentsSigned[i] != null && x.parentsSigned[i].prevJudgeDesc) {
-                        h.parents.add(x.parentsSigned[i]);
-                    }
-                }
-                h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
+                h.parents = new ArrayList<>(h.numNodes);
+                h.parentsMaxSize = 0;
             }
+            h.parents.clear();
+            for (int i = 0; i < x.parentsSigned.length; i++) {
+                if (x.parentsSigned[i] != null && x.parentsSigned[i].prevJudgeDesc) {
+                    h.parents.add(x.parentsSigned[i]);
+                }
+            }
+            h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
+            h.selfParent = (h.parents.isEmpty()
+                            || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
             // function prevJudgeDesc
             x.prevJudgeDesc = x.isPrevJudge || h.pendingRound == 1;
@@ -360,6 +365,10 @@ public class HashgraphInfo {
             }
 
             // function seeThru
+            {
+                EventInfo p = h.selfParent;
+                
+            }
 
             // function stronglySeeP
 
