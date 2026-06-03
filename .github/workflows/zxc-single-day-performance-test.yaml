@@ -357,6 +357,7 @@ jobs:
         run: |
           cd "${{ github.workspace }}"/target_block_node
           sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
+          grep MAX_BLOCK_SIZE_BYTES block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
 
       - name: Compile BN
         run: |
@@ -671,7 +672,7 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
               bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
-              bash -c "nohup bash /opt/hiero/block-node/${bnVersion}/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+              bash -c "nohup BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000 JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"' bash /opt/hiero/block-node/${bnVersion}/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
 
       - name: Start CNs
