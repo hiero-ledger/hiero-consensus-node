@@ -219,7 +219,7 @@ jobs:
   mats-hapi-tests:
     name: HAPI Tests
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: ./.github/workflows/800-call-execute-hapi-tests.yaml
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
     needs:
       - commit-info
       - compile-and-spotless
