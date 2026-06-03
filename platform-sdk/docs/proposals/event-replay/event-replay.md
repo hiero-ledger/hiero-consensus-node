@@ -39,9 +39,11 @@ Why this works:
   (full roster, normal multi-node configuration) and is *not* run in single-node
   mode — the other roster members are simply absent. Consensus never actually
   starts: PCES replay completes before `platformCoordinator.startGossip()`, so
-  all block production happens during replay with no peer communication. After
-  replay the node enters `CHECKING`, which is fine — all needed blocks already
-  exist.
+  all block production happens during replay with no peer communication. This is
+  enforced at the network layer too — a host-level netfilter block drops all
+  egress to the other nodes' IPs, since the production roster points at live
+  hosts (see component 4). After replay the node enters `CHECKING`, which is
+  fine — all needed blocks already exist.
 - **Signing without gossip.** Block production does not require live TSS. Either
   a mock signer is used (Tier 1), or — with real hinTS (Tier 2) — the partial
   signatures originally produced in production are event transactions in the
@@ -143,18 +145,27 @@ subset of partials that crosses the threshold depends on arrival order, so the
 aggregate is valid but may differ byte-for-byte. Block and state hashes are
 unaffected regardless.
 - **Trailing blocks.** A block's partials appear in later blocks, so the last few
-blocks of the replay window may have no partials in-window and remain
-pending/unsigned. Compare up to the last fully-signable block, or extend the
-window past the comparison target.
+blocks of the extraction window have no partials in-window and remain
+pending/unsigned. The extraction window must therefore extend past the
+comparison target (see Open Questions / Risks); trailing extraction-only blocks
+are not compared.
 
 ### 4. Inputs and environment
 
 - A production signed-state snapshot at the round immediately preceding the
   first reconstructed block.
-- Block stream files covering the target window, contiguous from that round.
+- Block stream files covering the extraction window, contiguous from that round.
 - The full production roster (all members' public keys), with the node running in
   its normal multi-node production configuration — **not** single-node mode. The
   other roster members are simply not started.
+- **Host-level network isolation (required).** Because the node runs with the
+  real production roster, it holds the actual IPs/endpoints of live production
+  nodes. A blocking netfilter/iptables rule must drop all egress from the test
+  host to those peer IPs, so that any stray connection attempt (gossip dial,
+  reconnect probe, startup connection setup, etc.) goes nowhere and cannot reach
+  a live production host. This enforces "no peer communication" at the network
+  layer rather than relying solely on the application-level fact that gossip is
+  never started.
 - The replaying node's own private key. Peers' private keys are **not** needed —
   their signatures come from the stream and are verified with their public keys.
 
