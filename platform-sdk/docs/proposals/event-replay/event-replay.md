@@ -23,35 +23,84 @@ hash.
 
 Why this works:
 
-- **Determinism.** The hashgraph derives rounds, consensus timestamps, and
-  consensus order from the event DAG, not from arrival order. Block-stream order
-  is a valid topological order, so the reconstructed DAG yields identical
+- **Determinism.** Consensus output is a function of the event *graph*, not of
+  the order events are fed in: given the same DAG, the hashgraph produces the
+  same rounds, consensus timestamps, and consensus order every time, for any
+  valid topological input order. So the reconstructed graph yields identical
   consensus output, identical execution order, and identical round boundaries.
-- **Single node.** PCES replay completes before `platformCoordinator.startGossip()`,
-  so all block production happens during replay. No inter-node communication is
-  required; the other roster members simply do not run. After replay the node
-  enters `CHECKING`, which is fine — all needed blocks already exist.
-- **Signing without gossip.** Block-proof signature material (state signature
-  transactions) is carried inside events and therefore in the block stream. It
-  is harvested during replay rather than regenerated via live TSS.
+- **Why feed events in block-stream order.** Replaying in a valid topological
+  order is a practical requirement of how PCES replay works and the bounded
+  memory of the orphan buffer — *not* a consensus requirement. (In normal
+  operation gossip delivers events out of order; the orphan buffer holds each
+  event until its parents arrive and releases them in topological order before
+  the hashgraph sees them.) Block-stream order is already a valid topological
+  order, so it keeps orphan-buffer pressure low and needs no re-sorting.
+- **Single node, production config.** The node mirrors the production setup
+  (full roster, normal multi-node configuration) and is *not* run in single-node
+  mode — the other roster members are simply absent. Consensus never actually
+  starts: PCES replay completes before `platformCoordinator.startGossip()`, so
+  all block production happens during replay with no peer communication. After
+  replay the node enters `CHECKING`, which is fine — all needed blocks already
+  exist.
+- **Signing without gossip.** Block production does not require live TSS. Either
+  a mock signer is used (Tier 1), or — with real hinTS (Tier 2) — the partial
+  signatures originally produced in production are event transactions in the
+  block stream, so replaying them feeds the same aggregation that produces the
+  block proof. See component 3.
+
+## Scope and Assumptions
+
+This design assumes **complete, unredacted, unfiltered block streams**.
+Reconstruction and replay are **not supported** for redacted or filtered streams
+— this is a known limitation:
+
+- A redacted transaction (`RedactedItem`) exposes only its hash, not its bytes.
+  Two things follow. (1) The reconstructed `GossipEvent` cannot carry the real
+  transaction payload, so the event cannot be **replayed** through execution to
+  reproduce the original results. (2) The *production* event hasher
+  (`PbjStreamHasher`) has no path for hashing a transaction from its hash alone,
+  and `GossipEvent.transactions` (plain `repeated bytes`) has no representation
+  distinguishing real bytes from a stand-in hash. The test-side
+  `RedactedEventHasher` in `BlockStreamEventBuilder` can recompute the event hash
+  from stored hashes for *validation* (`RedactingEventHashBlockStreamValidator`),
+  but that does not carry over to the production replay path. Supporting redaction
+  in replay would require encoding a "hash-only" marker into the transaction bytes
+  and adding per-transaction detection on the replay path — explicitly out of
+  scope.
+- Filtered streams (dropped or substituted items, e.g. `FilteredItem` /
+  `filtered_single_item`) break the contiguous, complete item sequence the
+  converter relies on to group transactions per event and resolve in-block parent
+  references.
+
+Inputs must therefore be full block streams as produced by the network, not
+redacted/filtered views intended for downstream consumers.
 
 ## Components
 
 ### 1. Block stream → PCES conversion tool
 Reads `.blk.gz` files, reconstructs `GossipEvent` records, and writes PCES files.
-Detailed in the next section. Implemented as an enhancement to the existing PCES
-tooling so the normal `PcesFileTracker` replay path can consume its output
-unchanged.
+Event reconstruction (block items → unsigned `PlatformEvent`s, with hashes) is
+already implemented by `BlockStreamEventBuilder`; the remaining work is writing
+those events out as PCES files (step 6 below) using `CommonPcesWriter` — the same
+mechanism `SavedStateUtils.prepareStateForTransplant()` already uses — so the
+normal `PcesFileTracker` replay path can consume them unchanged.
 
-### 2. Unsigned-event intake path
-Reconstructed events lack the creator's `GossipEvent.signature`. PCES-sourced
-events carry `EventOrigin.STORAGE` and pass through `DefaultEventSignatureValidator`,
-which would drop unsigned events. Required: either the test-only
-`forceIgnorePcesSignatures` flag (stopgap) or a dedicated unsigned-event intake
-path that skips signature verification while keeping all other validation
-stages. Trust derives from the block proof, not the per-event signature. The
-signature is not part of the event hash, so its absence does not affect the DAG
-or consensus.
+### 2. Unsigned-event intake path (required code changes — blocking)
+Reconstructed events lack the creator's `GossipEvent.signature` (the block stream
+does not carry it). PCES-sourced events carry `EventOrigin.STORAGE` and pass
+through `DefaultEventSignatureValidator` in the intake pipeline, which drops
+events with missing/invalid signatures. **There is no existing flag that bypasses
+this**, so replay of reconstructed events cannot work today; it requires new code
+— a dedicated intake path (or event origin) for unsigned events that skips
+signature verification while keeping all other validation stages. Trust derives
+from the block proof, not the per-event signature; and since the signature is not
+part of the event hash, its absence does not affect the DAG or consensus.
+
+Note: the `forceIgnorePcesSignatures` flag does **not** solve this. Despite its
+name it does not touch event-signature validation — it feeds
+`DefaultIssDetector` and only causes replayed *state signature transactions* to
+be ignored so they don't raise false ISSes during replay. It is unrelated to the
+creator's `GossipEvent.signature` and is not used in this scenario.
 
 ### 3. Block signing during replay
 Block production during replay needs neither gossip nor live TSS; behavior
@@ -59,7 +108,7 @@ depends on signer configuration. (Note: `DefaultStateSigner`'s `pcesRound`
 suppression applies to *platform state-hash signatures* for signed states / ISS,
 **not** to block proofs, so it does not block block production.)
 
-**Tier 1 — block stream representation.** With
+**Tier 1 — block stream representation (works today, deterministic).** With
 `tss.forceMockSignatures=true` (or hinTS/history disabled),
 `TssBlockHashSigner.isReady()` is always true and `sign()` returns a
 deterministic `SHA-384(blockHash)` as the signature, computed async with no
@@ -68,7 +117,7 @@ block hashes, state hashes, boundaries, and file format are exercised and can be
 compared against production. The block *proof* carries a mock signature rather
 than a real TSS signature. No new signing work is required for this tier.
 
-**Tier 2 — real TSS signature.**
+**Tier 2 — real TSS signature (confirmed via the partial-signature handler).**
 With real hinTS enabled and a snapshot whose hinTS construction is already
 complete, `isReady()` is satisfied from state. When a block closes during replay,
 `hintsService.sign(blockHash)` registers a `HintsContext.Signing` for that block
@@ -99,7 +148,9 @@ Two caveats:
 - A production signed-state snapshot at the round immediately preceding the
   first reconstructed block.
 - Block stream files covering the target window, contiguous from that round.
-- The production roster (with all members' public keys).
+- The full production roster (all members' public keys), with the node running in
+  its normal multi-node production configuration — **not** single-node mode. The
+  other roster members are simply not started.
 - The replaying node's own private key. Peers' private keys are **not** needed —
   their signatures come from the stream and are verified with their public keys.
 
@@ -120,53 +171,85 @@ in an event appear in the stream, and the per-transaction double-hash in
 `PbjStreamHasher` lets a redacted transaction still contribute its hash to the
 event hash.
 
-### Reconstruction steps
-1. **Iterate block items in order**, grouping by round (`RoundHeader`) and event
-   (`EventHeader`).
-2. **Collect each event's transactions** — the event-transaction
-   `signed_transaction` items between this `EventHeader` and the next header.
-   Distinguish event transactions from synthetic transactions (synthetic ones
-   are not part of any event hash); for redacted items use
-   `signed_transaction_hash`.
-3. **Resolve parents.** Use `event_descriptor` references directly; resolve
-   `index` references to the in-block event by position. Build each
-   `EventDescriptor` as `(hash, creatorId, birthRound)`, where `hash` is the
-   reconstructed parent event hash.
-4. **Compute the event hash** with the same algorithm as `PbjStreamHasher`:
-   hash `EventCore` + parent `EventDescriptor`s + double-hashed transactions.
-   Process events in topological order so parent hashes are available before
-   their children. The hash excludes the signature.
-5. **Assemble the `GossipEvent`**: `event_core` + `parents` + `transactions`,
-   with the `signature` field left empty/placeholder.
-6. **Write PCES files**: a 4-byte version header (`2` = `PROTOBUF_EVENTS`)
-   followed by length-delimited `GossipEvent` records, emitted in block-stream
-   order. Use the standard PCES filename convention (sanitized timestamp,
-   sequence number, min/max birth round, origin). Set `origin` consistent with
-   the snapshot's starting round and birth-round bounds to cover the events.
-   Reuse `PcesFile` / `PcesMutableFile` for descriptor creation and writing.
+### Reconstruction (steps 1–5 already implemented)
+Steps 1–5 below are implemented today in `BlockStreamEventBuilder` (in
+`test-clients`, used by `EventHashBlockStreamValidator`). It iterates the blocks,
+groups transactions per event, resolves parents, recomputes the event hash, and
+produces a `PlatformEvent` (a `GossipEvent` with `EventOrigin.STORAGE` and an
+**empty signature**). Step 6 (writing PCES files) is the remaining converter
+work; the rest can reuse this class.
+
+1. **Iterate block items in order**, switching on item kind (`EVENT_HEADER`,
+   `SIGNED_TRANSACTION`, `REDACTED_ITEM`); an `EventHeader` starts a new event and
+   closes the previous one.
+2. **Collect each event's transactions** between this `EventHeader` and the next.
+   Only transactions that belong to the event hash are included: the rule is
+   `TransactionID.nonce() == 0 && !scheduled` (`isTransactionInEvent`). Synthetic
+   and scheduled transactions (non-zero nonce) are excluded. Redacted items
+   contribute via `RedactedItem.signed_transaction_hash`. Note: during a network
+   transplant, non-zero-nonce transactions can appear outside an event header and
+   are ignored; a zero-nonce transaction outside a header is an error.
+3. **Resolve parents.** `index` references resolve to the in-block event by
+   position (its already-computed descriptor); `event_descriptor` references
+   (out-of-block) are taken directly and recorded as `CrossBlockParentRef` for
+   later chain validation.
+4. **Compute the event hash** with the same algorithm as `PbjStreamHasher`
+   (replicated as `RedactedEventHasher`): hash `EventCore` + parent
+   `EventDescriptor`s + per-transaction hashes (using the redacted transaction's
+   stored hash when bytes are absent). Events are processed in consensus order,
+   which is also topological, so a parent's hash exists before any child
+   references it. The hash excludes the signature.
+5. **Assemble the `GossipEvent`**: `event_core` + resolved `parents` +
+   `transactions`, with `signature = Bytes.EMPTY`, wrapped as a `PlatformEvent`
+   with `EventOrigin.STORAGE`.
+6. **Write PCES files** (remaining work) via `CommonPcesWriter`, following the
+   existing `SavedStateUtils.prepareStateForTransplant()` idiom (which already
+   writes `PlatformEvent`s to PCES files outside the live pipeline). Construct a
+   `CommonPcesWriter` over a `PcesFileManager` seeded with the snapshot's starting
+   round (so origin and sequence numbers are correct), call
+   `beginStreamingNewEvents()` **once** up front — without it the writer treats
+   every event as already-durable and writes nothing — then for each reconstructed
+   event in block-stream order call `prepareOutputStream(event)` followed by
+   `getCurrentMutableFile().writeEvent(event)`, and finish with
+   `closeCurrentMutableFile()`. `CommonPcesWriter` / `PcesMutableFile` own file
+   rotation (by size and birth-round bounds), the version header, and the
+   length-delimited `GossipEvent` framing — the converter does not hand-roll any
+   of that.
 
 ### Notes
-- **Byte-exact hashes are achievable.** `EventCore` and parent descriptors come
-  straight from the stream, transaction bytes are the `signed_transaction`
-  items, and the double-hash recovers redacted transactions from their hashes.
+- **An existing validator already checks the reconstructed event-hash chain.**
+  `EventHashBlockStreamValidator` builds events via `BlockStreamEventBuilder` and
+  verifies cross-block parent hashes, using PCES event hashes
+  (`PcesEventHashReader.PcesData`) as the source of truth. It tolerates a small
+  fraction of cross-block parents that resolve only via PCES — stale events that
+  were gossiped but never reached consensus and so are absent from the block
+  stream — failing only above `MAX_PCES_ONLY_PERCENT`. This both demonstrates
+  reconstruction works and quantifies the stale-event effect.
+- **Byte-exact hashes are achievable for non-redacted streams.** `EventCore` and
+  parent descriptors come straight from the stream and the transaction bytes are
+  the `signed_transaction` items, so the production hasher (`PbjStreamHasher`)
+  reproduces the original event hash exactly. This holds only when full
+  transaction bytes are present — see the redaction limitation below.
 - **Pre-snapshot events are harmless.** Events older than the snapshot's ancient
   threshold may be included; the `PcesFileIterator` lower-bound filter and the
   intake ancient gate drop them without error.
 
 ## Test Flow
-1. Convert the target block stream window into PCES files.
+1. Convert the extraction-window block files into PCES files (the extraction
+   window extends past the comparison target — see Open Questions / Risks).
 2. Place the PCES files and the matching state snapshot in the node's
-   directories. Configure the production roster, the node's private key, and the
-   unsigned-event path (or `forceIgnorePcesSignatures`).
+   directories. Configure the production roster and the node's private key, and
+   enable the unsigned-event intake path (component 2).
 3. Start the node. `PcesReplayer` feeds reconstructed events through
    `intake → hashgraph → handler → block production`. Gossip is not started; the
    node enters `CHECKING` after replay completes.
 4. Collect the block stream files and final state produced during replay.
 
 ## Validation
-- Compare each reconstructed block's hash and each round's state hash against the
-  original production values (e.g. via the original block proofs and
-  `BlockStreamInfo.startOfBlockStateHash`).
+- For each block in the **comparison window**, compare the reconstructed block's
+  hash and each round's state hash against the original production values (e.g.
+  via the original block proofs and `BlockStreamInfo.startOfBlockStateHash`).
+  Trailing extraction-only blocks (beyond the comparison target) are not compared.
 - A match proves the software reproduces historical consensus and execution
   exactly. A mismatch localizes a regression.
 - Block proofs may be **valid but not byte-identical** to production, because
@@ -175,15 +258,27 @@ event hash.
   TSS signature. Compare block and state hashes, not raw proof bytes.
 
 ## Open Questions / Risks
-- **Trailing blocks of the window.** Block proofs depend on partial-signature
-  transactions that appear in later blocks; the last few blocks of the replay
-  window may remain pending/unsigned. Compare up to the last fully-signable
-  block, or extend the window past the comparison target.
-- Cleanly separating event transactions from synthetic transactions in the item
-  stream is the main reconstruction subtlety.
+- **Trailing blocks of the window.** A block's partial-signature transactions
+  appear in *later* blocks, so signing a given block requires those later blocks'
+  events to have been replayed. Distinguish two windows: the **comparison window**
+  (blocks whose hashes/state you validate against production) and the
+  **extraction window** (blocks you read events from to build the PCES input). To
+  fully sign every block in the comparison window, the extraction window must
+  extend *past* the comparison target — far enough to include the later blocks
+  carrying the needed partial-signature transactions (roughly target + k, where k
+  is how many blocks ahead partials appear). Replay will also produce proofs for
+  those trailing extraction-only blocks; simply don't compare them. (Extending the
+  comparison window instead would not help — it just moves the same problem to a
+  new last block.)
+- **Redacted / filtered streams are out of scope** (see Scope and Assumptions):
+  reconstruction/replay requires complete, unredacted transaction bytes and a
+  contiguous item sequence.
+- Separating event transactions from synthetic/scheduled ones is already handled
+  in `BlockStreamEventBuilder` via the `nonce == 0 && !scheduled` rule; the
+  converter should preserve that logic when writing PCES files.
 - **The unsigned-event intake path is the only net-new platform work** (block
-  signing in both tiers needs none). It is described as planned but not yet
-  implemented.
+  signing in both tiers needs none). It does not exist yet and is a blocking
+  prerequisite (see component 2).
 
 ## Relevant Configuration
 - `tss.forceMockSignatures=true` — Tier 1: always-ready signer producing
@@ -191,7 +286,10 @@ event hash.
   without TSS. Omit (with hinTS enabled) for Tier 2 real-TSS validation.
 - `tss.useDeterministicHintsSignatures=true` — Tier 2: incorporate partial
   signatures in consensus order so block proofs are byte-reproducible.
-- `event.preconsensus.limitReplayFrequency=false` — replay as fast as the
-  pipeline allows (removes the default 5000 events/s cap).
-- `event.preconsensus.replayHealthThreshold` — tune backpressure for very long
-  replay windows.
+- `event.preconsensus.limitReplayFrequency` — leave at its default (`true`,
+  capping replay at `maxEventReplayFrequency`, 5000 events/s); do not change it
+  unless replay is too slow or a problem arises during replay, in which case
+  setting it to `false` lets the node replay as fast as the pipeline allows.
+  Backpressure still applies regardless: `PcesReplayer` pauses feeding events
+  while the node is unhealthy (`replayHealthThreshold`), which also need not be
+  changed for this test regardless of replay-window length.
