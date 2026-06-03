@@ -169,19 +169,25 @@ public class HashgraphInfo {
 
         /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
-         * but only after it is ancient. After being cleared, any future call to update will return null. This must be
+         * but only after it is ancient. It also sets to null the reference to the hashgraph, so after being cleared,
+         * any future call to update will return null. This must be
          * called eventually on every event, to allow the garbage collector to free memory.
+         *
+         * As an optimization, this also clears all references to arrays or objects, not just EventInfo.
          */
         public void clear() {
-            //to reduce garbage collection, these arrays could be saved and reused for the next new event.
+            //To reduce garbage collection, the arrays could be saved and reused for the next new event.
             hashgraph = null;
             parentsSigned = null;
             ancestorJudge = null;
             lastSee = null;
             stronglySeeP = null;
+            firstSelfWitnessS = null;
+            firstWitnessS = null;
             stronglySeeS1 = null;
             voteE = null;
             voteB = null;
+            consensusTimestamp = null;
         }
 
         /** EventInfo.update returns this (or null if consensus wasn't yet reached). */
@@ -441,14 +447,13 @@ public class HashgraphInfo {
             // function vote
 
             // function roundDecided
-            //h.roundDecided = false; /**/
 
             if (!h.roundDecided) {
                 return null;
             }
 
             // function roundJudges
-            roundJudges = new ArrayList<EventInfo>;  /**/
+            roundJudges = new ArrayList<EventInfo>();  /**/
 
             // function receivedEvents
 
