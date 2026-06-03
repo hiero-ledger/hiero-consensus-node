@@ -102,7 +102,9 @@ public class TeacherPullVirtualTreeReceiveTask {
     private void run() {
         long readBlockedNanos = 0; // waiting for a request to arrive (teacher starved)
         long produceNanos = 0; // loadHash + loadLeaf (teacher's MerkleDB data path)
-        long serializeAndSendNanos = 0; // serialize + sendAsync (enqueue to async out)
+        long buildNanos = 0; // construct the response object (CPU)
+        long serializeNanos = 0; // PBJ serialize to byte[] (CPU)
+        long enqueueNanos = 0; // sendAsync — the WAIT on a full queue (blocked/spinning)
 
         try {
             long requestCounter = 0;
@@ -147,21 +149,30 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final long t2 = System.nanoTime();
                 final PullVirtualTreeResponse response =
                         new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
-                out.sendAsync(serializeMessage(response));
-                serializeAndSendNanos += System.nanoTime() - t2;
+                final long t3 = System.nanoTime();
+                final byte[] serialized = serializeMessage(response);
+                final long t4 = System.nanoTime();
+                out.sendAsync(serialized);
+                final long t5 = System.nanoTime();
+
+                buildNanos += (t3 - t2);
+                serializeNanos += (t4 - t3);
+                enqueueNanos += (t5 - t4);
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
             logger.info(
                     RECONNECT.getMarker(),
-                    // ── EXTEND the existing line ──
-                    "Teacher task: duration={}ms, requests={}, rate={}, readBlockedMs={}, produceMs={}, serializeAndSendMs={}",
+                    "Teacher task: duration={}ms, requests={}, rate={}, readBlockedMs={}, produceMs={}, "
+                            + "buildMs={}, serializeMs={}, enqueueMs={}",
                     end - start,
                     requestCounter,
                     requestRate,
                     NANOSECONDS.toMillis(readBlockedNanos),
                     NANOSECONDS.toMillis(produceNanos),
-                    NANOSECONDS.toMillis(serializeAndSendNanos));
+                    NANOSECONDS.toMillis(buildNanos),
+                    NANOSECONDS.toMillis(serializeNanos),
+                    NANOSECONDS.toMillis(enqueueNanos));
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();
