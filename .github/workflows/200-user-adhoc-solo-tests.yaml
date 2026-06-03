@@ -28,7 +28,7 @@ on:
         type: string
         default: ""
       jumpstart-upgrade-tag:
-        description: "[Jumpstart] Consensus-node release tag to upgrade the network to. Leave blank to default to v0.75.0-rc.3."
+        description: "[Jumpstart] Consensus-node release tag to upgrade the network to. Leave blank to build and upgrade to the local build from the checked-out ref."
         required: false
         type: string
         default: ""
@@ -134,6 +134,10 @@ jobs:
           kind --version
           kubectl version --client=true
 
+      - name: Build Consensus Node Local Artifacts
+        if: ${{ inputs.jumpstart-upgrade-tag == '' }}
+        run: ${GRADLE_EXEC} assemble
+
       - name: Run WRB Solo Jumpstart Scenario
         run: |
           set -eo pipefail
@@ -143,7 +147,7 @@ jobs:
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}" \
-              UPGRADE_TAG="${{ inputs.jumpstart-upgrade-tag || 'v0.75.0-rc.3' }}" \
+              UPGRADE_TAG="${{ inputs.jumpstart-upgrade-tag }}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 

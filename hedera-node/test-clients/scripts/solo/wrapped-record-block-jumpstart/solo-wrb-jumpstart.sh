@@ -5,7 +5,7 @@
 # 1) Deploy a solo consensus network on v0.74.0
 # 2) Wait 30s, then run offline wrapping from genesis records
 # 3) Build temp upgrade application.properties from 0.74 base + jumpstart values
-# 4) Upgrade to release tag with temp properties
+# 4) Upgrade to a release tag, or to the local build when UPGRADE_TAG is empty, with temp properties
 # 5) Parse migration vote values from hgcaa.log and extract Block N
 # 6) Replay wrapping up to Block N and compare vote values to replay jumpstart.bin
 # 7) Wait BLOCKS_AFTER_JUMPSTART more blocks, capture the latest saved state, introspect its
@@ -20,7 +20,12 @@ Usage: solo-wrb-jumpstart.sh [--nodes 3|4]
 
 Environment:
   INITIAL_RELEASE_TAG           Deploy release tag (default: v0.74.0)
-  UPGRADE_TAG                   Consensus-node release tag to upgrade the network to
+  UPGRADE_TAG                   Consensus-node release tag to upgrade the network to. Leave empty
+                                (default) to upgrade to the LOCAL build from the checked-out branch;
+                                set a tag to skip the local build and upgrade to that release.
+  LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars, used when UPGRADE_TAG is
+                                empty (default: <repo>/hedera-node/data)
+  LOCAL_BUILD_UPGRADE_TAG       Placeholder upgrade-version Solo applies to a local-build upgrade
                                 (default: v0.75.0-rc.3)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
                                 (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
@@ -110,7 +115,15 @@ fi
 
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.74.0}"
-UPGRADE_TAG="${UPGRADE_TAG:-v0.75.0-rc.3}"
+# Upgrade target:
+#   UPGRADE_TAG empty -> upgrade to the LOCAL build from the checked-out branch
+#                        (jars under LOCAL_BUILD_PATH; Solo labels it LOCAL_BUILD_UPGRADE_TAG)
+#   UPGRADE_TAG set   -> tag-based upgrade to that release, no local build
+UPGRADE_TAG="${UPGRADE_TAG:-}"
+LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.3}"
+USE_LOCAL_BUILD_FOR_UPGRADE="false"
+SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
 BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
@@ -216,6 +229,43 @@ require_cmd() {
 validate_block_node_repo() {
   [[ -d "${BLOCK_NODE_REPO_PATH}" ]] || { echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2; return 1; }
   [[ -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]] || { echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2; return 1; }
+}
+
+validate_local_build_path() {
+  local build_path="$1"
+  [[ -d "${build_path}/lib" ]] || { echo "Missing directory: ${build_path}/lib" >&2; return 1; }
+  [[ -d "${build_path}/apps" ]] || { echo "Missing directory: ${build_path}/apps" >&2; return 1; }
+  compgen -G "${build_path}/lib/*.jar" >/dev/null || { echo "No jar files found in ${build_path}/lib" >&2; return 1; }
+  compgen -G "${build_path}/apps/*.jar" >/dev/null || { echo "No jar files found in ${build_path}/apps" >&2; return 1; }
+}
+
+local_build_implementation_version() {
+  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
+    | sed -n 's/^Implementation-Version: //p' | sed -n '1p' | tr -d '\r'
+}
+
+consensus_pod_implementation_version() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
+      | sed -n 's/^Implementation-Version: //p' | sed -n '1p'" | tr -d '\r'
+}
+
+verify_local_build_on_consensus_nodes() {
+  local expected node pod actual
+  local nodes=()
+  expected="$(local_build_implementation_version)"
+  [[ -n "${expected}" ]] || { echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2; return 1; }
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    actual="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${actual}" != "${expected}" ]]; then
+      echo "Local build was not applied on ${pod}: expected '${expected}', found '${actual:-unknown}'" >&2
+      return 1
+    fi
+  done
+  log "Verified local build Implementation-Version on all nodes: ${expected}"
 }
 
 ensure_zstd_command_for_block_node() {
@@ -1059,13 +1109,19 @@ compare_state_block_info_to_wrap() {
 }
 
 run_network_upgrade() {
-  solo consensus network upgrade \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --upgrade-version "${UPGRADE_TAG}" \
-    --application-properties "${TMP_UPGRADE_APP_PROPS}" \
-    --quiet-mode \
+  local upgrade_args=(
+    solo consensus network upgrade
+    --deployment "${SOLO_DEPLOYMENT}"
+    --node-aliases "${NODE_ALIASES}"
+    --upgrade-version "${SOLO_UPGRADE_VERSION}"
+    --application-properties "${TMP_UPGRADE_APP_PROPS}"
+    --quiet-mode
     --force
+  )
+  if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+    upgrade_args+=(--local-build-path "${LOCAL_BUILD_PATH}")
+  fi
+  "${upgrade_args[@]}"
 }
 
 ensure_mirror_node() {
@@ -1178,11 +1234,25 @@ validate_block_node_repo
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
 [[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
-[[ -n "${UPGRADE_TAG}" ]] || {
-  echo "UPGRADE_TAG is empty; set UPGRADE_TAG to the consensus-node release tag to upgrade to" >&2
-  exit 1
-}
-log "Will upgrade network to release tag ${UPGRADE_TAG}"
+if [[ -z "${UPGRADE_TAG}" ]]; then
+  # Local-build upgrade from the checked-out branch.
+  USE_LOCAL_BUILD_FOR_UPGRADE="true"
+  validate_local_build_path "${LOCAL_BUILD_PATH}"
+  local_build_version="$(local_build_implementation_version)"
+  [[ -n "${local_build_version}" ]] || {
+    echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
+    exit 1
+  }
+  [[ -n "${LOCAL_BUILD_UPGRADE_TAG}" ]] || {
+    echo "LOCAL_BUILD_UPGRADE_TAG is empty; set LOCAL_BUILD_UPGRADE_TAG or set UPGRADE_TAG to a release tag" >&2
+    exit 1
+  }
+  SOLO_UPGRADE_VERSION="${LOCAL_BUILD_UPGRADE_TAG}"
+  log "UPGRADE_TAG empty: will upgrade to local build at ${LOCAL_BUILD_PATH} (Implementation-Version ${local_build_version}); Solo upgrade-version=${SOLO_UPGRADE_VERSION}"
+else
+  SOLO_UPGRADE_VERSION="${UPGRADE_TAG}"
+  log "Will upgrade network to release tag ${UPGRADE_TAG}"
+fi
 
 log "Cleaning previous local artifacts"
 rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${WORK_DIR}" >/dev/null 2>&1 || true
@@ -1227,11 +1297,18 @@ log "Running offline wrap from genesis records"
 run_initial_offline_wrap_from_genesis "${MIRROR_REST_URL}"
 create_temp_upgrade_properties
 
-log "Upgrading network to release tag ${UPGRADE_TAG} using temp application.properties"
+if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+  log "Upgrading network to local build (${LOCAL_BUILD_PATH}) using temp application.properties"
+else
+  log "Upgrading network to release tag ${UPGRADE_TAG} using temp application.properties"
+fi
 run_network_upgrade
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 restart_post_upgrade_port_forwards
+if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+  verify_local_build_on_consensus_nodes
+fi
 
 log "Parsing migration vote values from hgcaa logs"
 parse_migration_vote_from_hgcaa
