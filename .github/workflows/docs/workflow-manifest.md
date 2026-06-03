@@ -12,7 +12,7 @@
 
 |                                                        |                                                                   |                                              |                                    |
 | # OPERATIONAL (100-199)                                |                                                                   |                                              |                                    |
-| zxf-collect-workflow-logs.yaml                         | ZXF: Collect Workflow Run Logs                                    | 100-disp-collect-workflow-logs.yaml          | 100: [DISP] Collect Workflow Logs  |
+| zxf-collect-workflow-logs.yaml                         | ZXF: Collect Workflow Run Logs                                    | 100-user-collect-workflow-logs.yaml          | 100: [USER] Collect Workflow Logs  |
 | flow-trigger-release.yaml                              | [Release] Create New Release                                      | 101-user-trigger-release.yaml                | 101: [USER] Trigger Release        |
 | 050-user-memory-profile-ctrl.yaml                      | 050: [USER] Memory Profile Ctrl                                   | 102-user-memory-profile-ctrl.yaml            | 102: [USER] Memory Profile Ctrl    |
 | 200-user-adhoc-solo-tests.yaml                         | 200: [USER] Ad Hoc Solo Tests                                     | 103-user-adhoc-solo-tests.yaml               | 103: [USER] Ad Hoc Solo Tests      |
