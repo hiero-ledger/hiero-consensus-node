@@ -110,17 +110,14 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var hintsStore = context.createStore(ReadableHintsStore.class);
         final var crs = requireNonNull(hintsStore.crsIfKnown());
         try {
-            final var partialSignature = new PartialSignature(hintsContext.constructionIdOrThrow(), crs, creatorId, op);
+            final var partialSignature = new PartialSignature(op.constructionId(), crs, creatorId, op);
             if (tssConfig.useDeterministicHintsSignatures()) {
                 //noinspection ResultOfMethodCallIgnored
                 cache.get(partialSignature);
             } else {
-                final boolean isValid = hintsContext.validate(
-                        partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
+                final boolean isValid = Boolean.TRUE.equals(validate(partialSignature));
                 if (isValid) {
-                    signings.computeIfAbsent(
-                                    op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
-                            .incorporateValid(crs, creatorId, op.partialSignature());
+                    incorporateIfConstructionMatches(op, crs, creatorId);
                 }
             }
         } catch (Exception e) {
@@ -145,16 +142,45 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         // Only something to do at handle if using deterministic hinTS signatures
         if (tssConfig.useDeterministicHintsSignatures()) {
             final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
-                    hintsContext.constructionIdOrThrow(),
-                    crs,
-                    context.creatorInfo().nodeId(),
-                    op)));
+                    op.constructionId(), crs, context.creatorInfo().nodeId(), op)));
             if (isValid) {
-                signings.computeIfAbsent(
-                                op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
-                        .incorporateValid(crs, creatorId, op.partialSignature());
+                incorporateIfConstructionMatches(op, crs, creatorId);
             }
         }
+    }
+
+    private void incorporateIfConstructionMatches(
+            @NonNull final HintsPartialSignatureTransactionBody op, @NonNull final Bytes crs, final long creatorId) {
+        final var signing = getOrCreateSigningFor(op);
+        if (signing != null) {
+            signing.incorporateValid(crs, creatorId, op.partialSignature());
+        }
+    }
+
+    private @Nullable HintsContext.Signing getOrCreateSigningFor(
+            @NonNull final HintsPartialSignatureTransactionBody op) {
+        final var existing = signings.get(op.message());
+        if (existing != null) {
+            return asMatchingSigning(existing, op.constructionId());
+        }
+        final var created = hintsContext.newSigningForConstruction(
+                op.message(), op.constructionId(), () -> signings.remove(op.message()));
+        if (created == null) {
+            return null;
+        }
+        final var raced = signings.putIfAbsent(op.message(), created);
+        if (raced == null) {
+            return created;
+        }
+        created.cancel();
+        return asMatchingSigning(raced, op.constructionId());
+    }
+
+    private @Nullable HintsContext.Signing asMatchingSigning(
+            @Nullable final BlockHashSigning signing, final long constructionId) {
+        return signing instanceof HintsContext.Signing hintsSigning && hintsSigning.constructionId() == constructionId
+                ? hintsSigning
+                : null;
     }
 
     private void incorporateRsaIfValid(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
@@ -176,7 +202,12 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     private @Nullable Boolean validate(@NonNull final PartialSignature partialSignature) {
         try {
             // Should never throw, but if it does, we don't want to cache the result, so we catch and return null
-            return hintsContext.validate(partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
+            final var signing = asMatchingSigning(
+                    signings.get(partialSignature.body().message()), partialSignature.constructionId());
+            return signing == null
+                    ? hintsContext.validate(partialSignature.nodeId(), partialSignature.crs(), partialSignature.body())
+                    : signing.validatePartial(
+                            partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
         } catch (Exception e) {
             return null;
         }

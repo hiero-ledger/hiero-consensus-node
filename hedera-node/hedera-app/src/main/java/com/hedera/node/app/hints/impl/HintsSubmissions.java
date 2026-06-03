@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 public class HintsSubmissions extends TssSubmissions {
     private static final Logger logger = LogManager.getLogger(HintsSubmissions.class);
 
-    private final HintsContext context;
     private final HintsKeyAccessor keyAccessor;
     private final BiConsumer<TransactionBody, String> onFailure =
             (body, reason) -> logger.warn("Failed to submit {} ({})", body, reason);
@@ -35,11 +34,9 @@ public class HintsSubmissions extends TssSubmissions {
     public HintsSubmissions(
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HintsKeyAccessor keyAccessor,
-            @NonNull final HintsContext context) {
+            @NonNull final HintsKeyAccessor keyAccessor) {
         super(executor, appContext);
         this.keyAccessor = requireNonNull(keyAccessor);
-        this.context = requireNonNull(context);
     }
 
     /**
@@ -110,14 +107,14 @@ public class HintsSubmissions extends TssSubmissions {
     }
 
     /**
-     * Attempts to submit a hinTS partial signature.
+     * Attempts to submit a hinTS partial signature for the given construction id.
      *
+     * @param constructionId the construction id to sign under
      * @param message the message to sign
      * @return a future that completes when the vote has been submitted
      */
-    public CompletableFuture<Void> submitPartialSignature(@NonNull final Bytes message) {
+    public CompletableFuture<Void> submitPartialSignature(final long constructionId, @NonNull final Bytes message) {
         requireNonNull(message);
-        final long constructionId = context.constructionIdOrThrow();
         return submitIfActive(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);

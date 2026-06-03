@@ -38,6 +38,10 @@ class HintsContextTest {
     private static final Bytes VERIFICATION_KEY = Bytes.wrap("VK");
     private static final Bytes AGGREGATION_KEY = Bytes.wrap(VALID_AGGREGATION_KEY_BYTES);
     private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(AGGREGATION_KEY, VERIFICATION_KEY);
+    private static final byte[] NEXT_AGGREGATION_KEY_BYTES = new byte[49];
+    private static final Bytes NEXT_VERIFICATION_KEY = Bytes.wrap("VK2");
+    private static final Bytes NEXT_AGGREGATION_KEY;
+    private static final PreprocessedKeys NEXT_PREPROCESSED_KEYS;
     private static final NodePartyId A_NODE_PARTY_ID = new NodePartyId(1L, 2, 1L);
     private static final NodePartyId B_NODE_PARTY_ID = new NodePartyId(3L, 6, 1L);
     private static final NodePartyId C_NODE_PARTY_ID = new NodePartyId(7L, 14, 1L);
@@ -50,6 +54,12 @@ class HintsContextTest {
     private static final Bytes CRS = Bytes.wrap("CRS");
     private static final Bytes MESSAGE = Bytes.wrap("MESSAGE");
     private static final Bytes PARTIAL_SIGNATURE = Bytes.wrap("PARTIAL_SIGNATURE");
+
+    static {
+        NEXT_AGGREGATION_KEY_BYTES[0] = 1;
+        NEXT_AGGREGATION_KEY = Bytes.wrap(NEXT_AGGREGATION_KEY_BYTES);
+        NEXT_PREPROCESSED_KEYS = new PreprocessedKeys(NEXT_AGGREGATION_KEY, NEXT_VERIFICATION_KEY);
+    }
 
     @Mock
     private HintsLibrary library;
@@ -114,6 +124,14 @@ class HintsContextTest {
                 .build();
     }
 
+    private static HintsConstruction constructionWith(
+            final long constructionId, final PreprocessedKeys keys, final List<NodePartyId> nodePartyIds) {
+        return HintsConstruction.newBuilder()
+                .constructionId(constructionId)
+                .hintsScheme(new HintsScheme(keys, nodePartyIds))
+                .build();
+    }
+
     @Test
     void becomesReadyOnceConstructionSet() {
         assertFalse(subject.isReady());
@@ -141,7 +159,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
@@ -178,7 +196,7 @@ class HintsContextTest {
 
         subject.setConstruction(construction);
 
-        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         // Exactly half (5 out of 10 total weight): should NOT complete, need strictly > 1/2
@@ -237,10 +255,113 @@ class HintsContextTest {
     }
 
     @Test
+    void validateUsesPreviousConstructionAfterHandoff() {
+        final var nextConstruction = constructionWith(
+                2L,
+                NEXT_PREPROCESSED_KEYS,
+                List.of(
+                        new NodePartyId(A_NODE_PARTY_ID.nodeId(), 22, A_NODE_PARTY_ID.partyWeight()),
+                        B_NODE_PARTY_ID,
+                        C_NODE_PARTY_ID,
+                        D_NODE_PARTY_ID));
+        given(library.verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
+                .willReturn(true);
+
+        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(nextConstruction);
+
+        assertTrue(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
+        verify(library).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
+        verify(library, never()).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, NEXT_AGGREGATION_KEY, 22);
+    }
+
+    @Test
+    void newSigningForConstructionUsesPreviousSnapshotAfterHandoff() {
+        final var nextConstruction = constructionWith(
+                2L,
+                NEXT_PREPROCESSED_KEYS,
+                List.of(
+                        new NodePartyId(A_NODE_PARTY_ID.nodeId(), 22, A_NODE_PARTY_ID.partyWeight()),
+                        B_NODE_PARTY_ID,
+                        C_NODE_PARTY_ID,
+                        D_NODE_PARTY_ID));
+
+        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(nextConstruction);
+
+        final var signing = subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId(), () -> {});
+
+        assertNotNull(signing);
+        assertEquals(CONSTRUCTION.constructionId(), signing.constructionId());
+        assertEquals(VERIFICATION_KEY, signing.verificationKey());
+    }
+
+    @Test
+    void newSigningForUnknownConstructionReturnsNull() {
+        subject.setConstruction(CONSTRUCTION);
+
+        assertNull(subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId() + 1, () -> {}));
+    }
+
+    @Test
     void validateReturnsFalseForUnknownNodeId() {
         subject.setConstruction(CONSTRUCTION);
 
         assertFalse(subject.validate(10_000L, CRS, partialSigBody(CONSTRUCTION.constructionId())));
+        verifyNoInteractions(library);
+    }
+
+    @Test
+    void signingValidatePartialUsesCapturedSnapshotAfterHandoff() {
+        subject.setConstruction(CONSTRUCTION);
+
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        subject.setConstruction(constructionWith(
+                2L,
+                NEXT_PREPROCESSED_KEYS,
+                List.of(
+                        new NodePartyId(A_NODE_PARTY_ID.nodeId(), 22, A_NODE_PARTY_ID.partyWeight()),
+                        B_NODE_PARTY_ID,
+                        C_NODE_PARTY_ID,
+                        D_NODE_PARTY_ID)));
+
+        given(library.verifyBls(CRS, PARTIAL_SIGNATURE, BLOCK_HASH, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
+                .willReturn(true);
+
+        assertTrue(signing.validatePartial(
+                A_NODE_PARTY_ID.nodeId(),
+                CRS,
+                HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(CONSTRUCTION.constructionId())
+                        .message(BLOCK_HASH)
+                        .partialSignature(PARTIAL_SIGNATURE)
+                        .build()));
+        verify(library).verifyBls(CRS, PARTIAL_SIGNATURE, BLOCK_HASH, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
+        verify(library, never()).verifyBls(CRS, PARTIAL_SIGNATURE, BLOCK_HASH, NEXT_AGGREGATION_KEY, 22);
+    }
+
+    @Test
+    void signingValidatePartialRejectsWrongConstructionOrMessage() {
+        subject.setConstruction(CONSTRUCTION);
+
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+
+        assertFalse(signing.validatePartial(
+                A_NODE_PARTY_ID.nodeId(),
+                CRS,
+                HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(CONSTRUCTION.constructionId() + 1)
+                        .message(BLOCK_HASH)
+                        .partialSignature(PARTIAL_SIGNATURE)
+                        .build()));
+        assertFalse(signing.validatePartial(
+                A_NODE_PARTY_ID.nodeId(),
+                CRS,
+                HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(CONSTRUCTION.constructionId())
+                        .message(MESSAGE)
+                        .partialSignature(PARTIAL_SIGNATURE)
+                        .build()));
         verifyNoInteractions(library);
     }
 
@@ -256,7 +377,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
@@ -278,7 +399,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
@@ -301,7 +422,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = (HintsContext.Signing) subject.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
