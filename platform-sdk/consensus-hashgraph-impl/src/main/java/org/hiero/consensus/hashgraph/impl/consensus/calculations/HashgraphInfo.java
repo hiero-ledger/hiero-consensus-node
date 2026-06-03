@@ -12,9 +12,9 @@ import java.util.Map;
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
  * no dependencies other than on the standard Java libraries. The HashgraphInfo class
  * contains the inner class EventInfo and the record types RoundInfo, RoundInfoCore,
- * and RoundInfoPrev. All of these have getters and no setters. When the caller instantiates
+ * and RoundInfoPrev. All 5 of these have getters but no setters. After the caller instantiates
  * these classes and records, passing arrays to the constructors, the contents of those arrays must
- * never be changed. This file implements the equations from the tech report Swirlds-TR-2016-01.<p>
+ * never be changed. This file implements the equations from the tech report Swirlds-TR-2026-01.<p>
  *
  * A single HashgraphInfo should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.<p>
@@ -228,7 +228,7 @@ public class HashgraphInfo {
             long parentRound;
 
             if (hashgraph == null) {
-                return null; //this event is cleared
+                return null; //this event was already cleared
             }
             //if this is a new round (or the first round called on this hashgraph), calculate all the functions of round
             if (h.pendingRound != r.pendingRound) {
