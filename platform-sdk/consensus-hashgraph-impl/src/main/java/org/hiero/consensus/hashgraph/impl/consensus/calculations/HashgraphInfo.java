@@ -195,7 +195,7 @@ public class HashgraphInfo {
          * This will only read (not write) roundState.
          * This will write to the EventInfo fields for this event, and perhaps other events.
          * For each event that reaches consensus, this will fill in its fields isConsensus,
-         * consensusOrder, and consensusTimestamp.
+         * consensusOrder, and consensusTimestamp.<p>
          *
          * If the update of this event didn't reach consensus for this round, this will return null. If it did
          * reach consensus, this is a "keystone event". In that case, it returns an UpdateResults that contains
@@ -319,6 +319,45 @@ public class HashgraphInfo {
             }
 
             // function lastSee
+            for (int m = 0; m < h.numNodes; m++) {
+                if (m == x.creator) {
+                    x.lastSee[m] = x;
+                } else {
+                    //find k = max(map(s1,votingRound))
+                    long k=1; //start at 1 to ensure max({}) = 1
+                    for (EventInfo parent : h.parents) {
+                        EventInfo y = parent.lastSee[m];
+                        if (y != null && y.votingRound > k) {
+                            k = y.votingRound;
+                        }
+                    }
+                    //find w = firstSelfWitness(r,first(s2))
+                    //find p = event in s3 with the max gen
+                    EventInfo w = null;
+                    EventInfo p = null;
+                    boolean s2empty = true;
+                    long maxGen = -1;
+                    for (EventInfo parent : h.parents) {
+                        EventInfo y = parent.lastSee[m];
+                        //y is in s1
+                        if (y != null && y.votingRound == k) {
+                            //y is in s2
+                            //w comes from first(s2), so only set it once
+                            w = (w!=null) ? w : y.firstSelfWitnessS;
+                            s2empty = false;
+                            if (y.firstSelfWitnessS == w) {
+                                //y is in s3
+                                if (y.gen > maxGen) {
+                                    maxGen = y.gen;
+                                    //p is the first max gen element in s3
+                                    p = y;
+                                }
+                            }
+                        }
+                    }
+                    x.lastSee[m] = s2empty ? null : p;
+                }
+            }
 
             // function seeThru
 
