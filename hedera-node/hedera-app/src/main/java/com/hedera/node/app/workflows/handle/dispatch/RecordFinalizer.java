@@ -48,6 +48,9 @@ public class RecordFinalizer {
      */
     public void finalizeRecord(@NonNull final Dispatch dispatch) {
         requireNonNull(dispatch);
+        if(dispatch.fees().totalFee() > 0) {
+            throw new Error("should not be here");
+        }
         if (dispatch.stack().permitsStakingRewards()) {
             recordFinalizer.finalizeStakingRecord(
                     dispatch.finalizeContext(),
