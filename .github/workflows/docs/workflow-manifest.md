@@ -30,7 +30,7 @@
 | node-flow-build-application.yaml                       | Node: Build Application                                           | 300-flow-build-application.yaml              | 300: [FLOW] Build Application      |
 | node-flow-deploy-release-artifact.yaml                 | ZXF: Deploy Production Release                                    | 301-flow-deploy-release-artifact.yaml        | 301: [FLOW] Deploy Prod Release    |
 | zxf-prepare-extended-test-suite.yaml                   | ZXF: [CITR] Prepare Extended Test Suite                           | 302-disp-prepare-extended-test-suite.yaml    | 302: [DISP] CITR Prepare XTS       |
-| node-zxf-deploy-integration.yaml                       | ZXF: [Node] Deploy Integration Network Release                    | 303-user-deploy-integration.yaml             | 303: [USER] Deploy Integration     |
+| node-zxf-deploy-integration.yaml                       | ZXF: [Node] Deploy Integration Network Release                    | 303-disp-deploy-integration.yaml             | 303: [DISP] Deploy Integration     |
 | zxf-publish-yahcli-image.yaml                          | ZXC: Publish Yahcli Image                                         | 304-flow-publish-yahcli-image.yaml           | 304: [FLOW] Publish Yahcli Image   |
 | flow-generate-release-notes.yaml                       | Generate Release Notes                                            | 305-flow-generate-release-notes.yaml         | 305: [FLOW] Generate Rel Notes     |
 | node-zxf-snyk-monitor.yaml                             | ZXF: Snyk Monitor                                                 | 306-flow-snyk-monitor.yaml                   | 306: [FLOW] Snyk Monitor           |
