@@ -48,6 +48,9 @@ metrics, and script output.
 
 - The collected data came from the performance-analysis reconnect workflow, not the single-day longevity workflow.
 - The run strategy was one full workflow/job per traversal order, rather than an in-script traversal matrix.
+- Cluster traversal artifacts are expected to be independent live-state workflow runs. Do not require a common restored
+  baseline state for cluster extraction. Treat each run as a separate calibration anchor, and compare traversal modes
+  locally only after reproducing comparable state size, state gap, work shape, and network profile in `ReconnectBench`.
 - The intended traversal orders were:
   - `pullTopToBottom`
   - `pullParallelSync`
@@ -111,16 +114,13 @@ commit=<git SHA>
 mode=<virtualMap.reconnectMode>
 clusterNamespace=<namespace if captured>
 networkSize=<node count>
-learnerCandidate=<expected learner node id if known>
 stoppedPod=<stopped learner pod if captured>
-teacherCandidate=<expected teacher node id if known>
 workloadProfile=<short name or description>
 NLGArguments=<NLG arguments if captured>
-learnerBehindDuration=<duration if controlled by script>
 warmtime=<warmtime if controlled by script>
 downtime=<downtime if controlled by script>
 loopCount=<NofLoops value if controlled by script>
-transactionRate=<rate if controlled by script or inferred from logs>
+transactionRate=<actual reconnect-window rate if controlled by script or inferred from logs>
 transactionMix=<short description if controlled by script or inferred from NLG logs>
 configSummary=<path or short config identifier>
 ```
@@ -164,8 +164,8 @@ The learner side is also the primary source for `ReconnectMapMetrics` work-shape
 
 After the matching teacher reconnect is anchored, add teacher-specific evidence:
 
-- teacher state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
-- teacher state size at reconnect end when available, or an explicit unavailable note.
+- teacher sent state size, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
+- sampled teacher state-size growth during the reconnect window when stats coverage is available.
 
 Exact reconnect byte totals are not required. Network environment shape is the important evidence: RTT,
 throughput/bandwidth evidence, and TCP/window/backpressure evidence.
@@ -245,9 +245,8 @@ Infer divergence from coarse run facts:
 - learner state size near reconnect start;
 - teacher state size near reconnect start;
 - learner/teacher state gap;
-- how long the learner was behind;
-- transaction/load profile while the learner was behind;
-- teacher growth while the learner is behind and while reconnect runs, if visible;
+- transaction/load profile during the first reconnect window;
+- teacher growth around the first reconnect window, if visible;
 - reconnect clean/dirty counters from `ReconnectMapMetrics`;
 - service/store size metrics if already available.
 

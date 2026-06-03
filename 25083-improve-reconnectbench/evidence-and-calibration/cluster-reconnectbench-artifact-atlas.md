@@ -70,9 +70,9 @@ Required evidence:
 - traversal mode;
 - namespace identifier, if captured;
 - network size;
-- learner candidate and stopped pod;
+- stopped pod;
 - workload profile and NLG arguments;
-- learner-behind duration, warmtime, downtime, and loop count;
+- warmtime, downtime, and loop count;
 - transaction rate and transaction mix;
 - config summary.
 
@@ -97,7 +97,8 @@ Mapped sources:
   - reconnect-loop controls such as `downtime`, `warmtime`, and `NofLoops`
   - `profileReconnectLoopK8s.sh` invocation context
   - generic process-stop markers such as `Stopping java`; treat as ambiguous stopped-pod evidence unless the exact pod
-    identity is printed
+    identity is printed or a separate multi-source inference documents the intended learner, host config, artifact node
+    mapping, and observed learner reconnect
 - In some artifacts, reconnect-loop control lines may be in `performance-tests-start.log` instead of
   `performance-tests-watch.log`; search both workflow logs.
 - `<podLogRoot>/network-node*_logs/config/settingsUsed.txt`
@@ -117,8 +118,7 @@ Mapped sources:
 Required evidence without exact source mapping:
 
 - exact artifact source for commit SHA if `version_run.txt` does not contain it;
-- exact ordinary script-output field for learner candidate and stopped pod;
-- controlled `learnerBehindDuration` value, if it exists as a field distinct from scripted `downtime`;
+- direct stopped-pod script output, if emitted;
 
 ## Reconnect Window And Roles
 
@@ -223,8 +223,8 @@ Coverage: complete
 
 Required evidence:
 
-- teacher state size at reconnect start;
-- teacher state size at reconnect end when available;
+- teacher sent state size;
+- sampled teacher state-size growth during the reconnect window when stats coverage is available;
 - sender-side log context for the matching learner reconnect.
 
 Mapped sources:
@@ -243,7 +243,7 @@ teacherLog=<teacherLogDir>/swirlds.log
   - `TeacherPullVirtualTreeReceiveTask: Teacher task: duration=`
   - `TeacherPullVirtualTreeReceiveTask: Teaching is complete as requested by the learner`
   - `TeachingSynchronizer: Finished sending tree`
-- Stats files for sampled teacher state size around reconnect start and end:
+- Stats files for sampled teacher state size during the reconnect window:
 
 ```text
 <podLogRoot>/network-node<N>_logs/stats/MainNetStats<M>.csv
@@ -252,8 +252,8 @@ teacherLog=<teacherLogDir>/swirlds.log
 - Relevant stats column:
   - `vmap_size_state`
 
-`vmap_size_state` is sampled teacher state-size evidence. It does not prove the exact reserved teacher snapshot sent
-over reconnect.
+`vmap_size_state` is sampled teacher live-state evidence during the reconnect window. The teacher root response
+range is the source for the sent snapshot size.
 
 ## Reconnect Work-Shape Counters
 
@@ -503,7 +503,7 @@ that requires extraction and analysis later.
 
 | Protocol section | Coverage | Required evidence without exact source mapping |
 | --- | --- | --- |
-| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod controls; controlled `learnerBehindDuration` if distinct from `downtime` |
+| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner controls; direct stopped-pod script output is absent but extracted evidence can infer `stoppedPod=network-node1-0` |
 | Reconnect Window And Roles | complete | - |
 | Learner Evidence | complete | - |
 | Teacher Evidence | complete | - |
