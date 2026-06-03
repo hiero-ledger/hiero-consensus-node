@@ -430,11 +430,11 @@ jobs:
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.migration-testing-panel.result || 'skipped' }}
-            test
-            test
-            test
-            test
-            test
+            "hedera-node-jrs-panel"
+            "sdk-tck-regression-panel"
+            "mirror-node-regression-panel"
+            "json-rpc-relay-regression-panel"
+            "block-node-regression-panel"
           INPUT_JOB_NAMES: >-
             commit-info
             build
