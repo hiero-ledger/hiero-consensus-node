@@ -342,10 +342,7 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides =
-        (gradle.startParameter.taskNames.mapNotNull { prCheckPropOverrides[it] } +
-                blocksSuiteOverrideEntries())
-            .joinToString(separator = ",")
+    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
@@ -449,6 +446,18 @@ fun blocksSuiteOverrideEntries(): List<String> =
             ?.let { "blockStream.streamWrappedRecordBlocks=$it" },
     )
 
+// Combines the per-suite prCheckPropOverrides for the active task(s) with the XTS BLOCKS overrides
+// into a
+// single comma-separated "key=value" list, de-duplicating by key so entries appended later (the
+// blocksSuiteOverrideEntries) win.
+fun combinedTestOverrides(taskNames: List<String>): String =
+    (taskNames.mapNotNull { prCheckPropOverrides[it] }.flatMap { it.split(",") } +
+            blocksSuiteOverrideEntries())
+        .filter { it.contains("=") }
+        .associate { it.substringBefore("=") to it.substringAfter("=") }
+        .map { (key, value) -> "$key=$value" }
+        .joinToString(separator = ",")
+
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
@@ -499,10 +508,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides =
-        (gradle.startParameter.taskNames.mapNotNull { prCheckPropOverrides[it] } +
-                blocksSuiteOverrideEntries())
-            .joinToString(separator = ",")
+    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)

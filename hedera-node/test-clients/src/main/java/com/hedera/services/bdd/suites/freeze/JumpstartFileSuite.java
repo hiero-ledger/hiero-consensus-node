@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -97,6 +98,9 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<HashMap<String, String>> corruptedEnvOverridesRef = new AtomicReference<>();
 
         return hapiTest(
+                doingContextual(spec -> org.junit.jupiter.api.Assumptions.assumeTrue(
+                        spec.startupProperties().getStreamMode("blockStream.streamMode") != BLOCKS,
+                        "Cutover jumpstart requires record/WRB; skipping in BLOCKS-only mode")),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(envOverrides),
