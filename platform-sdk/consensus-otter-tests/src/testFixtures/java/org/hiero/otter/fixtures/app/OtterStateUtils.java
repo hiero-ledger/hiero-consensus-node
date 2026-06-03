@@ -10,7 +10,8 @@ import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
@@ -42,7 +43,9 @@ public final class OtterStateUtils {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
-        RosterStateUtils.setActiveRoster(state, roster, 0L);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(roster, 0L);
         commitState(state);
 
         return state;

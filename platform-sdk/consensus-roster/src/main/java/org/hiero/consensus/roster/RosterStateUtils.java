@@ -5,8 +5,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -36,19 +34,5 @@ public final class RosterStateUtils {
             rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
         }
         return new RosterHistory(roundRosterPairs, rosterMap);
-    }
-
-    /**
-     * Sets the active Roster in a given State.
-     *
-     * @param state a state to set a Roster in
-     * @param roster a Roster to set as active
-     * @param round a round number since which the roster is considered active
-     */
-    public static void setActiveRoster(@NonNull final State state, @NonNull final Roster roster, final long round) {
-        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-        final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
-        writableRosterStore.putActiveRoster(roster, round);
-        ((CommittableWritableStates) writableStates).commit();
     }
 }

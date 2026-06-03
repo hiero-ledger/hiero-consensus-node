@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
@@ -160,32 +161,35 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
+        final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
-        readMaybeRecordStreamDataFor(spec)
-                .ifPresentOrElse(
-                        dataOrException -> {
-                            final var data = dataOrException.data();
-                            if (data == null) {
-                                Assertions.fail(
-                                        "Unable to read stream data at " + recordStreamLocationsOf(spec),
-                                        dataOrException.e());
-                            }
-                            dataRef.set(data);
-                            final var maybeErrors = recordStreamValidators.stream()
-                                    .flatMap(v -> v.validationErrorsIn(data))
-                                    .peek(t -> log.error("Record stream validation error!", t))
-                                    .map(Throwable::getMessage)
-                                    .collect(joining(ERROR_PREFIX));
-                            if (!maybeErrors.isBlank()) {
-                                throw new AssertionError(
-                                        "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
-                            }
-                        },
-                        () -> Assertions.fail(
-                                "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
+        if (streamMode != BLOCKS) {
+            readMaybeRecordStreamDataFor(spec)
+                    .ifPresentOrElse(
+                            dataOrException -> {
+                                final var data = dataOrException.data();
+                                if (data == null) {
+                                    Assertions.fail(
+                                            "Unable to read stream data at " + recordStreamLocationsOf(spec),
+                                            dataOrException.e());
+                                }
+                                dataRef.set(data);
+                                final var maybeErrors = recordStreamValidators.stream()
+                                        .flatMap(v -> v.validationErrorsIn(data))
+                                        .peek(t -> log.error("Record stream validation error!", t))
+                                        .map(Throwable::getMessage)
+                                        .collect(joining(ERROR_PREFIX));
+                                if (!maybeErrors.isBlank()) {
+                                    throw new AssertionError(
+                                            "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                                }
+                            },
+                            () -> Assertions.fail(
+                                    "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));
+        }
 
         // If there are no block streams to validate, we are done
-        if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
+        if (streamMode == RECORDS) {
             return false;
         }
         // Freeze the network
@@ -197,78 +201,87 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 sleepFor(STREAM_FILE_WAIT.toMillis()));
         readMaybeBlockStreamsFor(spec)
                 .ifPresentOrElse(
-                        diskBlocks -> {
-                            // Re-read the record streams since they may have been updated
-                            readMaybeRecordStreamDataFor(spec)
-                                    .ifPresentOrElse(
-                                            dataOrException -> {
-                                                final var data = dataOrException.data();
-                                                if (data == null) {
-                                                    Assertions.fail(
-                                                            "Unable to re-read stream data at "
-                                                                    + recordStreamLocationsOf(spec),
-                                                            dataOrException.e());
-                                                }
-                                                dataRef.set(data);
-                                            },
-                                            () -> Assertions.fail("No record stream data found"));
-                            final var data = requireNonNull(dataRef.get());
-                            final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
-                                    .filter(factory -> factory.appliesTo(spec))
-                                    .flatMap(factory -> {
-                                        final var validator = factory.create(spec);
-                                        // Validators that walk the event chain across the cutover
-                                        // boundary (EventHash + RedactingEventHash) need the archived
-                                        // preview prefix; all others receive only the active
-                                        // (post-cutover) blocks. Validators that need pre-cutover
-                                        // state replay read it from the test's preservedPreviewBlocks
-                                        // snapshot directly.
-                                        final List<Block> input = (validator instanceof EventHashBlockStreamValidator
-                                                        || validator instanceof RedactingEventHashBlockStreamValidator)
-                                                ? diskBlocks.all()
-                                                : diskBlocks.active();
-                                        return validator.validationErrorsIn(input, data);
-                                    })
-                                    .peek(t -> log.error("Block stream validation error", t))
-                                    .map(Throwable::getMessage)
-                                    .collect(joining(ERROR_PREFIX));
-                            if (!maybeErrors.isBlank()) {
-                                throw new AssertionError(
-                                        "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                        blocks -> {
+                            if (streamMode != BLOCKS) {
+                                // Re-read the record streams since they may have been updated
+                                readMaybeRecordStreamDataFor(spec)
+                                        .ifPresentOrElse(
+                                                dataOrException -> {
+                                                    final var data = dataOrException.data();
+                                                    if (data == null) {
+                                                        Assertions.fail(
+                                                                "Unable to re-read stream data at "
+                                                                        + recordStreamLocationsOf(spec),
+                                                                dataOrException.e());
+                                                    }
+                                                    dataRef.set(data);
+                                                },
+                                                () -> Assertions.fail("No record stream data found"));
+                                final var data = requireNonNull(dataRef.get());
+                                final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
+                                        .filter(factory -> factory.appliesTo(spec))
+                                        .flatMap(factory -> {
+                                            final var validator = factory.create(spec);
+                                            // Validators that walk the event chain across the cutover
+                                            // boundary (EventHash + RedactingEventHash) need the archived
+                                            // preview prefix; all others receive only the active
+                                            // (post-cutover) blocks. Validators that need pre-cutover
+                                            // state replay read it from the test's preservedPreviewBlocks
+                                            // snapshot directly.
+                                            final List<Block> input = (validator
+                                                                    instanceof EventHashBlockStreamValidator
+                                                            || validator
+                                                                    instanceof RedactingEventHashBlockStreamValidator)
+                                                    ? blocks.all()
+                                                    : blocks.active();
+                                            return validator.validationErrorsIn(input, data);
+                                        })
+                                        .peek(t -> log.error("Block stream validation error", t))
+                                        .map(Throwable::getMessage)
+                                        .collect(joining(ERROR_PREFIX));
+                                if (!maybeErrors.isBlank()) {
+                                    throw new AssertionError(
+                                            "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                                }
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
 
-        // If WRBs are streaming to block nodes, also validate the block node stream independently
-        if (isStreamingWrappedRecordBlocks(spec)) {
-            readMaybeBlockNodeStreamsFor(spec).ifPresent(blockNodeBlocks -> {
-                final var data = requireNonNull(dataRef.get());
-                // Block node streams don't have an archive layer; pass the active list.
-                final var blockNodeList = blockNodeBlocks.active();
-                final var maybeErrors = WRB_BLOCK_VALIDATOR_FACTORIES.stream()
-                        .filter(factory -> factory.appliesTo(spec))
-                        .map(factory -> factory.create(spec))
-                        .flatMap(v -> v.validationErrorsIn(blockNodeList, data))
-                        .peek(t -> log.error("Block node WRB stream validation error", t))
-                        .map(Throwable::getMessage)
-                        .collect(joining(ERROR_PREFIX));
-                if (!maybeErrors.isBlank()) {
-                    throw new AssertionError("Block node WRB stream validation failed:" + ERROR_PREFIX + maybeErrors);
-                }
-            });
+        if (streamMode != BLOCKS) {
+            // If WRBs are streaming to block nodes, also validate the block node stream independently
+            if (isStreamingWrappedRecordBlocks(spec)) {
+                readMaybeBlockNodeStreamsFor(spec).ifPresent(blockNodeBlocks -> {
+                    final var data = requireNonNull(dataRef.get());
+                    // Block node streams don't have an archive layer; pass the active list.
+                    final var blockNodeList = blockNodeBlocks.active();
+                    final var maybeErrors = WRB_BLOCK_VALIDATOR_FACTORIES.stream()
+                            .filter(factory -> factory.appliesTo(spec))
+                            .map(factory -> factory.create(spec))
+                            .flatMap(v -> v.validationErrorsIn(blockNodeList, data))
+                            .peek(t -> log.error("Block node WRB stream validation error", t))
+                            .map(Throwable::getMessage)
+                            .collect(joining(ERROR_PREFIX));
+                    if (!maybeErrors.isBlank()) {
+                        throw new AssertionError(
+                                "Block node WRB stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                    }
+                });
+            } else {
+                validateProofs(spec);
+            }
+
+            // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
+            final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
+                    .validationErrorsIn(spec)
+                    .peek(t -> log.error("Wrapped record hashes validation error!", t))
+                    .map(Throwable::getMessage)
+                    .collect(joining(ERROR_PREFIX));
+            if (!maybeWrappedHashesErrors.isBlank()) {
+                throw new AssertionError(
+                        "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
+            }
         } else {
             validateProofs(spec);
-        }
-
-        // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
-        final var maybeWrappedHashesErrors = wrappedRecordHashesValidator
-                .validationErrorsIn(spec)
-                .peek(t -> log.error("Wrapped record hashes validation error!", t))
-                .map(Throwable::getMessage)
-                .collect(joining(ERROR_PREFIX));
-        if (!maybeWrappedHashesErrors.isBlank()) {
-            throw new AssertionError(
-                    "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
         }
 
         return false;

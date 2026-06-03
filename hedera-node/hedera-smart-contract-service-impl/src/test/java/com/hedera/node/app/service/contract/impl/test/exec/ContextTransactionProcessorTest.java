@@ -64,6 +64,11 @@ class ContextTransactionProcessorTest {
             .withValue("contracts.evm.chargeGasOnEvmHandleException", false)
             .getOrCreateConfig();
 
+    private static final Configuration BOTH_MODE_CONFIGURATION = HederaTestConfigBuilder.create()
+            .withValue("contracts.evm.ethTransaction.zeroHapiFees.enabled", true)
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+
     @Mock
     private HandleContext context;
 
@@ -558,12 +563,12 @@ class ContextTransactionProcessorTest {
 
     @Test
     void addsInitcodeSidecarWhenFailedCreationAndStreamModeNotBlocks() {
-        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
+        final var contractsConfig = BOTH_MODE_CONFIGURATION.getConfigData(ContractsConfig.class);
         final var subject = new ContextTransactionProcessor(
                 null,
                 context,
                 contractsConfig,
-                CONFIGURATION,
+                BOTH_MODE_CONFIGURATION,
                 hederaEvmContext,
                 null,
                 tracer,
@@ -581,7 +586,7 @@ class ContextTransactionProcessorTest {
                         rootProxyWorldUpdater,
                         hederaEvmContext,
                         tracer,
-                        CONFIGURATION,
+                        BOTH_MODE_CONFIGURATION,
                         OpsDurationCounter.disabled()))
                 .willReturn(HALT_RESULT);
         given(hederaEvmContext.streamBuilder()).willReturn(streamBuilder);
