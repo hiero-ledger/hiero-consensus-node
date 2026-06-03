@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -208,9 +207,7 @@ class StateFileManagerTests {
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(StateConfig_.SAVE_STATE_PERIOD, stateSavePeriod)
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
-                .withValue(
-                        StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        testDirectory.toFile().toString());
+                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString());
         final PlatformContext context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
                 .withFileSystemManager(fileSystemManager)
@@ -337,9 +334,7 @@ class StateFileManagerTests {
 
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
-                .withValue(
-                        StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        testDirectory.toFile().toString())
+                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString())
                 .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory);
         final PlatformContext context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())

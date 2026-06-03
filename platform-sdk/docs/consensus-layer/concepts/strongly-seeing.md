@@ -1,9 +1,8 @@
 ---
-
 title: Strongly-seeing
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Strongly-seeing
 

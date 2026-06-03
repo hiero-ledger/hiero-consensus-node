@@ -938,7 +938,8 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCallResult(@Nullable final ContractFunctionResult contractCallResult) {
-        throw new UnsupportedOperationException("Use concise EVM transaction result");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -986,7 +987,8 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        throw new UnsupportedOperationException("Use concise EVM transaction result");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -1323,7 +1325,8 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add slot usages directly");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -1338,7 +1341,8 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractActions(
             @NonNull final ContractActions contractActions, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add actions directly");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -1352,7 +1356,8 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add initcode directly");
+        // No-op
+        return this;
     }
 
     @NonNull
