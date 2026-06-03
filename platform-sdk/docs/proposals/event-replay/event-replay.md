@@ -78,6 +78,7 @@ redacted/filtered views intended for downstream consumers.
 ## Components
 
 ### 1. Block stream → PCES conversion tool
+
 Reads `.blk.gz` files, reconstructs `GossipEvent` records, and writes PCES files.
 Event reconstruction (block items → unsigned `PlatformEvent`s, with hashes) is
 already implemented by `BlockStreamEventBuilder`; the remaining work is writing
@@ -86,6 +87,7 @@ mechanism `SavedStateUtils.prepareStateForTransplant()` already uses — so the
 normal `PcesFileTracker` replay path can consume them unchanged.
 
 ### 2. Unsigned-event intake path (required code changes — blocking)
+
 Reconstructed events lack the creator's `GossipEvent.signature` (the block stream
 does not carry it). PCES-sourced events carry `EventOrigin.STORAGE` and pass
 through `DefaultEventSignatureValidator` in the intake pipeline, which drops
@@ -103,6 +105,7 @@ be ignored so they don't raise false ISSes during replay. It is unrelated to the
 creator's `GossipEvent.signature` and is not used in this scenario.
 
 ### 3. Block signing during replay
+
 Block production during replay needs neither gossip nor live TSS; behavior
 depends on signer configuration. (Note: `DefaultStateSigner`'s `pcesRound`
 suppression applies to *platform state-hash signatures* for signed states / ISS,
@@ -135,16 +138,17 @@ therefore need no new signing work.
 
 Two caveats:
 - **Byte-reproducible proofs require `tss.useDeterministicHintsSignatures=true`**,
-  which incorporates partials at handle in consensus order. Without it, the
-  subset of partials that crosses the threshold depends on arrival order, so the
-  aggregate is valid but may differ byte-for-byte. Block and state hashes are
-  unaffected regardless.
+which incorporates partials at handle in consensus order. Without it, the
+subset of partials that crosses the threshold depends on arrival order, so the
+aggregate is valid but may differ byte-for-byte. Block and state hashes are
+unaffected regardless.
 - **Trailing blocks.** A block's partials appear in later blocks, so the last few
-  blocks of the replay window may have no partials in-window and remain
-  pending/unsigned. Compare up to the last fully-signable block, or extend the
-  window past the comparison target.
+blocks of the replay window may have no partials in-window and remain
+pending/unsigned. Compare up to the last fully-signable block, or extend the
+window past the comparison target.
 
 ### 4. Inputs and environment
+
 - A production signed-state snapshot at the round immediately preceding the
   first reconstructed block.
 - Block stream files covering the target window, contiguous from that round.
@@ -157,6 +161,7 @@ Two caveats:
 ## Block Stream → PCES Conversion Mechanism
 
 ### What the block stream provides per event
+
 - `EventHeader` block item → `EventCore` (creator, birth round, time created,
   version) and parent references (`ParentEventReference`: a full `EventDescriptor`
   for out-of-block parents, or an in-block `index`).
@@ -172,6 +177,7 @@ in an event appear in the stream, and the per-transaction double-hash in
 event hash.
 
 ### Reconstruction (steps 1–5 already implemented)
+
 Steps 1–5 below are implemented today in `BlockStreamEventBuilder` (in
 `test-clients`, used by `EventHashBlockStreamValidator`). It iterates the blocks,
 groups transactions per event, resolves parents, recomputes the event hash, and
@@ -217,6 +223,7 @@ work; the rest can reuse this class.
    of that.
 
 ### Notes
+
 - **An existing validator already checks the reconstructed event-hash chain.**
   `EventHashBlockStreamValidator` builds events via `BlockStreamEventBuilder` and
   verifies cross-block parent hashes, using PCES event hashes
@@ -235,6 +242,7 @@ work; the rest can reuse this class.
   intake ancient gate drop them without error.
 
 ## Test Flow
+
 1. Convert the extraction-window block files into PCES files (the extraction
    window extends past the comparison target — see Open Questions / Risks).
 2. Place the PCES files and the matching state snapshot in the node's
@@ -246,6 +254,7 @@ work; the rest can reuse this class.
 4. Collect the block stream files and final state produced during replay.
 
 ## Validation
+
 - For each block in the **comparison window**, compare the reconstructed block's
   hash and each round's state hash against the original production values (e.g.
   via the original block proofs and `BlockStreamInfo.startOfBlockStateHash`).
@@ -258,6 +267,7 @@ work; the rest can reuse this class.
   TSS signature. Compare block and state hashes, not raw proof bytes.
 
 ## Open Questions / Risks
+
 - **Trailing blocks of the window.** A block's partial-signature transactions
   appear in *later* blocks, so signing a given block requires those later blocks'
   events to have been replayed. Distinguish two windows: the **comparison window**
@@ -281,6 +291,7 @@ work; the rest can reuse this class.
   prerequisite (see component 2).
 
 ## Relevant Configuration
+
 - `tss.forceMockSignatures=true` — Tier 1: always-ready signer producing
   deterministic mock block signatures, enabling single-node block production
   without TSS. Omit (with hinTS enabled) for Tier 2 real-TSS validation.
