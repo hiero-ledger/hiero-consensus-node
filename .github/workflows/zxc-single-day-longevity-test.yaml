@@ -59,9 +59,7 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
-      perf_ghp:
-        required: true
-        description: "Algorithmic analysis GHP"
+
       rootly-api-token:
         required: true
         description: "Rootly API Token for creating alerts/incidents"
@@ -127,7 +125,7 @@ jobs:
         run: |
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
-            git clone https://"${{ secrets.perf_ghp }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
+            git clone https://"${{ secrets.GH_ACCESS_TOKEN }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
             cd performance-analysis-automation
             git checkout fixes_Jul25
             cd "${{ github.workspace }}"
@@ -137,7 +135,7 @@ jobs:
         run: |
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
-            git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
+            git clone https://"${{ secrets.GH_ACCESS_TOKEN }}"@github.com/hashgraph/pbj.git pbj
             git clone --branch 25.2.2 --single-branch https://github.com/hyperledger/besu.git besu
           fi
 

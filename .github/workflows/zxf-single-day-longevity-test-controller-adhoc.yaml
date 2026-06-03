@@ -78,11 +78,6 @@ on:
         default: '-Dbenchmark.maxtps=8000'
         description: 'Java props for Network Load Generator, e.g. -Dbenchmark.maxtps=8000'
         type: string
-      perf_ghp:
-        required: true
-        default: "MUST_BE_SET_BY_CALL"
-        type: string
-        description: "Algorithmic analysis GHP"
 
 defaults:
   run:
@@ -156,7 +151,6 @@ jobs:
 
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      perf_ghp: ${{ inputs.perf_ghp }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
 
