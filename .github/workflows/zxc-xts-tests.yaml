@@ -422,6 +422,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result }}
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
+            ${{ needs.migration-testing-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
@@ -429,7 +430,7 @@ jobs:
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.migration-testing-panel.result || 'skipped' }}
+            test
             test
             test
             test
