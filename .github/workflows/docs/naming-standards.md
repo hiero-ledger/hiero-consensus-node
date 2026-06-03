@@ -20,7 +20,7 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 100    | Operational workflows          | Manual-run RE flows               |
   | 200    | CITR workflows (all workflows) |                                   |
   | 200    | CITR Manual Runs               | Adhoc runs                        |
-  | 220    | CITR Daily workflows           | Automatic daily runs              |
+  | 220    | CITR Daily Workflows           | Automatic daily runs              |
   | 240    | CITR Multi_Day Runs            | Multi-day runs                    |
   | 300    | Trigger-based `main` workflows |                                   |
   | 400    | TBD                            |                                   |
