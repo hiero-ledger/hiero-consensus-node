@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.LearnerTreeView;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
@@ -32,7 +33,7 @@ public class LearnerPullVirtualTreeReceiveTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
-    private final LearnerPullVirtualTreeView view;
+    private final LearnerTreeView view;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
     // sending tasks, decreased in receiving tasks
@@ -54,7 +55,7 @@ public class LearnerPullVirtualTreeReceiveTask {
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
-            final LearnerPullVirtualTreeView view,
+            final LearnerTreeView view,
             final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;

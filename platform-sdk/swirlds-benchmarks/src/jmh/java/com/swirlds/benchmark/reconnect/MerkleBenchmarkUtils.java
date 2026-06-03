@@ -11,18 +11,15 @@ import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapLearner;
-import com.swirlds.virtualmap.sync.LearnerTreeView;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.ValueReference;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -94,15 +91,13 @@ public class MerkleBenchmarkUtils {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingTree, reconnectConfig, mapStats);
-            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
                         getStaticThreadManager(),
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        learnerView,
+                        startingTree,
+                        metrics,
                         () -> {
                             try {
                                 streams.disconnect();
@@ -131,7 +126,8 @@ public class MerkleBenchmarkUtils {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        learnerView,
+                        startingTree,
+                        metrics,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,
@@ -171,10 +167,13 @@ public class MerkleBenchmarkUtils {
                 firstReconnectException.compareAndSet(null, t);
                 return false;
             };
+
+            ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
-            workGroup.execute("learning-synchronizer-main", () -> learningSynchronizerThread(learner));
+            workGroup.execute(
+                    "learning-synchronizer-main", () -> learningSynchronizerThread(learner, syncMapContainer));
 
             try {
                 workGroup.waitForTermination();
@@ -184,12 +183,11 @@ public class MerkleBenchmarkUtils {
             }
 
             if (workGroup.hasExceptions()) {
-                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return vmapLearner.getVirtualMap();
+            return syncMapContainer.getValue();
         }
     }
 
@@ -201,9 +199,10 @@ public class MerkleBenchmarkUtils {
         }
     }
 
-    private static void learningSynchronizerThread(final LearningSynchronizer learner) {
+    private static void learningSynchronizerThread(
+            final LearningSynchronizer learner, final ValueReference<VirtualMap> syncMapContainer) {
         try {
-            learner.synchronize();
+            syncMapContainer.setValue(learner.synchronize());
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }

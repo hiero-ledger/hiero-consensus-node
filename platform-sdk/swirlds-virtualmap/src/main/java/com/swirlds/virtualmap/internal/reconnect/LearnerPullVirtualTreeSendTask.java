@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.LearnerTreeView;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,7 +17,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * A task running on the learner side, which is responsible for sending requests to the teacher.
  *
  * <p>Before these tasks are started, the root node (path 0) request/response exchange is
- * performed synchronously by {@link LearnerPullVirtualTreeView#startLearnerTasks}, so the
+ * performed synchronously by {@link com.swirlds.virtualmap.sync.LearningSynchronizer}, so the
  * traversal order is already fully initialized when this task begins.
  *
  * <p>This task keeps sending requests according to the provided {@link NodeTraversalOrder}.
@@ -31,7 +32,7 @@ public class LearnerPullVirtualTreeSendTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncOutputStream out;
-    private final LearnerPullVirtualTreeView view;
+    private final LearnerTreeView view;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
     // this task, decreased in the receiving task
@@ -57,7 +58,7 @@ public class LearnerPullVirtualTreeSendTask {
     public LearnerPullVirtualTreeSendTask(
             final StandardWorkGroup workGroup,
             final AsyncOutputStream out,
-            final LearnerPullVirtualTreeView view,
+            final LearnerTreeView view,
             final AtomicLong responsesExpected,
             final AtomicInteger tasksDone) {
         this.workGroup = workGroup;
@@ -70,7 +71,7 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Start the background thread that sends requests to the teacher.
      */
-    void exec() {
+    public void exec() {
         workGroup.execute(NAME, this::run);
     }
 

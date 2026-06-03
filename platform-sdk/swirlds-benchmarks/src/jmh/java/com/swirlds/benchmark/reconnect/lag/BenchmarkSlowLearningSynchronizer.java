@@ -3,7 +3,8 @@ package com.swirlds.benchmark.reconnect.lag;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.virtualmap.sync.LearnerTreeView;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,7 +29,8 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      *
      * @param in the input stream for receiving data from the teacher
      * @param out the output stream for sending data to the teacher
-     * @param view the learner's view into the merkle tree
+     * @param originalMap the learner's virtual map
+     * @param metrics metrics
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
@@ -40,7 +42,8 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     public BenchmarkSlowLearningSynchronizer(
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final LearnerTreeView view,
+            @NonNull final VirtualMap originalMap,
+            @NonNull final Metrics metrics,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
@@ -49,7 +52,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 
-        super(getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
+        super(getStaticThreadManager(), in, out, originalMap, metrics, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

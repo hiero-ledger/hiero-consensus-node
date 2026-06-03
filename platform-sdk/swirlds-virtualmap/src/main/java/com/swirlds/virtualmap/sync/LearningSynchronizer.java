@@ -3,16 +3,36 @@ package com.swirlds.virtualmap.sync;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
+import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
+import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
+import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
@@ -42,6 +62,7 @@ public class LearningSynchronizer {
     private final LearnerTreeView view;
 
     private final ReconnectConfig reconnectConfig;
+    private final ReconnectMapStats reconnectStats;
     private final StandardWorkGroup workGroup;
     private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
 
@@ -51,7 +72,8 @@ public class LearningSynchronizer {
      * @param threadManager responsible for managing thread lifecycles
      * @param in the input stream for receiving data from the teacher
      * @param out the output stream for sending data to the teacher
-     * @param view the learner's view into the merkle tree being synchronized
+     * @param originalMap the learner's original virtual map to be synchronized
+     * @param metrics the metrics system for recording synchronization metrics
      * @param breakConnection a callback to disconnect the connection on failure
      * @param reconnectConfig the reconnect configuration
      */
@@ -59,14 +81,19 @@ public class LearningSynchronizer {
             @NonNull final ThreadManager threadManager,
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final LearnerTreeView view,
+            @NonNull final VirtualMap originalMap,
+            @NonNull final Metrics metrics,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
+        Objects.requireNonNull(originalMap, "currentVirtualMap cannot be null");
+        Objects.requireNonNull(metrics, "metrics cannot be null");
         inputStream = Objects.requireNonNull(in, "inputStream is null");
         outputStream = Objects.requireNonNull(out, "outputStream is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
-        this.view = Objects.requireNonNull(view, "view is null");
+        reconnectStats = new ReconnectMapMetrics(metrics, null, null);
+
+        this.view = buildLearnerView(originalMap, reconnectConfig, reconnectStats);
 
         final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
             firstReconnectException.compareAndSet(null, ex);
@@ -75,51 +102,92 @@ public class LearningSynchronizer {
         workGroup = createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
     }
 
-    /**
-     * Perform synchronization in the role of the learner.
-     */
-    public void synchronize() throws InterruptedException {
-        logger.info(RECONNECT.getMarker(), "learner calls receiveTree()");
-        receiveTree();
-        logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
+    @NonNull
+    private LearnerTreeView buildLearnerView(
+            VirtualMap originalVirtualMap, ReconnectConfig reconnectConfig, ReconnectMapStats mapStats) {
+        logger.info(
+                RECONNECT.getMarker(),
+                "Building learner view for map with path range [{}, {}]",
+                originalVirtualMap.getMetadata().getFirstLeafPath(),
+                originalVirtualMap.getMetadata().getLastLeafPath());
+
+        final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, reconnectConfig, mapStats);
+
+        return switch (virtualMapConfig.reconnectMode()) {
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
+                new LearnerTreeView(vmapLearner, new TopToBottomTraversalOrder(), mapStats);
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
+                new LearnerTreeView(vmapLearner, new TwoPhasePessimisticTraversalOrder(), mapStats);
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
+                new LearnerTreeView(vmapLearner, new ParallelSyncTraversalOrder(), mapStats);
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: "
+                        + virtualMapConfig.reconnectMode()
+                        + ". Supported modes: PULL_TOP_TO_BOTTOM,"
+                        + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
+        };
     }
 
     /**
-     * Receive the tree from the teacher by setting up async streams and delegating to the
-     * learner view's tasks.
+     * Perform synchronization in the role of the learner.
      *
-     * @throws InterruptedException if the current thread is interrupted
+     * @return the synchronized virtual map
+     * @throws InterruptedException if the synchronization is interrupted
+     * @throws MerkleSynchronizationException if the synchronization fails due to an exception
      */
-    private void receiveTree() throws InterruptedException {
+    public VirtualMap synchronize() throws InterruptedException {
+        logger.info(RECONNECT.getMarker(), "learner start synchronizing");
         final AsyncInputStream in = new AsyncInputStream(
                 inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
 
-        InterruptedException interruptException = null;
         try {
-            view.startLearnerTasks(workGroup, in, out);
+            // Perform the root-node (path 0) request/response handshake synchronously before forking
+            // any parallel tasks. The root response carries the teacher's first/last leaf path range,
+            // which must be known before the traversal order can be started and before any parallel
+            // send tasks can generate meaningful non-root requests.
+            exchangeRootNode(in, out);
+
+            final AtomicLong expectedResponses = new AtomicLong(0);
+            // FUTURE WORK: configurable number of tasks
+            for (int i = 0; i < 16; i++) {
+                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
+                        new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, in, view, expectedResponses);
+                learnerReceiveTask.exec();
+            }
+
+            // FUTURE WORK: configurable number of tasks
+            final int learnerSendTasks = 16;
+            final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
+            for (int i = 0; i < learnerSendTasks; i++) {
+                final LearnerPullVirtualTreeSendTask learnerSendTask =
+                        new LearnerPullVirtualTreeSendTask(workGroup, out, view, expectedResponses, tasksDone);
+                learnerSendTask.exec();
+            }
+
             workGroup.waitForTermination();
-        } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
-            interruptException = e;
-            logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");
+        } catch (final InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            view.abortOnException();
+            throw ie;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while receiving tree", t);
+            view.abortOnException();
             throw new RuntimeException(t);
         }
 
-        if (interruptException != null || workGroup.hasExceptions()) {
-            if (interruptException != null) {
-                throw interruptException;
-            }
+        if (workGroup.hasExceptions()) {
+            view.abortOnException();
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
         } else {
-            view.onSuccessfulComplete();
+            logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
+            logger.info(RECONNECT.getMarker(), reconnectStats::format);
+            return view.onSuccessfulComplete();
         }
-
-        logger.info(RECONNECT.getMarker(), "Finished receiving tree");
     }
 
     protected StandardWorkGroup createStandardWorkGroup(
@@ -142,5 +210,44 @@ public class LearningSynchronizer {
                 reconnectConfig.asyncStreamBufferSize(),
                 reconnectConfig.asyncOutputStreamFlush(),
                 reconnectConfig.asyncStreamTimeout());
+    }
+
+    /**
+     * Synchronously sends the root node request to the teacher, waits for the root response, and
+     * initializes the traversal order and learner state from the response. This must complete
+     * before any parallel tasks are forked, because all subsequent requests depend on the leaf
+     * path range carried in the root response.
+     *
+     * @param in  the async input stream to read the root response from
+     * @param out the async output stream to send the root request to
+     * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
+     */
+    private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
+        logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
+        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash());
+        final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
+        rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
+        try {
+            out.sendAsync(rootRequestBytes);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Interrupted while sending root node request", e);
+        }
+        view.getMapStats().incrementTransfersFromLearner();
+
+        // wait for response
+        final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);
+        if (rootResponseBytes == null) {
+            throw new MerkleSynchronizationException("Stream closed before root node response was received");
+        }
+        final PullVirtualTreeResponse rootResponse =
+                PullVirtualTreeResponse.parseFrom(BufferedData.wrap(rootResponseBytes));
+        if (rootResponse.path() != Path.ROOT_PATH) {
+            throw new MerkleSynchronizationException(
+                    "Expected root node response, but received response for path " + rootResponse.path());
+        }
+        logger.info(RECONNECT.getMarker(), "Root node response received from teacher");
+
+        view.init(rootResponse);
     }
 }

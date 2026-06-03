@@ -14,19 +14,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapLearner;
-import com.swirlds.virtualmap.sync.LearnerTreeView;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.base.ValueReference;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -76,16 +73,13 @@ public final class ReconnectTestUtils {
         teacherMap.getHash(); // ensure teacher has a hash
 
         try (PairedStreams streams = new PairedStreams()) {
-            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final VirtualMapLearner vmapLearner = new VirtualMapLearner(learnerMap, reconnectConfig, mapStats);
-            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
-
             final LearningSynchronizer learner =
                     new LearningSynchronizer(
                             getStaticThreadManager(),
                             streams.getLearnerInput(),
                             streams.getLearnerOutput(),
-                            learnerView,
+                            learnerMap,
+                            metrics,
                             streams::disconnect,
                             reconnectConfig) {
 
@@ -131,10 +125,13 @@ public final class ReconnectTestUtils {
                 firstReconnectException.compareAndSet(null, t);
                 return false;
             });
+
+            ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
-            workGroup.execute("learning-synchronizer-main", () -> learningSynchronizerThread(learner));
+            workGroup.execute(
+                    "learning-synchronizer-main", () -> learningSynchronizerThread(learner, syncMapContainer));
 
             try {
                 workGroup.waitForTermination();
@@ -144,12 +141,11 @@ public final class ReconnectTestUtils {
             }
 
             if (workGroup.hasExceptions()) {
-                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final VirtualMap syncMap = vmapLearner.getVirtualMap();
+            final VirtualMap syncMap = syncMapContainer.getValue();
             assertReconnectValidity(learnerMap, teacherMap, syncMap);
 
             return syncMap;
@@ -186,9 +182,10 @@ public final class ReconnectTestUtils {
         }
     }
 
-    private static void learningSynchronizerThread(final LearningSynchronizer learner) {
+    private static void learningSynchronizerThread(
+            final LearningSynchronizer learner, ValueReference<VirtualMap> syncMapContainer) {
         try {
-            learner.synchronize();
+            syncMapContainer.setValue(learner.synchronize());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

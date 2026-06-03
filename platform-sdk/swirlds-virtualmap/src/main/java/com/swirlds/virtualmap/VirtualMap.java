@@ -585,7 +585,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     /** Returns the virtual map configuration. */
     @NonNull
-    VirtualMapConfig getVirtualMapConfig() {
+    public VirtualMapConfig getVirtualMapConfig() {
         return virtualMapConfig;
     }
 
