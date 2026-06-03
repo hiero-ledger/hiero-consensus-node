@@ -14,18 +14,18 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix |     Category / Description     |        Notes / Subcategory        |
+  | Prefix | Category / Description         |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
   | 200    | CITR workflows (all workflows) |                                   |
-  | 200    | CITR manual run                | Adhoc runs                        |
-  | 220    | CITR daily runs                | Automatic daily runs              |
-  | 240    | CITR longer runs               | Multi-day runs                    |
+  | 200    | CITR Manual Runs               | Adhoc runs                        |
+  | 220    | CITR Daily workflows           | Automatic daily runs              |
+  | 240    | CITR Multi_Day Runs            | Multi-day runs                    |
   | 300    | Trigger-based `main` workflows |                                   |
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
-  | 600    | TBD                            |                                   |
+  | 600    | Test Helpers                   |                                   |
   | 700    | AI Helpers                     | Helpers for AI workflows          |
   | 800    | Reusable workflows             |                                   |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
