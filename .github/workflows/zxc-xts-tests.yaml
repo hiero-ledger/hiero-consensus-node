@@ -49,6 +49,10 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-migration-testing-panel:
+        type: string
+        description: "Run Migration Testing Panel"
+        default: "true"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -69,6 +73,15 @@ on:
         description: "Custom Job Label"
         type: string
         required: false
+      java-version:
+        description: "Java version for the XTS tests"
+        type: string
+        required: false
+      java-distribution:
+        description: "Java distribution for the XTS tests"
+        type: string
+        required: false
+        default: "temurin"
     secrets:
       access-token:
         description: "Github Access Token"
@@ -141,7 +154,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -160,8 +173,8 @@ jobs:
     needs:
       - commit-info
     with:
-      java-version: "25"
-      java-distribution: "temurin"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -177,6 +190,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -191,6 +205,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -214,6 +229,7 @@ jobs:
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
       enable-network-log-capture: "true"
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -231,6 +247,7 @@ jobs:
       enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -247,6 +264,7 @@ jobs:
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -266,6 +284,7 @@ jobs:
       hedera-tests-enabled: true
       use-branch-for-slack-channel: false
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.platform-access-token }}
       jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
@@ -289,6 +308,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
@@ -307,6 +327,7 @@ jobs:
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
       mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -322,6 +343,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -337,6 +359,23 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
       solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  migration-testing-panel:
+    name: Migration Testing Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/825-call-migration-testing.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Migration Testing"
+      solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -359,10 +398,11 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
+      - migration-testing-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode
@@ -429,6 +469,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
             ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
             ${{ needs.block-node-regression-panel.result || 'skipped' }}
+            ${{ needs.migration-testing-panel.result || 'skipped' }}
           )
           panel_names=(
             "hedera-node-jrs-panel"
@@ -436,6 +477,7 @@ jobs:
             "mirror-node-regression-panel"
             "json-rpc-relay-regression-panel"
             "block-node-regression-panel"
+            "migration-testing-panel"
           )
 
           for job in "${!panel_statuses[@]}"; do

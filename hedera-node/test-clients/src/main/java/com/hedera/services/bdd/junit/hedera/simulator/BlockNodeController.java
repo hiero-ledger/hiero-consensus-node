@@ -22,6 +22,7 @@ import org.hiero.block.api.PublishStreamResponse.EndOfStream;
  */
 public class BlockNodeController {
     private static final Logger log = LogManager.getLogger(BlockNodeController.class);
+    private static BlockNodeNetwork blockNodeNetwork;
     private static Map<Long, SimulatedBlockNodeServer> simulatedBlockNodes = new HashMap<>();
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
@@ -35,6 +36,7 @@ public class BlockNodeController {
      * @param network the SubProcessNetwork containing simulated block nodes
      */
     public BlockNodeController(@NonNull final BlockNodeNetwork network) {
+        blockNodeNetwork = network;
         simulatedBlockNodes = network.getSimulatedBlockNodeById();
         if (simulatedBlockNodes.isEmpty()) {
             log.warn("No simulated block nodes found in the network. Make sure BlockNodeMode.SIMULATOR is set.");
@@ -504,7 +506,7 @@ public class BlockNodeController {
                 blockNodeContainer = blockNodeContainers.get(nodeIndex);
                 blockNodeContainer.resume();
             } else {
-                blockNodeContainer = new BlockNodeContainer(nodeIndex, port);
+                blockNodeContainer = new BlockNodeContainer(nodeIndex, port, blockNodeNetwork.getRsaBootstrapJson());
                 blockNodeContainer.start();
             }
 

@@ -10,6 +10,7 @@ import com.hedera.node.app.service.roster.RosterTransplantSchema;
 import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -18,6 +19,7 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -53,15 +55,28 @@ public class V0540RosterSchema extends Schema<SemanticVersion> implements Roster
      * The factory to use to create the writable roster store.
      */
     private final Function<WritableStates, WritableRosterStore> rosterStoreFactory;
+    /**
+     * A callback to invoke with an adopted override network.
+     */
+    private final Consumer<Network> onOverrideNetwork;
 
     public V0540RosterSchema(
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
+        this(onAdopt, canAdopt, rosterStoreFactory, network -> {});
+    }
+
+    public V0540RosterSchema(
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
+            @NonNull final Predicate<Roster> canAdopt,
+            @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
+            @NonNull final Consumer<Network> onOverrideNetwork) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.rosterStoreFactory = requireNonNull(rosterStoreFactory);
+        this.onOverrideNetwork = requireNonNull(onOverrideNetwork);
     }
 
     @Override
@@ -73,7 +88,8 @@ public class V0540RosterSchema extends Schema<SemanticVersion> implements Roster
     public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
         if (!ctx.isGenesis()
-                && !RosterTransplantSchema.super.restart((HederaMigrationContext) ctx, onAdopt, rosterStoreFactory)) {
+                && !RosterTransplantSchema.super.restart(
+                        (HederaMigrationContext) ctx, onAdopt, rosterStoreFactory, onOverrideNetwork)) {
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
             final var activeRoundNumber = ctx.roundNumber() + 1;
             if (ctx.isUpgrade(ctx.appConfig()

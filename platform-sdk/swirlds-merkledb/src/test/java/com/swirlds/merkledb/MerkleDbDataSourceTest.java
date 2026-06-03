@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -52,6 +51,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -727,7 +727,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         final Configuration config1 = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
                 .build();
         final MerkleDbDataSource snapshotDataSource1 = restoreDataSource(config1, snapshotDbPath1, label, false);

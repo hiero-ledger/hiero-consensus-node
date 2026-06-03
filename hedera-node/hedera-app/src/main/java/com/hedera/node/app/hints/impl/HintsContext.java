@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -220,6 +221,7 @@ public class HintsContext {
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
+        private final ScheduledFuture<?> timeoutFuture;
 
         public Signing(
                 @NonNull final Bytes blockHash,
@@ -241,7 +243,7 @@ public class HintsContext {
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            executor.schedule(
+            timeoutFuture = executor.schedule(
                     () -> {
                         if (!future.isDone()) {
                             log.warn(
@@ -272,6 +274,17 @@ public class HintsContext {
          */
         public Bytes verificationKey() {
             return verificationKey;
+        }
+
+        /**
+         * Cancels this signing process.
+         */
+        @Override
+        public void cancel() {
+            timeoutFuture.cancel(false);
+            if (completed.compareAndSet(false, true)) {
+                future.cancel(false);
+            }
         }
 
         /**

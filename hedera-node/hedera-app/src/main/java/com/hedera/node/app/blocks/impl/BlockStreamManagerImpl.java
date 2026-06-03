@@ -9,6 +9,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
@@ -18,7 +19,6 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
@@ -54,7 +54,6 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -126,6 +125,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ForkJoinPool executor;
     private final String diskNetworkExportFile;
     private final DiskNetworkExport diskNetworkExport;
+    private final boolean diskNetworkExportTss;
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -263,6 +263,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
+        this.diskNetworkExportTss = networkAdminConfig.diskNetworkExportTss();
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
@@ -338,70 +339,89 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .get();
             requireNonNull(blockStreamInfo);
 
-            // Most of the ingredients in the block hash are directly in the BlockStreamInfo
-            // Branch 1: lastBlockHash
-            final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
-                    ? HASH_OF_ZERO
-                    : BlockRecordInfoUtils.blockHashByBlockNumber(
-                            blockStreamInfo.trailingBlockHashes(),
-                            blockStreamInfo.blockNumber() - 1,
-                            blockStreamInfo.blockNumber() - 1);
-            // Branch 2
-            final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                    .map(Bytes::toByteArray)
-                    .toList();
+            // Block N's own hash is not stored in its own state (it commits over the state change that
+            // writes this very singleton), so reconstruct it from the persisted subtree roots. We keep the
+            // previous-block-hashes hasher as live state for ongoing production; reconstructLastBlockHash()
+            // re-derives the same all-previous-blocks root internally.
             this.previousBlockHashes = new IncrementalStreamingHasher(
                     sha384DigestOrThrow(),
-                    prevBlocksIntermediateHashes,
-                    blockStreamInfo.intermediateBlockRootsLeafCount());
-            final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
-
-            // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the
-            // calculated last block hash below)
-
-            // We have to calculate the final hash of the previous block's state changes subtree because only the
-            // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems
-            // and rightmostPrecedingStateChangesTreeHashes)
-            final var initialStateChangesHasher = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
-                    blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
+                    blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                             .map(Bytes::toByteArray)
                             .toList(),
-                    blockStreamInfo.numPrecedingStateChangesItems());
-
-            // Reconstruct the final state change block item that would have been emitted by the previous block
-            final var lastBlockFinalStateChange = StateChange.newBuilder()
-                    .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                    .singletonUpdate(SingletonUpdateChange.newBuilder()
-                            .blockStreamInfoValue(blockStreamInfo)
-                            .build())
-                    .build();
-            final var lastStateChanges = BlockItem.newBuilder()
-                    // The final state changes block item for the last block uses blockEndTime, which has to be the last
-                    // state change time
-                    .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
-                    .build();
-            // Add the final state change item's hash to the reconstructed state changes tree, and use it to compute the
-            // final hash
-            initialStateChangesHasher.addLeaf(
-                    BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
-            final var lastBlockFinalStateChangesHash = Bytes.wrap(initialStateChangesHasher.computeRootHash());
-            effectiveLastBlockHash = BlockStreamManagerImpl.combine(
-                            prevBlockHash,
-                            allPrevBlocksHash,
-                            blockStreamInfo.startOfBlockStateHash(),
-                            blockStreamInfo.consensusHeaderRootHash(),
-                            blockStreamInfo.inputTreeRootHash(),
-                            blockStreamInfo.outputItemRootHash(),
-                            lastBlockFinalStateChangesHash,
-                            blockStreamInfo.traceDataRootHash(),
-                            blockStreamInfo.blockTimeOrThrow())
-                    .blockRootHash();
+                    blockStreamInfo.intermediateBlockRootsLeafCount());
+            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo);
         }
         this.lastBlockHash = effectiveLastBlockHash;
         if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
+    }
+
+    /**
+     * Reconstructs the block root hash of the last completed block (block {@code blockStreamInfo.blockNumber()})
+     * from the given {@link BlockStreamInfo} singleton.
+     *
+     * <p>A block's own hash is never stored in its own committed state — the hash commits over the state change
+     * that writes this very singleton — so it must be re-derived from the persisted subtree roots. This is the
+     * same derivation {@link #init} performs on startup; it is shared here so the query path
+     * ({@code BlockStreamInfoImpl}) can resolve {@code blockhash(block.number - 1)} for the most recent block
+     * exactly as {@code BlockRecordInfoImpl} does, since {@link BlockStreamInfo#trailingBlockHashes()} only
+     * covers blocks up to {@code blockNumber - 1}.
+     *
+     * @param blockStreamInfo the block stream info singleton
+     * @return the block root hash of {@code blockStreamInfo.blockNumber()}, or {@link #HASH_OF_ZERO} if no block has completed
+     */
+    public static Bytes reconstructLastBlockHash(@NonNull final BlockStreamInfo blockStreamInfo) {
+        requireNonNull(blockStreamInfo);
+        if (blockStreamInfo.blockNumber() < 0L) {
+            return HASH_OF_ZERO;
+        }
+        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
+                ? HASH_OF_ZERO
+                : BlockImplUtils.blockHashByBlockNumber(
+                        blockStreamInfo.trailingBlockHashes(),
+                        blockStreamInfo.blockNumber() - 1,
+                        blockStreamInfo.blockNumber() - 1);
+        final var prevBlocksHasher = new IncrementalStreamingHasher(
+                sha384DigestOrThrow(),
+                blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
+                        .map(Bytes::toByteArray)
+                        .toList(),
+                blockStreamInfo.intermediateBlockRootsLeafCount());
+        final var allPrevBlocksHash = Bytes.wrap(prevBlocksHasher.computeRootHash());
+
+        // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
+        // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
+        final var stateChangesHasher = new IncrementalStreamingHasher(
+                sha384DigestOrThrow(),
+                blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
+                        .map(Bytes::toByteArray)
+                        .toList(),
+                blockStreamInfo.numPrecedingStateChangesItems());
+        final var lastBlockFinalStateChange = StateChange.newBuilder()
+                .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
+                .singletonUpdate(SingletonUpdateChange.newBuilder()
+                        .blockStreamInfoValue(blockStreamInfo)
+                        .build())
+                .build();
+        final var lastStateChanges = BlockItem.newBuilder()
+                // The final state changes block item for the last block uses blockEndTime, the last state change time.
+                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
+                .build();
+        stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
+        final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+
+        return combine(
+                        prevBlockHash,
+                        allPrevBlocksHash,
+                        blockStreamInfo.startOfBlockStateHash(),
+                        blockStreamInfo.consensusHeaderRootHash(),
+                        blockStreamInfo.inputTreeRootHash(),
+                        blockStreamInfo.outputItemRootHash(),
+                        lastBlockFinalStateChangesHash,
+                        blockStreamInfo.traceDataRootHash(),
+                        blockStreamInfo.blockTimeOrThrow())
+                .blockRootHash();
     }
 
     @Override
@@ -808,11 +828,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
+                final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
+                if (diskNetworkExportTss) {
+                    log.warn("Including dev-only TSS private key material in exported network info");
+                    infoTypes.add(InfoType.TSS);
+                }
                 log.info(
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
+                DiskStartupNetworks.writeNetworkInfo(
+                        state,
+                        exportPath,
+                        infoTypes,
+                        configProvider.getConfiguration(),
+                        platform.getSelfId().id());
             }
 
             // Clear the eventIndexInBlock map for the next block
@@ -1246,7 +1276,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          */
         @Nullable
         Bytes hashOfBlock(final long blockNo) {
-            return BlockRecordInfoUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
+            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
         }
 
         /**
