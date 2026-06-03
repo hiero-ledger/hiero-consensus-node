@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.integration.hip1195;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -91,8 +90,7 @@ public class Hip1195StorageTest {
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_MODIFICATIONS_HOOK.getInfo());
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
     }
 
     @HapiTest
