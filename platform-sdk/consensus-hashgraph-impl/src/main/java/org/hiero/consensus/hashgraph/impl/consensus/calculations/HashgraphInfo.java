@@ -62,6 +62,8 @@ public class HashgraphInfo {
     private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
     private boolean nodesChanged; //true for round 1 and for any round where nodes[] differs from the round before it
 
+    private boolean roundDecided;
+
     /** info about a round that is known multiple rounds in advance */
     public record RoundInfoCore(
             long pendingRound,
@@ -113,6 +115,7 @@ public class HashgraphInfo {
         private final long creatorNodeID; //nodeID of this event's creator
         private EventInfo[] parentsSigned;
         private int creator; //index into the nodes array of this event's creator
+        private final long birthRound;
         private boolean[] ancestorJudge;
         private boolean prevJudgeDesc;
         private long gen;
@@ -157,9 +160,10 @@ public class HashgraphInfo {
          * @param creator the nodeID of the creator of this event
          * @param parents array of parents, in the same order as in the signed event that is gossiped.
          */
-        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, EventInfo[] parents) {
+        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, long birthRound, EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
+            this.birthRound = birthRound;
             this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
         }
 
@@ -226,6 +230,8 @@ public class HashgraphInfo {
             final RoundInfoPrev rp = roundInfo.prev;
             final HashgraphInfo h = x.hashgraph;
             long parentRound;
+            ArrayList<EventInfo> roundJudges;
+            long minJudgeBirthRound;
 
             if (hashgraph == null) {
                 return null; //this event was already cleared
@@ -435,10 +441,14 @@ public class HashgraphInfo {
             // function vote
 
             // function roundDecided
+            //h.roundDecided = false; /**/
 
-            // if roundDecided is false, return null
+            if (!h.roundDecided) {
+                return null;
+            }
 
             // function roundJudges
+            roundJudges = new ArrayList<EventInfo>;  /**/
 
             // function receivedEvents
 
@@ -456,21 +466,27 @@ public class HashgraphInfo {
 
             // function consensusTimestamp
 
-            //set isPrevJudge to false for the judges in the previous round
+            //the round reached consensus, so prepare to move on by setting the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
+                judge.isPrevJudge = false;
+            }
+            for (EventInfo judge : roundJudges) {
                 judge.isPrevJudge = true;
             }
-
-            //TODO set isPrevJudge to true for roundJudges (the judges that were just found)
+            minJudgeBirthRound = 0;
+            for (EventInfo judge : roundJudges) {
+                minJudgeBirthRound = Math.max(minJudgeBirthRound, judge.birthRound);
+            }
 
             return new UpdateResults(
-                    null,
-                    new RoundInfoPrev(false,
-                            null,
+                    null, //consensusEvents
+                    new RoundInfoPrev(
+                            r.judgeCon1, //prevJudgeCon1
+                            roundJudges.toArray(new EventInfo[0]), //prevJudges
                             false,
+                            0, //prevMinNonAncientRound
                             0,
-                            0,
-                            0));
+                            minJudgeBirthRound)); //prevMinJudgeBirthRound
         }
     }
 }
