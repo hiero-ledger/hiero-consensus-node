@@ -238,7 +238,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 wrbWriterSupplier,
                 blockHashSigner,
                 initTrigger,
-                NO_OP_BLOCK_LIFECYCLE);
+                NO_OP_BLOCK_LIFECYCLE,
+                null);
     }
 
     public BlockRecordManagerImpl(
@@ -253,6 +254,41 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final InitTrigger initTrigger,
             @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
+        this(
+                configProvider,
+                state,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
+                initTrigger,
+                blockLifecycle,
+                null);
+    }
+
+    /**
+     * Construct BlockRecordManager with a lifecycle hook and an optional pre-computed
+     * wrapped-record block hash migration result that seeds the live wrapped-record hash
+     * chain so it matches the chain that will be agreed by
+     * {@link com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler} once voting
+     * completes.
+     */
+    public BlockRecordManagerImpl(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final State state,
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final InitTrigger initTrigger,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle,
+            @Nullable final WrappedRecordBlockHashMigration.Result migrationResult) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -295,14 +331,66 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
-            final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
-                    .map(Bytes::toByteArray)
-                    .toList();
-            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
-                    intermediateHashes,
-                    this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-            this.previousWrappedRecordBlockRootHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            // State only holds finalized wrapped-record values after migration root-hash voting
+            // completes (see WritableBlockRecordStore.applyFinalizedValuesAndMarkComplete and the
+            // votingComplete branch in closeBlockAndProduceFinalRecordFile). Until voting finishes,
+            // the chain that the vote will agree on lives in wrappedRecordBlockHashMigration.result()
+            // (computed in ServicesMain before this manager is constructed). Without seeding from
+            // that result, the live hasher would start empty, diverge from the vote handler's
+            // recomputed chain, and produce per-block wrapped-record root hashes that don't match
+            // what a fresh .rcd-replay would compute (see issue 25424).
+            Bytes initialPrevHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
+            List<Bytes> initialIntermediates = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
+            long initialLeafCount = this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
+            boolean seededFromMigration = false;
+            if (initialLeafCount == 0 && !this.lastBlockInfo.votingComplete() && migrationResult != null) {
+                initialPrevHash = migrationResult.previousWrappedRecordBlockRootHash();
+                initialIntermediates = migrationResult.wrappedIntermediatePreviousBlockRootHashes();
+                initialLeafCount = migrationResult.wrappedIntermediateBlockRootsLeafCount();
+                seededFromMigration = true;
+                logger.info(
+                        "Seeded live wrapped-record hash chain from migration result" + " (leafCount={}, prevHash={})",
+                        initialLeafCount,
+                        initialPrevHash);
+            }
+            final var intermediateHashes =
+                    initialIntermediates.stream().map(Bytes::toByteArray).toList();
+            this.prevWrappedRecordBlockHashes =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), intermediateHashes, initialLeafCount);
+            this.previousWrappedRecordBlockRootHash = initialPrevHash;
+
+            // When a state is saved mid-voting, the migrationWrappedHashes queue in BlockInfo
+            // holds per-block (consensusTimestampHash, outputItemsTreeRootHash) entries that the
+            // vote handler will replay on top of the migration baseline once voting completes
+            // (see MigrationRootHashVoteHandler.handle). On restart from such a state we must
+            // replay the same queue locally so the live hasher matches what the vote will agree
+            // on; otherwise blocks closed before voting completes would chain from the migration
+            // baseline only and diverge from the network.
+            final var queuedHashes = this.lastBlockInfo.migrationWrappedHashes();
+            if (seededFromMigration && !queuedHashes.isEmpty()) {
+                for (final MigrationWrappedHashes queued : queuedHashes) {
+                    final var allPrevBlocksRootHash = Bytes.wrap(this.prevWrappedRecordBlockHashes.computeRootHash());
+                    final var blockRootHash = computeWrappedRecordBlockRootHash(
+                            this.previousWrappedRecordBlockRootHash,
+                            allPrevBlocksRootHash,
+                            WrappedRecordFileBlockHashes.newBuilder()
+                                    .consensusTimestampHash(queued.consensusTimestampHash())
+                                    .outputItemsTreeRootHash(queued.outputItemsTreeRootHash())
+                                    .build());
+                    this.prevWrappedRecordBlockHashes.addNodeByHash(blockRootHash.toByteArray());
+                    this.previousWrappedRecordBlockRootHash = blockRootHash;
+                }
+                logger.info(
+                        "Replayed {} queued migration wrapped-hash entries on live hasher"
+                                + " (final leafCount={}, prevHash={})",
+                        queuedHashes.size(),
+                        this.prevWrappedRecordBlockHashes.leafCount(),
+                        this.previousWrappedRecordBlockRootHash);
+            }
+            logger.info(
+                    "Persisted live wrapped record block root hash (as of block {}): {}",
+                    this.lastBlockInfo.lastBlockNumber(),
+                    this.previousWrappedRecordBlockRootHash);
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);

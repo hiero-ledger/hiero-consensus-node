@@ -19,8 +19,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -43,6 +41,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
+import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -226,8 +225,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     void testParamsFromConfig() {
         final Configuration config = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "12000"))
                 .withSource(new SimpleConfigSource("merkleDb.longListReservedBufferSize", "1111"))
                 .build();
