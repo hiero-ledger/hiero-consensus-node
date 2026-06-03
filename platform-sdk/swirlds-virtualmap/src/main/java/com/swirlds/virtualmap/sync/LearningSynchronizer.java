@@ -46,60 +46,25 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
-    /**
-     * Used to get data from the teacher.
-     */
-    private final DataInputStream inputStream;
-
-    /**
-     * Used to transmit data to the teacher.
-     */
-    private final DataOutputStream outputStream;
-
-    /**
-     * Virtual tree view used to access nodes and hashes.
-     */
-    private final LearnerTreeView view;
-
+    private final ThreadManager threadManager;
     private final ReconnectConfig reconnectConfig;
-    private final ReconnectMapStats reconnectStats;
-    private final StandardWorkGroup workGroup;
-    private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
+    private final Metrics metrics;
 
     /**
      * Constructs a new learning synchronizer.
      *
      * @param threadManager responsible for managing thread lifecycles
-     * @param in the input stream for receiving data from the teacher
-     * @param out the output stream for sending data to the teacher
-     * @param originalMap the learner's original virtual map to be synchronized
-     * @param metrics the metrics system for recording synchronization metrics
-     * @param breakConnection a callback to disconnect the connection on failure
      * @param reconnectConfig the reconnect configuration
+     * @param metrics the metrics system for recording synchronization metrics
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
-            @NonNull final DataInputStream in,
-            @NonNull final DataOutputStream out,
-            @NonNull final VirtualMap originalMap,
-            @NonNull final Metrics metrics,
-            @NonNull final Runnable breakConnection,
-            @NonNull final ReconnectConfig reconnectConfig) {
-        Objects.requireNonNull(originalMap, "currentVirtualMap cannot be null");
-        Objects.requireNonNull(metrics, "metrics cannot be null");
-        inputStream = Objects.requireNonNull(in, "inputStream is null");
-        outputStream = Objects.requireNonNull(out, "outputStream is null");
-        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
+            @NonNull final ReconnectConfig reconnectConfig,
+            @NonNull final Metrics metrics) {
 
-        reconnectStats = new ReconnectMapMetrics(metrics, null, null);
-
-        this.view = buildLearnerView(originalMap, reconnectConfig, reconnectStats);
-
-        final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
-            firstReconnectException.compareAndSet(null, ex);
-            return false;
-        };
-        workGroup = createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
+        this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
+        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig cannot be null");
+        this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 
     @NonNull
@@ -136,26 +101,49 @@ public class LearningSynchronizer {
      * @throws InterruptedException if the synchronization is interrupted
      * @throws MerkleSynchronizationException if the synchronization fails due to an exception
      */
-    public VirtualMap synchronize() throws InterruptedException {
+    public VirtualMap synchronize(
+            @NonNull final VirtualMap originalMap,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final Runnable breakConnection)
+            throws InterruptedException {
+
+        Objects.requireNonNull(originalMap, "originalMap cannot be null");
+        Objects.requireNonNull(in, "input stream cannot be null");
+        Objects.requireNonNull(out, "output stream cannot be null");
+        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
+
+        final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
+        final ReconnectMapMetrics reconnectStats = new ReconnectMapMetrics(metrics, null, null);
+        final LearnerTreeView view = buildLearnerView(originalMap, reconnectConfig, reconnectStats);
+
+        final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
+            firstReconnectException.compareAndSet(null, ex);
+            return false;
+        };
+        final StandardWorkGroup workGroup =
+                createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
+
         logger.info(RECONNECT.getMarker(), "learner start synchronizing");
-        final AsyncInputStream in = new AsyncInputStream(
-                inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
-        in.start();
-        final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
-        out.start();
+
+        final AsyncInputStream input = new AsyncInputStream(
+                in, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
+        input.start();
+        final AsyncOutputStream output = buildOutputStream(workGroup, out, reconnectConfig);
+        output.start();
 
         try {
             // Perform the root-node (path 0) request/response handshake synchronously before forking
             // any parallel tasks. The root response carries the teacher's first/last leaf path range,
             // which must be known before the traversal order can be started and before any parallel
             // send tasks can generate meaningful non-root requests.
-            exchangeRootNode(in, out);
+            exchangeRootNode(view, input, output);
 
             final AtomicLong expectedResponses = new AtomicLong(0);
             // FUTURE WORK: configurable number of tasks
             for (int i = 0; i < 16; i++) {
-                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
-                        new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, in, view, expectedResponses);
+                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
+                        reconnectConfig, workGroup, input, view, expectedResponses);
                 learnerReceiveTask.exec();
             }
 
@@ -164,7 +152,7 @@ public class LearningSynchronizer {
             final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
             for (int i = 0; i < learnerSendTasks; i++) {
                 final LearnerPullVirtualTreeSendTask learnerSendTask =
-                        new LearnerPullVirtualTreeSendTask(workGroup, out, view, expectedResponses, tasksDone);
+                        new LearnerPullVirtualTreeSendTask(workGroup, output, view, expectedResponses, tasksDone);
                 learnerSendTask.exec();
             }
 
@@ -218,11 +206,12 @@ public class LearningSynchronizer {
      * before any parallel tasks are forked, because all subsequent requests depend on the leaf
      * path range carried in the root response.
      *
+     * @param view learner view
      * @param in  the async input stream to read the root response from
      * @param out the async output stream to send the root request to
      * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
      */
-    private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
+    private void exchangeRootNode(LearnerTreeView view, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
         final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash());
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];

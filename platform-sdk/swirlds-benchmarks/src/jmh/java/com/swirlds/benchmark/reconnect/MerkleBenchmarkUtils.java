@@ -92,74 +92,24 @@ public class MerkleBenchmarkUtils {
             final TeachingSynchronizer teacher;
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(
-                        getStaticThreadManager(),
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        startingTree,
-                        metrics,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
-                teacher = new TeachingSynchronizer(
-                        Time.getCurrent(),
-                        getStaticThreadManager(),
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
+                learner = new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
+                teacher = new TeachingSynchronizer(Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        startingTree,
+                        reconnectConfig,
                         metrics,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,
                         delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
+                        delayNetworkFuzzRangePercent);
                 teacher = new BenchmarkSlowTeachingSynchronizer(
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree,
+                        reconnectConfig,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,
                         delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
+                        delayNetworkFuzzRangePercent);
             }
 
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
@@ -171,9 +121,11 @@ public class MerkleBenchmarkUtils {
             ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
             workGroup.execute(
-                    "learning-synchronizer-main", () -> learningSynchronizerThread(learner, syncMapContainer));
+                    "teaching-synchronizer-main", () -> teachingSynchronizerThread(desiredTree, streams, teacher));
+            workGroup.execute(
+                    "learning-synchronizer-main",
+                    () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
 
             try {
                 workGroup.waitForTermination();
@@ -191,18 +143,37 @@ public class MerkleBenchmarkUtils {
         }
     }
 
-    private static void teachingSynchronizerThread(final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(
+            final VirtualMap teacherMap, final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize();
+            teacher.synchronize(teacherMap, streams.getTeacherInput(), streams.getTeacherOutput(), () -> {
+                try {
+                    streams.disconnect();
+                } catch (final IOException e) {
+                    // test code, no danger
+                    logger.error("Error while shutting down sockets", e);
+                }
+            });
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
     }
 
     private static void learningSynchronizerThread(
-            final LearningSynchronizer learner, final ValueReference<VirtualMap> syncMapContainer) {
+            final PairedStreams streams,
+            final VirtualMap startingTree,
+            final LearningSynchronizer learner,
+            final ValueReference<VirtualMap> syncMapContainer) {
         try {
-            syncMapContainer.setValue(learner.synchronize());
+            syncMapContainer.setValue(
+                    learner.synchronize(startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), () -> {
+                        try {
+                            streams.disconnect();
+                        } catch (final IOException e) {
+                            // test code, no danger
+                            logger.error("Error while shutting down sockets", e);
+                        }
+                    }));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }

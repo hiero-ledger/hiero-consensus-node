@@ -42,40 +42,42 @@ public class TeachingSynchronizer {
     private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
     private final Time time;
-    private final DataInputStream inputStream;
-    private final DataOutputStream outputStream;
-    private final RecordAccessor teacherView;
+    private final ThreadManager threadManager;
     private final ReconnectConfig reconnectConfig;
-    private final StandardWorkGroup workGroup;
-    private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
 
     /**
      * Constructs a new teaching synchronizer.
      *
      * @param time the wall clock time
      * @param threadManager responsible for managing thread lifecycles
-     * @param in the input stream for receiving data from the learner
-     * @param out the output stream for sending data to the learner
-     * @param teacherMap the teacher's view into the merkle tree being synchronized
-     * @param breakConnection a callback to disconnect the connection on failure
      * @param reconnectConfig the reconnect configuration
      */
     public TeachingSynchronizer(
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
-            @NonNull final DataInputStream in,
-            @NonNull final DataOutputStream out,
-            @NonNull final VirtualMap teacherMap,
-            @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 
         this.time = Objects.requireNonNull(time, "time is null");
-        this.inputStream = Objects.requireNonNull(in, "inputStream is null");
-        this.outputStream = Objects.requireNonNull(out, "outputStream is null");
-        this.teacherView =
-                Objects.requireNonNull(teacherMap, "teacherMap is null").detach();
+        this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
+    }
 
+    /**
+     * Perform reconnect in the role of the teacher.
+     */
+    public void synchronize(
+            @NonNull final VirtualMap teacherMap,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final Runnable breakConnection)
+            throws InterruptedException {
+        Objects.requireNonNull(teacherMap, "teacherMap cannot be null");
+        Objects.requireNonNull(in, "input stream cannot be null");
+        Objects.requireNonNull(out, "output stream cannot be null");
+        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
+
+        final RecordAccessor teacherView = teacherMap.detach();
+        final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
         final Function<Throwable, Boolean> reconnectExceptionListener = e -> {
             Throwable cause = e;
             while (cause != null) {
@@ -93,18 +95,16 @@ public class TeachingSynchronizer {
             // Let StandardWorkGroup log it as an error using the EXCEPTION marker
             return false;
         };
-        workGroup = createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
-    }
+        final StandardWorkGroup workGroup =
+                createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
 
-    /**
-     * Perform reconnect in the role of the teacher.
-     */
-    public void synchronize() throws InterruptedException {
-        final AsyncInputStream in = new AsyncInputStream(
-                inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
-        in.start();
-        final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
-        out.start();
+        logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
+
+        final AsyncInputStream input = new AsyncInputStream(
+                in, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
+        input.start();
+        final AsyncOutputStream output = buildOutputStream(workGroup, out, reconnectConfig);
+        output.start();
 
         try {
             // Perform the root-node (path 0) request/response handshake synchronously before forking
@@ -112,14 +112,14 @@ public class TeachingSynchronizer {
             // Once sent, the learner will start sending non-root requests, which the parallel tasks
             // will process. This guarantees no task races for the first message on the stream.
 
-            exchangeRootNode(in, out);
+            exchangeRootNode(teacherView, input, output);
 
             // FUTURE work: pool size config
             final int teacherTasks = 16;
             final AtomicInteger tasksDone = new AtomicInteger(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
                 final TeacherPullVirtualTreeReceiveTask teacherReceiveTask = new TeacherPullVirtualTreeReceiveTask(
-                        time, reconnectConfig, workGroup, in, out, teacherView, tasksDone);
+                        time, reconnectConfig, workGroup, input, output, teacherView, tasksDone);
                 teacherReceiveTask.exec();
             }
 
@@ -174,11 +174,12 @@ public class TeachingSynchronizer {
      * any parallel tasks are forked so the learner can initialize its traversal order and begin
      * sending non-root requests.
      *
-     * @param in  the async input stream to read the root request from
-     * @param out the async output stream to send the root response to
+     * @param teacherView
+     * @param in          the async input stream to read the root request from
+     * @param out         the async output stream to send the root response to
      * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
      */
-    private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
+    private void exchangeRootNode(RecordAccessor teacherView, final AsyncInputStream in, final AsyncOutputStream out) {
         final byte[] rootRequestBytes = in.readOrWait(YieldStrategy.PARK);
         if (rootRequestBytes == null) {
             throw new MerkleSynchronizationException("Stream closed before root node request was received");

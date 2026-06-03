@@ -74,14 +74,7 @@ public final class ReconnectTestUtils {
 
         try (PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner =
-                    new LearningSynchronizer(
-                            getStaticThreadManager(),
-                            streams.getLearnerInput(),
-                            streams.getLearnerOutput(),
-                            learnerMap,
-                            metrics,
-                            streams::disconnect,
-                            reconnectConfig) {
+                    new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics) {
 
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
@@ -98,14 +91,7 @@ public final class ReconnectTestUtils {
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(
-                            Time.getCurrent(),
-                            getStaticThreadManager(),
-                            streams.getTeacherInput(),
-                            streams.getTeacherOutput(),
-                            teacherMap,
-                            streams::disconnect,
-                            reconnectConfig) {
+                    new TeachingSynchronizer(Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
                                 ThreadManager threadManager,
@@ -129,9 +115,11 @@ public final class ReconnectTestUtils {
             ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
             workGroup.execute(
-                    "learning-synchronizer-main", () -> learningSynchronizerThread(learner, syncMapContainer));
+                    "teaching-synchronizer-main", () -> teachingSynchronizerThread(teacherMap, streams, teacher));
+            workGroup.execute(
+                    "learning-synchronizer-main",
+                    () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
 
             try {
                 workGroup.waitForTermination();
@@ -174,18 +162,23 @@ public final class ReconnectTestUtils {
         assertVmsAreEqual(teacherMap, reconnectMap);
     }
 
-    private static void teachingSynchronizerThread(final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(
+            final VirtualMap teacherMap, final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize();
+            teacher.synchronize(teacherMap, streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
     }
 
     private static void learningSynchronizerThread(
-            final LearningSynchronizer learner, ValueReference<VirtualMap> syncMapContainer) {
+            final PairedStreams streams,
+            final VirtualMap learnerMap,
+            final LearningSynchronizer learner,
+            ValueReference<VirtualMap> syncMapContainer) {
         try {
-            syncMapContainer.setValue(learner.synchronize());
+            syncMapContainer.setValue(learner.synchronize(
+                    learnerMap, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

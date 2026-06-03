@@ -54,7 +54,7 @@ public class ReconnectStateLearner {
     private final ReconnectMetrics statistics;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final Configuration configuration;
-    private final Metrics metrics;
+    private final LearningSynchronizer synchronizer;
 
     private SigSet sigSet;
 
@@ -62,8 +62,6 @@ public class ReconnectStateLearner {
      * After reconnect is finished, restore the socket timeout to the original value.
      */
     private int originalSocketTimeout;
-
-    private final ThreadManager threadManager;
 
     /**
      *
@@ -87,16 +85,19 @@ public class ReconnectStateLearner {
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
+        requireNonNull(metrics);
+        requireNonNull(threadManager);
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
         this.configuration = requireNonNull(configuration);
-        this.metrics = requireNonNull(metrics);
-        this.threadManager = requireNonNull(threadManager);
         this.connection = requireNonNull(connection);
         this.currentState = requireNonNull(currentState);
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.statistics = requireNonNull(statistics);
+
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+        synchronizer = new LearningSynchronizer(threadManager, reconnectConfig, metrics);
 
         // Save some of the current state data for validation
     }
@@ -197,15 +198,11 @@ public class ReconnectStateLearner {
         final DataOutputStream out = new DataOutputStream(connection.getDos());
 
         connection.getDis().byteCounter().getAndReset();
-
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final LearningSynchronizer synchronizer = new LearningSynchronizer(
-                threadManager, in, out, currentState.getRoot(), metrics, connection::disconnect, reconnectConfig);
         VirtualMap syncedVirtualMap;
 
         final long syncStartTime = System.currentTimeMillis();
         try {
-            syncedVirtualMap = synchronizer.synchronize();
+            syncedVirtualMap = synchronizer.synchronize(currentState.getRoot(), in, out, connection::disconnect);
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();

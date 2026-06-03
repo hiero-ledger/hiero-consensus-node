@@ -54,7 +54,7 @@ public class ReconnectStateTeacher {
     private final NodeId selfId;
     private final NodeId otherId;
     private final long lastRoundReceived;
-    private final Configuration configuration;
+    private final TeachingSynchronizer synchronizer;
 
     private final ReconnectMetrics statistics;
 
@@ -90,6 +90,7 @@ public class ReconnectStateTeacher {
             @NonNull final SignedState signedState,
             @NonNull final ReconnectMetrics statistics) {
 
+        Objects.requireNonNull(configuration);
         this.time = Objects.requireNonNull(time);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.connection = Objects.requireNonNull(connection);
@@ -99,7 +100,6 @@ public class ReconnectStateTeacher {
         this.otherId = Objects.requireNonNull(otherId);
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
-        this.configuration = Objects.requireNonNull(configuration);
 
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
@@ -107,6 +107,9 @@ public class ReconnectStateTeacher {
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
         teacherMap = virtualMapState.getRoot();
+
+        synchronizer =
+                new TeachingSynchronizer(time, threadManager, configuration.getConfigData(ReconnectConfig.class));
 
         logReconnectStart(signedState);
     }
@@ -216,16 +219,11 @@ public class ReconnectStateTeacher {
 
         connection.getDis().byteCounter().getAndReset();
 
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
-                time,
-                threadManager,
+        synchronizer.synchronize(
+                teacherMap,
                 new DataInputStream(connection.getDis()),
                 new DataOutputStream(connection.getDos()),
-                teacherMap,
-                connection::disconnect,
-                reconnectConfig);
-        synchronizer.synchronize();
+                connection::disconnect);
         connection.getDos().flush();
 
         statistics.incrementSenderEndTimes();
