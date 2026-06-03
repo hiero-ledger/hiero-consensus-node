@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -160,8 +159,7 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(EMIT_SENDER_ORIGIN.getInfo());
         testLifecycle.doAdhoc(ADDRESS_LOGS_HOOK.getInfo());
 
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
     }
 
     @HapiTest
