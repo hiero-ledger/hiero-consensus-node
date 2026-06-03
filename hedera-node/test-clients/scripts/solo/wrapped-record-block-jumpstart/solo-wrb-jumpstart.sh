@@ -8,6 +8,8 @@
 # 4) Upgrade to release tag with temp properties
 # 5) Parse migration vote values from hgcaa.log and extract Block N
 # 6) Replay wrapping up to Block N and compare vote values to replay jumpstart.bin
+# 7) Wait BLOCKS_AFTER_JUMPSTART more blocks, capture the latest saved state, introspect its
+#    BlockInfo singleton, re-wrap up to BlockInfo.lastBlockNumber, and compare the WRB hashes
 
 set -euo pipefail
 set +m
@@ -43,10 +45,16 @@ Environment:
   DEPLOY_EXPLORER               true|false - deploy the Hiero Explorer web UI for browsing
                                 blocks/transactions (default: true)
   EXPLORER_LOCAL_PORT           Local port for the Explorer UI port-forward (default: 8080)
+  VERIFY_STATE_BLOCK_INFO       true|false (default: true) - after capturing a saved state,
+                                introspect its BlockInfo singleton with the hedera-state-validator
+                                CLI and compare the WRB hashes against an offline wrap up to
+                                BlockInfo.lastBlockNumber
 
 After the migration-vote comparison succeeds the script waits BLOCKS_AFTER_JUMPSTART
 more blocks, then extracts the latest signed-state directory from network-node1-0
-into \${WORK_DIR}/saved-state/<round>/ for follow-up state inspection.
+into \${WORK_DIR}/saved-state/<round>/. When VERIFY_STATE_BLOCK_INFO=true it then introspects
+the BlockInfo singleton from that state and verifies its WRB hashes against an offline wrap
+up to BlockInfo.lastBlockNumber.
 
 Examples:
   ./solo-wrb-jumpstart.sh
@@ -84,7 +92,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 export SOLO_CLUSTER_NAME="wrb-jumpstart"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
-export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+# Dedicated deployment name so this scenario never collides with other Solo deployments
+# (e.g. the shared "solo-deployment" used by the e2e cutover work). Hard-coded like the
+# cluster name; the kind cluster is reset each run, so the pre-create delete below removes
+# this deployment from local config cleanly on re-runs.
+export SOLO_DEPLOYMENT="wrb-jumpstart"
 
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
@@ -106,6 +118,7 @@ BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 BLOCKS_AFTER_JUMPSTART="${BLOCKS_AFTER_JUMPSTART:-100}"
+VERIFY_STATE_BLOCK_INFO="${VERIFY_STATE_BLOCK_INFO:-true}"
 DEPLOY_EXPLORER="${DEPLOY_EXPLORER:-true}"
 
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
@@ -133,6 +146,9 @@ MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
 WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
 BLOCK_NODE_WRAP_LOG="${WORK_DIR}/block-node-wrap.log"
 MIGRATION_COMPARE_LOG="${WORK_DIR}/migration-compare.log"
+STATE_BLOCK_INFO_PARSE_SCRIPT="${SCRIPT_DIR}/js/parse-state-block-info.js"
+STATE_INTROSPECT_LOG="${WORK_DIR}/state-introspect.log"
+STATE_VERIFY_COMPARE_LOG="${WORK_DIR}/state-verify-compare.log"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 EXPLORER_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-explorer.log"
@@ -144,8 +160,10 @@ ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
 
 FIRST_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/initial"
 SECOND_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/migration-replay"
+THIRD_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/state-verify"
 FIRST_JUMPSTART_BIN=""
 SECOND_JUMPSTART_BIN=""
+THIRD_JUMPSTART_BIN=""
 FIRST_WRAP_BLOCK_NUMBER=""
 MIGRATION_BLOCK_NUMBER=""
 MIGRATION_PREV_HASH=""
@@ -153,6 +171,10 @@ MIGRATION_INTERMEDIATE_HASHES=""
 MIGRATION_LEAF_COUNT=""
 SAVED_STATE_REMOTE_DIR=""
 SAVED_STATE_ROUND=""
+STATE_BI_BLOCK_NUMBER=""
+STATE_BI_PREV_HASH=""
+STATE_BI_INTERMEDIATE_HASHES=""
+STATE_BI_LEAF_COUNT=""
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
@@ -783,8 +805,8 @@ wait_for_mirror_block_at_least() {
 #   /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/<nodeId>/<swirld>/<round>/
 # Round numbers run far ahead of block numbers (e.g. round ~7500 while block ~260),
 # so we capture the most recent round directory rather than gating on a round that
-# matches a block number. The follow-up state inspector reads BlockInfo from the
-# captured state to recover the actual block number/hash.
+# matches a block number. The state-validator introspection step then reads BlockInfo
+# from the captured state to recover the actual block number/hash.
 resolve_latest_saved_state_on_pod() {
   local pod="$1"
   # shellcheck disable=SC2016  # $-expansions are intentional: they run in the remote pod shell, not locally
@@ -923,6 +945,117 @@ run_replay_wrap_to_migration_block() {
   prepare_wrap_day_archives_from_record_streams
   SECOND_JUMPSTART_BIN="$(run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${SECOND_WRAP_DIR}")"
   load_jumpstart_env_from_bin "${SECOND_JUMPSTART_BIN}"
+}
+
+# Introspect the BlockInfo singleton (BlockRecordService:BLOCKS) from the captured saved state
+# using the hedera-state-validator CLI, and load the WRB values into STATE_BI_* vars.
+introspect_state_block_info() {
+  local state_dir="${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}"
+  local parser_out k v
+  [[ -d "${state_dir}" ]] || { echo "Captured saved-state directory not found: ${state_dir}" >&2; return 1; }
+  log "Introspecting BlockInfo singleton from saved state via hedera-state-validator (first run builds the module)"
+  # The validator logs to stdout via log4j, so capture everything and let the Node parser
+  # extract the singleton JSON object from the surrounding log noise.
+  if ! ( cd "${REPO_ROOT}" && ./gradlew :hedera-state-validator:run -q --console=plain \
+      --args="${state_dir} introspect -s BlockRecordService -k BLOCKS" ) >"${STATE_INTROSPECT_LOG}" 2>&1; then
+    sed -n '1,200p' "${STATE_INTROSPECT_LOG}" >&2 || true
+    echo "hedera-state-validator introspect failed for ${state_dir}" >&2
+    return 1
+  fi
+  if ! parser_out="$(node "${STATE_BLOCK_INFO_PARSE_SCRIPT}" "${STATE_INTROSPECT_LOG}" 2>&1)"; then
+    echo "Failed to parse BlockInfo introspection output:" >&2
+    echo "${parser_out}" >&2
+    return 1
+  fi
+  while IFS='=' read -r k v; do
+    case "${k}" in
+      STATE_BI_BLOCK_NUMBER) STATE_BI_BLOCK_NUMBER="${v}" ;;
+      STATE_BI_PREV_HASH) STATE_BI_PREV_HASH="${v}" ;;
+      STATE_BI_INTERMEDIATE_HASHES) STATE_BI_INTERMEDIATE_HASHES="${v}" ;;
+      STATE_BI_LEAF_COUNT) STATE_BI_LEAF_COUNT="${v}" ;;
+    esac
+  done <<< "${parser_out}"
+  STATE_BI_PREV_HASH="$(echo "${STATE_BI_PREV_HASH}" | tr '[:upper:]' '[:lower:]')"
+  STATE_BI_INTERMEDIATE_HASHES="$(normalize_hash_list "${STATE_BI_INTERMEDIATE_HASHES}")"
+  [[ "${STATE_BI_BLOCK_NUMBER}" =~ ^[0-9]+$ ]] || {
+    echo "Invalid BlockInfo lastBlockNumber from state: '${STATE_BI_BLOCK_NUMBER}'" >&2
+    return 1
+  }
+  log "State BlockInfo: lastBlockNumber=${STATE_BI_BLOCK_NUMBER}, leafCount=${STATE_BI_LEAF_COUNT}"
+}
+
+# Offline-wrap record streams from genesis up to the state's BlockInfo.lastBlockNumber and load
+# the resulting jumpstart values into JUMPSTART_* (overwrites the migration-replay values).
+run_state_verify_wrap() {
+  local mirror_base="$1"
+  local to_block="$2"
+  rm -rf "${RECORD_STREAMS_DIR}" "${THIRD_WRAP_DIR}" >/dev/null 2>&1 || true
+  mkdir -p "${RECORD_STREAMS_DIR}" "${THIRD_WRAP_DIR}"
+  download_solo_minio_record_streams_range 0 "${to_block}" "${mirror_base}"
+  generate_block_node_metadata_from_mirror "${to_block}"
+  prepare_wrap_day_archives_from_record_streams
+  THIRD_JUMPSTART_BIN="$(run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${THIRD_WRAP_DIR}")"
+  load_jumpstart_env_from_bin "${THIRD_JUMPSTART_BIN}"
+}
+
+# Compare the WRB values read from the saved-state BlockInfo singleton against the values produced
+# by the offline wrap up to the same block number. Returns non-zero on any mismatch.
+compare_state_block_info_to_wrap() {
+  local wrap_prev wrap_leaf wrap_hashes
+  local mismatch=0
+  wrap_prev="$(echo "${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" | tr '[:upper:]' '[:lower:]')"
+  wrap_leaf="${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}"
+  wrap_hashes="$(normalize_hash_list "${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}")"
+  {
+    echo "state.block=${STATE_BI_BLOCK_NUMBER}"
+    echo "state.prevHash=${STATE_BI_PREV_HASH}"
+    echo "state.intermediateHashes=${STATE_BI_INTERMEDIATE_HASHES}"
+    echo "state.leafCount=${STATE_BI_LEAF_COUNT}"
+    echo "wrap.block=${JUMPSTART_BLOCK_NUMBER}"
+    echo "wrap.prevHash=${wrap_prev}"
+    echo "wrap.intermediateHashes=${wrap_hashes}"
+    echo "wrap.leafCount=${wrap_leaf}"
+  } > "${STATE_VERIFY_COMPARE_LOG}"
+  log "--------------------------------------------------------------------"
+  log "Saved-State BlockInfo vs Offline Wrap Comparison"
+  log "  blockNumber:"
+  log "    state = ${STATE_BI_BLOCK_NUMBER}"
+  log "    wrap  = ${JUMPSTART_BLOCK_NUMBER}"
+  log "  previousWrappedRecordBlockRootHash:"
+  log "    state = ${STATE_BI_PREV_HASH}"
+  log "    wrap  = ${wrap_prev}"
+  log "  wrappedIntermediateBlockRootsLeafCount:"
+  log "    state = ${STATE_BI_LEAF_COUNT}"
+  log "    wrap  = ${wrap_leaf}"
+  log "  wrappedIntermediatePreviousBlockRootHashes:"
+  log "    state = [${STATE_BI_INTERMEDIATE_HASHES}]"
+  log "    wrap  = [${wrap_hashes}]"
+
+  if [[ "${STATE_BI_BLOCK_NUMBER}" != "${JUMPSTART_BLOCK_NUMBER}" ]]; then
+    mismatch=1
+    log "  mismatch: blockNumber differs"
+  fi
+  if [[ "${STATE_BI_PREV_HASH}" != "${wrap_prev}" ]]; then
+    mismatch=1
+    log "  mismatch: previousWrappedRecordBlockRootHash differs"
+  fi
+  if [[ "${STATE_BI_INTERMEDIATE_HASHES}" != "${wrap_hashes}" ]]; then
+    mismatch=1
+    log "  mismatch: wrappedIntermediatePreviousBlockRootHashes differ"
+  fi
+  if [[ "${STATE_BI_LEAF_COUNT}" != "${wrap_leaf}" ]]; then
+    mismatch=1
+    log "  mismatch: wrappedIntermediateBlockRootsLeafCount differs"
+  fi
+
+  if (( mismatch == 0 )); then
+    log "  result: MATCH"
+  else
+    log "  result: MISMATCH"
+  fi
+  log "--------------------------------------------------------------------"
+
+  (( mismatch == 0 ))
 }
 
 run_network_upgrade() {
@@ -1123,6 +1256,21 @@ wait_for_saved_state 300
 log "Extracting latest saved state from network-node1-0"
 copy_latest_saved_state_locally
 
+if [[ "${VERIFY_STATE_BLOCK_INFO}" == "true" ]]; then
+  log "Verifying saved-state BlockInfo against an offline wrap"
+  introspect_state_block_info
+  log "Wrapping records 0..${STATE_BI_BLOCK_NUMBER} (state BlockInfo lastBlockNumber) for verification"
+  run_state_verify_wrap "${MIRROR_REST_URL}" "${STATE_BI_BLOCK_NUMBER}"
+  [[ "${JUMPSTART_BLOCK_NUMBER}" == "${STATE_BI_BLOCK_NUMBER}" ]] || {
+    echo "Verification wrap block (${JUMPSTART_BLOCK_NUMBER}) did not match state BlockInfo block (${STATE_BI_BLOCK_NUMBER})" >&2
+    exit 1
+  }
+  compare_state_block_info_to_wrap
+  log "SUCCESS: saved-state BlockInfo matches the offline wrap at block ${STATE_BI_BLOCK_NUMBER}"
+else
+  log "VERIFY_STATE_BLOCK_INFO=false; skipping saved-state BlockInfo verification"
+fi
+
 log "Generated artifacts root: ${GENERATED_DIR}"
 log "Temp upgrade properties: ${TMP_UPGRADE_APP_PROPS}"
 log "Initial jumpstart: ${FIRST_JUMPSTART_BIN}"
@@ -1132,6 +1280,7 @@ log "Saved state copy: ${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}"
 if [[ -n "${EXPLORER_URL}" ]]; then
   log "Explorer UI: ${EXPLORER_URL} (browse blocks and transactions)"
 fi
-log "TODO (follow-up): run a state inspector on the saved-state copy to read BlockInfo,"
-log "  then re-run blocks wrap through BlockInfo.lastBlockNumber and assert the resulting"
-log "  jumpstart.bin previousWrappedRecordBlockHash equals BlockInfo.lastBlockHash."
+if [[ "${VERIFY_STATE_BLOCK_INFO}" == "true" ]]; then
+  log "Saved-state verify wrap: ${THIRD_JUMPSTART_BIN}"
+  log "Saved-state verify compare log: ${STATE_VERIFY_COMPARE_LOG}"
+fi
