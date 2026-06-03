@@ -40,13 +40,16 @@ Why this works:
   order, so it keeps orphan-buffer pressure low and needs no re-sorting.
 - **Single node, production config.** The node mirrors the production setup
   (full roster, normal multi-node configuration) and is *not* run in single-node
-  mode — the other roster members are simply absent. Consensus never actually
-  starts: PCES replay completes before `platformCoordinator.startGossip()`, so
-  all block production happens during replay with no peer communication. This is
-  enforced at the network layer too — a host-level netfilter block drops all
-  egress to the other nodes' IPs, since the production roster points at live
-  hosts (see component 4). After replay the node enters `CHECKING`, which is
-  fine — all needed blocks already exist.
+  mode — the other roster members are simply absent. The consensus algorithm does
+  run during replay (it reproduces the original rounds from the replayed event
+  graph), but it cannot advance past the point consensus reached on the original
+  network, because forming further rounds would require events from the other
+  nodes, which are not present. PCES replay completes before
+  `platformCoordinator.startGossip()`, so all block production happens during
+  replay with no peer communication. This is enforced at the network layer too —
+  a host-level netfilter block drops all egress to the other nodes' IPs, since
+  the production roster points at live hosts (see component 4). After replay the
+  node enters `CHECKING`, which is fine — all needed blocks already exist.
 - **Signing without gossip.** Block production does not require live TSS. Either
   a mock signer is used (Tier 1), or — with real hinTS (Tier 2) — the partial
   signatures originally produced in production are event transactions in the
