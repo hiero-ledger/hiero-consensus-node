@@ -27,7 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -356,7 +356,7 @@ public class Hip1313EnabledTest {
         final AtomicReference<List<RecordStreamEntry>> highVolumeTxns = new AtomicReference<>();
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
-                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
+                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
@@ -398,7 +398,7 @@ public class Hip1313EnabledTest {
         final int numBursts = 200;
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-multi-op-pricing-throttles.json"),
-                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
+                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
@@ -464,7 +464,7 @@ public class Hip1313EnabledTest {
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
         return hapiTest(
                 overridingThrottles("testSystemFiles/hip1313-pricing-sim-throttles.json"),
-                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
+                streamMustIncludeNoFailuresFrom(allVisibleItems(feeMultiplierValidator(highVolumeTxns))),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 overridingTwo("fees.simpleFeesEnabled", "true", "networkAdmin.highVolumeThrottlesEnabled", "true"),
