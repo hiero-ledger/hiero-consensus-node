@@ -34,7 +34,7 @@
 | zxf-publish-yahcli-image.yaml                          | ZXC: Publish Yahcli Image                                         | 304-flow-publish-yahcli-image.yaml           | 304: [FLOW] Publish Yahcli Image   |
 | flow-generate-release-notes.yaml                       | Generate Release Notes                                            | 305-flow-generate-release-notes.yaml         | 305: [FLOW] Generate Rel Notes     |
 | node-zxf-snyk-monitor.yaml                             | ZXF: Snyk Monitor                                                 | 306-flow-snyk-monitor.yaml                   | 306: [FLOW] Snyk Monitor           |
-| 210-flow-merge-queue-controller.yaml                   | 210: [FLOW] Merge Queue Controller                                | 207-flow-merge-queue-controller.yaml         | 208: [FLOW] Merge Queue Controller |
+| 210-flow-merge-queue-controller.yaml                   | 210: [FLOW] Merge Queue Controller                                | 307-flow-merge-queue-controller.yaml         | 307: [FLOW] Merge Queue Controller |
 
 |                                                        |                                                                   |                                              |                                    |
 | # RESERVED (400-599)                                   |                                                                   |                                              |                                    |

@@ -38,7 +38,7 @@ the time constraint. The time limit for MATS is critical because it is also run 
 - MATS is triggered by the [Node: Build Application](/.github/workflows/node-flow-build-application.yaml) workflow.
 - The PR Check equivalent checks are triggered by
   the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
-- MATS Dry-Run is triggered manually via the [[USER] MATS Dry Run](/.github/workflows/205-user-dry-run-mats-suite.yaml)
+- MATS Dry-Run is triggered manually via the [[USER] MATS Dry Run](/.github/workflows/00-user-dry-run-mats-suite.yaml)
   workflow.
 
 ### Included Tests
