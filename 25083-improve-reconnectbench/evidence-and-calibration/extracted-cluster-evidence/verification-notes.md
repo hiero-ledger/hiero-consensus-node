@@ -29,7 +29,7 @@
 |---|---:|---|
 | `top-to-bottom.md` | ambiguous | Verifier found a prompt-root mismatch with the active atlas root and a missing teacher reconnect status row. Active atlas root was retained; teacher status was added. Expected-control node rows were later removed from the calibration evidence model because observed learner and teacher roles are the tuning-relevant data. Performance workflow logs then closed reconnect-loop controls and added skipped state-upload evidence. |
 | `two-phase-pessimistic.md` | ambiguous | Verifier found full-node cross-check source refs too narrow, missing actual transaction-rate evidence, and unresolved-register gaps. Full-node row was narrowed to nodes 1-6 plus node7 limitation, actual transaction-rate evidence was added, and register rows were added. Performance workflow logs then closed reconnect-loop controls and added skipped state-upload evidence. |
-| `parallel-sync.md` | ambiguous | Verifier found CSV source references using raw line refs and missing actual transaction-rate evidence. CSV refs were rewritten to column/timestamp style and actual transaction-rate evidence was added. Expected-control node rows were later removed from the calibration evidence model because observed learner and teacher roles are the tuning-relevant data. Performance workflow logs then closed reconnect-loop controls and added skipped state-upload evidence; this run's watch log is empty, so loop-control evidence comes from `../performance-tests-start.log`. |
+| `parallel-sync.md` | fatal | Verifier found CSV source references using raw line refs and missing actual transaction-rate evidence. CSV refs were rewritten to column/timestamp style and actual transaction-rate evidence was added. Expected-control node rows were later removed from the calibration evidence model because observed learner and teacher roles are the tuning-relevant data. Performance workflow logs then closed reconnect-loop controls and added skipped state-upload evidence; this run's watch log is empty, so loop-control evidence comes from `../performance-tests-start.log`. A later network-disease preflight found `NETWORK_DISEASE_FATAL`, so all previously extracted parallel-sync values are diagnostic-only and excluded from calibration. |
 
 ## Source Reference Failures
 
@@ -47,6 +47,7 @@
 | Teacher/learner target equality | present | Summary needed first teacher target state size, learner target/end size, and gap side by side. | Added equality rows in per-run state sections and expanded the summary state table. |
 | Passive endpoint attribution | present | Previously unresolved endpoint-to-node mapping was conflated with sampler coverage gaps. | Added sampler/config pod IP mappings, resolved top-to-bottom and parallel learner/teacher endpoint identity, recorded two-phase learner/teacher endpoint identity, and kept only coverage gaps unresolved. |
 | Durable endpoint and TCP value tables | present | Endpoint identity and TCP sample values were hard to reuse when stored only as prose in per-run rows. | Added `Endpoint Identity Map` and `Attributed TCP Socket Samples` tables to `cluster-calibration-summary.md`, then backed them with per-run TCP sample value rows. |
+| Network disease preflight | present | Future extraction needed an early rejection gate for artifacts with post-startup `ACTIVE -> CHECKING` churn corroborated by missing-parent evidence. | Added protocol, atlas, strategy, per-run, and summary updates. Marked `parallel-sync.md` as `NETWORK_DISEASE_FATAL`; top-to-bottom and two-phase have retrospective preflight rows. |
 
 ## Ambiguous Or Unresolved Items
 
@@ -55,7 +56,7 @@
 | Exact stopped-pod script output | inferred_not_direct | All three run files now infer `stoppedPod=network-node1-0` from intended learner context, workflow stop/down timing, host config, artifact node mapping, and observed node `0` receiver reconnect. None has a literal stopped-pod script field. |
 | Full node metrics cross-check limitation | ambiguous | `two-phase-pessimistic.md` because node7 stats do not overlap the first reconnect window. |
 | Passive TCP/window sample overlap with first reconnect | missing | `two-phase-pessimistic.md` |
-| Passive sampler end-of-first-window coverage | ambiguous | `parallel-sync.md` |
+| Fatal network disease | fatal | `parallel-sync.md`; this supersedes its previous passive sampler end-of-first-window ambiguity for calibration purposes. |
 
 ## Corrections Required
 
@@ -65,10 +66,11 @@
 | Verification notes required section shape | present | This file now includes strategy-required sections. |
 | Verifier-driven corrections | present | Run-scoped and docs-level verifier findings were incorporated into per-run files, summary, and this verification note. |
 | Performance-log gap closure | present | Reconnect-loop controls were moved out of the unresolved set; skipped state upload and independent-run interpretation notes were added. |
+| Network-disease invalidation | present | `parallel-sync.md` is now rejected before calibration as `NETWORK_DISEASE_FATAL`; summary calibration-input rows exclude it. |
 
 ## Final Verification Status
 
 | Item | Status | Notes |
 |---|---:|---|
 | Per-run verifier completion | present | Run-scoped verifier agents completed and their findings were incorporated. |
-| Final extraction status | ambiguous | Extraction is complete with documented unresolved evidence. Performance/sampler/config evidence resolved learner/teacher endpoint identity, `stoppedPod` is inferred as `network-node1-0` for all modes, and reusable endpoint/TCP value tables are now recorded in the calibration summary; remaining gaps include two-phase first-window passive samples and parallel end-of-window sampler coverage. |
+| Final extraction status | ambiguous | Extraction is complete with documented unresolved evidence and one fatal artifact invalidation. Performance/sampler/config evidence resolved learner/teacher endpoint identity, `stoppedPod` is inferred as `network-node1-0` for all modes, and reusable endpoint/TCP value tables are recorded in the calibration summary. Remaining calibration gaps include two-phase first-window passive samples and the need to re-run parallel sync because the collected artifact is `NETWORK_DISEASE_FATAL`. |

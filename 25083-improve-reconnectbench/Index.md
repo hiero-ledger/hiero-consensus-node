@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-06-02
+Last updated: 2026-06-03
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 

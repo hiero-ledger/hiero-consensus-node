@@ -1,6 +1,6 @@
 # Cluster ReconnectBench Artifact Processing Protocol
 
-Updated: `2026-06-01`
+Updated: `2026-06-03`
 
 ## Purpose
 
@@ -92,6 +92,7 @@ If an expected field is not present in the artifacts, record it as missing inste
 
 Process one traversal-order artifact directory at a time:
 
+0. Run the network disease preflight.
 1. Identify run context.
 2. Identify the first learner reconnect window.
 3. Match the teacher context for the same reconnect.
@@ -101,6 +102,38 @@ Process one traversal-order artifact directory at a time:
 7. Extract state and divergence context.
 8. Record later reconnects.
 9. Produce one analysis row and mark whether the run is accepted for calibration.
+
+If the network disease preflight finds fatal symptoms, stop after recording the preflight findings and a minimal analysis
+row. Do not process reconnect timing, counters, network evidence, workload evidence, state evidence, later reconnects, or
+calibration inputs from that artifact. A fatal preflight means the traversal run should be re-run.
+
+## Network Disease Preflight
+
+Before normal extraction, scan every node `swirlds.log` in the traversal artifact for cluster-wide network disease.
+
+Fatal disease requires both symptom families:
+
+- post-startup platform instability:
+  - `StatusStateMachine: Platform spent ... in ACTIVE. Now in CHECKING`
+  - or JSON payload `{"oldStatus":"ACTIVE","newStatus":"CHECKING"}`
+- shadowgraph missing-parent evidence:
+  - `Shadowgraph: Missing non-expired other parent`
+
+Do not count normal startup transitions such as `OBSERVING -> CHECKING -> ACTIVE`. Do not reject on
+`CHECKING -> ACTIVE` by itself. Do not reject on missing-parent evidence by itself, because missing-parent lines can also
+appear in artifacts that do not show `ACTIVE -> CHECKING` churn.
+
+For each traversal artifact, record:
+
+- whether the preflight was run;
+- whether fatal disease was found;
+- which node logs contain `ACTIVE -> CHECKING`;
+- which node logs contain `Missing non-expired other parent`;
+- compact counts and first example source references for each symptom family.
+
+If fatal disease is found, set `Run accepted for calibration: no` and `Reason if not accepted:
+NETWORK_DISEASE_FATAL`. Keep any already extracted values diagnostic-only and exclude them from calibration summaries,
+ordering claims, and local `ReconnectBench` parameter selection.
 
 Do not mix later reconnects into the first traversal-mode timing result. If a learner immediately enters a second
 reconnect, keep that later reconnect as state-growth context.
@@ -280,6 +313,8 @@ Fill one block per accepted traversal run:
 Traversal mode:
 Artifact directory:
 Commit:
+Network disease preflight:
+Network disease reason if failed:
 Learner node:
 Teacher node:
 First reconnect start UTC:
@@ -301,6 +336,7 @@ Reason if not accepted:
 
 A traversal run is accepted for calibration when it has:
 
+- no fatal network disease preflight result;
 - confirmed traversal mode;
 - confirmed learner node and matching teacher peer;
 - first learner reconnect start and end times;

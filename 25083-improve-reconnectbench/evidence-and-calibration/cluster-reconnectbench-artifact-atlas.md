@@ -1,14 +1,14 @@
 # Cluster ReconnectBench Artifact Atlas
 
-Updated: `2026-06-02`
+Updated: `2026-06-03`
 
 ## Purpose
 
 This atlas maps required calibration evidence to the collected cluster artifacts that should contain it. It is a
 source-location guide and template, not an extracted-results document.
 
-The atlas follows the processing protocol order starting with `Run Context`, so it can be compared side by side with
-`cluster-reconnectbench-artifact-processing-protocol.md`.
+The atlas follows the processing protocol order starting with `Network Disease Preflight`, so it can be compared side by
+side with `cluster-reconnectbench-artifact-processing-protocol.md`.
 
 ## Source And Atlas Contract
 
@@ -58,6 +58,45 @@ Node log directories follow this pattern:
 ```
 
 `network-node1_logs` is node ID `0`, `network-node2_logs` is node ID `1`, and so on.
+
+## Network Disease Preflight
+
+Coverage: complete
+
+Required evidence:
+
+- all node logs searched before normal extraction;
+- post-startup `ACTIVE -> CHECKING` platform status transitions;
+- matching `CHECKING -> ACTIVE` transitions as churn context;
+- `Shadowgraph: Missing non-expired other parent` evidence;
+- compact counts per node log;
+- first source references for each fatal symptom family;
+- clear pass/fail decision for whether normal extraction should continue.
+
+Mapped sources:
+
+- All node logs for the traversal artifact:
+
+```text
+<podLogRoot>/network-node*_logs/swirlds.log
+```
+
+- Platform instability patterns:
+  - `StatusStateMachine: Platform spent ... in ACTIVE. Now in CHECKING`
+  - `{"oldStatus":"ACTIVE","newStatus":"CHECKING"}`
+  - `StatusStateMachine: Platform spent ... in CHECKING. Now in ACTIVE`
+  - `{"oldStatus":"CHECKING","newStatus":"ACTIVE"}`
+- Missing-parent pattern:
+  - `Shadowgraph: Missing non-expired other parent`
+
+Interpretation rules:
+
+- Ignore normal startup `OBSERVING -> CHECKING -> ACTIVE` transitions.
+- Do not reject on `CHECKING -> ACTIVE` by itself.
+- Do not reject on missing-parent evidence by itself.
+- Fatal disease is present when post-startup `ACTIVE -> CHECKING` evidence is corroborated by missing-parent evidence in
+  the traversal artifact.
+- If fatal disease is present, stop normal extraction and mark the artifact `NETWORK_DISEASE_FATAL`.
 
 ## Run Context
 
@@ -480,6 +519,8 @@ Mapped sources:
 | `Traversal mode` | Run Context |
 | `Artifact directory` | Run Roots |
 | `Commit` | Run Context |
+| `Network disease preflight` | Network Disease Preflight |
+| `Network disease reason if failed` | Network Disease Preflight |
 | `Learner node` | Reconnect Window And Roles |
 | `Teacher node` | Reconnect Window And Roles |
 | `First reconnect start UTC` | Reconnect Window And Roles |
@@ -503,6 +544,7 @@ that requires extraction and analysis later.
 
 | Protocol section | Coverage | Required evidence without exact source mapping |
 | --- | --- | --- |
+| Network Disease Preflight | complete | - |
 | Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner controls; direct stopped-pod script output is absent but extracted evidence can infer `stoppedPod=network-node1-0` |
 | Reconnect Window And Roles | complete | - |
 | Learner Evidence | complete | - |

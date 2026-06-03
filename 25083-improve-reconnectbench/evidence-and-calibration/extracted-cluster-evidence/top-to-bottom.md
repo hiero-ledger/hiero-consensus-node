@@ -4,6 +4,13 @@ Artifact run root: `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-
 
 All artifact paths below are relative to the artifact run root.
 
+## Network Disease Preflight
+
+| Evidence item | Status | Extracted value or observation | Source references |
+|---|---:|---|---|
+| Preflight result | pass | No fatal network disease found. Retrospective scan found no post-startup `ACTIVE -> CHECKING` transitions and no `Shadowgraph: Missing non-expired other parent` lines in the node logs. | `derived:formula=rg_no_matches_oldStatus_ACTIVE_newStatus_CHECKING_and_rg_no_matches_Missing_non_expired_other_parent;inputs=log:podlog_solo-mdlt-n3/network-node*_logs/swirlds.log` |
+| Extraction disposition | pass | Normal extraction remains valid for calibration subject to the existing acceptance criteria. | [Analysis Output Per Mode](#analysis-output-per-mode) |
+
 ## Run Context
 
 | Evidence item | Status | Extracted value or observation | Source references |
@@ -134,6 +141,8 @@ All artifact paths below are relative to the artifact run root.
 | Traversal mode | present | `pullTopToBottom` | `config:podlog_solo-mdlt-n3/network-node1_logs/config/settingsUsed.txt:727` |
 | Artifact directory | derived | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect1` | `derived:formula=artifact_root+runRoot;inputs=atlas:25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md:14-18,atlas:25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md:39-39` |
 | Commit | present | `796905b12784f90d8b12b9ee0d9a6a91de0e9b85` | `config:version_run.txt:key=hederahash;line=11` |
+| Network disease preflight | pass | No fatal network disease found. | [Network Disease Preflight](#network-disease-preflight) |
+| Network disease reason if failed | not_applicable | No fatal disease found. | [Network Disease Preflight](#network-disease-preflight) |
 | Learner node | present | `0` | `log:podlog_solo-mdlt-n3/network-node1_logs/swirlds.log:164-164` |
 | Teacher node | present | `2` | `log:podlog_solo-mdlt-n3/network-node1_logs/swirlds.log:164-164` |
 | First reconnect start UTC | present | `2026-05-29 06:41:57.343` | `log:podlog_solo-mdlt-n3/network-node1_logs/swirlds.log:164-164` |

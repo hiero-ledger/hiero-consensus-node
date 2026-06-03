@@ -1,7 +1,7 @@
 # Agentic Evidence Extraction Strategy
 
 Status: `active`
-Updated: `2026-06-02`
+Updated: `2026-06-03`
 
 ## Purpose
 
@@ -39,6 +39,7 @@ cluster-calibration-summary.md
 Each per-run extraction file must keep protocol-order evidence sections first:
 
 ```text
+Network Disease Preflight
 Run Context
 Reconnect Window And Roles
 Learner Evidence
@@ -55,6 +56,10 @@ Unresolved Evidence Register
 
 `Unresolved Evidence Register` is an index of missing, ambiguous, or not-applicable items already recorded in the
 protocol-order sections. It must not introduce new evidence.
+
+If `Network Disease Preflight` is fatal, write only the preflight section, a minimal `Analysis Output Per Mode` section,
+and a minimal `Acceptance Notes` section for that run. Do not extract reconnect timing, counters, network evidence,
+workload evidence, state evidence, later reconnects, or calibration inputs from the artifact.
 
 ## Per-Run Source Of Truth
 
@@ -104,6 +109,7 @@ Do not use global artifact-family agents across all runs.
 
 ```text
 Lead Agent
+Network Disease Preflight
 Run Anchor Agents, one per run
 Run-Scoped Evidence Workers, respawned per run and evidence family
 Lead Assembly
@@ -114,6 +120,8 @@ Required Verification
 
 ```text
 resolve run roots from the atlas and record them in per-run Run Context
+run the network disease preflight before normal extraction
+stop normal extraction for artifacts marked NETWORK_DISEASE_FATAL
 construct focused worker prompts
 provide protocol, atlas, strategy, run root, and known anchors
 prevent cross-run evidence mixing
@@ -128,7 +136,7 @@ Worker agents return Markdown fragments or concise findings with source referenc
 
 ## Run Anchor Agents
 
-Spawn one anchor agent per run.
+Spawn one anchor agent per run only after the run passes the network disease preflight.
 
 Each anchor agent identifies only run-local anchors:
 
@@ -517,6 +525,7 @@ Scope
 Run Mapping
 Verification Status
 Per-Mode Acceptance Summary
+Network Disease Preflight Summary
 Cluster Network Evidence Summary
 State And Divergence Summary
 Reconnect Work-Shape Summary
@@ -535,6 +544,8 @@ Required columns:
 mode
 artifact directory
 commit
+network disease preflight
+network disease reason if failed
 learner node
 teacher node
 first reconnect start
@@ -590,6 +601,7 @@ make causal claims
 declare a winning traversal mode
 average runs unless a later protocol step requires it
 hide rejected or incomplete runs
+use NETWORK_DISEASE_FATAL runs as calibration input
 resolve ambiguity that remains unresolved in per-run files
 introduce unsourced values
 use historical values as current-run evidence

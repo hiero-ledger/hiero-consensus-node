@@ -21,14 +21,18 @@ The current working phase is analysis of the extracted evidence. The cluster cal
 under the extracted evidence directory are the practical references for the completed extraction pass; per-run evidence
 files are available when a source reference, verifier finding, or unresolved item needs detail.
 
-Known unresolved evidence remains documented in the per-run unresolved registers and rollup summary. Those gaps are
-inputs to continued analysis, possible follow-up extraction from the existing artifacts, and planning for future cluster
-runs.
+Known unresolved evidence remains documented in the per-run unresolved registers and rollup summary. The
+`pullParallelSync` artifact is now separately invalidated by the network-disease preflight (`NETWORK_DISEASE_FATAL`) and
+must be re-run before it is used for calibration. Other gaps are inputs to continued analysis, possible follow-up
+extraction from the existing artifacts, and planning for future cluster runs.
 
 ## Next Steps
 
 - Analyze the extracted evidence to identify benchmark calibration decisions, remaining confidence gaps, and any
   reconnect-benchmark issues that should be carried into implementation work.
+- Treat `NikitaReconnect3_PullParallelSync/report` as diagnostic-only because post-startup `ACTIVE -> CHECKING` churn is
+  corroborated by missing-parent evidence. Do not use its timing, counters, network evidence, workload evidence, or state
+  shape for calibration.
 - Attempt additional extraction from the existing cluster artifacts only where the summary, verification notes, or
   unresolved registers show a concrete gap that may still be answerable from the collected files.
 - Keep preparing the extraction process for future cluster runs by preserving the current Markdown-only evidence flow:

@@ -4,6 +4,14 @@ Artifact run root: `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-
 
 All pod, config, client, sampler, and stats artifact paths below are relative to the artifact run root. Workflow log references use `../performance-tests-start.log` or `../performance-tests-watch.log` because those logs live beside `report/`.
 
+## Network Disease Preflight
+
+| Evidence item | Status | Extracted value or observation | Source references |
+|---|---:|---|---|
+| Preflight result | pass | No fatal network disease found. Retrospective scan found no post-startup `ACTIVE -> CHECKING` transitions. Missing-parent evidence is present, but missing-parent lines alone are not fatal under the protocol. | `derived:formula=rg_no_matches_oldStatus_ACTIVE_newStatus_CHECKING;inputs=log:podlog_solo-mdlt-n4/network-node*_logs/swirlds.log`, `log:podlog_solo-mdlt-n4/network-node1_logs/swirlds.log:148-170` |
+| Missing non-expired other parent | present | Missing-parent evidence is present in node logs 1-6. Count by node log: `network-node1_logs=66`, `network-node2_logs=181`, `network-node3_logs=189`, `network-node4_logs=191`, `network-node5_logs=189`, `network-node6_logs=188`. This is diagnostic only because no `ACTIVE -> CHECKING` churn was found. | `log:podlog_solo-mdlt-n4/network-node1_logs/swirlds.log:148-170`, `derived:formula=rg_count_Missing_non_expired_other_parent_by_node_log` |
+| Extraction disposition | pass | Normal extraction remains governed by the existing evidence acceptance criteria. This run remains rejected for calibration because passive TCP/window samples miss the first reconnect window, not because of network disease. | [Analysis Output Per Mode](#analysis-output-per-mode) |
+
 ## Run Context
 
 | Evidence item | Status | Extracted value or observation | Source references |
@@ -134,6 +142,8 @@ All pod, config, client, sampler, and stats artifact paths below are relative to
 | Traversal mode | present | `pullTwoPhasePessimistic` | `config:podlog_solo-mdlt-n4/network-node1_logs/config/settingsUsed.txt:727` |
 | Artifact directory | derived | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect2_2phase/report` | `derived:formula=artifact_root+runRoot;inputs=atlas:25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md:14-18,atlas:25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md:40-40` |
 | Commit | present | `eb37e5b6cd4d4388065f79ed4a9d91867bd92cc2` | `config:version_run.txt:key=hederahash;line=11` |
+| Network disease preflight | pass | No fatal network disease found. | [Network Disease Preflight](#network-disease-preflight) |
+| Network disease reason if failed | not_applicable | Missing-parent lines are present, but no `ACTIVE -> CHECKING` churn was found. | [Network Disease Preflight](#network-disease-preflight) |
 | Learner node | present | `0` | `log:podlog_solo-mdlt-n4/network-node1_logs/swirlds.log:197-197` |
 | Teacher node | present | `2` | `log:podlog_solo-mdlt-n4/network-node1_logs/swirlds.log:197-197` |
 | First reconnect start UTC | present | `2026-05-29 18:26:08.709` | `log:podlog_solo-mdlt-n4/network-node1_logs/swirlds.log:197-197` |
