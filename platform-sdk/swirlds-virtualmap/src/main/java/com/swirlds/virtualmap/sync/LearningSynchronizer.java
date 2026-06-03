@@ -91,7 +91,8 @@ public class LearningSynchronizer {
      * @throws InterruptedException if the current thread is interrupted
      */
     private void receiveTree() throws InterruptedException {
-        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
+        final AsyncInputStream in = new AsyncInputStream(
+                inputStream, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
@@ -109,7 +110,6 @@ public class LearningSynchronizer {
         }
 
         if (interruptException != null || workGroup.hasExceptions()) {
-            in.abort();
             if (interruptException != null) {
                 throw interruptException;
             }
@@ -136,6 +136,11 @@ public class LearningSynchronizer {
             @NonNull final StandardWorkGroup workGroup,
             @NonNull final DataOutputStream out,
             @NonNull final ReconnectConfig reconnectConfig) {
-        return new AsyncOutputStream(out, workGroup, reconnectConfig);
+        return new AsyncOutputStream(
+                out,
+                workGroup,
+                reconnectConfig.asyncStreamBufferSize(),
+                reconnectConfig.asyncOutputStreamFlush(),
+                reconnectConfig.asyncStreamTimeout());
     }
 }
