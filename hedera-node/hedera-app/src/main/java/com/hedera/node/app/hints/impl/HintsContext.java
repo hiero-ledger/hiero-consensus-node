@@ -53,10 +53,16 @@ public class HintsContext {
     private final HintsSigningMetrics signingMetrics;
 
     @Nullable
-    private HintsConstruction construction;
+    private volatile ConstructionSnapshot constructionSnapshot;
 
-    @Nullable
-    private Map<Long, Integer> nodePartyIds;
+    private record ConstructionSnapshot(
+            @NonNull HintsConstruction construction,
+            @NonNull Map<Long, Integer> nodePartyIds) {
+        private ConstructionSnapshot {
+            requireNonNull(construction);
+            requireNonNull(nodePartyIds);
+        }
+    }
 
     @Inject
     public HintsContext(
@@ -89,8 +95,9 @@ public class HintsContext {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        this.construction = requireNonNull(construction);
-        nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
+        constructionSnapshot = new ConstructionSnapshot(
+                construction,
+                Map.copyOf(asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds())));
     }
 
     /**
@@ -98,7 +105,7 @@ public class HintsContext {
      * @return true if the context is ready
      */
     public boolean isReady() {
-        return construction != null && construction.hasHintsScheme();
+        return constructionSnapshot != null;
     }
 
     /**
@@ -106,8 +113,8 @@ public class HintsContext {
      * @return the verification key
      */
     public Bytes verificationKeyOrThrow() {
-        throwIfNotReady();
-        return requireNonNull(construction)
+        final var snapshot = constructionSnapshotOrThrow();
+        return snapshot.construction()
                 .hintsSchemeOrThrow()
                 .preprocessedKeysOrThrow()
                 .verificationKey();
@@ -118,8 +125,7 @@ public class HintsContext {
      * @return the construction ID
      */
     public long constructionIdOrThrow() {
-        throwIfNotReady();
-        return requireNonNull(construction).constructionId();
+        return constructionSnapshotOrThrow().construction().constructionId();
     }
 
     /**
@@ -127,7 +133,8 @@ public class HintsContext {
      * @return the active construction
      */
     public @Nullable HintsConstruction activeConstruction() {
-        return construction;
+        final var snapshot = constructionSnapshot;
+        return snapshot == null ? null : snapshot.construction();
     }
 
     /**
@@ -140,9 +147,12 @@ public class HintsContext {
     public boolean validate(
             final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
         requireNonNull(crs);
-        if (construction == null || nodePartyIds == null) {
+        final var snapshot = constructionSnapshot;
+        if (snapshot == null) {
             return false;
         }
+        final var construction = snapshot.construction();
+        final var nodePartyIds = snapshot.nodePartyIds();
         if (construction.constructionId() == body.constructionId() && nodePartyIds.containsKey(nodeId)) {
             final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
             final var aggregationKey = preprocessedKeys.aggregationKey();
@@ -161,8 +171,9 @@ public class HintsContext {
     public @NonNull BlockHashSigning newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
-        throwIfNotReady();
-        requireNonNull(construction);
+        final var snapshot = constructionSnapshotOrThrow();
+        final var construction = snapshot.construction();
+        final var nodePartyIds = snapshot.nodePartyIds();
         final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
         final var verificationKey = preprocessedKeys.verificationKey();
         final Map<Long, Long> nodeWeights = new HashMap<>();
@@ -179,7 +190,7 @@ public class HintsContext {
                 threshold,
                 divisor,
                 preprocessedKeys.aggregationKey(),
-                requireNonNull(nodePartyIds),
+                nodePartyIds,
                 nodeWeights,
                 verificationKey,
                 onCompletion,
@@ -196,12 +207,14 @@ public class HintsContext {
     }
 
     /**
-     * Throws an exception if the context is not ready.
+     * Returns the current construction snapshot, or throws if the context is not ready.
      */
-    private void throwIfNotReady() {
-        if (!isReady()) {
+    private @NonNull ConstructionSnapshot constructionSnapshotOrThrow() {
+        final var snapshot = constructionSnapshot;
+        if (snapshot == null) {
             throw new IllegalStateException("Signing context not ready");
         }
+        return snapshot;
     }
 
     /**
