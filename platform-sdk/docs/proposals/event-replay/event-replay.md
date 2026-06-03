@@ -28,6 +28,9 @@ Why this works:
   same rounds, consensus timestamps, and consensus order every time, for any
   valid topological input order. So the reconstructed graph yields identical
   consensus output, identical execution order, and identical round boundaries.
+  (Stale events that never reached consensus are absent from the block stream,
+  but they never affected consensus either, so their absence changes nothing —
+  see the Conversion Mechanism notes.)
 - **Why feed events in block-stream order.** Replaying in a valid topological
   order is a practical requirement of how PCES replay works and the bounded
   memory of the orphan buffer — *not* a consensus requirement. (In normal
@@ -235,14 +238,21 @@ work; the rest can reuse this class.
 
 ### Notes
 
+- **Missing stale-event parents are harmless.** Stale events never reach
+  consensus and are therefore never included in the block stream. They can,
+  however, have child events that do reach consensus and are present in the block
+  stream. That means there will be events in the block stream that reference a
+  parent that is not in the block stream. This does not cause any problem because
+  the child events will sit in the orphan buffer until the stale parent becomes
+  ancient, then it will continue on. Stale events do not impact the result of
+  consensus, so the output will be the same.
 - **An existing validator already checks the reconstructed event-hash chain.**
   `EventHashBlockStreamValidator` builds events via `BlockStreamEventBuilder` and
   verifies cross-block parent hashes, using PCES event hashes
   (`PcesEventHashReader.PcesData`) as the source of truth. It tolerates a small
-  fraction of cross-block parents that resolve only via PCES — stale events that
-  were gossiped but never reached consensus and so are absent from the block
-  stream — failing only above `MAX_PCES_ONLY_PERCENT`. This both demonstrates
-  reconstruction works and quantifies the stale-event effect.
+  fraction of cross-block parents that resolve only via PCES — exactly the stale
+  parents described above — failing only above `MAX_PCES_ONLY_PERCENT`. This both
+  demonstrates reconstruction works and quantifies the stale-event effect.
 - **Byte-exact hashes are achievable for non-redacted streams.** `EventCore` and
   parent descriptors come straight from the stream and the transaction bytes are
   the `signed_transaction` items, so the production hasher (`PbjStreamHasher`)
