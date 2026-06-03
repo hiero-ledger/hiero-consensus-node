@@ -140,6 +140,9 @@ public class TransactionDispatcher {
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                         .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
+                if(feeResult.totalTinycents() != 0) {
+                    throw new Error("non zero fee");
+                }
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);

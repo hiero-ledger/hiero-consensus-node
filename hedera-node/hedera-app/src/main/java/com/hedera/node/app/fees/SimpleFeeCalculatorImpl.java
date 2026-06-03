@@ -136,22 +136,26 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             result.setNetworkMultiplier(multiplier);
         }
 
-        final var serviceFeeCalculator =
-                serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
-        final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
-
-        // Apply high-volume pricing multiplier if applicable (HIP-1313).
-        // Also verify feature flags at consensus time to match the ingest-time guard in IngestChecker,
-        // so that a flag toggle between ingest and consensus does not silently misprice the transaction.
-        if (txnBody.highVolume() && isHighVolumeFunction && isHighVolumeFeatureEnabled(simpleFeeContext)) {
-            applyHighVolumeMultiplier(simpleFeeContext, result);
-        } else {
-            // Apply congestion multiplier if available
-            applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
+        if(serviceFeeDefinition.free()) {
+            return result;
         }
-
-        return result;
+        throw new Error("shouldnt be here. shoudl be free");
+//        final var serviceFeeCalculator =
+//                serviceFeeCalculators.get(txnBody.data().kind());
+//        serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
+//        final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
+//
+//        // Apply high-volume pricing multiplier if applicable (HIP-1313).
+//        // Also verify feature flags at consensus time to match the ingest-time guard in IngestChecker,
+//        // so that a flag toggle between ingest and consensus does not silently misprice the transaction.
+//        if (txnBody.highVolume() && isHighVolumeFunction && isHighVolumeFeatureEnabled(simpleFeeContext)) {
+//            applyHighVolumeMultiplier(simpleFeeContext, result);
+//        } else {
+//            // Apply congestion multiplier if available
+//            applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
+//        }
+//
+//        return result;
     }
 
     /**
