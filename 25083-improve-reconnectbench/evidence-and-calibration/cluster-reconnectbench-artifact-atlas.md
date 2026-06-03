@@ -1,6 +1,6 @@
 # Cluster ReconnectBench Artifact Atlas
 
-Updated: `2026-06-01`
+Updated: `2026-06-02`
 
 ## Purpose
 
@@ -39,6 +39,17 @@ Use `runRoot` below as the base path for top-level run artifacts, network sample
 | Top-to-bottom run | `NikitaReconnect1` | `NikitaReconnect1/podlog_solo-mdlt-n3` |
 | Two-phase pessimistic run | `NikitaReconnect2_2phase/report` | `NikitaReconnect2_2phase/report/podlog_solo-mdlt-n4` |
 | Parallel-sync run | `NikitaReconnect3_PullParallelSync/report` | `NikitaReconnect3_PullParallelSync/report/podlog_solo-mdlt-n4` |
+
+Each artifact bucket now also contains workflow logs:
+
+```text
+performance-tests-start.log
+performance-tests-watch.log
+```
+
+For `NikitaReconnect1`, these files live directly under `runRoot`. For report-based run roots, these files live beside
+`report`, so resolve them as `runRoot/../performance-tests-start.log` and
+`runRoot/../performance-tests-watch.log`.
 
 Node log directories follow this pattern:
 
@@ -79,6 +90,16 @@ Mapped sources:
   - `JOB_URL`
   - `hederahash`
   - `run_number`
+- `runRoot/performance-tests-start.log`, or `runRoot/../performance-tests-start.log` for report-based run roots
+  - workflow-level workload/NLG setup output
+  - baseline/restored-state upload step output, including skipped-upload evidence
+- `runRoot/performance-tests-watch.log`, or `runRoot/../performance-tests-watch.log` for report-based run roots
+  - reconnect-loop controls such as `downtime`, `warmtime`, and `NofLoops`
+  - `profileReconnectLoopK8s.sh` invocation context
+  - generic process-stop markers such as `Stopping java`; treat as ambiguous stopped-pod evidence unless the exact pod
+    identity is printed
+- In some artifacts, reconnect-loop control lines may be in `performance-tests-start.log` instead of
+  `performance-tests-watch.log`; search both workflow logs.
 - `<podLogRoot>/network-node*_logs/config/settingsUsed.txt`
   - authoritative per-node `virtualMap.reconnectMode`
   - use this to confirm the mode, especially when `version_run.txt` has an empty `inputs.AddSettings`
@@ -96,7 +117,8 @@ Mapped sources:
 Required evidence without exact source mapping:
 
 - exact artifact source for commit SHA if `version_run.txt` does not contain it;
-- exact ordinary script-output file or field for learner candidate, stopped pod, warmtime, downtime, and loop count;
+- exact ordinary script-output field for learner candidate and stopped pod;
+- controlled `learnerBehindDuration` value, if it exists as a field distinct from scripted `downtime`;
 
 ## Reconnect Window And Roles
 
@@ -293,8 +315,21 @@ Mapped sources:
     - timestamped `ss -tin` samples around the reconnect window
   - `runRoot/network_sampler_network-node<N>-0.log`
     - per-node passive socket samples
+    - the sampler filename identifies the Kubernetes pod, and the first local-address rows can be used as the pod's
+      local IP evidence
   - `runRoot/reconnect_network_samples_1_summary.log`
     - summary file present in `NikitaReconnect1`
+- Endpoint attribution sources:
+  - `<podLogRoot>/network-node<N>_logs/config/settingsUsed.txt`
+    - `HOSTNAME`
+    - `POD_IP`, when present
+  - `runRoot/network_sampler_network-node<N>-0.log`
+    - local address in `ss -tin` output, cross-checked with the sampler filename
+  - reconnect role logs, to map node IDs to node log directories before joining pod/IP evidence:
+    - learner-side `ReconnectStartPayload` / `otherNodeId`
+    - teacher-side `ReconnectStateTeacher: Starting reconnect in the role of the sender`
+- Workflow logs may show plain `get pods` output without IP columns; do not require workflow pod listings for
+  endpoint attribution when `settingsUsed.txt` or per-pod sampler evidence is available.
 - Passive sample fields:
   - `Recv-Q`
   - `Send-Q`
@@ -341,6 +376,8 @@ Mapped sources:
   - `inputs.NLG_Accounts`
   - `inputs.NLG_Time`
   - `inputs.NLG_Test`
+- `runRoot/performance-tests-start.log`, or `runRoot/../performance-tests-start.log` for report-based run roots
+  - workflow-level workload/NLG setup output
 
 ## State And Divergence Evidence
 
@@ -368,6 +405,7 @@ Mapped sources:
 - Workload sources:
   - `runRoot/client.log`
   - `runRoot/version_run.txt`
+  - `runRoot/performance-tests-start.log`, or `runRoot/../performance-tests-start.log` for report-based run roots
 - Reconnect counter source:
   - `ReconnectStateLearner: ReconnectMapMetrics:`
 - Stats files:
@@ -465,7 +503,7 @@ that requires extraction and analysis later.
 
 | Protocol section | Coverage | Required evidence without exact source mapping |
 | --- | --- | --- |
-| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod/timing controls |
+| Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner/stopped-pod controls; controlled `learnerBehindDuration` if distinct from `downtime` |
 | Reconnect Window And Roles | complete | - |
 | Learner Evidence | complete | - |
 | Teacher Evidence | complete | - |

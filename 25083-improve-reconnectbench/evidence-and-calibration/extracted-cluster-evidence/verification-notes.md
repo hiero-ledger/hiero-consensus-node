@@ -45,6 +45,7 @@
 | Reconnect-loop control rows | present | Earlier extraction could not find controlled `warmtime`, `downtime`, or `NofLoops` values. | Added workflow-sourced `downtime=1800`, `warmtime=600`, and `NofLoops=0` rows for all three runs. |
 | Baseline state upload rows | present | Earlier extraction did not establish whether a restored baseline state was uploaded. | Added workflow-sourced skipped upload evidence for all three runs; cross-mode state comparability remains low because there was no common uploaded baseline state. |
 | Teacher/learner target equality | present | Summary needed first teacher target state size, learner target/end size, and gap side by side. | Added equality rows in per-run state sections and expanded the summary state table. |
+| Passive endpoint attribution | present | Previously unresolved endpoint-to-node mapping was conflated with sampler coverage gaps. | Added sampler/config pod IP mappings, resolved top-to-bottom and parallel learner/teacher endpoint identity, recorded two-phase learner/teacher endpoint identity, and kept only coverage gaps unresolved. |
 
 ## Ambiguous Or Unresolved Items
 
@@ -57,7 +58,6 @@
 | Controlled learnerBehindDuration | missing | `top-to-bottom.md`, `two-phase-pessimistic.md`, `parallel-sync.md` |
 | Full-run average transaction rate | missing | `top-to-bottom.md`, `two-phase-pessimistic.md`, `parallel-sync.md` |
 | Full node metrics cross-check limitation | ambiguous | `two-phase-pessimistic.md` because node7 stats do not overlap the first reconnect window. |
-| Direct passive socket attribution to learner/teacher node pair | ambiguous | `top-to-bottom.md`, `parallel-sync.md` |
 | Passive TCP/window sample overlap with first reconnect | missing | `two-phase-pessimistic.md` |
 | Passive sampler end-of-first-window coverage | ambiguous | `parallel-sync.md` |
 
@@ -75,4 +75,4 @@
 | Item | Status | Notes |
 |---|---:|---|
 | Per-run verifier completion | present | Run-scoped verifier agents completed and their findings were incorporated. |
-| Final extraction status | ambiguous | Extraction is complete with documented unresolved evidence. Performance logs closed the reconnect-loop-control gap, but exact stopped-pod controls, candidate controls, passive socket attribution, and common state-shape control remain unresolved. |
+| Final extraction status | ambiguous | Extraction is complete with documented unresolved evidence. Performance/sampler/config evidence resolved learner/teacher endpoint identity; remaining gaps include exact stopped-pod controls, candidate controls, two-phase first-window passive samples, parallel end-of-window sampler coverage, and common state-shape control. |

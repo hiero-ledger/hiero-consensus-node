@@ -143,25 +143,25 @@ later reconnect starts
 
 Anchor agents must not extract full evidence families.
 
-## Run-Scoped Evidence Workers
+## Run-Scoped Evidence Agents
 
-After anchors are known, spawn short-lived workers by run and evidence family.
+After anchors are known, spawn short-lived agents by run and evidence family.
 
-Allowed worker families:
+Allowed agent families:
 
 ```text
-log-role-counter worker
-stats-csv worker
-passive-network worker
-workload-config worker
-state-divergence worker
+log-role-counter agent
+stats-csv agent
+passive-network agent
+workload-config agent
+state-divergence agent
 ```
 
-Each worker receives exactly one run root.
+Each agent receives exactly one run root.
 
-Each worker must stay inside that run root.
+Each agent must stay inside that run root.
 
-Each worker must return only protocol-required evidence, missing/ambiguous notes, and source references.
+Each agent must return only protocol-required evidence, missing/ambiguous notes, and source references.
 
 ## Context Rule
 
