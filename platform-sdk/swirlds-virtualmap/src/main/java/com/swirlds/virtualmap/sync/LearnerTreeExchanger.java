@@ -20,12 +20,12 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
- * Learner view for the virtual merkle. The learner during reconnect
- * needs access both to the original state and records, and the current reconnect state and records.
- * This implementation uses {@link Long} as the representation of a node and corresponds directly
- * to the path of the node.
+ * Class for learner handle merkle tree node exchanges.
+ * <p>
+ * It uses {@link NodeTraversalOrder} to provide next path to request from teacher via {@link #getNextPathToSend()}.
+ * Responses from teacher should be handled via {@link #responseReceived(PullVirtualTreeResponse)}.
  */
-public final class LearnerTreeView {
+public final class LearnerTreeExchanger {
 
     /**
      * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
@@ -68,7 +68,7 @@ public final class LearnerTreeView {
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
     /**
-     * Create a new {@link LearnerTreeView}.
+     * Create a new {@link LearnerTreeExchanger}.
      *
      * @param vmapLearner
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
@@ -77,7 +77,7 @@ public final class LearnerTreeView {
      * @param mapStats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
-    public LearnerTreeView(
+    public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {

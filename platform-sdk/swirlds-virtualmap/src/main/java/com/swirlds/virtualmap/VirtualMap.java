@@ -1234,6 +1234,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     // Delete the snapshot directory
                     FileUtils.deleteDirectory(snapshotPath);
                 } catch (IOException e) {
+                    //noinspection ThrowFromFinallyBlock
                     throw new UncheckedIOException("Unable to delete snapshot directory", e);
                 }
             }
@@ -1260,6 +1261,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     // Delete the snapshot directory
                     FileUtils.deleteDirectory(snapshotPath);
                 } catch (IOException e) {
+                    //noinspection ThrowFromFinallyBlock
                     throw new UncheckedIOException("Unable to delete snapshot directory", e);
                 }
             }

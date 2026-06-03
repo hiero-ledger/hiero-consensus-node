@@ -63,7 +63,15 @@ public class TeachingSynchronizer {
     }
 
     /**
-     * Perform reconnect in the role of the teacher.
+     * Perform reconnect in the role of the teacher blocking until it's finished.
+     *
+     * @param teacherMap current virtual map of the teacher
+     * @param in data input stream for reading requests from the learner
+     * @param out data output stream for sending responses to the learner
+     * @param breakConnection action to break the connection, which should be called if a reconnect-related exception is encountered and the connection should be closed.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting for tasks to complete
+     * @throws MerkleSynchronizationException if any error occurs during synchronization
      */
     public void synchronize(
             @NonNull final VirtualMap teacherMap,
@@ -174,7 +182,7 @@ public class TeachingSynchronizer {
      * any parallel tasks are forked so the learner can initialize its traversal order and begin
      * sending non-root requests.
      *
-     * @param teacherView
+     * @param teacherView teacher view used to access information about state
      * @param in          the async input stream to read the root request from
      * @param out         the async output stream to send the root response to
      * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted

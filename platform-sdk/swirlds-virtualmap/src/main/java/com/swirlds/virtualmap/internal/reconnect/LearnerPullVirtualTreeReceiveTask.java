@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.sync.LearnerTreeView;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
@@ -33,7 +33,7 @@ public class LearnerPullVirtualTreeReceiveTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
-    private final LearnerTreeView view;
+    private final LearnerTreeExchanger treeExchanger;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
     // sending tasks, decreased in receiving tasks
@@ -48,18 +48,18 @@ public class LearnerPullVirtualTreeReceiveTask {
      * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
+     * @param treeExchanger
+     * 		the exchanger used to callback on tree node received
      */
     public LearnerPullVirtualTreeReceiveTask(
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
-            final LearnerTreeView view,
+            final LearnerTreeExchanger treeExchanger,
             final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;
-        this.view = view;
+        this.treeExchanger = treeExchanger;
         this.expectedResponses = expectedResponses;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
@@ -88,7 +88,7 @@ public class LearnerPullVirtualTreeReceiveTask {
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
                 final long path = response.path();
                 if (path != Path.INVALID_PATH) {
-                    view.responseReceived(response);
+                    treeExchanger.responseReceived(response);
                 }
                 expectedResponses.decrementAndGet();
                 if (path == Path.INVALID_PATH) {
