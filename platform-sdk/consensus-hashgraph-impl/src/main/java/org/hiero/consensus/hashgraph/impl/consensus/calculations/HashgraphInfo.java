@@ -2,6 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,41 +12,41 @@ import java.util.Map;
 /**
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
  * no dependencies other than on the standard Java libraries. The HashgraphInfo class
- * contains the inner class EventInfo and the record types RoundInfo, RoundInfoCore,
- * and RoundInfoPrev. All 5 of these have getters but no setters. After the caller instantiates
- * these classes and records, passing arrays to the constructors, the contents of those arrays must
- * never be changed. This file implements the equations from the tech report Swirlds-TR-2026-01.<p>
- *
- * A single HashgraphInfo should be instantiated for the hashgraph. If several hashgraphs
- * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.<p>
- *
- * An EventInfo should be instantiated for each event. The update methods for all the events are
+ * contains the inner class {@link EventInfo EventInfo} and the inner record types {@link RoundInfo RoundInfo},
+ * {@link RoundInfoCore RoundInfoCore},and {@link RoundInfoPrev RoundInfoPrev}. All 5 of these have getters
+ * but no setters. For arrays passed to their constructors, the caller must never change any array elements.
+ * This file implements the equations from the tech report Swirlds-TR-2026-01.
+ * <p>
+ * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
+ * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
+ * <p>
+ * A {@link EventInfo EventInfo} should be instantiated for each event. The update methods for all the events are
  * called to calculate consensus. At some time after an event becomes
- * ancient, it should have its clear method called to clean up memory by erasing all its
- * references to even older events. This can happen immediately after it becomes ancient, or
- * many rounds later when it expires, or at any other time after becoming ancient.<p>
- *
+ * ancient, it should have its {@link EventInfo#clear EventInfo.clear} method called to clean up memory by erasing
+ * all its references to even older events. This can happen immediately after it becomes ancient, or
+ * many rounds later when it expires, or at any other time after becoming ancient.
+ * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
- * It should instantiate a RoundInfo for the pending round (the round for which consensus is
- * currently being calculated). It should instantiate the RoundInfoCore for the next several rounds.
- * After a round reaches consensus, its RoundInfoPrev is calculated, which can be combined with the
- * RoundInfoCore to form the RoundInfo for the next round.<p>
- *
- * The network's overall consensus state should include the RoundInfo for the pending round (the round currently
- * being calculated), and the RoundInfoCore for the next few rounds. An implementation might also include a "roster"
- * for these and for all the non-ancient previous rounds. The roster might contain info such as
- * the public keys for all the nodes, used to verify their signatures. This class doesn't
- * use rosters. It only uses the RoundInfo, and its two parts.<p>
- *
- * For a hashgraph, this class should be instantiated once. The EventInfo.update method should be
- * called on each event for each round, according to the schedule described in the comments
- * for the update method. <p>
- *
- * If a call to EventInfo.update returns a non-null value, then the event caused consensus to be
- * reached for that round (a "keystone event"). In that case, it returns a record that contains
- * the list of all the events that reached consensus in that round.
- * Which might be an empty list if none reached consensus. It also contains a
- * RoundInfoPrev record, which should be used to build the RoundInfo for the next round.
+ * It should instantiate a {@link RoundInfo RoundInfo} for the pending round (the round for which consensus is
+ * currently being calculated). It should instantiate a {@link RoundInfoCore RoundInfoCore} for each of the next several
+ * rounds. After a round reaches consensus, its {@link RoundInfoPrev RoundInfoPrev} is calculated, which can be combined with the
+ * {@link RoundInfoCore RoundInfoCore} to form the {@link RoundInfo RoundInfo} for the next round.
+ * <p>
+ * The network's overall consensus state should include the {@link RoundInfo RoundInfo} for the pending round
+ * (the round currently being calculated), and the {@link RoundInfoCore RoundInfoCore}  for the next few rounds.
+ * An implementation might also include a "roster" for these and for all the non-ancient previous rounds. The roster
+ * might contain info such as the public keys for all the nodes, used to verify their signatures. This class doesn't
+ * use rosters. It only uses the {@link RoundInfo RoundInfo}, and its two parts.
+ * <p>
+ * For a hashgraph, this class should be instantiated once. The {@link EventInfo#update EventInfo.update} method should
+ * be called on each event for each round, according to the schedule described in the comments
+ * for the update method.
+ * <p>
+ * If a call to {@link EventInfo#update EventInfo.update} returns a non-null value, then the event caused consensus to
+ * be reached for that round (a "keystone event"). In that case, it returns a record that contains
+ * the list of all the events that reached consensus in that round. Which might be an empty list if none reached
+ * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev}  record, which should be used to build the
+ * {@link RoundInfo RoundInfo} for the next round.
  */
 public class HashgraphInfo {
     // these fields are used in EventInfo.update and are updated the first time it is called
@@ -64,51 +65,65 @@ public class HashgraphInfo {
 
     private boolean roundDecided;
 
-    /** info about a round that is known multiple rounds in advance */
+    /**
+     * info about a round that might be known multiple rounds in advance
+     */
     public record RoundInfoCore(
-            long pendingRound,
+            long pendingRound, //pass the enclosing RoundInfo to update() when the pending round matches this number
             long[] nodes, // NodeID for each node
             long[] stake,
             int coinInterval,
             boolean firstVotingRoundSee,
             boolean judgeCon1,
             int targetNumRoundsNonAncient,
-            int numRoundsAddressBook) {}
+            int numRoundsAddressBook) {
+    }
 
-    /** info about a round that is only available when the previous round reaches consensus */
+    /**
+     * info about a round that is only available when the previous round reaches consensus
+     */
     public record RoundInfoPrev(
             boolean prevJudgeCon1,
             EventInfo[] prevJudges,
             boolean prevJudgesCopied,
             long prevMinNonAncientRound,
             long prevNumCons,
-            long prevMinJudgeBirthRound) {}
+            long prevMinJudgeBirthRound) {
+    }
 
-    /** The round info with info about nodes, weights, previous judges, per-round
-     * setting, etc. The consensus state should include the full RoundInfo for the
-     * pending round, and the RoundInfoCore portion of it for the next few rounds.
+    /**
+     * The round info with info about nodes, weights, previous judges, per-round
+     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
+     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
+     * Pass this to {@link EventInfo#update EventInfo.update} when
+     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
+     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
      */
-    public record RoundInfo(RoundInfoCore curr, RoundInfoPrev prev) {}
+    public record RoundInfo(RoundInfoCore core, RoundInfoPrev prev) {
+    }
 
-    /** true iff n is a supermajority of the total stake */
+    /**
+     * true iff n is a supermajority of the total stake
+     */
     private boolean supermajority(long n) {
         return n > 2 * totalStake / 3;
     }
 
     /**
-     * Given the round info for the pending round, set the isConsensus fields for all the non-ancient events that
-     * reached consensus in previous rounds. This is only needed after a restart or reconnect. In normal operation,
-     * those events will already have been marked, when they reached consensus.
+     * Given the round info for the pending round, set the {@link EventInfo#isConsensus EventInfo.isConsensus} field
+     * for every non-ancient event that reached consensus in previous rounds. This is only needed after a restart or
+     * reconnect. In normal operation, those events will already have been marked, when they reached consensus.
      *
-     * @param currRoundInfo round info for the pending round (the round currently being calculated)
+     * @param roundInfo round info for the pending round (the round currently being calculated)
      */
-    public void setPrevIsConsensus(RoundInfo currRoundInfo) {
+    public void setPrevIsConsensus(RoundInfo roundInfo) {
         // TODO
     }
 
     /**
-     * A class with the per-event scratchpad data.
-     * This is the memoized data for the functions marked to be memoized in the tech report.
+     * A class with the per-event scratchpad data used for calculating consensus. This is data for the functions
+     * marked to be memoized in the tech report. Call {@link EventInfo#update EventInfo.update} to update the data
+     * and call {@link EventInfo#clear EventInfo.clear} to clear the data.
      */
     public static class EventInfo {
         private HashgraphInfo hashgraph;
@@ -131,34 +146,120 @@ public class HashgraphInfo {
         private long consensusOrder;
         private Instant consensusTimestamp;
         private boolean isPrevJudge;
+        private long mark; //used for graph searches on the hashgraph
 
-        /** True iff this event is the descendent of at least one judge from the previous round. */
+        /**
+         * True iff this event is the descendent of at least one judge from the previous round.
+         */
         public boolean getPrevJudgeDesc() {
             return prevJudgeDesc;
         }
-        /** True iff this event has reached consensus. (If false, it may still reach consensus later). */
+
+        /**
+         * True iff this event has reached consensus. (If false, it may still reach consensus later).
+         */
         public boolean getIsConsensus() {
             return isConsensus;
         }
-        /** The consensus order of this event, starting at 1 for genesis (or 0 if getIsConsensus is false). */
+
+        /**
+         * The consensus order of this event, starting at 1 for genesis (or 0 if getIsConsensus is false).
+         */
         public long getConsensusOrder() {
             return consensusOrder;
         }
-        /** The consensus timestamp for this event (or null if getIsConsensus is false). */
+
+        /**
+         * The consensus timestamp for this event (or null if getIsConsensus is false).
+         */
         public Instant getConsensusTimestamp() {
             return consensusTimestamp;
         }
 
+        // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
+
+        public HashgraphInfo getHashgraph() {
+            return hashgraph;
+        }
+
+        public long getCreatorNodeID() {
+            return creatorNodeID;
+        }
+
+        public EventInfo[] getParentsSigned() {
+            return parentsSigned;
+        }
+
+        public int getCreator() {
+            return creator;
+        }
+
+        public long getBirthRound() {
+            return birthRound;
+        }
+
+        public boolean[] getAncestorJudge() {
+            return ancestorJudge;
+        }
+
+        public boolean isPrevJudgeDesc() {
+            return prevJudgeDesc;
+        }
+
+        public long getGen() { //this is the dGen
+            return gen;
+        }
+
+        public EventInfo[] getLastSee() {
+            return lastSee;
+        }
+
+        public EventInfo[] getStronglySeeP() {
+            return stronglySeeP;
+        }
+
+        public EventInfo getFirstSelfWitnessS() {
+            return firstSelfWitnessS;
+        }
+
+        public long getVotingRound() {
+            return votingRound;
+        }
+
+        public EventInfo getFirstWitnessS() {
+            return firstWitnessS;
+        }
+
+        public EventInfo[] getStronglySeeS1() {
+            return stronglySeeS1;
+        }
+
+        public EventInfo[] getVoteE() {
+            return voteE;
+        }
+
+        public boolean[] getVoteB() {
+            return voteB;
+        }
+
+        public boolean isConsensus() {
+            return isConsensus;
+        }
+
+        public boolean isPrevJudge() {
+            return isPrevJudge;
+        }
+
         /**
-         * Instantiate the EventInfo object for an event. The parents array should contain the parents in the same
-         * order as they are listed in the signed event that is gossiped. If there is a self-parent in the array, it
-         * must be in the first position. It is ok if the parents array is missing some or all of the ancient parents.
-         * It is ok if the array contains some null elements. If an event has no non-ancient parents, then it is ok
-         * to pass in null, or an array of all nulls, or an empty array.
+         * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
+         * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
+         * in the array, it must be in the first position. It is ok if the parents array is missing some or all of the
+         * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
+         * then it is ok to pass in null, or an array of all nulls, or an empty array.
          *
          * @param hashgraph which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
-         * @param creator the nodeID of the creator of this event
-         * @param parents array of parents, in the same order as in the signed event that is gossiped.
+         * @param creator   the nodeID of the creator of this event
+         * @param parents   array of parents, in the same order as in the signed event that is gossiped.
          */
         public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, long birthRound, EventInfo[] parents) {
             this.hashgraph = hashgraph;
@@ -170,10 +271,11 @@ public class HashgraphInfo {
         /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
          * but only after it is ancient. It also sets to null the reference to the hashgraph, so after being cleared,
-         * any future call to update will return null. This must be
-         * called eventually on every event, to allow the garbage collector to free memory.
-         *
-         * As an optimization, this also clears all references to arrays or objects, not just EventInfo.
+         * any future call to update will return null. This must be called eventually on every event, to allow the
+         * garbage collector to free memory.
+         * <p>
+         * As an optimization, this also clears all references to all arrays and objects, not just to
+         * {@link EventInfo EventInfo} objects.
          */
         public void clear() {
             //To reduce garbage collection, the arrays could be saved and reused for the next new event.
@@ -190,41 +292,49 @@ public class HashgraphInfo {
             consensusTimestamp = null;
         }
 
-        /** EventInfo.update returns this (or null if consensus wasn't yet reached). */
+        /**
+         * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
+         */
         public record UpdateResults(
-                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {}
+                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {
+        }
 
         /**
-         * This should be called for each event, just before it is added to the hashgraph. When consensus is
-         * reached for a round, it should then be called on all existing events for which prevJudgeDesc
-         * is true. (It may set some of them to false). <p>
-         *
-         * This must be passed the complete round info for the pending round (the round currently being calculated). <p>
-         *
-         * When there is a reconnect (or during PCES replay for a restart), there will be a period before all
-         * the previous judges have been added to the hashgraph. Do not call updateEvent during that period.
-         * It should only be called when all the judges from the previous round have been added to the hashgraph.
-         * At that point, it should be called on all the non-ancient events in the hashgraph (not just those
-         * with prevJudgeDesc==true, as it normally does for a new round).<p>
-         *
+         * This should be called for each event just after it is added to the hashgraph. When consensus is
+         * reached for a round, it should then be called again on all existing events in the hashgraph for
+         * which {@link EventInfo#isPrevJudgeDesc EventInfo.isPrevJudgeDesc()}==true, using the
+         * {@link RoundInfo RoundInfo} for the new pending round. (This update may set some of
+         * those events to false).
+         * <p>
+         * When there is a reconnect (or during event replay after a restart), there will be a period before all
+         * the previous judges have been added to the hashgraph. Do not call this update function
+         * during that period. It should first be called once all the judges from the previous round have been added to
+         * the hashgraph. At that point, it should be called on all the non-ancient events in the hashgraph
+         * (not just those with {@link EventInfo#isPrevJudgeDesc EventInfo.isPrevJudges()}==true, as it normally
+         * does for a new round). After that, continue as normal, calling it only on new events, and after each
+         * round reaches consensus.
+         * <p>
          * This is sometimes called on a batch of events, because it is the start of a new round,
          * or because the last of the previous judges was finally added after a reset. For such a
          * batch, it should be called on all those events in topological order. So if it is to be called
-         * on both an event and its parent, the call on the parent must come first.<p>
-         *
-         * This will only read (not write) roundInfo.
-         * This will write to the EventInfo fields for this event, and perhaps other events.
-         * For each event that reaches consensus, this will fill in its fields isConsensus,
-         * consensusOrder, and consensusTimestamp.<p>
-         *
+         * on both an event and its parent, the call on the parent must come first.
+         * <p>
+         * This will write to the private {@link EventInfo EventInfo} fields of this event, and sometimes of other
+         * events. It may also write to some private fields of the {@link HashgraphInfo HashgraphInfo}.
+         * For each event that reaches consensus, this will fill in its fields for the {@link EventInfo EventInfo}
+         * getters {@link EventInfo#isConsensus isConsensus}, {@link EventInfo#getConsensusOrder getConsensusOrder},
+         * and {@link EventInfo#getConsensusTimestamp getConsensusTimestamp}.
+         * <p>
          * If the update of this event didn't reach consensus for this round, this will return null. If it did
-         * reach consensus, this is a "keystone event". In that case, it returns an UpdateResults that contains
-         * a (possibly empty) list of the events that reached consensus in this round and the RoundInfoPrev that
-         * should be used for the next round. <p>
-         *
+         * reach consensus, this is a "keystone event". In that case, it returns an {@link UpdateResults UpdateResults}
+         * that contains a (possibly empty) list of the events that reached consensus in this round, and the
+         * {@link RoundInfoPrev RoundInfoPrev} that should be used for the next round.
+         * <p>
          * When this method is called for the first time on a new hashgraph in memory, it can be passed
-         * any roundInfo. In every future call, it must be passed a roundInfo that either has the same
-         * pendingRound as the previous call or has a pendingRound that is one greater than the previous call.
+         * the {@link RoundInfo roundInfo} for the pending round at that time. In every future call, each call to it
+         * must be passed a {@link RoundInfo RoundInfo} that either has the same
+         * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} as in the previous call, or has a
+         * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} that is one greater than in the previous call.
          *
          * @param roundInfo the round info for the pending round (the round currently being calculated)
          * @return the consensus results, or null if this event didn't decide this round
@@ -232,7 +342,7 @@ public class HashgraphInfo {
         public UpdateResults update(@NonNull RoundInfo roundInfo) {
             // make the names look more like the r and x in the tech report
             final EventInfo x = this;
-            final RoundInfoCore r = roundInfo.curr;
+            final RoundInfoCore r = roundInfo.core;
             final RoundInfoPrev rp = roundInfo.prev;
             final HashgraphInfo h = x.hashgraph;
             long parentRound;
@@ -251,7 +361,7 @@ public class HashgraphInfo {
                 if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
                     h.nodesChanged = true;
                 } else {
-                    for (int i=0; i<h.numNodes; i++) {
+                    for (int i = 0; i < h.numNodes; i++) {
                         if (h.nodeIDs[i] != r.nodes[i]) {
                             h.nodesChanged = true;
                             break;
@@ -266,7 +376,7 @@ public class HashgraphInfo {
                     } else {
                         h.nodeIdToIndex.clear();
                     }
-                    for (int i=0; i<h.numNodes; i++) {
+                    for (int i = 0; i < h.numNodes; i++) {
                         h.nodeIdToIndex.put(h.nodeIDs[i], i);
                     }
                 }
@@ -426,7 +536,7 @@ public class HashgraphInfo {
             // function seeThru
 
             // function stronglySeeP
- 
+
 
             // function votingRound
 
