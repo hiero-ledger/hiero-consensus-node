@@ -1,53 +1,37 @@
 # Current Status And Next Steps
 
-Date: `2026-06-02`
+Date: `2026-06-03`
 
-## Current State
+## Current Status
 
-Cluster evidence has now been collected for every traversal order. The run artifacts are outside this repository at:
+Cluster evidence was collected and the first Markdown-only extraction/verification pass has completed for every traversal
+order. The run artifacts remain outside this repository at:
 
 ```text
 /Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
 ```
 
-Those runs contain the collected artifact families for the calibration pass.
-
-Source of truth: task-local docs listed below. Artifact sufficiency is determined during extraction and verification.
-Missing, ambiguous, or not-applicable evidence must be recorded per the strategy.
-
-## Next Session Bootstrap
-
-Start here, in this order:
-
-1. Read `25083-improve-reconnectbench/Index.md`.
-2. Read `25083-improve-reconnectbench/evidence-and-calibration/agentic-evidence-extraction-strategy.md`.
-3. Read `25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-processing-protocol.md`.
-4. Read `25083-improve-reconnectbench/evidence-and-calibration/cluster-reconnectbench-artifact-atlas.md`.
-5. Create Markdown-only outputs under
-   `25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/`.
-6. Write per-run files first, verify into `verification-notes.md`, then build `cluster-calibration-summary.md` from
-   per-run sections only.
-
-Required outputs, strategy quick-reference:
+Extracted, source-referenced evidence now lives under:
 
 ```text
-top-to-bottom.md
-two-phase-pessimistic.md
-parallel-sync.md
-verification-notes.md
-cluster-calibration-summary.md
+25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/
 ```
 
-Run roots, atlas quick-reference, relative to artifact root:
+The current working phase is analysis of the extracted evidence. The cluster calibration summary and verification notes
+under the extracted evidence directory are the practical references for the completed extraction pass; per-run evidence
+files are available when a source reference, verifier finding, or unresolved item needs detail.
 
-```text
-top-to-bottom: NikitaReconnect1
-two-phase-pessimistic: NikitaReconnect2_2phase/report
-parallel-sync: NikitaReconnect3_PullParallelSync/report
-```
+Known unresolved evidence remains documented in the per-run unresolved registers and rollup summary. Those gaps are
+inputs to continued analysis, possible follow-up extraction from the existing artifacts, and planning for future cluster
+runs.
 
-## Hard Constraints
+## Next Steps
 
-- Do not extract values into the status, strategy, protocol, or atlas docs.
-- Do not modify production/runtime consensus-node behavior.
-- Do not create or switch branches unless explicitly instructed in the new session.
+- Analyze the extracted evidence to identify benchmark calibration decisions, remaining confidence gaps, and any
+  reconnect-benchmark issues that should be carried into implementation work.
+- Attempt additional extraction from the existing cluster artifacts only where the summary, verification notes, or
+  unresolved registers show a concrete gap that may still be answerable from the collected files.
+- Keep preparing the extraction process for future cluster runs by preserving the current Markdown-only evidence flow:
+  per-run extraction first, verification next, then summary updates after verifier findings are incorporated.
+- For future cluster artifacts, add new Markdown evidence files or a clearly dated subdirectory under
+  `extracted-cluster-evidence/` so new evidence stays separated from this completed pass.
