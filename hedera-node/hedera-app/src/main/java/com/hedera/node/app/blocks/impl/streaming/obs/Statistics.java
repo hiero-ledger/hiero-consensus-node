@@ -1,33 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
-import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.round;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 
 public interface Statistics {
 
     ObsUnit unit();
 
-    long samples();
+    BigInteger numSamples();
 
-    long sum();
+    BigInteger sum();
 
-    long min();
+    BigInteger min();
 
-    long max();
+    BigInteger max();
 
-    double avg();
+    BigDecimal avg();
 
-    double stdDev();
+    BigDecimal stdDev();
 
     static String toString(final Statistics stats) {
         String s = "{ (Unit:" + stats.unit();
 
-        s += "|Samples:" + stats.samples();
+        s += "|Samples:" + stats.numSamples();
         s += "|Sum:" + stats.sum();
         s += "|Min:" + stats.min();
         s += "|Max:" + stats.max();
-        s += "|Avg:" + round(stats.avg()).toPlainString();
-        s += "|StdDev:" + round(stats.stdDev()).toPlainString();
+        s += "|Avg:" + stats.avg().setScale(4, RoundingMode.HALF_EVEN).toPlainString();
+        s += "|StdDev:" + stats.stdDev().setScale(4, RoundingMode.HALF_EVEN).toPlainString();
 
         s += ") }";
         return s;

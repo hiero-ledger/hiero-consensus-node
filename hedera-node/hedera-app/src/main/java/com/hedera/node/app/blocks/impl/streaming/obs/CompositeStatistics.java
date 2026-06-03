@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
+import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.MATH_CONTEXT_10;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,42 +28,42 @@ public class CompositeStatistics implements Statistics {
     }
 
     private void calculateCompositeStatistics() {
-        long samples = 0;
-        long sum = 0;
-        long min = Long.MAX_VALUE;
-        long max = Long.MIN_VALUE;
+        BigInteger numSamples = BigInteger.ZERO;
+        BigInteger sum = BigInteger.ZERO;
+        BigInteger min = null;
+        BigInteger max = null;
 
         for (final Statistics stats : componentStatistics) {
-            samples += stats.samples();
-            sum += stats.sum();
-            if (min > stats.min()) {
+            if (min == null || min.compareTo(stats.min()) > 0) {
                 min = stats.min();
             }
-            if (max < stats.max()) {
+            if (max == null || max.compareTo(stats.max()) < 0) {
                 max = stats.max();
             }
+
+            numSamples = numSamples.add(stats.numSamples());
+            sum = sum.add(stats.sum());
         }
 
-        if (samples == 0) {
+        if (BigInteger.ZERO.equals(numSamples)) {
             compositeStatsRef.set(FixedStatistics.NIL);
         }
 
-        final double compositeAvg = sum / (samples * 1.0D);
-        double compositeStdDev = 0.0D;
+        final BigDecimal avg = new BigDecimal(sum).divide(new BigDecimal(numSamples), MATH_CONTEXT_10);
+        BigDecimal stdDev = BigDecimal.ZERO;
 
         // Calculate the combined standard deviation
         // Note: this is a population-based standard deviation, NOT a sample-based one
         for (final Statistics stats : componentStatistics) {
-            final double d1 = stats.samples() * Math.pow(stats.stdDev(), 2);
-            final double d2 = stats.samples() * Math.pow(stats.avg() - compositeAvg, 2);
+            final BigDecimal bd1 = new BigDecimal(stats.numSamples()).multiply(stats.stdDev().pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
+            final BigDecimal bd2 = new BigDecimal(stats.numSamples()).multiply(stats.avg().subtract(avg, MATH_CONTEXT_10).pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
 
-            compositeStdDev += (d1 + d2);
+            stdDev = stdDev.add(bd1, MATH_CONTEXT_10).add(bd2, MATH_CONTEXT_10);
         }
 
-        compositeStdDev = compositeStdDev / samples;
-        compositeStdDev = Math.sqrt(compositeStdDev);
+        stdDev = stdDev.divide(new BigDecimal(numSamples), MATH_CONTEXT_10).sqrt(MATH_CONTEXT_10);
 
-        compositeStatsRef.set(new FixedStatistics(unit, samples, sum, min, max, compositeAvg, compositeStdDev));
+        compositeStatsRef.set(new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev));
     }
 
     @Override
@@ -69,32 +72,32 @@ public class CompositeStatistics implements Statistics {
     }
 
     @Override
-    public long samples() {
-        return compositeStatsRef.get().samples();
+    public BigInteger numSamples() {
+        return compositeStatsRef.get().numSamples();
     }
 
     @Override
-    public long sum() {
+    public BigInteger sum() {
         return compositeStatsRef.get().sum();
     }
 
     @Override
-    public long min() {
+    public BigInteger min() {
         return compositeStatsRef.get().min();
     }
 
     @Override
-    public long max() {
+    public BigInteger max() {
         return compositeStatsRef.get().max();
     }
 
     @Override
-    public double avg() {
+    public BigDecimal avg() {
         return compositeStatsRef.get().avg();
     }
 
     @Override
-    public double stdDev() {
+    public BigDecimal stdDev() {
         return compositeStatsRef.get().stdDev();
     }
 }

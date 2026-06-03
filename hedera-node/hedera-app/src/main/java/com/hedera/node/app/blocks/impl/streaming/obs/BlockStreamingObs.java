@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
-import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.round;
+import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.MATH_CONTEXT_10;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -289,8 +291,8 @@ public class BlockStreamingObs {
             final Statistics itemsCreatedStats = throughputBucket.itemsCreated.aggregate();
             final Statistics itemsSentStats = throughputBucket.itemsSent.aggregate();
 
-            totalItemsCreated.add(itemsCreatedStats.samples(), itemsCreatedStats.sum());
-            totalItemsSent.add(itemsSentStats.samples(), itemsSentStats.sum());
+            totalItemsCreated.add(itemsCreatedStats.numSamples(), itemsCreatedStats.sum());
+            totalItemsSent.add(itemsSentStats.numSamples(), itemsSentStats.sum());
         }
 
         long numberOfSeconds = latestSecondTick - earliestSecondTick;
@@ -299,12 +301,13 @@ public class BlockStreamingObs {
             // of seconds as being 1
             numberOfSeconds = 1;
         }
+        final BigDecimal seconds = BigDecimal.valueOf(numberOfSeconds);
 
         // calculate per-second throughput data
-        final BigDecimal itemsCreatedPerSecondCount = round(totalItemsCreated.samples / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsCreatedPerSecondBytes = round(totalItemsCreated.sum / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsSentPerSecondCount = round(totalItemsSent.samples / (numberOfSeconds * 1.0D));
-        final BigDecimal itemsSentPerSecondBytes = round(totalItemsSent.sum / (numberOfSeconds * 1.0D));
+        final BigDecimal itemsCreatedPerSecondCount = new BigDecimal(totalItemsCreated.numSamples).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsCreatedPerSecondBytes = new BigDecimal(totalItemsCreated.sum).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsSentPerSecondCount = new BigDecimal(totalItemsSent.numSamples).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsSentPerSecondBytes = new BigDecimal(totalItemsSent.sum).divide(seconds, MATH_CONTEXT_10);
 
         // spotless:off
         // create the log output
@@ -318,14 +321,14 @@ public class BlockStreamingObs {
         output.append("      Acknowledged { (Unit:COUNT|Sum:").append(totalBlocksAcked).append(") }\n");
         output.append("    }\n");
         output.append("    Items {\n");
-        output.append("      Created-Total { (Unit:COUNT|Sum:").append(totalItemsCreated.samples).append(")");
+        output.append("      Created-Total { (Unit:COUNT|Sum:").append(totalItemsCreated.numSamples).append(")");
         output.append("(Unit:BYTES|Sum:").append(totalItemsCreated.sum).append(") }\n");
-        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(itemsCreatedPerSecondCount.toPlainString()).append(")");
-        output.append("(Unit:BYTES|Avg:").append(itemsCreatedPerSecondBytes.toPlainString()).append(") }\n");
-        output.append("      Sent-Total { (Unit:COUNT|Sum:").append(totalItemsSent.samples).append(")");
+        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(toString(itemsCreatedPerSecondCount)).append(")");
+        output.append("(Unit:BYTES|Avg:").append(toString(itemsCreatedPerSecondBytes)).append(") }\n");
+        output.append("      Sent-Total { (Unit:COUNT|Sum:").append(totalItemsSent.numSamples).append(")");
         output.append("(Unit:BYTES|Sum:").append(totalItemsSent.sum).append(") }\n");
-        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(itemsSentPerSecondCount.toPlainString()).append(")");
-        output.append("(Unit:BYTES|Avg:").append(itemsSentPerSecondBytes.toPlainString()).append(") }\n");
+        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(toString(itemsSentPerSecondCount)).append(")");
+        output.append("(Unit:BYTES|Avg:").append(toString(itemsSentPerSecondBytes)).append(") }\n");
         output.append("    }\n");
         output.append("  }\n");
 
@@ -358,15 +361,19 @@ public class BlockStreamingObs {
         log.info("{}", output);
     }
 
+    private String toString(final BigDecimal bd) {
+        return bd.setScale(4, RoundingMode.HALF_EVEN).toPlainString();
+    }
+
     // =================================================================================================================
 
     private static class SimpleAggregator {
-        private long samples = 0;
-        private long sum = 0;
+        private BigInteger numSamples = BigInteger.ZERO;
+        private BigInteger sum = BigInteger.ZERO;
 
-        void add(final long samples, final long sum) {
-            this.samples += samples;
-            this.sum += sum;
+        void add(final BigInteger numSamples, final BigInteger sum) {
+            this.numSamples = this.numSamples.add(numSamples);
+            this.sum = this.sum.add(sum);
         }
     }
 

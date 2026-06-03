@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
+import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.MATH_CONTEXT_10;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -48,36 +52,40 @@ public class StatisticsProbe {
 
         isClosed = true;
 
-        long min = Long.MAX_VALUE;
-        long max = Long.MIN_VALUE;
-        long total = 0;
-        long count = 0;
+        BigInteger min = null;
+        BigInteger max = null;
+        BigInteger sum = BigInteger.ZERO;
+        BigInteger numSamples = BigInteger.ZERO;
 
         for (final long value : values) {
-            if (min > value) {
-                min = value;
+            final BigInteger val = BigInteger.valueOf(value);
+
+            if (min == null || min.compareTo(val) > 0) {
+                min = val;
             }
-            if (max < value) {
-                max = value;
+            if (max == null || max.compareTo(val) < 0) {
+                max = val;
             }
-            ++count;
-            total += value;
+
+            numSamples = numSamples.add(BigInteger.ONE);
+            sum = sum.add(val);
         }
 
-        if (count == 0) {
+        if (BigInteger.ZERO.equals(numSamples)) {
             statistics = FixedStatistics.NIL;
             return statistics;
         }
 
-        final double avg = total / (count * 1.0);
-        double stdDev = 0.0D;
+        final BigDecimal avg = new BigDecimal(sum).divide(new BigDecimal(numSamples), MATH_CONTEXT_10);
+        BigDecimal stdDev = BigDecimal.ZERO;
 
         for (final long value : values) {
-            stdDev += Math.pow(value - avg, 2);
+            final BigDecimal bd1 = BigDecimal.valueOf(value).subtract(avg);
+            stdDev = stdDev.add(bd1.pow(2));
         }
 
-        stdDev = Math.sqrt(stdDev / count);
-        statistics = new FixedStatistics(unit, count, total, min, max, avg, stdDev);
+        stdDev = stdDev.divide(new BigDecimal(numSamples), 10, RoundingMode.HALF_EVEN).sqrt(MATH_CONTEXT_10);
+        statistics = new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev);
 
         values = null; // clear values to reclaim memory
 
