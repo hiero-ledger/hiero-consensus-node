@@ -1930,6 +1930,239 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    @Test
+    void testMinAckedBlocksToBuffer_aggressivePruneWhenAllAcked() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 10L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(10L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 10 - 3 = 7; acked blocks strictly below 7 are pruned, leaving blocks 7..10
+        // (one more than `minAckedBlocksToBuffer` because the threshold block itself is retained,
+        // which still satisfies the "at least N" guarantee).
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(7L, 8L, 9L, 10L);
+
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        // pruning acked blocks does not affect numBlocksPendingAck, saturation stays at 0
+        assertThat(result.numBlocksPendingAck).isZero();
+        assertThat(result.saturationPercent).isZero();
+        assertThat(result.isSaturated).isFalse();
+        assertThat(result.numBlocksPruned).isEqualTo(6);
+
+        verify(blockStreamMetrics, times(10)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(10)).recordBlockOpened();
+        verify(blockStreamMetrics, times(10)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(10L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(6);
+        verify(blockStreamMetrics).recordBufferOldestBlock(7L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_softLimitOverriddenByMaxBlocks() throws Throwable {
+        // maxBlocks=5, minAcked=10. The soft floor wants to keep 10 acked blocks, but the buffer is
+        // dominated by unacked blocks and over the hard ceiling. Acked blocks within the soft floor
+        // must be evicted to make room.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 5)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        // produce 7 closed blocks and ack the first 3; total buffer size 7 > maxBlocks 5
+        for (long b = 1L; b <= 7L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(3L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 3 - 10 = -7; the soft floor is inert for positive block numbers, so only the
+        // hard ceiling drives pruning. Blocks 1 and 2 are evicted to bring size back to maxBlocks=5
+        // even though the soft floor (10) wanted to keep them. End state: [3, 4, 5, 6, 7].
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(3L, 4L, 5L, 6L, 7L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(2);
+        assertThat(result.numBlocksPendingAck).isEqualTo(4);
+
+        verify(blockStreamMetrics, times(7)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(7)).recordBlockOpened();
+        verify(blockStreamMetrics, times(7)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(3L);
+        verify(blockStreamMetrics).recordBufferSaturation(80.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(2);
+        verify(blockStreamMetrics).recordBufferOldestBlock(3L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(7L);
+        verify(blockStreamMetrics).recordBackPressureActionStage();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_zeroRetainsNoAckedBlocks() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // ack blocks 1..4, leave 5 unacked
+        blockBufferService.setLatestAcknowledgedBlock(4L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 4 - 0 = 4; acked blocks strictly below 4 are pruned. Block 4 (the threshold
+        // itself) is retained as the lone acked survivor, plus the unacked block 5.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(4L, 5L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(3);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(4L);
+        verify(blockStreamMetrics).recordBufferSaturation(5.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(3);
+        verify(blockStreamMetrics).recordBufferOldestBlock(4L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_noPruningWhenNoAcksReceived() throws Throwable {
+        // With no acks received yet, the soft-limit branch must be inert (and the threshold
+        // subtraction must not underflow). Pruning should do nothing while the buffer is below the
+        // hard ceiling.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 10)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 4L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // intentionally never call setLatestAcknowledgedBlock
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        assertThat(buffer).hasSize(4);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isZero();
+
+        verify(blockStreamMetrics, times(4)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(4)).recordBlockOpened();
+        verify(blockStreamMetrics, times(4)).recordBlockClosed();
+        verify(blockStreamMetrics).recordBufferSaturation(40.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_backpressureDisabledIgnoresSoftLimit() throws Throwable {
+        // Backpressure is disabled when streamMode is not BLOCKS. In that mode pruning falls back to
+        // the hard ceiling and the soft retention floor must not kick in. Use FILE_AND_GRPC writerMode
+        // so the buffer still accepts blocks via the GRPC path.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockStream.streamMode", "BOTH")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 2)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(5L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // all 5 blocks retained because size <= maxBlocks; the soft limit must be ignored when
+        // backpressure is disabled
+        assertThat(buffer).hasSize(5);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(5L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean realStart) throws Throwable {
