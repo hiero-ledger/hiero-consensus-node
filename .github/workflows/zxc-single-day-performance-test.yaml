@@ -367,11 +367,10 @@ jobs:
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
-          git checkout main
           ./gradlew app:distTar
-          #produces ./block-node/app/build/distributions/app-0.18.0-SNAPSHOT.tar
+          #produces ./block-node/app/build/distributions/app-0.18.0blah-.tar
 
-          ls -l ./block-node/app/build/distributions/app-*-SNAPSHOT.tar
+          ls -l ./block-node/app/build/distributions/app-*.tar
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
@@ -465,7 +464,7 @@ jobs:
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout main # ${{ inputs.solo-version }}
+          git checkout ${{ inputs.solo-version }}
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
@@ -615,7 +614,7 @@ jobs:
         run: |
           ls "${{ github.workspace }}"/target_block_node
           ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/
-          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar)
+          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
           bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
           echo "$bnTar=$bnTar"
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
@@ -625,7 +624,7 @@ jobs:
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; cp -r app*/plugins plugins; tar xf /tmp/BN.tar; cp -r plugins $bnVersion/; ls -lt"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cat /proc/7/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
           done
 
       - name: Update RSA BlockNodes
@@ -664,11 +663,13 @@ jobs:
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar --overwrite"
+
           done
 
       - name: Start BlockNodes
         run: |
-          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*-SNAPSHOT.tar)
+          bnTar=$(ls "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
           bnVersion=$(basename $bnTar | sed -e 's/.tar//g')
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
@@ -677,7 +678,9 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
               bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- \
-              bash -c "nohup BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000 JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"' bash /opt/hiero/block-node/${bnVersion}/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+              bash -c ". /tmp/env.sh; nohup BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000 JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"' \
+                       JAVA_TOOL_OPTIONS='-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties -Dmetrics.exporter.openmetrics.http.hostname=0.0.0.0 -Dmetrics.exporter.openmetrics.http.port=16007 -Dmetrics.exporter.openmetrics.http.path=/metrics' \
+                       bash /opt/hiero/block-node/${bnVersion}/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
 
       - name: Start CNs
