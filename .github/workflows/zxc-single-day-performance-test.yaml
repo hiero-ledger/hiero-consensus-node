@@ -370,7 +370,7 @@ jobs:
           ./gradlew app:distTar
           #produces ./block-node/app/build/distributions/app-0.18.0blah-.tar
 
-          shortversion=$(echo "${{ inputs.ref }}" | sed -e 's/^v\(.*\)/\1/g')
+          shortversion=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           cd ./block-node/app/build/distributions/
           rm -rf app-${shortversion}/plugins app-${shortversion}.tar
           tar cf app-${shortversion}.tar app-${shortversion}
