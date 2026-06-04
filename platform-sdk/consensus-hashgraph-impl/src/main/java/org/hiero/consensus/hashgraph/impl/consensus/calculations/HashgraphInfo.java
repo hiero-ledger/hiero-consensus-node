@@ -2,7 +2,6 @@
 package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,8 +57,8 @@ public class HashgraphInfo {
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>();
     private EventInfo selfParent;
-    private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
-    private boolean nodesChanged; //true for round 1 and for any round where nodes[] differs from the round before it
+    private int parentsMaxSize = 0; // largest parents has ever been (used to recover from massive branching)
+    private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
 
     private boolean roundDecided;
@@ -68,15 +67,14 @@ public class HashgraphInfo {
      * info about a round that might be known multiple rounds in advance
      */
     public record RoundInfoCore(
-            long pendingRound, //pass the enclosing RoundInfo to update() when the pending round matches this number
+            long pendingRound, // pass the enclosing RoundInfo to update() when the pending round matches this number
             long[] nodes, // NodeID for each node
             long[] stake,
             int coinInterval,
             boolean firstVotingRoundSee,
             boolean judgeCon1,
             int targetNumRoundsNonAncient,
-            int numRoundsAddressBook) {
-    }
+            int numRoundsAddressBook) {}
 
     /**
      * info about a round that is only available when the previous round reaches consensus
@@ -87,8 +85,7 @@ public class HashgraphInfo {
             boolean prevJudgesCopied,
             long prevMinNonAncientRound,
             long prevNumCons,
-            long prevMinJudgeBirthRound) {
-    }
+            long prevMinJudgeBirthRound) {}
 
     /**
      * The round info with info about nodes, weights, previous judges, per-round
@@ -98,8 +95,7 @@ public class HashgraphInfo {
      * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
      * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
      */
-    public record RoundInfo(RoundInfoCore core, RoundInfoPrev prev) {
-    }
+    public record RoundInfo(RoundInfoCore core, RoundInfoPrev prev) {}
 
     /**
      * true iff n is a supermajority of the total stake
@@ -121,30 +117,31 @@ public class HashgraphInfo {
         if (roundInfo.prev.prevJudges == null || roundInfo.prev.prevJudges.length == 0) {
             return;
         }
-        /**/ //calculate minNonAncientRound
-        for (EventInfo judge : roundInfo.prev.prevJudges) { //depth-first search starting from each judge
+        /**/
+        // calculate minNonAncientRound
+        for (EventInfo judge : roundInfo.prev.prevJudges) { // depth-first search starting from each judge
             EventInfo x = judge;
             currMark++;
-            x.searchChild = null; //backtracking up from this x means the search is done
-            do { //depth-first search starting from this judge
+            x.searchChild = null; // backtracking up from this x means the search is done
+            do { // depth-first search starting from this judge
                 x.searchMark = currMark;
-                x.searchParent = -1; //descend through the first parent first
-                x.searchCount = firstJudge ? 1 : x.searchCount + 1; //x is ancestor of this many judges so far
+                x.searchParent = -1; // descend through the first parent first
+                x.searchCount = firstJudge ? 1 : x.searchCount + 1; // x is ancestor of this many judges so far
                 if (x.searchCount == targetCount) {
-                    x.isConsensus = true; //SUCCESS: found an event that is an ancestor of the target number of judges
+                    x.isConsensus = true; // SUCCESS: found an event that is an ancestor of the target number of judges
                 }
                 EventInfo xNew = null;
-                //while xNew is bad (null, ancient, or marked), search/backtrack until a good one is found or done
-                while (x != null &&
-                        (xNew == null || xNew.birthRound < minNonAncientRound || xNew.searchMark == currMark)) {
+                // while xNew is bad (null, ancient, or marked), search/backtrack until a good one is found or done
+                while (x != null
+                        && (xNew == null || xNew.birthRound < minNonAncientRound || xNew.searchMark == currMark)) {
                     while (x != null && x.searchParent == x.parentsSigned.length - 1) {
-                        x = x.searchChild; //backtrack up the graph until an event found with an unexplored parent
+                        x = x.searchChild; // backtrack up the graph until an event found with an unexplored parent
                     }
                     x.searchParent++;
                     xNew = (x == null) ? null : x.parentsSigned[x.searchParent];
                 }
-                x = xNew; //move to the new event that was good
-            } while (x != null); //once we backtrack to null, the search from this judge is done
+                x = xNew; // move to the new event that was good
+            } while (x != null); // once we backtrack to null, the search from this judge is done
             firstJudge = false;
         }
     }
@@ -156,10 +153,10 @@ public class HashgraphInfo {
      */
     public static class EventInfo {
         private HashgraphInfo hashgraph;
-        private final long creatorNodeID; //nodeID of this event's creator
+        private final long creatorNodeID; // nodeID of this event's creator
         private final Instant timeCreated;
         private EventInfo[] parentsSigned;
-        private int creator; //index into the nodes array of this event's creator
+        private int creator; // index into the nodes array of this event's creator
         private final long birthRound;
         private boolean[] ancestorJudge;
         private boolean prevJudgeDesc;
@@ -176,7 +173,7 @@ public class HashgraphInfo {
         private long consensusOrder;
         private Instant consensusTimestamp;
         private boolean isPrevJudge;
-        //the following are used for graph searches in the hashgraph
+        // the following are used for graph searches in the hashgraph
         private long searchMark;
         private int searchCount;
         private int searchParent;
@@ -244,7 +241,7 @@ public class HashgraphInfo {
             return prevJudgeDesc;
         }
 
-        public long getGen() { //this is the dGen
+        public long getGen() { // this is the dGen
             return gen;
         }
 
@@ -316,8 +313,12 @@ public class HashgraphInfo {
          * @param timeCreated when this event was created, as claimed by its creator node
          * @param parents     array of parents, in the same order as in the signed event that is gossiped.
          */
-        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, @NonNull Instant timeCreated,
-                         long birthRound, EventInfo[] parents) {
+        public EventInfo(
+                @NonNull HashgraphInfo hashgraph,
+                long creator,
+                @NonNull Instant timeCreated,
+                long birthRound,
+                EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
             this.timeCreated = timeCreated;
@@ -335,7 +336,7 @@ public class HashgraphInfo {
          * {@link EventInfo EventInfo} objects.
          */
         public void clear() {
-            //To reduce garbage collection, the arrays could be saved and reused for the next new event.
+            // To reduce garbage collection, the arrays could be saved and reused for the next new event.
             hashgraph = null;
             parentsSigned = null;
             ancestorJudge = null;
@@ -353,9 +354,7 @@ public class HashgraphInfo {
         /**
          * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
          */
-        public record UpdateResults(
-                EventInfo[] consensusEvents, RoundInfoPrev nextRoundInfoPrev) {
-        }
+        public record UpdateResults(EventInfo[] consensusEvents, RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
          * This should be called for each event just after it is added to the hashgraph. When consensus is
@@ -409,14 +408,15 @@ public class HashgraphInfo {
             long minJudgeBirthRound;
 
             if (hashgraph == null) {
-                return null; //this event was already cleared
+                return null; // this event was already cleared
             }
-            //if this is a new round (or the first round called on this hashgraph), calculate all the functions of round
+            // if this is a new round (or the first round called on this hashgraph), calculate all the functions of
+            // round
             if (h.pendingRound != r.pendingRound) {
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
 
-                //set h.nodesChanged to true if the node array changed this round (or it's the first time called).
+                // set h.nodesChanged to true if the node array changed this round (or it's the first time called).
                 if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
                     h.nodesChanged = true;
                 } else {
@@ -427,7 +427,7 @@ public class HashgraphInfo {
                         }
                     }
                 }
-                //if it did change, then update the nodeIdToIndex to map from nodeID to index
+                // if it did change, then update the nodeIdToIndex to map from nodeID to index
                 if (h.nodesChanged) {
                     h.nodeIDs = r.nodes;
                     if (h.nodeIdToIndex == null) {
@@ -440,13 +440,13 @@ public class HashgraphInfo {
                     }
                 }
 
-                //if this is the first time this event has updated, or if this round has a changed address book,
-                //then recalculate the index for the creator
+                // if this is the first time this event has updated, or if this round has a changed address book,
+                // then recalculate the index for the creator
                 if (x.lastSee == null || h.nodesChanged) {
                     x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
                 }
 
-                //set isPrevJudge to true for the judges in the previous round
+                // set isPrevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
                     judge.isPrevJudge = true;
                 }
@@ -467,8 +467,8 @@ public class HashgraphInfo {
                     for (EventInfo judge : rp.prevJudges) {
                         t += r.stake[judge.creator];
                     }
-                    h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1)
-                            || !h.supermajority(t)) ? 2 : 1;
+                    h.voteD =
+                            (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1) || !h.supermajority(t)) ? 2 : 1;
                 }
             }
 
@@ -499,7 +499,8 @@ public class HashgraphInfo {
             }
 
             // function parents
-            // put in the h.parents array only those parents that are non-ancient descendents of judges in the prev round
+            // put in the h.parents array only those parents that are non-ancient descendents of judges in the prev
+            // round
             if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
                 // shrink to recover after branching
                 h.parents = new ArrayList<>(h.numNodes);
@@ -512,8 +513,8 @@ public class HashgraphInfo {
                 }
             }
             h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
-            h.selfParent = (h.parents.isEmpty()
-                    || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
+            h.selfParent =
+                    (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
             // function prevJudgeDesc
             x.prevJudgeDesc = x.isPrevJudge || h.pendingRound == 1;
@@ -556,33 +557,33 @@ public class HashgraphInfo {
                 if (m == x.creator) {
                     x.lastSee[m] = x;
                 } else {
-                    //find k = max(map(s1,votingRound))
-                    long k = 1; //start at 1 to ensure max({}) = 1
+                    // find k = max(map(s1,votingRound))
+                    long k = 1; // start at 1 to ensure max({}) = 1
                     for (EventInfo parent : h.parents) {
                         EventInfo y = parent.lastSee[m];
                         if (y != null && y.votingRound > k) {
                             k = y.votingRound;
                         }
                     }
-                    //find w = firstSelfWitness(r,first(s2))
-                    //find p = event in s3 with the max gen
+                    // find w = firstSelfWitness(r,first(s2))
+                    // find p = event in s3 with the max gen
                     EventInfo w = null;
                     EventInfo p = null;
                     boolean s2empty = true;
                     long maxGen = -1;
                     for (EventInfo parent : h.parents) {
                         EventInfo y = parent.lastSee[m];
-                        //y is in s1
+                        // y is in s1
                         if (y != null && y.votingRound == k) {
-                            //y is in s2
-                            //w comes from first(s2), so only set it once
+                            // y is in s2
+                            // w comes from first(s2), so only set it once
                             w = (w != null) ? w : y.firstSelfWitnessS;
                             s2empty = false;
                             if (y.firstSelfWitnessS == w) {
-                                //y is in s3
+                                // y is in s3
                                 if (y.gen > maxGen) {
                                     maxGen = y.gen;
-                                    //p is the first max gen element in s3
+                                    // p is the first max gen element in s3
                                     p = y;
                                 }
                             }
@@ -595,7 +596,6 @@ public class HashgraphInfo {
             // function seeThru
 
             // function stronglySeeP
-
 
             // function votingRound
 
@@ -641,7 +641,7 @@ public class HashgraphInfo {
 
             // function consensusTimestamp
 
-            //the round reached consensus, so prepare to move on by setting the old judges to false and the new to true
+            // the round reached consensus, so prepare to move on by setting the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
                 judge.isPrevJudge = false;
             }
@@ -654,14 +654,14 @@ public class HashgraphInfo {
             }
 
             return new UpdateResults(
-                    consensusEvents.toArray(new EventInfo[0]), //consensusEvents
+                    consensusEvents.toArray(new EventInfo[0]), // consensusEvents
                     new RoundInfoPrev(
-                            r.judgeCon1, //prevJudgeCon1
-                            roundJudges.toArray(new EventInfo[0]), //prevJudges
-                            false, //prevJudgesCopied /**/
-                            h.minNonAncientRound, //prevMinNonAncientRound
-                            rp.prevNumCons + consensusEvents.size(), //prevNumCons
-                            minJudgeBirthRound)); //prevMinJudgeBirthRound
+                            r.judgeCon1, // prevJudgeCon1
+                            roundJudges.toArray(new EventInfo[0]), // prevJudges
+                            false, // prevJudgesCopied /**/
+                            h.minNonAncientRound, // prevMinNonAncientRound
+                            rp.prevNumCons + consensusEvents.size(), // prevNumCons
+                            minJudgeBirthRound)); // prevMinJudgeBirthRound
         }
     }
 }
