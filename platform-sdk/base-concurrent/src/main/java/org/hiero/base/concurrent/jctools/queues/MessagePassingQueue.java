@@ -50,13 +50,13 @@ public interface MessagePassingQueue<T> {
         /**
          * This method will process an element already removed from the queue. This method is expected to
          * never throw an exception.
-         * <p>
+         * <br>
          * Users should be aware that underlying queue implementations may upfront claim parts of the queue
          * for batch operations and this will effect the view on the queue from the accept method. In
          * particular size and any poll/peek methods may take the view that the full batch has already
          * happened.
-         *
-         * <p><b>WARNING</b>: this method is assumed to never throw. Breaking this assumption can lead to a broken queue.
+         * <br>
+         * <b>WARNING</b>: this method is assumed to never throw. Breaking this assumption can lead to a broken queue.
          * @param e not {@code null}
          */
         void accept(T e);
@@ -66,7 +66,7 @@ public interface MessagePassingQueue<T> {
         /**
          * This method can implement static or dynamic backoff. Dynamic backoff will rely on the counter for
          * estimating how long the caller has been idling. The expected usage is:
-         * <p>
+         * <br>
          * <pre>
          * <code>
          * int ic = 0;
@@ -180,7 +180,7 @@ public interface MessagePassingQueue<T> {
     /**
      * Remove up to <i>limit</i> elements from the queue and hand to consume. This should be semantically
      * similar to:
-     * <p>
+     * <br>
      * <pre>{@code
      *   M m;
      *   int i = 0;
@@ -192,7 +192,7 @@ public interface MessagePassingQueue<T> {
      * <p>
      * There's no strong commitment to the queue being empty at the end of a drain. Called from a consumer
      * thread subject to the restrictions appropriate to the implementation.
-     * <p>
+     * <br>
      * <b>WARNING</b>: Explicit assumptions are made with regards to {@link Consumer#accept} make sure you have read
      * and understood these before using this method.
      *
@@ -204,7 +204,7 @@ public interface MessagePassingQueue<T> {
 
     /**
      * Stuff the queue with up to <i>limit</i> elements from the supplier. Semantically similar to:
-     * <p>
+     * <br>
      * <pre>{@code
      *   for(int i=0; i < limit && relaxedOffer(s.get()); i++);
      * }</pre>
@@ -231,7 +231,7 @@ public interface MessagePassingQueue<T> {
      * </pre>
      * There's no strong commitment to the queue being empty at the end of a drain. Called from a
      * consumer thread subject to the restrictions appropriate to the implementation.
-     * <p>
+     * <br>
      * <b>WARNING</b>: Explicit assumptions are made with regards to {@link Consumer#accept} make sure you have read
      * and understood these before using this method.
      *
@@ -247,7 +247,7 @@ public interface MessagePassingQueue<T> {
      * </pre>
      * There's no strong commitment to the queue being full at the end of a fill. Called from a
      * producer thread subject to the restrictions appropriate to the implementation.
-     * <p>
+     * <br>
      * Unbounded queues will fill up the queue with a fixed amount rather than fill up to oblivion.
      *
      * <b>WARNING</b>: Explicit assumptions are made with regards to {@link Supplier#get} make sure you have read
@@ -260,7 +260,7 @@ public interface MessagePassingQueue<T> {
 
     /**
      * Remove elements from the queue and hand to consume forever. Semantically similar to:
-     * <p>
+     * <br>
      * <pre>
      *  int idleCounter = 0;
      *  while (exit.keepRunning()) {
@@ -273,9 +273,9 @@ public interface MessagePassingQueue<T> {
      *      c.accept(e);
      *  }
      * </pre>
-     * <p>
+     * <br>
      * Called from a consumer thread subject to the restrictions appropriate to the implementation.
-     * <p>
+     * <br>
      * <b>WARNING</b>: Explicit assumptions are made with regards to {@link Consumer#accept} make sure you have read
      * and understood these before using this method.
      *
@@ -285,7 +285,7 @@ public interface MessagePassingQueue<T> {
 
     /**
      * Stuff the queue with elements from the supplier forever. Semantically similar to:
-     * <p>
+     * <br>
      * <pre>
      * <code>
      *  int idleCounter = 0;
@@ -299,7 +299,7 @@ public interface MessagePassingQueue<T> {
      *  }
      * </code>
      * </pre>
-     * <p>
+     * <br>
      * Called from a producer thread subject to the restrictions appropriate to the implementation. The main difference
      * being that implementors MUST assure room in the queue is available BEFORE calling {@link Supplier#get}.
      *

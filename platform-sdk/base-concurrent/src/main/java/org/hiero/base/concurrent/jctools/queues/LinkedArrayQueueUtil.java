@@ -16,7 +16,7 @@ public final class LinkedArrayQueueUtil {
     }
 
     /**
-     * This method assumes index is actually (index << 1) because lower bit is
+     * This method assumes index is actually (index &lt;&lt; 1) because lower bit is
      * used for resize. This is compensated for by reducing the element shift.
      * The computation is constant folded, so there's no cost.
      */

@@ -6,15 +6,15 @@ import org.hiero.base.concurrent.jctools.util.InternalAPI;
 /**
  * A note to maintainers on index assumptions: in a single threaded world it would seem intuitive to assume:
  * <pre>
- * <code>producerIndex >= consumerIndex</code>
+ * <code>producerIndex &gt;= consumerIndex</code>
  * </pre>
  * As an invariant, but in a concurrent, long running settings all of the following need to be considered:
  * <ul>
- *     <li> <code>consumerIndex > producerIndex</code> : due to counter overflow (unlikey with longs, but easy to reason)
- *     <li> <code>consumerIndex > producerIndex</code> : due to consumer FastFlow like implementation discovering the
+ *     <li> <code>consumerIndex &gt; producerIndex</code> : due to counter overflow (unlikey with longs, but easy to reason)
+ *     <li> <code>consumerIndex &gt; producerIndex</code> : due to consumer FastFlow like implementation discovering the
  *     element before the counter is updated.
- *     <li> <code>producerIndex - consumerIndex < 0</code> : due to above.
- *     <li> <code>producerIndex - consumerIndex > Integer.MAX_VALUE</code> : as linked buffers allow constructing queues
+ *     <li> <code>producerIndex - consumerIndex &lt; 0</code> : due to above.
+ *     <li> <code>producerIndex - consumerIndex &gt; Integer.MAX_VALUE</code> : as linked buffers allow constructing queues
  *     with more than <code>Integer.MAX_VALUE</code> elements.
  *
  * </ul>

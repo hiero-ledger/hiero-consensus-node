@@ -176,7 +176,7 @@ abstract class MpscArrayQueueL3Pad<E> extends MpscArrayQueueConsumerIndexField<E
 }
 
 /**
- * A Multi-Producer-Single-Consumer queue based on a {@link org.jctools.queues.ConcurrentCircularArrayQueue}. This
+ * A Multi-Producer-Single-Consumer queue based on a {@code org.jctools.queues.ConcurrentCircularArrayQueue}. This
  * implies that any thread may call the offer method, but only a single thread may call poll/peek for correctness to
  * maintained. <br>
  * This implementation follows patterns documented on the package level for False Sharing protection.<br>
@@ -244,7 +244,6 @@ public class MpscArrayQueue<E> extends MpscArrayQueueL3Pad<E> implements OfferIf
      * concurrently.
      *
      * @see java.util.Queue#offer
-     * @see org.jctools.queues.MessagePassingQueue#offer
      */
     @Override
     public boolean offer(final E e) {
@@ -325,7 +324,6 @@ public class MpscArrayQueue<E> extends MpscArrayQueueL3Pad<E> implements OfferIf
      * Lock free poll using ordered loads/stores. As class name suggests access is limited to a single thread.
      *
      * @see java.util.Queue#poll
-     * @see org.jctools.queues.MessagePassingQueue#poll
      */
     @Override
     public E poll() {
@@ -363,7 +361,6 @@ public class MpscArrayQueue<E> extends MpscArrayQueueL3Pad<E> implements OfferIf
      * Lock free peek using ordered loads. As class name suggests access is limited to a single thread.
      *
      * @see java.util.Queue#poll
-     * @see org.jctools.queues.MessagePassingQueue#poll
      */
     @Override
     public E peek() {
