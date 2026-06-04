@@ -30,10 +30,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -75,6 +77,10 @@ public final class VirtualMapLearner {
     private static final Logger logger = LogManager.getLogger(VirtualMapLearner.class);
 
     private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
+
+    // Diagnostic: time each thread spends blocked in reconnectIterator.supply(), keyed by thread
+    // name. Large for the straggler if the single hashing thread is the bottleneck.
+    private final ConcurrentHashMap<String, LongAdder> supplyBlockedNanos = new ConcurrentHashMap<>();
 
     // ---- State captured from the original map at creation time ----
 
@@ -257,7 +263,11 @@ public final class VirtualMapLearner {
         // Feeds a leaf record received from the teacher into the reconnect hashing pipeline.
         // May block if the hashing thread is slower than the incoming data rate.
         try {
+            final long supplyStart = System.nanoTime();
             reconnectIterator.supply(leaf);
+            supplyBlockedNanos
+                    .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                    .add(System.nanoTime() - supplyStart);
         } catch (final MerkleSynchronizationException e) {
             throw e;
         } catch (final InterruptedException e) {
@@ -293,6 +303,11 @@ public final class VirtualMapLearner {
     public void finish() {
         updateStage(Stage.INITIALIZED, Stage.FINISHING);
 
+        supplyBlockedNanos.forEach((thread, nanos) -> logger.info(
+                RECONNECT.getMarker(),
+                "supply blocked: thread={} ms={}",
+                thread,
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(nanos.sum())));
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
         waitForLeafDeletionToComplete();

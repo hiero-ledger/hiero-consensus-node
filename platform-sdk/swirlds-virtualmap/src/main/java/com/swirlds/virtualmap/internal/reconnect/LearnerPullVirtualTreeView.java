@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -39,6 +40,12 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * teacher side.
  */
 public final class LearnerPullVirtualTreeView implements LearnerTreeView {
+
+    // Diagnostic: number of handleResponse() calls performed by each receiver thread.
+    // Because responseReceived drains the in-order backlog, the thread that fills a queue
+    // head performs handleResponse for all contiguous already-arrived responses — so this
+    // count is UNEQUAL across threads even when received-response counts are equal.
+    private final ConcurrentHashMap<String, LongAdder> handleResponseCounts = new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
 
@@ -188,6 +195,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     @Override
     public void onSuccessfulComplete() {
+        handleResponseCounts.forEach((thread, count) ->
+                logger.info(RECONNECT.getMarker(), "handleResponse count: thread={} count={}", thread, count.sum()));
         vmapLearner.finish();
     }
 
@@ -235,6 +244,9 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         final long responsePath = response.path();
         if (!isLeaf(responsePath)) {
             handleResponse(response);
+            handleResponseCounts
+                    .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                    .increment();
             mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
         } else {
             responses.put(responsePath, response);
@@ -249,6 +261,10 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                     break;
                 }
                 handleResponse(r);
+                handleResponseCounts
+                        .computeIfAbsent(
+                                Thread.currentThread().getName(), k -> new java.util.concurrent.atomic.LongAdder())
+                        .increment();
                 anticipatedLeafPaths.remove();
             }
             mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);

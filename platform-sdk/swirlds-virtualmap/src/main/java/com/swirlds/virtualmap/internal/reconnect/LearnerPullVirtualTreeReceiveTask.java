@@ -27,6 +27,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 public class LearnerPullVirtualTreeReceiveTask {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeReceiveTask.class);
+    private static final long SLOW_APPLY_THRESHOLD_NANOS = 1_000_000L;
 
     private static final String NAME = "reconnect-learner-receiver";
 
@@ -78,7 +79,11 @@ public class LearnerPullVirtualTreeReceiveTask {
      */
     private void run() {
         long readBlockedNanos = 0;
+        long parseNanos = 0;
         long applyNanos = 0;
+        long drainWaitNanos = 0;
+        long maxApplyNanos = 0;
+        long slowApplyCount = 0;
         long responseCount = 0;
         final long startNanos = System.nanoTime();
 
@@ -97,10 +102,11 @@ public class LearnerPullVirtualTreeReceiveTask {
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
                 final long path = response.path();
+                final long t2 = System.nanoTime(); // after parse, before apply
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }
-                final long t2 = System.nanoTime();
+                final long t3 = System.nanoTime(); // after apply
                 expectedResponses.decrementAndGet();
                 if (path == Path.INVALID_PATH) {
                     logger.info(
@@ -109,6 +115,7 @@ public class LearnerPullVirtualTreeReceiveTask {
                             expectedResponses.get());
                     // There may be other messages for this view being handled by other threads
                     final long waitStart = System.currentTimeMillis();
+                    final long drainStartNanos = System.nanoTime();
                     while (expectedResponses.get() != 0) {
                         Thread.sleep(0, 1);
                         if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
@@ -116,10 +123,19 @@ public class LearnerPullVirtualTreeReceiveTask {
                                     "Timed out waiting for view all remaining view messages to be processed");
                         }
                     }
+                    drainWaitNanos += System.nanoTime() - drainStartNanos;
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
+                final long applySpan = t3 - t2;
                 readBlockedNanos += (t1 - t0);
-                applyNanos += (t2 - t1);
+                parseNanos += (t2 - t1);
+                applyNanos += applySpan;
+                if (applySpan > SLOW_APPLY_THRESHOLD_NANOS) {
+                    slowApplyCount++;
+                }
+                if (applySpan > maxApplyNanos) {
+                    maxApplyNanos = applySpan;
+                }
                 responseCount++;
             }
         } catch (final Exception ex) {
@@ -128,10 +144,15 @@ public class LearnerPullVirtualTreeReceiveTask {
 
         logger.info(
                 RECONNECT.getMarker(),
-                "Learner receive breakdown: responses={} wallMs={} readBlockedMs={} applyMs={}",
+                "Learner receive breakdown: responses={} wallMs={} readBlockedMs={} parseMs={} "
+                        + "applyMs={} drainWaitMs={} maxApplyUs={} slowApplies={}",
                 responseCount,
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                 TimeUnit.NANOSECONDS.toMillis(readBlockedNanos),
-                TimeUnit.NANOSECONDS.toMillis(applyNanos));
+                TimeUnit.NANOSECONDS.toMillis(parseNanos),
+                TimeUnit.NANOSECONDS.toMillis(applyNanos),
+                TimeUnit.NANOSECONDS.toMillis(drainWaitNanos),
+                TimeUnit.NANOSECONDS.toMicros(maxApplyNanos),
+                slowApplyCount);
     }
 }
