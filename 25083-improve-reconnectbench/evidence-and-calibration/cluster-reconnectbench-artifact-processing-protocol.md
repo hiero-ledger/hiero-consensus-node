@@ -1,20 +1,19 @@
 # Cluster ReconnectBench Artifact Processing Protocol
 
-Updated: `2026-06-03`
+Updated: `2026-06-04`
 
 ## Purpose
 
-This document defines the workflow-ordered artifact extraction protocol for the collected cluster ReconnectBench
+This document defines the workflow-ordered artifact extraction protocol for manifest-listed cluster ReconnectBench
 calibration runs.
 
-The cluster run planning phase is complete. The traversal-order artifacts have been collected under:
+Select raw artifact batches and traversal run roots from
+`cluster-reconnectbench-artifact-manifest.md`. The manifest is the source of truth for concrete artifact roots. Do not
+duplicate the manifest's raw-root index in this protocol.
 
-```text
-/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
-```
-
-The goal is to process those artifacts into comparable per-mode evidence, then use that evidence to decide whether local
-`ReconnectBench` can reproduce the same traversal-mode ordering and broad reconnect shape observed in the cluster.
+The goal is to process each manifest batch into comparable per-mode evidence, then use completed learner catch-up
+episodes to decide whether local `ReconnectBench` can reproduce the same traversal-mode ordering and broad reconnect
+shape observed in the cluster.
 
 ## Core Principle
 
@@ -32,46 +31,30 @@ Local `ReconnectBench` reports:
 For each cluster traversal run, extract the real-world equivalents:
 
 - traversal mode used for the run;
-- first learner reconnect window and matching teacher peer;
-- learner reconnect duration;
-- reconnect transfer counters and clean/dirty work shape;
+- learner catch-up episode and every learner receiver reconnect iteration in that episode;
+- complete catch-up duration, from the first learner receiver reconnect start to the final learner receiver reconnect
+  finish before confirmed learner `ACTIVE`;
+- per-iteration reconnect duration;
+- per-iteration reconnect transfer counters and clean/dirty work shape;
 - coarse state size and divergence shape;
 - enough network evidence to choose local latency, bandwidth, and in-flight assumptions.
 
 Everything else is fallback diagnostics.
 
-## Collected Run Shape
+## Manifest And Batch Context
 
-Keep these facts with the extraction protocol so the collected artifacts are interpreted in the context in which they
-were produced. Treat them as expected run context to verify from artifacts, not as substitutes for parsing logs, settings,
-metrics, and script output.
+Keep concrete batch facts in `cluster-reconnectbench-artifact-manifest.md`. Treat manifest batch facts as expected run
+context to verify from artifacts, not as substitutes for parsing logs, settings, metrics, and script output.
 
-- The collected data came from the performance-analysis reconnect workflow, not the single-day longevity workflow.
-- The run strategy was one full workflow/job per traversal order, rather than an in-script traversal matrix.
-- Cluster traversal artifacts are expected to be independent live-state workflow runs. Do not require a common restored
-  baseline state for cluster extraction. Treat each run as a separate calibration anchor, and compare traversal modes
-  locally only after reproducing comparable state size, state gap, work shape, and network profile in `ReconnectBench`.
-- The intended traversal orders were:
-  - `pullTopToBottom`
-  - `pullParallelSync`
-  - `pullTwoPhasePessimistic`
-- The intended learner was `network-node1-0` / node `0`.
-- The intended reconnect shape used:
-  - `warmtime=600`
-  - `downtime=1800`
-  - `NofLoops=0`, chosen for one reconnect iteration with the script semantics used for this run.
-- The intended NLG state/load shape used `24M` NLG accounts and the default `8K` TPS cap. This was chosen to target
-  roughly `100M` Virtual Map records on the learner and about `10M` additional records of teacher/learner divergence.
-- Load was not removed before the learner restarted; validate the actual workload rate and timing from NLG/client logs.
-- Passive TCP/socket/network evidence was collected around the reconnect window, from learner restart through learner
-  `ACTIVE`. Do not depend on old draft script details; DevOps debugged and changed the actual implementation.
-- Production reconnect telemetry changes were not part of this pass.
+Batch entries may record intended traversal modes, intended learner identity, workflow shape, NLG/load controls, and
+known collection notes. Extraction must still validate the observed mode, learner, teacher, workload, reconnect windows,
+and status transitions from raw artifacts.
 
 ## Source And Atlas Contract
 
 This protocol defines extraction order, evidence requirements, interpretation rules, and acceptance criteria. Exact
-per-run paths, detailed file patterns, log patterns, and full metric inventories belong in
-`cluster-reconnectbench-artifact-atlas.md`.
+per-run paths come from `cluster-reconnectbench-artifact-manifest.md`. Detailed file patterns, log patterns, and full
+metric inventories belong in `cluster-reconnectbench-artifact-atlas.md`.
 
 Expected artifact families are:
 
@@ -90,22 +73,28 @@ If an expected field is not present in the artifacts, record it as missing inste
 
 ## Processing Sequence
 
-Process one traversal-order artifact directory at a time:
+Process one manifest batch at a time, then one traversal run entry at a time:
 
-0. Run the network disease preflight.
-1. Identify run context.
-2. Identify the first learner reconnect window.
-3. Match the teacher context for the same reconnect.
-4. Extract reconnect work-shape counters.
-5. Extract network evidence.
-6. Extract workload evidence.
-7. Extract state and divergence context.
-8. Record later reconnects.
-9. Produce one analysis row and mark whether the run is accepted for calibration.
+0. Resolve the batch and traversal run root from `cluster-reconnectbench-artifact-manifest.md`.
+1. Run the network disease preflight.
+2. Identify run context.
+3. Build the learner status and reconnect timeline.
+4. Identify learner catch-up episode(s).
+5. Extract each learner receiver reconnect iteration in the main catch-up episode.
+6. Match teacher context for each iteration.
+7. Extract per-iteration reconnect work-shape counters.
+8. Extract network evidence, workload evidence, state evidence, and divergence context for each iteration where
+   available.
+9. Produce per-iteration rows, one episode summary, and one run acceptance row.
 
-If the network disease preflight finds fatal symptoms, stop after recording the preflight findings and a minimal analysis
-row. Do not process reconnect timing, counters, network evidence, workload evidence, state evidence, later reconnects, or
-calibration inputs from that artifact. A fatal preflight means the traversal run should be re-run.
+If the network disease preflight finds fatal symptoms, stop normal calibration extraction after recording the preflight
+findings and a minimal analysis row. Do not process reconnect timing, counters, network evidence, workload evidence,
+state evidence, reconnect iterations, complete catch-up duration, or calibration inputs as calibration evidence from that
+artifact. A fatal preflight means the traversal run should be re-run.
+
+Diagnostic-only episode rows may be retained for already-extracted artifacts, or added only when needed to explain an
+exclusion decision. Such rows must be clearly marked diagnostic-only and must not feed calibration inputs, traversal
+ordering, or complete catch-up trend/ranking.
 
 ## Network Disease Preflight
 
@@ -135,8 +124,8 @@ If fatal disease is found, set `Run accepted for calibration: no` and `Reason if
 NETWORK_DISEASE_FATAL`. Keep any already extracted values diagnostic-only and exclude them from calibration summaries,
 ordering claims, and local `ReconnectBench` parameter selection.
 
-Do not mix later reconnects into the first traversal-mode timing result. If a learner immediately enters a second
-reconnect, keep that later reconnect as state-growth context.
+Do not use fatal-disease artifacts for complete catch-up trends, traversal ordering, or local `ReconnectBench` parameter
+selection. Previously extracted iteration values from such artifacts are diagnostic-only.
 
 ## Run Context
 
@@ -158,11 +147,21 @@ transactionMix=<short description if controlled by script or inferred from NLG l
 configSummary=<path or short config identifier>
 ```
 
-## Reconnect Window And Roles
+## Reconnect Episodes And Iterations
 
-Identify the first learner reconnect window before extracting counters or comparing timings.
+Identify the learner reconnect timeline before extracting counters or comparing timings.
 
-First extract the minimum fields needed to anchor the reconnect:
+A learner catch-up episode is a same-learner sequence that:
+
+- starts at the first learner receiver reconnect start payload;
+- contains every learner receiver reconnect start/finish pair before the learner reaches `ACTIVE`;
+- ends at the last learner receiver reconnect finish payload before that `ACTIVE`;
+- is complete only when a later learner `ACTIVE` status is observed.
+
+If the learner reaches `ACTIVE` and later falls behind again in the same artifact, treat the later fall-behind as a new
+episode rather than another iteration in the first episode.
+
+For each reconnect iteration inside the episode, extract the minimum fields needed to anchor the reconnect:
 
 - learner node ID;
 - teacher peer node ID;
@@ -183,9 +182,18 @@ Teacher duration is not a primary calibration target. It is useful for matching 
 learner-side reconnect, but learner reconnect completion is the timing to optimize because the learner can continue
 processing transactions after it reconnects.
 
+Complete catch-up duration is the episode-level trend target:
+
+```text
+completeCatchUpDuration = finalLearnerReceiverReconnectFinish - firstLearnerReceiverReconnectStart
+```
+
+Use the subsequent learner `ACTIVE` transition only as completion confirmation. Do not include the
+finish-to-`ACTIVE` interval in `completeCatchUpDuration`; record it separately as post-reconnect status/stage context.
+
 ## Learner Evidence
 
-After the first accepted learner reconnect is anchored, add learner-specific evidence:
+After each accepted learner reconnect iteration is anchored, add learner-specific evidence:
 
 - learner state size at reconnect start, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
 - learner state size at reconnect end, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
@@ -195,7 +203,7 @@ The learner side is also the primary source for `ReconnectMapMetrics` work-shape
 
 ## Teacher Evidence
 
-After the matching teacher reconnect is anchored, add teacher-specific evidence:
+After each matching teacher reconnect is anchored, add teacher-specific evidence:
 
 - teacher sent state size, inferred from existing `firstLeafPath` / `lastLeafPath` ranges when available;
 - sampled teacher state-size growth during the reconnect window when stats coverage is available.
@@ -258,7 +266,7 @@ Do not use active bandwidth generators as reconnect-window evidence. They can ch
 
 ## Workload Evidence
 
-Extract workload evidence around the time the learner was behind and during the reconnect window:
+Extract workload evidence around the time the learner was behind and during each reconnect iteration:
 
 - workload profile;
 - NLG arguments;
@@ -275,11 +283,11 @@ Do not require exact per-key divergence in the first cluster processing pass.
 
 Infer divergence from coarse run facts:
 
-- learner state size near reconnect start;
-- teacher state size near reconnect start;
+- learner state size near each reconnect iteration start;
+- teacher state size near each reconnect iteration start;
 - learner/teacher state gap;
-- transaction/load profile during the first reconnect window;
-- teacher growth around the first reconnect window, if visible;
+- transaction/load profile during each reconnect iteration;
+- teacher growth around each reconnect iteration, if visible;
 - reconnect clean/dirty counters from `ReconnectMapMetrics`;
 - service/store size metrics if already available.
 
@@ -290,36 +298,48 @@ For local `ReconnectBench`, classify the cluster shape as approximately:
 - remove-heavy;
 - mixed.
 
-The first local approximation should use the starting learner/teacher gap. If the teacher continues growing while
-reconnect runs, record that as cluster behavior to validate later, not as a reason to block the first calibration pass.
+The first local approximation should use the starting learner/teacher gap for iteration 1. If the teacher continues
+growing while reconnect runs, record that as cluster behavior and use later iterations to understand whether the learner
+needed additional catch-up work.
 
-## Later Reconnects
+## Episode Completion And Later Episodes
 
-After the first accepted learner reconnect window is identified, scan for additional learner reconnect starts.
+After the first accepted learner reconnect window is identified, scan for additional learner reconnect starts before the
+learner reaches `ACTIVE`.
 
 Record:
 
-- whether another learner reconnect starts after the first accepted window;
-- whether the later reconnect should be excluded from traversal-mode timing;
-- whether the later reconnect is useful as state-growth context.
+- every reconnect iteration in the same catch-up episode;
+- whether a subsequent learner `ACTIVE` status confirms episode completion;
+- whether a later fall-behind after `ACTIVE` starts a new episode;
+- whether any episode is incomplete due to missing learner `ACTIVE` confirmation.
 
-Do not blend a later reconnect into the first traversal-mode timing result.
+Do not blend separate episodes together. Do include all reconnect iterations in the same episode when computing complete
+catch-up duration.
 
 ## Analysis Output Per Mode
 
-Fill one block per accepted traversal run:
+Fill one block per traversal run, plus iteration details for each learner receiver reconnect iteration:
 
 ```text
 Traversal mode:
-Artifact directory:
+Manifest batch ID:
+Manifest run ID:
 Commit:
 Network disease preflight:
 Network disease reason if failed:
 Learner node:
-Teacher node:
-First reconnect start UTC:
-First reconnect end UTC:
-Learner duration:
+Episode complete: yes/no
+Episode incomplete reason:
+Iteration count:
+Complete catch-up start UTC:
+Complete catch-up end UTC:
+Complete catch-up duration:
+Active confirmation UTC:
+First iteration teacher node:
+First iteration start UTC:
+First iteration end UTC:
+First iteration duration:
 Teacher reconnect context present: yes/no
 Reconnect stats present: yes/no
 Teacher/learner state size present: yes/no
@@ -327,10 +347,13 @@ Workload profile present: yes/no
 RTT evidence present: yes/no
 Bandwidth evidence present: yes/no
 TCP/window evidence present: yes/no
-Later reconnects observed: yes/no
+Additional iterations observed: yes/no
 Run accepted for calibration: yes/no
 Reason if not accepted:
 ```
+
+For backward compatibility with existing first-window summaries, keep first-iteration duration and first-iteration
+work-shape fields. Future trend/ranking must use complete catch-up duration for completed, accepted episodes.
 
 ## Acceptance Criteria
 
@@ -338,17 +361,20 @@ A traversal run is accepted for calibration when it has:
 
 - no fatal network disease preflight result;
 - confirmed traversal mode;
-- confirmed learner node and matching teacher peer;
-- first learner reconnect start and end times;
-- learner reconnect duration;
-- reconnect transfer and clean/dirty counters from existing learner-side reconnect metrics/logs;
+- confirmed learner node;
+- at least one learner receiver reconnect iteration with start and end times;
+- learner `ACTIVE` confirmation after the final reconnect iteration;
+- complete catch-up duration;
+- reconnect transfer and clean/dirty counters from existing learner-side reconnect metrics/logs for each iteration used in
+  the episode summary;
 - enough state/workload context to classify divergence at a coarse level;
 - RTT, bandwidth, and TCP/window evidence sufficient to map the cluster network to local benchmark settings;
-- clear note if later reconnects occurred after the first window.
+- clear note if multiple reconnect iterations occurred in the episode.
 
 A run is still useful but incomplete if it has duration only. Duration without reconnect counters and coarse divergence
 context cannot validate whether local `ReconnectBench` is modeling the same work shape. Duration without network
-evidence also cannot calibrate the local network simulator.
+evidence also cannot calibrate the local network simulator. A run with reconnect finish payloads but no later learner
+`ACTIVE` confirmation has an incomplete episode and must be excluded from complete catch-up trend/ranking.
 
 ## Mapping Cluster Results Back To Local ReconnectBench
 

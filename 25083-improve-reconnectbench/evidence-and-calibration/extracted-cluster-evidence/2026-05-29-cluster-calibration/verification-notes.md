@@ -4,8 +4,8 @@
 
 | Check | Status | Evidence |
 |---|---:|---|
-| Required output directory exists | present | `25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/` |
-| Required files created | present | `top-to-bottom.md`, `two-phase-pessimistic.md`, `parallel-sync.md`, `verification-notes.md`, `cluster-calibration-summary.md` |
+| Required output directory exists | present | `25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/2026-05-29-cluster-calibration/` |
+| Required files created | present | `top-to-bottom.md`, `two-phase-pessimistic.md`, `parallel-sync.md`, `verification-notes.md`, `batch-summary.md` |
 | Output format | present | Files are Markdown only. |
 | Strategy/protocol/atlas value extraction | present | Extracted values were written to per-run evidence files, not to strategy, protocol, atlas, or status docs. |
 | Production/runtime code edits | present | No production/runtime files were intentionally modified during this extraction. Pre-existing worktree changes were left untouched. |
@@ -21,7 +21,7 @@
 | Artifact access bounded | present | Extraction used targeted `rg`, `sed`, and CSV column summaries rather than loading full large artifacts into the evidence docs. |
 | Performance workflow logs incorporated | present | Newly added `performance-tests-start.log` and `performance-tests-watch.log` files were used to close reconnect-loop control gaps and document skipped state upload evidence. |
 | Source reference discipline | present | Extracted values include `log:`, `config:`, `csv:`, `sampler:`, or `derived:` references in the same row or block. |
-| Summary discipline | present | `cluster-calibration-summary.md` links back to per-run Markdown evidence sections and does not cite raw artifacts independently. |
+| Summary discipline | present | `batch-summary.md` links back to per-run Markdown evidence sections and manifest run IDs instead of citing raw artifacts independently. |
 
 ## Per-Run Results
 
@@ -46,7 +46,7 @@
 | Baseline state upload rows | present | Earlier extraction did not establish whether a restored baseline state was uploaded. | Added workflow-sourced skipped upload evidence for all three runs; this is now recorded as expected independent-run context rather than a remaining gap. |
 | Teacher/learner target equality | present | Summary needed first teacher target state size, learner target/end size, and gap side by side. | Added equality rows in per-run state sections and expanded the summary state table. |
 | Passive endpoint attribution | present | Previously unresolved endpoint-to-node mapping was conflated with sampler coverage gaps. | Added sampler/config pod IP mappings, resolved top-to-bottom and parallel learner/teacher endpoint identity, recorded two-phase learner/teacher endpoint identity, and kept only coverage gaps unresolved. |
-| Durable endpoint and TCP value tables | present | Endpoint identity and TCP sample values were hard to reuse when stored only as prose in per-run rows. | Added `Endpoint Identity Map` and `Attributed TCP Socket Samples` tables to `cluster-calibration-summary.md`, then backed them with per-run TCP sample value rows. |
+| Durable endpoint and TCP value tables | present | Endpoint identity and TCP sample values were hard to reuse when stored only as prose in per-run rows. | Added `Endpoint Identity Map` and `Attributed TCP Socket Samples` tables to `batch-summary.md`, then backed them with per-run TCP sample value rows. |
 | Network disease preflight | present | Future extraction needed an early rejection gate for artifacts with post-startup `ACTIVE -> CHECKING` churn corroborated by missing-parent evidence. | Added protocol, atlas, strategy, per-run, and summary updates. Marked `parallel-sync.md` as `NETWORK_DISEASE_FATAL`; top-to-bottom and two-phase have retrospective preflight rows. |
 
 ## Ambiguous Or Unresolved Items
@@ -62,7 +62,7 @@
 
 | Correction | Status | Notes |
 |---|---:|---|
-| Summary required section shape | present | `cluster-calibration-summary.md` now includes strategy-required sections. |
+| Summary required section shape | present | `batch-summary.md` now includes strategy-required sections. |
 | Verification notes required section shape | present | This file now includes strategy-required sections. |
 | Verifier-driven corrections | present | Run-scoped and docs-level verifier findings were incorporated into per-run files, summary, and this verification note. |
 | Performance-log gap closure | present | Reconnect-loop controls were moved out of the unresolved set; skipped state upload and independent-run interpretation notes were added. |

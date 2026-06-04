@@ -1,14 +1,20 @@
 # Agentic Evidence Extraction Strategy
 
 Status: `active`
-Updated: `2026-06-03`
+Updated: `2026-06-04`
 
 ## Purpose
 
 Use this document as the operating procedure for extracting cluster ReconnectBench evidence.
 
-Follow it together with `cluster-reconnectbench-artifact-processing-protocol.md` and
-`cluster-reconnectbench-artifact-atlas.md`.
+Follow it together with:
+
+- `cluster-reconnectbench-artifact-manifest.md`;
+- `cluster-reconnectbench-artifact-processing-protocol.md`;
+- `cluster-reconnectbench-artifact-atlas.md`.
+
+Resolve batch IDs and raw traversal run roots from the manifest. Do not duplicate manifest raw-root entries in this
+strategy.
 
 Do not extract values into this file.
 
@@ -21,17 +27,21 @@ Do not create JSON, JSONL, generated schema files, or machine-ingestion output f
 ## Required Output Directory
 
 ```text
-25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/
+25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/<batch-id>/
 ```
 
 ## Required Files
 
 ```text
-top-to-bottom.md
-two-phase-pessimistic.md
-parallel-sync.md
+<run-id>.md
 verification-notes.md
-cluster-calibration-summary.md
+batch-summary.md
+```
+
+A global extracted-evidence index may also be maintained at:
+
+```text
+25083-improve-reconnectbench/evidence-and-calibration/extracted-cluster-evidence/global-summary.md
 ```
 
 ## Per-Run File Order
@@ -48,7 +58,7 @@ Reconnect Work-Shape Counters
 Network Evidence
 Workload Evidence
 State And Divergence Evidence
-Later Reconnects
+Reconnect Episodes And Iterations
 Analysis Output Per Mode
 Acceptance Notes
 Unresolved Evidence Register
@@ -58,14 +68,19 @@ Unresolved Evidence Register
 protocol-order sections. It must not introduce new evidence.
 
 If `Network Disease Preflight` is fatal, write only the preflight section, a minimal `Analysis Output Per Mode` section,
-and a minimal `Acceptance Notes` section for that run. Do not extract reconnect timing, counters, network evidence,
-workload evidence, state evidence, later reconnects, or calibration inputs from the artifact.
+and a minimal `Acceptance Notes` section for normal extraction. Do not extract reconnect timing, counters, network
+evidence, workload evidence, state evidence, reconnect episodes, or calibration inputs as calibration evidence from the
+artifact.
+
+Migrated or already-extracted fatal artifacts may retain diagnostic-only reconnect episode rows if they are needed to
+explain exclusion. Every such row must be marked diagnostic-only, and summaries must keep those values out of
+calibration inputs, traversal ordering, and complete catch-up trend/ranking.
 
 ## Per-Run Source Of Truth
 
 Per-run files are authoritative.
 
-`cluster-calibration-summary.md` is only a comparison layer. It must link or point back to per-run evidence sections and
+`batch-summary.md` is only a comparison layer. It must link or point back to per-run evidence sections and
 must not introduce unsourced values.
 
 ## Source Reference Rule
@@ -94,8 +109,7 @@ Require `verification-notes.md`.
 
 Use it for post-extraction source-reference verification findings.
 
-`cluster-calibration-summary.md` must summarize verification status, but detailed verification findings belong in
-`verification-notes.md`.
+`batch-summary.md` must summarize verification status, but detailed verification findings belong in `verification-notes.md`.
 
 ## Agent Topology
 
@@ -119,11 +133,12 @@ Required Verification
 ## Lead Agent Responsibilities
 
 ```text
-resolve run roots from the atlas and record them in per-run Run Context
+resolve batch ID and run entries from the manifest before reading raw artifacts
+record the resolved run root in per-run Run Context
 run the network disease preflight before normal extraction
 stop normal extraction for artifacts marked NETWORK_DISEASE_FATAL
 construct focused worker prompts
-provide protocol, atlas, strategy, run root, and known anchors
+provide manifest entry, protocol, atlas, strategy, run root, and known anchors
 prevent cross-run evidence mixing
 assemble final Markdown files
 record unresolved evidence
@@ -136,17 +151,18 @@ Worker agents return Markdown fragments or concise findings with source referenc
 
 ## Run Anchor Agents
 
-Spawn one anchor agent per run only after the run passes the network disease preflight.
+Spawn one anchor agent per manifest run only after the run passes the network disease preflight.
 
 Each anchor agent identifies only run-local anchors:
 
 ```text
 traversal mode
 learner node
-teacher peer
-first learner reconnect window
-matching teacher window
-later reconnect starts
+learner receiver reconnect starts and finishes
+learner status transitions through ACTIVE
+catch-up episode boundaries
+teacher peer per reconnect iteration
+matching teacher window per reconnect iteration
 ```
 
 Anchor agents must not extract full evidence families.
@@ -348,7 +364,7 @@ Each passive network worker receives:
 run root
 learner node
 teacher node
-learner reconnect window
+learner reconnect window or reconnect iteration window
 matching teacher window when available
 known learner/teacher peer linkage
 ```
@@ -435,12 +451,10 @@ Final Verification Summary
 
 ## Run Verifier Agents
 
-Spawn one verifier per run file:
+Spawn one verifier per run file discovered from the selected manifest batch:
 
 ```text
-top-to-bottom.md verifier
-two-phase-pessimistic.md verifier
-parallel-sync.md verifier
+<run-id>.md verifier
 ```
 
 Each verifier receives:
@@ -449,6 +463,7 @@ Each verifier receives:
 strategy document
 protocol document
 atlas document
+manifest batch/run entry
 one per-run extraction file
 that file's artifact run root
 ```
@@ -501,12 +516,12 @@ If verification fails:
 record finding in verification-notes.md
 correct the per-run extraction file or mark the item ambiguous/missing
 rerun the affected verification check
-do not finalize cluster-calibration-summary.md until failures are resolved or explicitly recorded
+do not finalize batch-summary.md until failures are resolved or explicitly recorded
 ```
 
 ## Final Summary Shape
 
-`cluster-calibration-summary.md` is a comparison and calibration-input layer only.
+`batch-summary.md` is a comparison and calibration-input layer only.
 
 It is not the source of truth.
 
@@ -516,15 +531,19 @@ Every evidence or calibration row must point back to the per-run file section.
 
 Only verification-status rows may point to `verification-notes.md`.
 
+Raw artifact roots and run roots belong in `cluster-reconnectbench-artifact-manifest.md`. The batch summary should point
+to manifest batch/run IDs instead of repeating raw artifact roots.
+
 ## Required Summary Sections
 
-`cluster-calibration-summary.md` must contain:
+`batch-summary.md` must contain:
 
 ```text
 Scope
 Run Mapping
 Verification Status
 Per-Mode Acceptance Summary
+Catch-Up Episode Summary
 Network Disease Preflight Summary
 Cluster Network Evidence Summary
 State And Divergence Summary
@@ -542,15 +561,23 @@ Required columns:
 
 ```text
 mode
-artifact directory
+manifest batch
+manifest run
 commit
 network disease preflight
 network disease reason if failed
 learner node
-teacher node
-first reconnect start
-first reconnect end
-learner duration
+episode complete
+episode incomplete reason
+iteration count
+complete catch-up start
+complete catch-up end
+complete catch-up duration
+active confirmation
+first iteration teacher node
+first iteration start
+first iteration end
+first iteration duration
 teacher reconnect context present
 reconnect stats present
 teacher/learner state size present
@@ -558,13 +585,16 @@ workload profile present
 RTT evidence present
 bandwidth evidence present
 TCP/window evidence present
-later reconnects observed
+additional iterations observed
 accepted for calibration
 reason if not accepted
 source
 ```
 
 The `source` column must point to the relevant per-run file section.
+
+Existing migrated batches may preserve older first-window column names for historical compatibility, but future batches
+should use the episode-aware columns above.
 
 ## Calibration Input Table
 

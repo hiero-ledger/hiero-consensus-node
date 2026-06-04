@@ -1,22 +1,19 @@
 # Cluster ReconnectBench Artifact Atlas
 
-Updated: `2026-06-03`
+Updated: `2026-06-04`
 
 ## Purpose
 
-This atlas maps required calibration evidence to the collected cluster artifacts that should contain it. It is a
-source-location guide and template, not an extracted-results document.
+This atlas maps required calibration evidence to the files and patterns that should contain it inside manifest-listed
+cluster artifacts. It is a source-location guide and template, not an extracted-results document or raw-root index.
 
 The atlas follows the processing protocol order starting with `Network Disease Preflight`, so it can be compared side by
 side with `cluster-reconnectbench-artifact-processing-protocol.md`.
 
 ## Source And Atlas Contract
 
-Artifact root:
-
-```text
-/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs
-```
+Resolve concrete batch roots, traversal run roots, pod log roots, and workflow log roots from
+`cluster-reconnectbench-artifact-manifest.md`. Do not duplicate manifest run-root tables in this atlas.
 
 Coverage is source-mapping coverage only:
 
@@ -28,28 +25,20 @@ Do not record extracted values in this atlas. Record only paths, file patterns, 
 evidence without exact source mapping.
 
 Use `historical-cluster-metrics-analysis.md` for metric-name and interpretation guidance only. Do not import historical
-run values as evidence for the current run roots.
+run values as evidence for current manifest-listed run roots.
 
-## Run Roots
+## Run Root Terms
 
-Use `runRoot` below as the base path for top-level run artifacts, network sampler files, and `version_run.txt`.
+Use manifest fields as follows:
 
-| Run bucket | `runRoot` | Pod log root |
-| --- | --- | --- |
-| Top-to-bottom run | `NikitaReconnect1` | `NikitaReconnect1/podlog_solo-mdlt-n3` |
-| Two-phase pessimistic run | `NikitaReconnect2_2phase/report` | `NikitaReconnect2_2phase/report/podlog_solo-mdlt-n4` |
-| Parallel-sync run | `NikitaReconnect3_PullParallelSync/report` | `NikitaReconnect3_PullParallelSync/report/podlog_solo-mdlt-n4` |
-
-Each artifact bucket now also contains workflow logs:
+- `runRoot` is the base path for top-level run artifacts, network sampler files, and `version_run.txt`.
+- `podLogRoot` is the base path for `network-node<N>_logs` directories.
+- `workflowLogRoot` is the base path for workflow logs such as:
 
 ```text
 performance-tests-start.log
 performance-tests-watch.log
 ```
-
-For `NikitaReconnect1`, these files live directly under `runRoot`. For report-based run roots, these files live beside
-`report`, so resolve them as `runRoot/../performance-tests-start.log` and
-`runRoot/../performance-tests-watch.log`.
 
 Node log directories follow this pattern:
 
@@ -357,7 +346,7 @@ Mapped sources:
     - the sampler filename identifies the Kubernetes pod, and the first local-address rows can be used as the pod's
       local IP evidence
   - `runRoot/reconnect_network_samples_1_summary.log`
-    - summary file present in `NikitaReconnect1`
+    - summary file when present
 - Endpoint attribution sources:
   - `<podLogRoot>/network-node<N>_logs/config/settingsUsed.txt`
     - `HOSTNAME`
@@ -478,15 +467,16 @@ Use `vmap_size_state` and service-store `*Used` counters for state size and coar
 `vmap_queries_*` deltas as divergence totals. Keep `vmap_lifecycle_*` metrics separate from traversal and network
 interpretation; they are storage/lifecycle stage evidence.
 
-## Later Reconnects
+## Reconnect Episodes And Iterations
 
 Coverage: complete
 
 Required evidence:
 
-- whether another learner reconnect starts after the first accepted window;
-- whether that later reconnect should be excluded from traversal-mode timing;
-- whether that later reconnect is useful as state-growth context.
+- every learner receiver reconnect start/finish pair before learner `ACTIVE`;
+- learner `ACTIVE` confirmation after the final reconnect iteration;
+- whether the episode is complete or incomplete;
+- whether a later fall-behind after `ACTIVE` starts a separate episode.
 
 Mapped sources:
 
@@ -502,6 +492,8 @@ Mapped sources:
   - `ReconnectStatePeerProtocol: Starting reconnect in the role of the receiver`
   - `ReconnectStatePeerProtocol: Finished reconnect in the role of the receiver`
   - `StatusStateMachine: Platform spent ... in BEHIND. Now in RECONNECT_COMPLETE`
+  - `StatusStateMachine: Platform spent ... in RECONNECT_COMPLETE. Now in CHECKING`
+  - `StatusStateMachine: Platform spent ... in CHECKING. Now in ACTIVE`
   - `StatusStateMachine: ... Now in ACTIVE`
 
 ## Analysis Output Per Mode
@@ -517,15 +509,22 @@ Mapped sources:
 | Output field | Atlas source section |
 | --- | --- |
 | `Traversal mode` | Run Context |
-| `Artifact directory` | Run Roots |
+| `Manifest batch` | `cluster-reconnectbench-artifact-manifest.md` |
+| `Manifest run` | `cluster-reconnectbench-artifact-manifest.md` |
 | `Commit` | Run Context |
 | `Network disease preflight` | Network Disease Preflight |
 | `Network disease reason if failed` | Network Disease Preflight |
-| `Learner node` | Reconnect Window And Roles |
-| `Teacher node` | Reconnect Window And Roles |
-| `First reconnect start UTC` | Reconnect Window And Roles |
-| `First reconnect end UTC` | Reconnect Window And Roles |
-| `Learner duration` | Reconnect Window And Roles |
+| `Learner node` | Reconnect Episodes And Iterations |
+| `Episode complete` | Reconnect Episodes And Iterations |
+| `Iteration count` | Reconnect Episodes And Iterations |
+| `Complete catch-up start UTC` | Reconnect Episodes And Iterations |
+| `Complete catch-up end UTC` | Reconnect Episodes And Iterations |
+| `Complete catch-up duration` | Reconnect Episodes And Iterations |
+| `Active confirmation UTC` | Reconnect Episodes And Iterations |
+| `First iteration teacher node` | Reconnect Episodes And Iterations |
+| `First iteration start UTC` | Reconnect Episodes And Iterations |
+| `First iteration end UTC` | Reconnect Episodes And Iterations |
+| `First iteration duration` | Reconnect Episodes And Iterations |
 | `Teacher reconnect context present` | Teacher Evidence |
 | `Reconnect stats present` | Reconnect Work-Shape Counters |
 | `Teacher/learner state size present` | Learner Evidence, Teacher Evidence, State And Divergence Evidence |
@@ -533,7 +532,7 @@ Mapped sources:
 | `RTT evidence present` | Network Evidence |
 | `Bandwidth evidence present` | Network Evidence |
 | `TCP/window evidence present` | Network Evidence |
-| `Later reconnects observed` | Later Reconnects |
+| `Additional iterations observed` | Reconnect Episodes And Iterations |
 | `Run accepted for calibration` | Acceptance Criteria / Coverage Summary |
 | `Reason if not accepted` | Acceptance Criteria / Coverage Summary |
 
@@ -546,12 +545,11 @@ that requires extraction and analysis later.
 | --- | --- | --- |
 | Network Disease Preflight | complete | - |
 | Run Context | partial | commit SHA if absent from `version_run.txt`; ordinary script-output source for learner controls; direct stopped-pod script output is absent but extracted evidence can infer `stoppedPod=network-node1-0` |
-| Reconnect Window And Roles | complete | - |
+| Reconnect Episodes And Iterations | complete | - |
 | Learner Evidence | complete | - |
 | Teacher Evidence | complete | - |
 | Reconnect Work-Shape Counters | complete | - |
 | Network Evidence | complete | - |
 | Workload Evidence | complete | - |
 | State And Divergence Evidence | complete | - |
-| Later Reconnects | complete | - |
 | Analysis Output Per Mode | complete | - |

@@ -1,20 +1,21 @@
-# Cluster Calibration Summary
+# 2026-05-29 Cluster Calibration Batch Summary
 
 ## Scope
 
 | Item | Status | Source |
 |---|---:|---|
-| Summary source of truth | present | This file summarizes only the per-run Markdown evidence files in `extracted-cluster-evidence/`. |
+| Summary source of truth | present | This file summarizes only the per-run Markdown evidence files in this batch directory. |
+| Manifest source of truth | present | Raw artifact roots and manifest run IDs are owned by [cluster-reconnectbench-artifact-manifest.md](../../cluster-reconnectbench-artifact-manifest.md#2026-05-29-cluster-calibration). |
 | Raw artifact extraction | not_applicable | Raw artifact values are extracted in [top-to-bottom.md](top-to-bottom.md), [two-phase-pessimistic.md](two-phase-pessimistic.md), and [parallel-sync.md](parallel-sync.md). |
 | Summary discipline | present | Every comparison row below points back to per-run evidence sections. |
 
 ## Run Mapping
 
-| Mode | Artifact run root | Per-run source |
-|---|---|---|
-| `pullTopToBottom` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect1` | [top-to-bottom.md](top-to-bottom.md#run-context) |
-| `pullTwoPhasePessimistic` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect2_2phase/report` | [two-phase-pessimistic.md](two-phase-pessimistic.md#run-context) |
-| `pullParallelSync` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect3_PullParallelSync/report` | [parallel-sync.md](parallel-sync.md#run-context) |
+| Mode | Manifest batch | Manifest run | Per-run source |
+|---|---|---|---|
+| `pullTopToBottom` | [`2026-05-29-cluster-calibration`](../../cluster-reconnectbench-artifact-manifest.md#2026-05-29-cluster-calibration) | `top-to-bottom` | [top-to-bottom.md](top-to-bottom.md#run-context) |
+| `pullTwoPhasePessimistic` | [`2026-05-29-cluster-calibration`](../../cluster-reconnectbench-artifact-manifest.md#2026-05-29-cluster-calibration) | `two-phase-pessimistic` | [two-phase-pessimistic.md](two-phase-pessimistic.md#run-context) |
+| `pullParallelSync` | [`2026-05-29-cluster-calibration`](../../cluster-reconnectbench-artifact-manifest.md#2026-05-29-cluster-calibration) | `parallel-sync` | [parallel-sync.md](parallel-sync.md#run-context) |
 
 ## Endpoint Identity Map
 
@@ -40,7 +41,7 @@ Node ID follows the platform/log convention: `network-node1_logs` is node `0`, `
 | `pullParallelSync` | `1` | `network-node2` | `network-node2-0` | `network-node2_logs` | `10.36.16.71` | teacher | [parallel-sync.md](parallel-sync.md#run-context), [parallel-sync.md](parallel-sync.md#network-evidence) |
 | `pullParallelSync` | `2` | `network-node3` | `network-node3-0` | `network-node3_logs` | `10.36.9.138` | non-first-window peer | [parallel-sync.md](parallel-sync.md#run-context) |
 | `pullParallelSync` | `3` | `network-node4` | `network-node4-0` | `network-node4_logs` | `10.36.27.241` | non-first-window peer | [parallel-sync.md](parallel-sync.md#run-context) |
-| `pullParallelSync` | `4` | `network-node5` | `network-node5-0` | `network-node5_logs` | `10.36.28.146` | second-reconnect teacher, excluded from first-window timing | [parallel-sync.md](parallel-sync.md#run-context), [parallel-sync.md](parallel-sync.md#later-reconnects) |
+| `pullParallelSync` | `4` | `network-node5` | `network-node5-0` | `network-node5_logs` | `10.36.28.146` | second-reconnect teacher, excluded from first-window timing | [parallel-sync.md](parallel-sync.md#run-context), [parallel-sync.md](parallel-sync.md#reconnect-episodes-and-iterations) |
 | `pullParallelSync` | `5` | `network-node6` | `network-node6-0` | `network-node6_logs` | `10.36.11.79` | non-first-window peer | [parallel-sync.md](parallel-sync.md#run-context) |
 | `pullParallelSync` | `6` | `network-node7` | `network-node7-0` | `network-node7_logs` | `10.36.63.182` | non-first-window peer | [parallel-sync.md](parallel-sync.md#run-context) |
 
@@ -55,11 +56,19 @@ Node ID follows the platform/log convention: `network-node1_logs` is node `0`, `
 
 ## Per-Mode Acceptance Summary
 
-| mode | artifact directory | commit | network disease preflight | network disease reason if failed | learner node | teacher node | first reconnect start | first reconnect end | learner duration | teacher reconnect context present | reconnect stats present | teacher/learner state size present | workload profile present | RTT evidence present | bandwidth evidence present | TCP/window evidence present | later reconnects observed | accepted for calibration | reason if not accepted | source |
-|---|---|---|---|---|---:|---:|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|
-| `pullTopToBottom` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect1` | `796905b12784f90d8b12b9ee0d9a6a91de0e9b85` | pass | not applicable | `0` | `2` | `2026-05-29 06:41:57.343` | `2026-05-29 06:45:00.693` | `183.350 s` | yes | yes | yes | yes | yes, via stats ping; passive endpoint attribution resolved | yes | present | no | yes | Not applicable; re-evaluated with TCP endpoint attribution resolved. | [top-to-bottom.md](top-to-bottom.md#analysis-output-per-mode) |
-| `pullTwoPhasePessimistic` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect2_2phase/report` | `eb37e5b6cd4d4388065f79ed4a9d91867bd92cc2` | pass | not applicable; missing-parent evidence diagnostic only | `0` | `2` | `2026-05-29 18:26:08.709` | `2026-05-29 18:29:04.992` | `176.283 s` | yes | yes | yes | yes | yes, via stats ping; passive window missing | yes | missing | no | no | Passive TCP/window sampler coverage skips the first reconnect window, so network-inflight calibration is incomplete. | [two-phase-pessimistic.md](two-phase-pessimistic.md#analysis-output-per-mode) |
-| `pullParallelSync` | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/NikitaReconnect3_PullParallelSync/report` | `eb37e5b6cd4d4388065f79ed4a9d91867bd92cc2` | fatal | `NETWORK_DISEASE_FATAL` | `0` | `1` | `2026-05-29 22:50:04.496` | `2026-05-29 22:56:15.846` | `371.350 s` diagnostic only | yes, diagnostic only | yes, diagnostic only | yes, diagnostic only | yes, diagnostic only | diagnostic only | diagnostic only | diagnostic only | yes, diagnostic only | no | `NETWORK_DISEASE_FATAL`; post-startup `ACTIVE -> CHECKING` churn is corroborated by widespread missing-parent evidence. | [parallel-sync.md](parallel-sync.md#analysis-output-per-mode) |
+| mode | manifest batch | manifest run | commit | network disease preflight | network disease reason if failed | learner node | episode complete | episode incomplete reason | iteration count | complete catch-up start | complete catch-up end | complete catch-up duration | active confirmation | first iteration teacher node | first iteration start | first iteration end | first iteration duration | teacher reconnect context present | reconnect stats present | teacher/learner state size present | workload profile present | RTT evidence present | bandwidth evidence present | TCP/window evidence present | additional iterations observed | accepted for calibration | reason if not accepted | source |
+|---|---|---|---|---|---|---:|---|---|---:|---|---|---:|---|---:|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|
+| `pullTopToBottom` | `2026-05-29-cluster-calibration` | `top-to-bottom` | `796905b12784f90d8b12b9ee0d9a6a91de0e9b85` | pass | not applicable | `0` | yes | not applicable | `1` | `2026-05-29 06:41:57.343` | `2026-05-29 06:45:00.693` | `183.350 s` | `2026-05-29 06:54:45.837` | `2` | `2026-05-29 06:41:57.343` | `2026-05-29 06:45:00.693` | `183.350 s` | yes | yes | yes | yes | yes, via stats ping; passive endpoint attribution resolved | yes | present | no | yes | Not applicable; re-evaluated with TCP endpoint attribution resolved. | [top-to-bottom.md](top-to-bottom.md#analysis-output-per-mode) |
+| `pullTwoPhasePessimistic` | `2026-05-29-cluster-calibration` | `two-phase-pessimistic` | `eb37e5b6cd4d4388065f79ed4a9d91867bd92cc2` | pass | not applicable; missing-parent evidence diagnostic only | `0` | yes | not applicable | `1` | `2026-05-29 18:26:08.709` | `2026-05-29 18:29:04.992` | `176.283 s` | `2026-05-29 18:36:13.782` | `2` | `2026-05-29 18:26:08.709` | `2026-05-29 18:29:04.992` | `176.283 s` | yes | yes | yes | yes | yes, via stats ping; passive window missing | yes | missing | no | no | Passive TCP/window sampler coverage skips the first reconnect window, so network-inflight calibration is incomplete. | [two-phase-pessimistic.md](two-phase-pessimistic.md#analysis-output-per-mode) |
+| `pullParallelSync` | `2026-05-29-cluster-calibration` | `parallel-sync` | `eb37e5b6cd4d4388065f79ed4a9d91867bd92cc2` | fatal | `NETWORK_DISEASE_FATAL` | `0` | yes, diagnostic only | not applicable | `2` | `2026-05-29 22:50:04.496`, diagnostic only | `2026-05-29 22:59:43.644`, diagnostic only | `579.148 s`, diagnostic only | `2026-05-29 23:03:54.174`, diagnostic only | `1` | `2026-05-29 22:50:04.496` | `2026-05-29 22:56:15.846` | `371.350 s`, diagnostic only | yes, diagnostic only | yes, diagnostic only | yes, diagnostic only | yes, diagnostic only | diagnostic only | diagnostic only | diagnostic only | yes, second receiver reconnect before `ACTIVE` | no | `NETWORK_DISEASE_FATAL`; post-startup `ACTIVE -> CHECKING` churn is corroborated by widespread missing-parent evidence. | [parallel-sync.md](parallel-sync.md#analysis-output-per-mode) |
+
+## Catch-Up Episode Summary
+
+| Mode | Episode status | Iterations before `ACTIVE` | Complete catch-up start | Complete catch-up end | Complete catch-up duration | Active confirmation | Source |
+|---|---:|---:|---|---|---:|---|---|
+| `pullTopToBottom` | complete | `1` | `2026-05-29 06:41:57.343` | `2026-05-29 06:45:00.693` | `183.350 s` | `2026-05-29 06:54:45.837` | [top-to-bottom.md](top-to-bottom.md#reconnect-episodes-and-iterations) |
+| `pullTwoPhasePessimistic` | complete | `1` | `2026-05-29 18:26:08.709` | `2026-05-29 18:29:04.992` | `176.283 s` | `2026-05-29 18:36:13.782` | [two-phase-pessimistic.md](two-phase-pessimistic.md#reconnect-episodes-and-iterations) |
+| `pullParallelSync` | complete, diagnostic only | `2` | `2026-05-29 22:50:04.496` | `2026-05-29 22:59:43.644` | `579.148 s`, diagnostic only | `2026-05-29 23:03:54.174` | [parallel-sync.md](parallel-sync.md#reconnect-episodes-and-iterations), [parallel-sync.md](parallel-sync.md#network-disease-preflight) |
 
 ## Network Disease Preflight Summary
 
@@ -159,7 +168,7 @@ Sources: [top-to-bottom.md](top-to-bottom.md#network-evidence), [two-phase-pessi
 | Ordering observation | Status | Source |
 |---|---:|---|
 | No valid three-mode traversal ordering can be derived from these artifacts. | present | [parallel-sync.md](parallel-sync.md#network-disease-preflight), [two-phase-pessimistic.md](two-phase-pessimistic.md#analysis-output-per-mode), [top-to-bottom.md](top-to-bottom.md#analysis-output-per-mode) |
-| Parallel sync timing and later reconnect evidence are diagnostic-only because the run is `NETWORK_DISEASE_FATAL`. | fatal | [parallel-sync.md](parallel-sync.md#network-disease-preflight), [parallel-sync.md](parallel-sync.md#later-reconnects) |
+| Parallel sync timing and multi-iteration reconnect evidence are diagnostic-only because the run is `NETWORK_DISEASE_FATAL`. | fatal | [parallel-sync.md](parallel-sync.md#network-disease-preflight), [parallel-sync.md](parallel-sync.md#reconnect-episodes-and-iterations) |
 
 ## Calibration Inputs For Local ReconnectBench
 
