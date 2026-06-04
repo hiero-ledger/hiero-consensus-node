@@ -1,4 +1,4 @@
-|           Current File Name            |           Current Workflow Name           |             Future File Name              | Future Workflow Name              |
+|           Current File Name            |           Current Workflow Name           |             Future File Name              |       Future Workflow Name        |
 |----------------------------------------|-------------------------------------------|-------------------------------------------|-----------------------------------|
 | # USER (0-99)                          |                                           |                                           |                                   |
 | flow-dry-run-mats-suite.yaml           | [CITR] MATS Dry Run                       | 000-user-dry-run-mats-suite.yaml          | 000: [USER] CITR MATS Dry Run     |
