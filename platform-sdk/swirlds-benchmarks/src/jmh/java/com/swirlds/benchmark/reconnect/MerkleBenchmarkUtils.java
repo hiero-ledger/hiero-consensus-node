@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.ValueReference;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -120,7 +119,7 @@ public class MerkleBenchmarkUtils {
                 return false;
             };
 
-            ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
+            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
             final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
@@ -140,7 +139,7 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return syncMapContainer.getValue();
+            return syncMapContainer.get();
         }
     }
 
@@ -163,9 +162,9 @@ public class MerkleBenchmarkUtils {
             final PairedStreams streams,
             final VirtualMap startingTree,
             final LearningSynchronizer learner,
-            final ValueReference<VirtualMap> syncMapContainer) {
+            final AtomicReference<VirtualMap> syncMapContainer) {
         try {
-            syncMapContainer.setValue(
+            syncMapContainer.set(
                     learner.synchronize(startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), () -> {
                         try {
                             streams.disconnect();

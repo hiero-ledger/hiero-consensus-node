@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import org.hiero.base.ValueReference;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -112,7 +111,7 @@ public final class ReconnectTestUtils {
                 return false;
             });
 
-            ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
+            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
@@ -132,7 +131,7 @@ public final class ReconnectTestUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final VirtualMap syncMap = syncMapContainer.getValue();
+            final VirtualMap syncMap = syncMapContainer.get();
             assertReconnectValidity(learnerMap, teacherMap, syncMap);
 
             return syncMap;
@@ -173,9 +172,9 @@ public final class ReconnectTestUtils {
             final PairedStreams streams,
             final VirtualMap learnerMap,
             final LearningSynchronizer learner,
-            ValueReference<VirtualMap> syncMapContainer) {
+            AtomicReference<VirtualMap> syncMapContainer) {
         try {
-            syncMapContainer.setValue(learner.synchronize(
+            syncMapContainer.set(learner.synchronize(
                     learnerMap, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

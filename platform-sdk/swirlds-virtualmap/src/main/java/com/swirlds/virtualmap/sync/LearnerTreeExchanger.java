@@ -88,6 +88,12 @@ public final class LearnerTreeExchanger {
         this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
     }
 
+    /**
+     * Initialize the exchanger with the root response from the teacher.
+     * This will initialize the traversal order and the learner with the teacher's leaf key range, and handle the root response.
+     *
+     * @param rootResponse root information from teacher
+     */
     public void init(PullVirtualTreeResponse rootResponse) {
         // init with teacher key range
         final long firstLeafPath = rootResponse.firstLeafPath();

@@ -170,8 +170,6 @@ public final class VirtualMapLearner {
         return originalRecords.findHash(path);
     }
 
-    // ---- Reconnect operations (called by LearnerTreeView implementations) ----
-
     /**
      * Updates the stage of the reconnect process, ensuring that stage transitions happen in the expected order.
      *

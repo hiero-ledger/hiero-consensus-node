@@ -68,11 +68,10 @@ public class LearningSynchronizer {
     }
 
     @NonNull
-    private LearnerTreeExchanger buildLearnerExchanger(
-            VirtualMap originalVirtualMap, ReconnectConfig reconnectConfig, ReconnectMapStats mapStats) {
+    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, ReconnectMapStats mapStats) {
         logger.info(
                 RECONNECT.getMarker(),
-                "Building learner view for map with path range [{}, {}]",
+                "Building learner exchanger for map with path range [{}, {}]",
                 originalVirtualMap.getMetadata().getFirstLeafPath(),
                 originalVirtualMap.getMetadata().getLastLeafPath());
 
@@ -120,7 +119,7 @@ public class LearningSynchronizer {
 
         final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
         final ReconnectMapMetrics reconnectStats = new ReconnectMapMetrics(metrics, null, null);
-        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, reconnectConfig, reconnectStats);
+        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, reconnectStats);
 
         final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
             firstReconnectException.compareAndSet(null, ex);
