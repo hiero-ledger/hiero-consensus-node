@@ -4,6 +4,7 @@ package com.swirlds.benchmark.reconnect.lag;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,13 +38,14 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      * @param reconnectConfig the reconnect configuration
      */
     public BenchmarkSlowTeachingSynchronizer(
+            @NonNull final VirtualMap teacherMap,
             @NonNull final ReconnectConfig reconnectConfig,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent) {
-        super(Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+        super(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

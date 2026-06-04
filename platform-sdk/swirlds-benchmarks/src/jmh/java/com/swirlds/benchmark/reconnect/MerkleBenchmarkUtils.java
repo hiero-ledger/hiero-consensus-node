@@ -105,6 +105,7 @@ public class MerkleBenchmarkUtils {
                         delayNetworkMicroseconds,
                         delayNetworkFuzzRangePercent);
                 teacher = new BenchmarkSlowTeachingSynchronizer(
+                        desiredTree,
                         reconnectConfig,
                         randomSeed,
                         delayStorageMicroseconds,
