@@ -31,6 +31,10 @@ on:
       slack-detailed-report-webhook:
         description: "Slack Webhook URL for detailed test report."
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.json-rpc-relay-regression.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,6 +60,8 @@ jobs:
   json-rpc-relay-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-rpc-relay-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -142,6 +148,7 @@ jobs:
 
       # Perform JSON-RPC Relay regression tests
       - name: Start json-rpc-relay-test-client
+        id: run-rpc-relay-tests
         env:
           CHAIN_ID: "0x12a"
           MIRROR_NODE_URL: "http://127.0.0.1:8081"
@@ -192,6 +199,14 @@ jobs:
         if: ${{ always() }}
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-rpc-relay-tests.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
