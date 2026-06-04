@@ -13,6 +13,12 @@ deliberately short: where a term needs more than a sentence or two, the entry po
 at the concept file (`concepts/`) or architecture topic (`architecture/topics/`) that
 holds the depth.
 
+### Ancestor
+
+Event *y* is an ancestor of *x* if *y* is *x*, a *Parent* of *x*, a parent of a parent, and
+so on. Contrast *Descendant*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
 ### Ancient
 
 An event — or its round — is *ancient* when its birth round is below the current ancient
@@ -65,6 +71,11 @@ orders events within a round as they reach consensus. Contrast *nGen* and *deGen
 *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
+### Child
+
+The inverse of *Parent*: *x* is a child of *y* when *y* is a *Parent* of *x*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
 ### Coin round
 
 A periodic round in a fame *Election* (every `coinFreq` rounds, default 12) where a voter
@@ -79,6 +90,12 @@ events to Execution and pulls transactions back. In current code it is several c
 shapes (`onPreHandle`, `onHandleConsensusRound`, `getTransactionsForEvent`, …) rather
 than a single API.
 See [architecture/interfaces/consensus-execution-boundary.md](architecture/interfaces/consensus-execution-boundary.md).
+
+### Consensus event
+
+An event that has reached consensus, and so carries a *Consensus round*, *Consensus order*,
+and *Consensus timestamp*.
+See [concepts/judges.md](concepts/judges.md).
 
 ### Consensus order
 
@@ -120,6 +137,11 @@ See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 *Deterministic generation* (`DeGen`): computed identically on every node and used to drive
 *lastSee* for *Strongly seeing*. Contrast *nGen* and *cGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
+
+### Descendant
+
+The inverse of *Ancestor*: *x* is a descendant of *y* when *y* is an *Ancestor* of *x*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Election
 
@@ -198,6 +220,18 @@ A coordinated network freeze at a chosen round that quiesces consensus so every 
 take a matching state and restart on new software.
 See [architecture/topics/freeze-and-upgrade.md](architecture/topics/freeze-and-upgrade.md).
 
+### Future event
+
+An event whose *Birth round* exceeds the *Pending consensus round*; held in the future-event
+buffer (`FutureEventBuffer`) until the window advances, rather than added to the hashgraph.
+See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
+
+### Future round
+
+Any round beyond the *Pending consensus round*; events born in one are not yet admitted to
+the hashgraph (see *Future event*).
+See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
+
 ### Generation
 
 A per-event count: one plus the maximum parent generation. The paper used a single
@@ -226,6 +260,13 @@ the longest continuous unhealthy duration; a detector, not an enforcer — react
 elsewhere decide what to do with the signal.
 See [architecture/topics/health-monitor-and-backpressure.md](architecture/topics/health-monitor-and-backpressure.md).
 
+### Invalid event
+
+An event discardable on its own — bad signature, unparseable, or otherwise malformed —
+independent of any other event. Contrast a *Branching* event, which is bad only relative to
+its sibling.
+See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
+
 ### ISS
 
 An *inconsistent state signature*: a divergence detected when a node's per-round state
@@ -253,6 +294,18 @@ See [architecture/topics/reasons-not-to-gossip.md](architecture/topics/reasons-n
 none. A *see*-family helper underlying *firstSee* and *seeThru*.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
+### Latest consensus round
+
+The most recent round to reach consensus (`latestConsensusRound`, carried on the *Event
+window*); one less than the *Pending consensus round*.
+See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
+
+### Min judge birth round
+
+The smallest *Birth round* among a decided round's *Judges*; stored per round as
+`MinimumJudgeInfo`, it anchors the *Ancient threshold* and *Expired threshold*.
+See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
+
 ### nGen
 
 *Non-deterministic generation* (`NonDeterministicGeneration`): a count assigned locally by
@@ -266,11 +319,21 @@ An event whose parents are not yet present is an *orphan*; the orphan buffer hol
 until each parent is either present or ancient, then releases it in topological order.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
+### Other-child
+
+The inverse of *Other-parent*: *x* is an other-child of *y* when *y* is *x*'s *Other-parent*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
 ### Other-parent
 
 A parent edge to an event by a different creator (the peer just gossiped with). The data
 model allows several; the current default caps it at one (`maxOtherParents`). Contrast
 *Self-parent*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
+### Parent
+
+An event *y* whose hash event *x* carries; either *x*'s *Self-parent* or its *Other-parent*.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### PCES
@@ -327,6 +390,13 @@ quantities exist and must not be conflated: *Birth round* (stamped at creation),
 *Consensus round* (the round an event reaches consensus in; formerly *round-received*).
 See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
+### Round timestamp
+
+The end-of-round timestamp (`ConsensusRound.getConsensusTimestamp`): the *Consensus
+timestamp* of the last transaction of the round's last event, strictly greater than the
+previous round's.
+See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
+
 ### Round-created
 
 Deprecated name for *Voting round*; still used in code but being phased out.
@@ -359,6 +429,23 @@ See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 event by creator *m2*, i.e. `firstSee(lastSee(x, m2), m)`. *Strongly seeing* is computed by
 counting the distinct *m2* that resolve to the same witness.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
+
+### Self-ancestor
+
+Event *y* is a self-ancestor of *x* if *y* is *x* or reachable from *x* through *Self-parent*
+edges alone. Contrast *Self-descendant*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
+### Self-child
+
+The inverse of *Self-parent*: *x* is a self-child of *y* when *y* is *x*'s *Self-parent*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
+### Self-descendant
+
+The inverse of *Self-ancestor*: *x* is a self-descendant of *y* when *y* is a *Self-ancestor*
+of *x*.
+See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Self-event
 
@@ -447,6 +534,13 @@ See [architecture/topics/wiring-framework.md](architecture/topics/wiring-framewo
 A message-free voting technique: each voter's vote is a deterministic function of the
 hashgraph DAG rather than an exchanged message, so every node computes the same votes from
 the same DAG.
+See [concepts/voting.md](concepts/voting.md).
+
+### Voter
+
+A *Witness* that votes in the *Elections* of earlier rounds (`votingWitness`): one round
+later it casts a *first vote* (does it see the candidate?), and in later rounds a *counting
+vote* (the tally over the voters it strongly sees).
 See [concepts/voting.md](concepts/voting.md).
 
 ### Voting round
