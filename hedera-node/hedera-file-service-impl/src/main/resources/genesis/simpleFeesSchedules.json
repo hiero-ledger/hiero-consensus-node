@@ -25,7 +25,7 @@
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 1000000 },
     { "name":  "TOKEN_TYPES",                    "fee": 1000000 },
-    { "name":  "GAS",                            "fee": 1 },
+    { "name":  "GAS",                            "fee": 852 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
@@ -52,8 +52,6 @@
         {
           "name": "CryptoCreate",
           "baseFee": 499000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "KEYS", "includedCount": 1 },
             { "name": "HOOK_UPDATES", "includedCount": 0 }
@@ -98,8 +96,6 @@
         {
           "name": "CryptoTransfer",
           "baseFee": 0,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
             {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },
@@ -157,8 +153,6 @@
         {
           "name": "ConsensusCreateTopic",
           "baseFee": 99000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "KEYS", "includedCount": 0 },
             { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
@@ -221,8 +215,6 @@
         {
           "name": "FileCreate",
           "baseFee": 499000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "STATE_BYTES", "includedCount": 1000}
@@ -253,8 +245,6 @@
         {
           "name": "FileUpdate",
           "baseFee": 499000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "STATE_BYTES", "includedCount": 1000}
@@ -263,8 +253,6 @@
         {
           "name": "FileAppend",
           "baseFee": 499000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "STATE_BYTES", "includedCount": 1000}
           ],
@@ -316,8 +304,6 @@
         {
           "name": "TokenCreate",
           "baseFee": 9999000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {"name": "KEYS", "includedCount": 1},
             {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
@@ -433,8 +419,6 @@
         {
           "name": "TokenAirdrop",
           "baseFee": 0,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             { "name": "AIRDROPS", "includedCount": 0 }
           ],
@@ -514,8 +498,6 @@
         {
           "name": "TokenFeeScheduleUpdate",
           "baseFee": 9000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
           ]
         },
@@ -656,15 +638,11 @@
         {
           "name": "ContractCall",
           "baseFee": 0,
-          "extras": [],
-          "free": true,
-          "nodeNetworkFeeExempt": true
+          "extras": []
         },
         {
           "name": "ContractUpdate",
           "baseFee": 259000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {
               "name": "KEYS",
@@ -679,22 +657,16 @@
         {
           "name": "ContractDelete",
           "baseFee": 69000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": []
         },
         {
           "name": "EthereumTransaction",
           "baseFee": 0,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": []
         },
         {
           "name": "ContractCreate",
           "baseFee": 9999000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {
               "name": "HOOK_UPDATES",
@@ -759,8 +731,6 @@
         {
           "name": "ContractCallLocal",
           "baseFee": 9000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {
               "name": "GAS", "includedCount": 0
@@ -770,8 +740,6 @@
         {
           "name": "ContractGetBytecode",
           "baseFee": 499000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": [
             {
               "name": "PROCESSING_BYTES", "includedCount": 20000
@@ -781,8 +749,6 @@
         {
           "name": "ContractGetInfo",
           "baseFee": 84,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": []
         }
       ]
@@ -793,8 +759,6 @@
         {
           "name": "NodeCreate",
           "baseFee": 9000000,
-          "free": true,
-          "nodeNetworkFeeExempt": true,
           "extras": []
         },
         {
