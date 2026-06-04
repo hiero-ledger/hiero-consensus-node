@@ -67,7 +67,7 @@ public class HashgraphInfo {
      * info about a round that might be known multiple rounds in advance
      */
     public record RoundInfo(
-            long pendingRound, // pass the enclosing RoundInfo to update() when the pending round matches this number
+            long pendingRound, // this record is round information for this round number
             long[] nodes, // NodeID for each node
             long[] stake,
             int coinInterval,
@@ -80,6 +80,7 @@ public class HashgraphInfo {
      * info about a round that is only available when the previous round reaches consensus
      */
     public record RoundInfoPrev(
+            long pendingRound, // this record is round information for this round number, regarding the one before
             boolean prevJudgeCon1,
             EventInfo[] prevJudges,
             boolean prevJudgesCopied,
@@ -89,11 +90,11 @@ public class HashgraphInfo {
 
     //    /**
     //     * The round info with info about nodes, weights, previous judges, per-round
-    //     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
-    //     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
-    //     * Pass this to {@link EventInfo#update EventInfo.update} when
-    //     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
-    //     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
+    //     * setting, etc. The consensus state should include the full {@link xxxxRoundInfo RoundInfo} for the
+    //     * pending round, and the {@link RoundInfoCore xxxxRoundInfoCore} portion of it for the next few rounds.
+    //     * Pass this to {@link EventInfo#update ExxxxventInfo.update} when
+    //     * {@link RoundInfoCore#pendingRound xxxxRoundInfoCore.pendingRound} matches the pending round, and
+    //     * {@link RoundInfoPrev xxxxRoundInfoPrev} was returned by reaching consensus for the round before that.
     //     */
 
     /**
@@ -354,21 +355,21 @@ public class HashgraphInfo {
 
         /**
          * This should be called for each event just after it is added to the hashgraph. When consensus is
-         * reached for a round, it should then be called again on all existing events in the hashgraph for
-         * which {@link EventInfo#getPrevJudgeDesc EventInfo.isPrevJudgeDesc()}==true, using the
-         * {@link RoundInfo RoundInfo} for the new pending round. (This update may set some of
-         * those events to false).
+         * reached for a round, then switch to the round info for the next round. Using it, call update on
+         * all the judges that were just found, and their descendents. Stop updating them if one of those calls
+         * reaches consensus.
          * <p>
-         * When there is a reconnect (or during event replay after a restart), there will be a period before all
+         * When starting with an empty hashgraph after a reconnect or restart, there will be a period before all
          * the previous judges have been added to the hashgraph. Do not call this update function
-         * during that period. It should first be called once all the judges from the previous round have been added to
-         * the hashgraph. At that point, it should be called on all the non-ancient events in the hashgraph
-         * (not just those with {@link EventInfo#getPrevJudgeDesc EventInfo.isPrevJudges()}==true, as it normally
-         * does for a new round). After that, continue as normal, calling it only on new events, and after each
-         * round reaches consensus.
+         * during that period. Once all the judges in {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges}
+         * have been added to the hashgraph, then call
+         * {@link HashgraphInfo#setPrevIsConsensus HashgraphInfo.setPrevIsConsensus} once.
+         * Then call this update call update on
+         * all the judges that were just added, and their descendents. Stop updating them if one of those calls
+         * reaches consensus.
          * <p>
          * This is sometimes called on a batch of events, because it is the start of a new round,
-         * or because the last of the previous judges was finally added after a reset. For such a
+         * or because the last of the previous judges was finally added after a restart. For such a
          * batch, it should be called on all those events in topological order. So if it is to be called
          * on both an event and its parent, the call on the parent must come first.
          * <p>
@@ -405,8 +406,18 @@ public class HashgraphInfo {
             long minJudgeBirthRound;
 
             if (hashgraph == null) {
-                return null; // this event was already cleared
+                throw new IllegalArgumentException("Event was already cleared");
             }
+            if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
+                throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound");
+            }
+            if (roundInfo.pendingRound != h.pendingRound
+                    && roundInfo.pendingRound != h.pendingRound + 1
+                    && h.pendingRound != 0) {
+                throw new IllegalArgumentException("roundInfo.pendingRound didn't match the last call, nor increment by 1");
+            }
+
+
             // if this is a new round (or the first round called on this hashgraph), calculate all the functions of
             // round
             if (h.pendingRound != r.pendingRound) {
@@ -655,6 +666,7 @@ public class HashgraphInfo {
             return new UpdateResults(
                     consensusEvents.toArray(new EventInfo[0]), // consensusEvents
                     new RoundInfoPrev(
+                            h.pendingRound + 1, //pendingRound
                             r.judgeCon1, // prevJudgeCon1
                             roundJudges.toArray(new EventInfo[0]), // prevJudges
                             false, // prevJudgesCopied /**/

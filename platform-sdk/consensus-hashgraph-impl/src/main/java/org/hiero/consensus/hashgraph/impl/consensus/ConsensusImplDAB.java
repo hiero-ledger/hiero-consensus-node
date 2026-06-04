@@ -341,7 +341,8 @@ public class ConsensusImplDAB implements Consensus {
                         .min()
                         .orElseThrow();
                 roundInfoPrev = new RoundInfoPrev(
-                        false, judgeMemos, false, config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
+                        roundInfo.pendingRound(), false, judgeMemos, false,
+                        config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
 
                 hashgraphInfo.setPrevIsConsensus(roundInfo, roundInfoPrev);
                 results = updateRecentEvents();
