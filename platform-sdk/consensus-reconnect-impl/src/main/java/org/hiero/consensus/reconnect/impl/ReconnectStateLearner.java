@@ -23,6 +23,7 @@ import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
 import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -198,7 +199,9 @@ public class ReconnectStateLearner {
         statistics.incrementReceiverStartTimes();
 
         final DataInputStream in = new DataInputStream(connection.getDis());
-        final DataOutputStream out = new DataOutputStream(connection.getDos());
+        final int reconnectBufferBytes = 1 << 20; // 1 MiB, reconnect-only
+        final DataOutputStream out =
+                new DataOutputStream(new BufferedOutputStream(connection.getDos(), reconnectBufferBytes));
 
         connection.getDis().byteCounter().getAndReset();
 

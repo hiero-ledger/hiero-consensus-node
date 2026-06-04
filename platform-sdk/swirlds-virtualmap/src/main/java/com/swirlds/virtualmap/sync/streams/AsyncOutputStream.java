@@ -80,6 +80,9 @@ public class AsyncOutputStream {
 
     private final LongAdder bytesWritten = new LongAdder();
 
+    private long pollNanos = 0; // time draining the queue (poll), writer thread only
+    private long socketWriteNanos = 0; // time in writeMessage + flush (the socket path), writer thread only
+
     /**
      * Constructs a new instance using the given underlying {@link DataOutputStream} and
      * {@link StandardWorkGroup}.
@@ -152,10 +155,12 @@ public class AsyncOutputStream {
             final long totalBytes = bytesWritten.sum();
             logger.info(
                     RECONNECT.getMarker(),
-                    "AsyncOutputStream summary: bytesWritten={} writerBusyMs={} writerIdleMs={}",
+                    "AsyncOutputStream summary: bytesWritten={} writerBusyMs={} writerIdleMs={} pollMs={} socketWriteMs={}",
                     totalBytes,
                     TimeUnit.NANOSECONDS.toMillis(writerBusyNanos),
-                    TimeUnit.NANOSECONDS.toMillis(writerIdleNanos));
+                    TimeUnit.NANOSECONDS.toMillis(writerIdleNanos),
+                    TimeUnit.NANOSECONDS.toMillis(pollNanos),
+                    TimeUnit.NANOSECONDS.toMillis(socketWriteNanos));
         } catch (final Exception e) {
             workGroup.handleError(e);
         }
@@ -196,15 +201,23 @@ public class AsyncOutputStream {
      * @return true if a message was sent.
      */
     private boolean handleQueuedMessages() {
+
+        long p0 = System.nanoTime();
         byte[] item = streamQueue.poll();
+        pollNanos += System.nanoTime() - p0;
+
         if (item == null) {
             return false;
         }
         try {
             do {
+                final long w0 = System.nanoTime();
                 writeMessage(item);
+                socketWriteNanos += System.nanoTime() - w0;
                 bufferedMessageCount += 1;
+                p0 = System.nanoTime();
                 item = streamQueue.poll();
+                pollNanos += System.nanoTime() - p0;
             } while (item != null);
         } catch (final IOException e) {
             throw new MerkleSynchronizationException(e);
@@ -236,7 +249,9 @@ public class AsyncOutputStream {
         timeSinceLastFlush.start();
         if (bufferedMessageCount > 0) {
             try {
+                final long f0 = System.nanoTime();
                 outputStream.flush();
+                socketWriteNanos += System.nanoTime() - f0;
             } catch (final IOException e) {
                 throw new MerkleSynchronizationException(e);
             }
