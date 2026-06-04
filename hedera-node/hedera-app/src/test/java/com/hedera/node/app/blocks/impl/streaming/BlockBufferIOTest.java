@@ -174,7 +174,7 @@ class BlockBufferIOTest {
         final List<Bytes> expectedBytes = new ArrayList<>();
         for (final BlockItem item : sourceItems) {
             final Bytes serialized = BlockItem.PROTOBUF.toBytes(item);
-            block.addItem(serialized, item.item().kind());
+            block.addSerializedItem(serialized, item.item().kind());
             expectedBytes.add(serialized);
         }
         block.closeBlock();

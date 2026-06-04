@@ -533,7 +533,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
             // Add header
             final BlockItem header = newBlockHeaderItem(i);
             final Bytes headerBytes = BlockItem.PROTOBUF.toBytes(header);
-            block.addItem(headerBytes, header.item().kind());
+            block.addSerializedItem(headerBytes, header.item().kind());
             allItems.add(headerBytes);
 
             long blockTotalBytes = headerBytes.length();
@@ -544,7 +544,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 final int itemSize = 10 + random.nextInt(2_499_990);
                 final BlockItem item = newBlockTxItem(itemSize);
                 final Bytes itemBytes = BlockItem.PROTOBUF.toBytes(item);
-                block.addItem(itemBytes, item.item().kind());
+                block.addSerializedItem(itemBytes, item.item().kind());
                 allItems.add(itemBytes);
                 blockTotalBytes += itemBytes.length();
             }
@@ -552,7 +552,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
             // Add proof with varying size (10 bytes to 2.5MB)
             final BlockItem proof = newBlockProofItem(i, 10 + random.nextInt(2_499_990));
             final Bytes proofBytes = BlockItem.PROTOBUF.toBytes(proof);
-            block.addItem(proofBytes, proof.item().kind());
+            block.addSerializedItem(proofBytes, proof.item().kind());
             allItems.add(proofBytes);
             blockTotalBytes += proofBytes.length();
 

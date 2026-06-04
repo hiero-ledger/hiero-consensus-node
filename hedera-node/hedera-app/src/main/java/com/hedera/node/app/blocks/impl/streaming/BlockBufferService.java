@@ -332,7 +332,7 @@ public class BlockBufferService {
             return;
         }
         blockStreamMetrics.recordBlockItemBytes((int) serializedItem.length());
-        blockState.addItem(serializedItem, itemType);
+        blockState.addSerializedItem(serializedItem, itemType);
     }
 
     /**
@@ -523,7 +523,7 @@ public class BlockBufferService {
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
-            bufferedBlock.block().items().forEach(block::addItem);
+            bufferedBlock.block().items().forEach(block::addSerializedItem);
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());

@@ -84,7 +84,7 @@ public class BlockTestUtils {
     public static BlockState toBlockState(final BufferedBlock bufferedBlock) {
         final BlockState block = new BlockState(bufferedBlock.blockNumber());
 
-        bufferedBlock.block().items().forEach(block::addItem);
+        bufferedBlock.block().items().forEach(block::addSerializedItem);
 
         final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
         final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());

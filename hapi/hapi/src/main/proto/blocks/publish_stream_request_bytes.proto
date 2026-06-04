@@ -79,6 +79,9 @@ message EndStreamBytes {
  *
  * This mirrors `org.hiero.block.api.PublishStreamRequest` field-for-field on the wire. The
  * `end_of_block` arm reuses the upstream `BlockEnd` message directly.
+ *
+ * The `oneof request` arms below MUST stay name-for-name and number-for-number identical to the
+ * upstream `PublishStreamRequest.request` oneof.
  */
 message PublishStreamRequestBytes {
   oneof request {

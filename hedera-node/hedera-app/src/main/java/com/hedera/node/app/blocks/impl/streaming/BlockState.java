@@ -82,7 +82,8 @@ public class BlockState {
      * @param itemType the type of the item being added
      * @throws IllegalStateException if the block is closed
      */
-    public void addItem(@Nullable final Bytes serializedItem, @NonNull final BlockItem.ItemOneOfType itemType) {
+    public void addSerializedItem(
+            @Nullable final Bytes serializedItem, @NonNull final BlockItem.ItemOneOfType itemType) {
         if (serializedItem == null) {
             return;
         }
@@ -105,22 +106,22 @@ public class BlockState {
      * Adds an item to the block in its serialized form, deriving the item type from the leading protobuf tag of the
      * serialized bytes (see {@link #itemTypeOf(Bytes)}). This is intended for the path that restores the buffer from
      * disk, where only the serialized bytes are available — not the deserialized item or its type. The hot path should
-     * use {@link #addItem(Bytes, BlockItem.ItemOneOfType)}, which is given the type directly.
+     * use {@link #addSerializedItem(Bytes, BlockItem.ItemOneOfType)}, which is given the type directly.
      *
      * @param serializedItem the full serialized bytes of a single {@link BlockItem}
      * @throws IllegalStateException if the block is closed
      */
-    public void addItem(@Nullable final Bytes serializedItem) {
+    public void addSerializedItem(@Nullable final Bytes serializedItem) {
         if (serializedItem == null) {
             return;
         }
-        addItem(serializedItem, itemTypeOf(serializedItem));
+        addSerializedItem(serializedItem, itemTypeOf(serializedItem));
     }
 
     /**
      * Adds a deserialized item to the block. This is a convenience that serializes the item and stores its serialized
      * form; it is intended for non-hot paths and tests. The hot path should use
-     * {@link #addItem(Bytes, BlockItem.ItemOneOfType)} to avoid re-serialization.
+     * {@link #addSerializedItem(Bytes, BlockItem.ItemOneOfType)} to avoid re-serialization.
      *
      * @param item the item to add
      * @throws IllegalStateException if the block is closed
@@ -129,7 +130,7 @@ public class BlockState {
         if (item == null) {
             return;
         }
-        addItem(BlockItem.PROTOBUF.toBytes(item), item.item().kind());
+        addSerializedItem(BlockItem.PROTOBUF.toBytes(item), item.item().kind());
     }
 
     /**

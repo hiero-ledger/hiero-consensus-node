@@ -9,9 +9,13 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.pbj.runtime.EnumWithProtoMetadata;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
@@ -22,8 +26,8 @@ import org.junit.jupiter.api.Test;
  * Verifies the core correctness guarantee of the serialized block buffer: the consensus-node-internal
  * {@link PublishStreamRequestBytes} (whose block items are carried as already-serialized {@code bytes}) serializes to
  * the <b>exact same wire bytes</b> as the equivalent {@link PublishStreamRequest}. This is what allows the consensus
- * node to send serialized items without the block node needing any changes. Also guards against future field-number
- * drift between the two message definitions.
+ * node to send serialized items without the block node needing any changes. Also guards against future structural
+ * drift (an added, removed, renamed, or renumbered oneof arm) between the two message definitions.
  */
 class PublishStreamRequestBytesWireCompatTest {
 
@@ -100,5 +104,37 @@ class PublishStreamRequestBytesWireCompatTest {
         final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);
         assertThat(bytesWire).isEqualTo(PublishStreamRequest.PROTOBUF.toBytes(normal));
         assertThat(PublishStreamRequest.PROTOBUF.parse(bytesWire)).isEqualTo(normal);
+    }
+
+    /**
+     * Structural drift guard: the serialization tests above only pin the {@code oneof request} arms that are currently
+     * populated, so they cannot notice a <em>new</em> arm being added upstream (which the mirror would then silently
+     * fail to carry) or an arm being renamed. This fails the build the moment the two oneofs diverge — an arm added,
+     * removed, renamed, or renumbered — forcing whoever bumps the block-node API to update
+     * {@code publish_stream_request_bytes.proto} in lockstep.
+     */
+    @Test
+    void publishStreamRequestOneofArmsMatchUpstream() {
+        final Map<String, Integer> upstream = armsByFieldNumber(PublishStreamRequest.RequestOneOfType.values());
+        final Map<String, Integer> mirror = armsByFieldNumber(PublishStreamRequestBytes.RequestOneOfType.values());
+
+        assertThat(upstream)
+                .as("sanity: the upstream request oneof should expose at least one arm")
+                .isNotEmpty();
+        assertThat(mirror)
+                .as("PublishStreamRequestBytes.RequestOneOfType drifted from PublishStreamRequest.RequestOneOfType; "
+                        + "update publish_stream_request_bytes.proto so its 'oneof request' arms match the block-node "
+                        + "API field names and numbers (that lockstep is what keeps the two wire-identical).")
+                .isEqualTo(upstream);
+    }
+
+    /**
+     * Maps each real oneof arm (excluding the synthetic {@code UNSET}, whose proto ordinal is {@code -1}) to its
+     * protobuf field number, keyed by its protobuf field name.
+     */
+    private static <E extends EnumWithProtoMetadata> Map<String, Integer> armsByFieldNumber(final E[] values) {
+        return Arrays.stream(values)
+                .filter(v -> v.protoOrdinal() >= 0)
+                .collect(Collectors.toMap(EnumWithProtoMetadata::protoName, v -> v.protoOrdinal()));
     }
 }

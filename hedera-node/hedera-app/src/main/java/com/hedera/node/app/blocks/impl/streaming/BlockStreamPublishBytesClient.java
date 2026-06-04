@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.block.api.BlockStreamPublishServiceInterface;
 import org.hiero.block.api.PublishStreamResponse;
 
 /**
@@ -23,7 +24,7 @@ import org.hiero.block.api.PublishStreamResponse;
 public final class BlockStreamPublishBytesClient implements AutoCloseable {
     /** Full gRPC method name (fully-qualified service name + method) of the block node publish-stream RPC. */
     static final String PUBLISH_BLOCK_STREAM_METHOD =
-            "org.hiero.block.api.BlockStreamPublishService/publishBlockStream";
+            BlockStreamPublishServiceInterface.FULL_NAME + "/publishBlockStream";
 
     private final PbjGrpcClient grpcClient;
     private final ServiceInterface.RequestOptions requestOptions;

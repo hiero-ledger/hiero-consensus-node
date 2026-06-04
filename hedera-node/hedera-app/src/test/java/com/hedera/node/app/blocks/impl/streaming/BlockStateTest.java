@@ -52,7 +52,7 @@ class BlockStateTest {
 
     @Test
     void testAddItem_null() {
-        block.addItem((BlockItem) null);
+        block.addItem(null);
 
         assertThat(blockItems()).isEmpty();
     }
