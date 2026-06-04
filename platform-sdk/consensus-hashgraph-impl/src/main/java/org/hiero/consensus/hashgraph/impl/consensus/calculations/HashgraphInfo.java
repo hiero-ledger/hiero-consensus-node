@@ -172,13 +172,13 @@ public class HashgraphInfo {
         private boolean isConsensus;
         private long consensusOrder;
         private Instant consensusTimestamp;
-        private boolean isPrevJudge;
+        private boolean prevJudge;
         private long maxJudgeRound;
         // the following are used for graph searches in the hashgraph
-        private long searchMark;
-        private int searchCount;
-        private int searchParent;
-        private EventInfo searchChild;
+        private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
+        private int searchCount; // number of judges that are descendents of this event
+        private int searchParent; // index of the parent of this event currently being searched
+        private EventInfo searchChild; // the child of this event through which it was reached
 
         /**
          * True iff this event has reached consensus. (If false, it may still reach consensus later).
@@ -211,6 +211,10 @@ public class HashgraphInfo {
             return creatorNodeID;
         }
 
+        public Instant getTimeCreated() {
+            return timeCreated;
+        }
+
         public EventInfo[] getParentsSigned() {
             return parentsSigned;
         }
@@ -219,16 +223,16 @@ public class HashgraphInfo {
             return creator;
         }
 
-        public Instant getTimeCreated() {
-            return timeCreated;
-        }
-
         public long getBirthRound() {
             return birthRound;
         }
 
         public boolean[] getAncestorJudge() {
             return ancestorJudge;
+        }
+
+        public boolean getPrevJudgeDesc() {
+            return prevJudgeDesc;
         }
 
         public long getGen() { // this is the dGen
@@ -267,12 +271,12 @@ public class HashgraphInfo {
             return voteB;
         }
 
-        public boolean isConsensus() {
-            return isConsensus;
+        public boolean getPrevJudge() {
+            return prevJudge;
         }
 
-        public boolean isPrevJudge() {
-            return isPrevJudge;
+        public long getMaxJudgeRound() {
+            return maxJudgeRound;
         }
 
         public long getSearchMark() {
@@ -283,11 +287,14 @@ public class HashgraphInfo {
             return searchCount;
         }
 
-        public int getSearchParent() {return searchParent;}
-        public EventInfo getSearchChild() {return searchChild;}
-        public boolean getPrevJudgeDesc() {return prevJudgeDesc;}
-        public boolean isPrevJudgeDesc() {return prevJudgeDesc;}
-        public long getMaxJudgeRound() {return maxJudgeRound;}
+        public int getSearchParent() {
+            return searchParent;
+        }
+
+        public EventInfo getSearchChild() {
+            return searchChild;
+        }
+
 
         /**
          * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
@@ -347,7 +354,7 @@ public class HashgraphInfo {
         /**
          * This should be called for each event just after it is added to the hashgraph. When consensus is
          * reached for a round, it should then be called again on all existing events in the hashgraph for
-         * which {@link EventInfo#isPrevJudgeDesc EventInfo.isPrevJudgeDesc()}==true, using the
+         * which {@link EventInfo#getPrevJudgeDesc EventInfo.isPrevJudgeDesc()}==true, using the
          * {@link RoundInfo RoundInfo} for the new pending round. (This update may set some of
          * those events to false).
          * <p>
@@ -355,7 +362,7 @@ public class HashgraphInfo {
          * the previous judges have been added to the hashgraph. Do not call this update function
          * during that period. It should first be called once all the judges from the previous round have been added to
          * the hashgraph. At that point, it should be called on all the non-ancient events in the hashgraph
-         * (not just those with {@link EventInfo#isPrevJudgeDesc EventInfo.isPrevJudges()}==true, as it normally
+         * (not just those with {@link EventInfo#getPrevJudgeDesc EventInfo.isPrevJudges()}==true, as it normally
          * does for a new round). After that, continue as normal, calling it only on new events, and after each
          * round reaches consensus.
          * <p>
@@ -437,7 +444,7 @@ public class HashgraphInfo {
 
                 // set isPrevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
-                    judge.isPrevJudge = true;
+                    judge.prevJudge = true;
                 }
 
                 // function totalStake
@@ -506,10 +513,15 @@ public class HashgraphInfo {
                     (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
             // function prevJudgeDesc
-            x.prevJudgeDesc = x.isPrevJudge || h.pendingRound == 1;
+            // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
+            x.maxJudgeRound = x.prevJudge ? (r.pendingRound - 1) : 1;
             for (EventInfo parent : h.parents) {
-                x.prevJudgeDesc |= parent.prevJudgeDesc;
+                x.maxJudgeRound = Math.max(x.maxJudgeRound, parent.maxJudgeRound);
             }
+            x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); //use alg in comments in paper, not the equation
+
+
+
 
             // function ancestorJudge (for each y that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {
@@ -632,10 +644,10 @@ public class HashgraphInfo {
 
             // the round reached consensus, so prepare to move on by setting the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
-                judge.isPrevJudge = false;
+                judge.prevJudge = false;
             }
             for (EventInfo judge : roundJudges) {
-                judge.isPrevJudge = true;
+                judge.prevJudge = true;
             }
             minJudgeBirthRound = 0;
             for (EventInfo judge : roundJudges) {
