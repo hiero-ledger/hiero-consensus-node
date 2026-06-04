@@ -173,18 +173,12 @@ public class HashgraphInfo {
         private long consensusOrder;
         private Instant consensusTimestamp;
         private boolean isPrevJudge;
+        private long maxJudgeRound;
         // the following are used for graph searches in the hashgraph
         private long searchMark;
         private int searchCount;
         private int searchParent;
         private EventInfo searchChild;
-
-        /**
-         * True iff this event is the descendent of at least one judge from the previous round.
-         */
-        public boolean getPrevJudgeDesc() {
-            return prevJudgeDesc;
-        }
 
         /**
          * True iff this event has reached consensus. (If false, it may still reach consensus later).
@@ -235,10 +229,6 @@ public class HashgraphInfo {
 
         public boolean[] getAncestorJudge() {
             return ancestorJudge;
-        }
-
-        public boolean isPrevJudgeDesc() {
-            return prevJudgeDesc;
         }
 
         public long getGen() { // this is the dGen
@@ -293,13 +283,11 @@ public class HashgraphInfo {
             return searchCount;
         }
 
-        public int getSearchParent() {
-            return searchParent;
-        }
-
-        public EventInfo getSearchChild() {
-            return searchChild;
-        }
+        public int getSearchParent() {return searchParent;}
+        public EventInfo getSearchChild() {return searchChild;}
+        public boolean getPrevJudgeDesc() {return prevJudgeDesc;}
+        public boolean isPrevJudgeDesc() {return prevJudgeDesc;}
+        public long getMaxJudgeRound() {return maxJudgeRound;}
 
         /**
          * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
