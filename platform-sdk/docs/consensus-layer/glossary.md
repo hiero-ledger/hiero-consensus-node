@@ -423,9 +423,9 @@ See [architecture/topics/wiring-framework.md](architecture/topics/wiring-framewo
 
 ### Virtual voting
 
-Also *fame voting*. The algorithm by which witnesses in later rounds determine the fame of
-witnesses in earlier rounds; "virtual" because votes are computed deterministically from
-the DAG and never exchanged as messages.
+A message-free voting technique: each voter's vote is a deterministic function of the
+hashgraph DAG rather than an exchanged message, so every node computes the same votes from
+the same DAG.
 See [concepts/voting.md](concepts/voting.md).
 
 ### Voting round
