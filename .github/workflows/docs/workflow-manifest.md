@@ -23,7 +23,7 @@
 | zxf-merge-queue-performance-test-controller.yaml       | ZXF: [CITR] Merge Queue Performance Test Controller               | 220-disp-mqpt-controller.yaml             | 220: [DISP] CITR MQPT Controller  |
 | zxf-single-day-performance-test-controller.yaml        | ZXF: [CITR] Single Day Performance Test Controller (SDPT)         | 221-disp-sdpt-controller.yaml             | 221: [DISP] CITR SDPT Controller  |
 | zxf-single-day-longevity-test-controller.yaml          | ZXF: [CITR] Single Day Longevity Test Controller                  | 222-disp-sdlt-controller.yaml             | 222: [DISP] CITR SDLT Controller  |
-| zxf-single-day-canonical-test.yaml                     | ZXF: [CITR] Single Day Canonical Test (SDCT)                      | 223-disp-single-day-canonical-test.yaml   | 223: [DISP] CITR Single Day Canon |
+| zxf-single-day-canonical-test.yaml                     | ZXF: [CITR] Single Day Canonical Test (SDCT)                      | 223-disp-sdct-controller.yaml   | 223: [DISP] CITR SDCT Controller |
 |                                                        |                                                                   |                                           |                                   |
 | # TRIGGERED (300-399)                                  |                                                                   |                                           |                                   |
 | node-flow-build-application.yaml                       | Node: Build Application                                           | 300-flow-build-application.yaml           | 300: [FLOW] Build Application     |
