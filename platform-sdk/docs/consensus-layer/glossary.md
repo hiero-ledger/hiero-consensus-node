@@ -58,6 +58,13 @@ A gossip channel that pushes fresh self-events to peers immediately, complementi
 sending them twice.
 See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
+### cGen
+
+*Consensus generation* (`LocalConsensusGeneration`): a deterministic, temporary counter that
+orders events within a round as they reach consensus. Contrast *nGen* and *deGen*; see
+*Generation*.
+See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
+
 ### Coin round
 
 A periodic round in a fame *Election* (every `coinFreq` rounds, default 12) where a voter
@@ -107,6 +114,12 @@ See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 The intake stage that discards events already seen — keyed per creator — so the pipeline
 and hashgraph process each event once.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
+
+### deGen
+
+*Deterministic generation* (`DeGen`): computed identically on every node and used to drive
+*lastSee* for *Strongly seeing*. Contrast *nGen* and *cGen*; see *Generation*.
+See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Election
 
@@ -187,10 +200,11 @@ See [architecture/topics/freeze-and-upgrade.md](architecture/topics/freeze-and-u
 
 ### Generation
 
-A paper-era per-event count (one plus the maximum parent generation). The paper uses a
-*deterministic* generation for the ancient horizon; current code uses *Birth round*
-instead. A *non-deterministic* generation (`NGen`) is still computed locally for
-topological ordering and "higher in the hashgraph" comparisons.
+A per-event count: one plus the maximum parent generation. The paper used a single
+*deterministic* generation as the ancient horizon; current code uses *Birth round* for that
+and keeps three separate generation counters instead, each calculated differently and used
+for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
+for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a round).
 See [concepts/birth-round.md](concepts/birth-round.md).
 
 ### Gossip
@@ -238,6 +252,13 @@ See [architecture/topics/reasons-not-to-gossip.md](architecture/topics/reasons-n
 `lastSee(x, m)` — the most recent event by creator *m* that is an ancestor of *x*, or null if
 none. A *see*-family helper underlying *firstSee* and *seeThru*.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
+
+### nGen
+
+*Non-deterministic generation* (`NonDeterministicGeneration`): a count assigned locally by
+each node, so it may differ between nodes; used only for topological ordering and "higher in
+the hashgraph" comparisons. Contrast the deterministic *deGen* and *cGen*; see *Generation*.
+See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
 
