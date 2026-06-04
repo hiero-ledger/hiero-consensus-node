@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -433,7 +434,11 @@ public class ProofControllerImpl implements ProofController {
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
-        // In case we'll vote again on a conversion to a WRAPS proof
+        // Clear votes from BOTH memory and state in case we vote again to convert this to a WRAPS
+        // proof. Purging persisted votes (not just the map) stops a node that rebuilds this
+        // controller mid-conversion from reloading the stale votes and skipping the conversion vote
+        // as already-counted -> diverged construction -> SELF_ISS.
+        historyStore.clearProofVotes(constructionId(), Set.copyOf(votes.keySet()));
         votes.clear();
     }
 
