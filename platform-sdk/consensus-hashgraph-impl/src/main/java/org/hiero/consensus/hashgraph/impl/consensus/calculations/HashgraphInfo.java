@@ -10,7 +10,7 @@ import java.util.HashMap;
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
  * no dependencies other than on the standard Java libraries. The HashgraphInfo class
  * contains the inner class {@link EventInfo EventInfo} and the inner record types {@link RoundInfo RoundInfo},
- * {@link RoundInfoCore RoundInfoCore},and {@link RoundInfoPrev RoundInfoPrev}. All 5 of these have getters
+ * {@link RoundInfo RoundInfoCore},and {@link RoundInfoPrev RoundInfoPrev}. All 5 of these have getters
  * but no setters. For arrays passed to their constructors, the caller must never change any array elements.
  * This file implements the equations from the tech report Swirlds-TR-2026-01.
  * <p>
@@ -25,12 +25,12 @@ import java.util.HashMap;
  * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
  * It should instantiate a {@link RoundInfo RoundInfo} for the pending round (the round for which consensus is
- * currently being calculated). It should instantiate a {@link RoundInfoCore RoundInfoCore} for each of the next several
+ * currently being calculated). It should instantiate a {@link RoundInfo RoundInfoCore} for each of the next several
  * rounds. After a round reaches consensus, its {@link RoundInfoPrev RoundInfoPrev} is calculated, which can be combined with the
- * {@link RoundInfoCore RoundInfoCore} to form the {@link RoundInfo RoundInfo} for the next round.
+ * {@link RoundInfo RoundInfoCore} to form the {@link RoundInfo RoundInfo} for the next round.
  * <p>
  * The network's overall consensus state should include the {@link RoundInfo RoundInfo} for the pending round
- * (the round currently being calculated), and the {@link RoundInfoCore RoundInfoCore}  for the next few rounds.
+ * (the round currently being calculated), and the {@link RoundInfo RoundInfoCore}  for the next few rounds.
  * An implementation might also include a "roster" for these and for all the non-ancient previous rounds. The roster
  * might contain info such as the public keys for all the nodes, used to verify their signatures. This class doesn't
  * use rosters. It only uses the {@link RoundInfo RoundInfo}, and its two parts.
@@ -66,7 +66,7 @@ public class HashgraphInfo {
     /**
      * info about a round that might be known multiple rounds in advance
      */
-    public record RoundInfoCore(
+    public record RoundInfo(
             long pendingRound, // pass the enclosing RoundInfo to update() when the pending round matches this number
             long[] nodes, // NodeID for each node
             long[] stake,
@@ -87,15 +87,14 @@ public class HashgraphInfo {
             long prevNumCons,
             long prevMinJudgeBirthRound) {}
 
-    /**
-     * The round info with info about nodes, weights, previous judges, per-round
-     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
-     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
-     * Pass this to {@link EventInfo#update EventInfo.update} when
-     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
-     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
-     */
-    public record RoundInfo(RoundInfoCore core, RoundInfoPrev prev) {}
+//    /**
+//     * The round info with info about nodes, weights, previous judges, per-round
+//     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
+//     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
+//     * Pass this to {@link EventInfo#update EventInfo.update} when
+//     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
+//     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
+//     */
 
     /**
      * true iff n is a supermajority of the total stake
@@ -109,17 +108,18 @@ public class HashgraphInfo {
      * for every non-ancient event that reached consensus in previous rounds. This is only needed after a restart or
      * reconnect. In normal operation, those events will already have been marked, when they reached consensus.
      *
-     * @param roundInfo round info for the pending round (the round currently being calculated)
+     * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
+     * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
      */
-    public void setPrevIsConsensus(RoundInfo roundInfo) {
-        int targetCount = roundInfo.prev.prevJudgeCon1 ? 1 : roundInfo.prev.prevJudges.length;
+    public void setPrevIsConsensus(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
+        int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
         boolean firstJudge = true;
-        if (roundInfo.prev.prevJudges == null || roundInfo.prev.prevJudges.length == 0) {
+        if (roundInfoPrev.prevJudges == null || roundInfoPrev.prevJudges.length == 0) {
             return;
         }
         /**/
         // calculate minNonAncientRound
-        for (EventInfo judge : roundInfo.prev.prevJudges) { // depth-first search starting from each judge
+        for (EventInfo judge : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
             EventInfo x = judge;
             currMark++;
             x.searchChild = null; // backtracking up from this x means the search is done
@@ -390,17 +390,18 @@ public class HashgraphInfo {
          * When this method is called for the first time on a new hashgraph in memory, it can be passed
          * the {@link RoundInfo roundInfo} for the pending round at that time. In every future call, each call to it
          * must be passed a {@link RoundInfo RoundInfo} that either has the same
-         * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} as in the previous call, or has a
-         * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} that is one greater than in the previous call.
+         * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} as in the previous call, or has a
+         * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} that is one greater than in the previous call.
          *
-         * @param roundInfo the round info for the pending round (the round currently being calculated)
+         * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
+         * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
          * @return the consensus results, or null if this event didn't decide this round
          */
-        public UpdateResults update(@NonNull RoundInfo roundInfo) {
+        public UpdateResults update(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
             // make the names look more like the r and x in the tech report
             final EventInfo x = this;
-            final RoundInfoCore r = roundInfo.core;
-            final RoundInfoPrev rp = roundInfo.prev;
+            final RoundInfo r = roundInfo;
+            final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = x.hashgraph;
             long parentRound;
             ArrayList<EventInfo> roundJudges;
