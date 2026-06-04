@@ -219,7 +219,7 @@ jobs:
   mats-hapi-tests:
     name: HAPI Tests
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: zxc-execute-hapi-tests.yaml
+    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     needs:
       - commit-info
       - compile-and-spotless
