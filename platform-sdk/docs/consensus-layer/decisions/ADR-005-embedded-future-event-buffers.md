@@ -1,5 +1,5 @@
 ---
-id: ADR-004
+id: ADR-005
 title: Embed a future-event buffer inside each consuming component instead of one standalone buffering component
 topics: [hashgraph, event-creator, event-intake, wiring-framework]
 related:
@@ -16,7 +16,7 @@ deciders:
 curated_by: Kelly Greco (@poulok)
 ---
 
-# ADR-004 — Embed a future-event buffer inside each consuming component instead of one standalone buffering component
+# ADR-005 — Embed a future-event buffer inside each consuming component instead of one standalone buffering component
 
 ## Context
 

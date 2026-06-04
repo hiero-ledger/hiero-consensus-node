@@ -9,7 +9,7 @@ components:
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java
 related:
   invariants: []
-  decisions: [ADR-004]
+  decisions: [ADR-005]
   scenarios: []
   heuristics: []
 status: holds
@@ -74,7 +74,7 @@ flushed, every event that could become a parent has already reached it.
 The ordering is only sufficient because each component that can *hold an event
 back* does its holding **internally**, so "queue empty + last task handled"
 truly means "nothing more will come out of this component on its own." This is
-the property established by [ADR-004](../decisions/ADR-004-embedded-future-event-buffers.md):
+the property established by [ADR-005](../decisions/ADR-005-embedded-future-event-buffers.md):
 the hashgraph's future-event buffer lives inside `DefaultConsensusEngine` and
 the event creator's future-event buffer lives inside
 `DefaultEventCreationManager`, rather than in a standalone component upstream
@@ -105,7 +105,7 @@ Several distinct mechanisms would break this rule:
   having seen the latest self event still sitting in an unflushed upstream
   queue — a branch.
 - **Moving an event-holding buffer back out into a standalone upstream
-  component** (reversing ADR-004), or otherwise creating a feedback edge where
+  component** (reversing ADR-005), or otherwise creating a feedback edge where
   a downstream component's progress causes an upstream component to emit more
   events. A single ordered pass would no longer converge, and "queue empty"
   on one component would no longer imply "no more events will be produced."
@@ -131,7 +131,7 @@ and must be rejected.
   requirement and is a candidate to be cataloged as an invariant; this rule
   records only the *current implementation mechanism* — ordered, blocking,
   topological flush — by which that property is upheld after PCES replay.
-- See [ADR-004](../decisions/ADR-004-embedded-future-event-buffers.md) for why
+- See [ADR-005](../decisions/ADR-005-embedded-future-event-buffers.md) for why
   the future-event buffers are embedded in `DefaultConsensusEngine` and
   `DefaultEventCreationManager` rather than factored into a single standalone
   component, which is the structural precondition that makes one ordered
