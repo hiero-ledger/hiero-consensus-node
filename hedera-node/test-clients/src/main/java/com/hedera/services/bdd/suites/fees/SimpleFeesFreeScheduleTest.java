@@ -1,20 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.protobuf.ByteString;
-import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.GenesisHapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -33,6 +18,21 @@ import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.getChargedGasForContractCreate;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.protobuf.ByteString;
+import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.GenesisHapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.FeeSchedule;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
@@ -61,9 +61,7 @@ public class SimpleFeesFreeScheduleTest {
                             getFileContents(SIMPLE_FEE_SCHEDULE)
                                     .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
                     // upload a modified fee schedule
-                    allRunFor(
-                            spec,
-                            updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithEverythingFree()));
+                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithEverythingFree()));
                     assertTrue(
                             spec.tryReinitializingFees(),
                             "Failed to reinitialize fees after overriding simple fee schedule");
@@ -84,8 +82,7 @@ public class SimpleFeesFreeScheduleTest {
                     assertTrue(
                             spec.tryReinitializingFees(),
                             "Failed to reinitialize fees after overriding simple fee schedule");
-                })
-        );
+                }));
     }
 
     private static ByteString simpleFeesWithEverythingFree() {
@@ -94,7 +91,7 @@ public class SimpleFeesFreeScheduleTest {
                     MAPPER.readTree(V0490FileSchema.loadResourceInPackage("genesis/simpleFeesSchedules.json"));
             for (final var service : root.path("services")) {
                 System.out.println("updating service " + service.get("name"));
-                for(final var schedule : service.path("schedule")) {
+                for (final var schedule : service.path("schedule")) {
                     System.out.println("updating schedule " + schedule.get("name"));
                     if (schedule instanceof ObjectNode objectNode) {
                         objectNode.put("free", true);
@@ -110,5 +107,4 @@ public class SimpleFeesFreeScheduleTest {
                     "Unable to build simple fee schedule without CryptoCreate pricing curve", e);
         }
     }
-
 }

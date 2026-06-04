@@ -68,7 +68,7 @@ public class CustomGasCharging {
         requireNonNull(sender);
         requireNonNull(context);
         requireNonNull(worldUpdater);
-        if(!context.shouldChargeGasFees()) {
+        if (!context.shouldChargeGasFees()) {
             return;
         }
         if (context.isNoopGasContext() || unusedGas == 0) {
@@ -115,7 +115,7 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-        if(!context.shouldChargeGasFees()) {
+        if (!context.shouldChargeGasFees()) {
             return GasCharges.NONE;
         }
         // TODO: Revisit baselineGas with Pectra support epic
