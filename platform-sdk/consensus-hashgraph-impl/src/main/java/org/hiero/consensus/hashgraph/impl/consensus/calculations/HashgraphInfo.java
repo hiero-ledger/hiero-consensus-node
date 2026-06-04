@@ -87,14 +87,14 @@ public class HashgraphInfo {
             long prevNumCons,
             long prevMinJudgeBirthRound) {}
 
-//    /**
-//     * The round info with info about nodes, weights, previous judges, per-round
-//     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
-//     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
-//     * Pass this to {@link EventInfo#update EventInfo.update} when
-//     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
-//     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
-//     */
+    //    /**
+    //     * The round info with info about nodes, weights, previous judges, per-round
+    //     * setting, etc. The consensus state should include the full {@link RoundInfo RoundInfo} for the
+    //     * pending round, and the {@link RoundInfoCore RoundInfoCore} portion of it for the next few rounds.
+    //     * Pass this to {@link EventInfo#update EventInfo.update} when
+    //     * {@link RoundInfoCore#pendingRound RoundInfoCore.pendingRound} matches the pending round, and
+    //     * {@link RoundInfoPrev RoundInfoPrev} was returned by reaching consensus for the round before that.
+    //     */
 
     /**
      * true iff n is a supermajority of the total stake

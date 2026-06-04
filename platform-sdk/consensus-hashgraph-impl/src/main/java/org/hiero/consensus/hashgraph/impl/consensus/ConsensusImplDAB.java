@@ -45,7 +45,6 @@ import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.EventInfo.UpdateResults;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfo;
-import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfoCore;
 import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo.RoundInfoPrev;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
 import org.hiero.consensus.model.event.EventConstants;
@@ -191,6 +190,7 @@ public class ConsensusImplDAB implements Consensus {
 
     private final HashgraphInfo hashgraphInfo = new HashgraphInfo();
     private RoundInfo roundInfo;
+    private RoundInfoPrev roundInfoPrev;
     /** When fully dynamic address book is implemented, this will be a configurable value. It is the number of rounds
      * between a roster being known (as a result of handling a round's transactions or the execution layer requesting
      * it be adopted) and it being used to calculate consensus. */
@@ -324,14 +324,14 @@ public class ConsensusImplDAB implements Consensus {
                         .mapToLong(EventImpl::getBirthRound)
                         .min()
                         .orElseThrow();
-                final RoundInfoPrev prevRoundState = new RoundInfoPrev(
+                roundInfoPrev = new RoundInfoPrev(
                         false, judgeMemos, false, config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
                 final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
                 final long[] nodeIds =
                         rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
                 final long[] weights =
                         rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
-                final RoundInfoCore currRoundState = new RoundInfoCore(
+                final RoundInfo currRoundState = new RoundInfo(
                         rounds.getElectionRoundNumber(),
                         nodeIds,
                         weights,
@@ -340,9 +340,8 @@ public class ConsensusImplDAB implements Consensus {
                         false,
                         config.roundsNonAncient(),
                         NUM_ROUNDS_ROSTER);
-                roundInfo = new RoundInfo(currRoundState, prevRoundState);
-                hashgraphInfo.setPrevIsConsensus(roundInfo);
-                consensusRound = updateRecentEventMemos();
+                hashgraphInfo.setPrevIsConsensus(roundInfo, roundInfoPrev);
+                consensusRound = updateRecentEventsAfterLastJudgeFound();
             } else {
                 // this is the most common case, we are not looking for init judges so we simply
                 consensusRound = updateEventMemos(event);
@@ -352,7 +351,7 @@ public class ConsensusImplDAB implements Consensus {
             while (consensusRound != null) {
                 rounds.add(consensusRound);
 
-                consensusRound = updateRecentEventMemos();
+                consensusRound = updateRecentEventsAfterNewConsensusRound();
             }
             return rounds;
         } catch (final Exception e) {
@@ -364,11 +363,11 @@ public class ConsensusImplDAB implements Consensus {
     @Nullable
     private ConsensusRound updateEventMemos(@NonNull final EventImpl event) {
         consensusMetrics.addedEvent(event);
-        final UpdateResults results = event.getEventInfo().update(roundInfo);
+        final UpdateResults results = event.getEventInfo().update(roundInfo, roundInfoPrev);
 
         if (results != null) {
             final RoundInfoPrev justDecidedRound = results.nextRoundInfoPrev();
-            final long decidedRoundNumber = roundInfo.core().pendingRound();
+            final long decidedRoundNumber = roundInfo.pendingRound();
             final List<EventImpl> judgeEvents = Arrays.stream(
                             results.nextRoundInfoPrev().prevJudges())
                     .map(memosEventMap::get)
@@ -418,24 +417,32 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     private void updateMinimumJudgeInfo(final MinimumJudgeInfo minimumJudgeInfo) {
-        minimumJudgeStorage.add(roundInfo.core().pendingRound(), minimumJudgeInfo);
+        minimumJudgeStorage.add(roundInfo.pendingRound(), minimumJudgeInfo);
         // Delete the oldest rounds with round number which is expired
-        minimumJudgeStorage.removeOlderThan(roundInfo.core().pendingRound() - config.roundsExpired());
+        minimumJudgeStorage.removeOlderThan(roundInfo.pendingRound() - config.roundsExpired());
     }
 
     @Nullable
-    private ConsensusRound updateRecentEventMemos() {
-        for (final Iterator<EventImpl> iterator = recentEvents.iterator(); iterator.hasNext(); ) {
-            final EventImpl insertedEvent = iterator.next();
-
-            if (!insertedEvent.getEventInfo().getPrevJudgeDesc()) {
-                iterator.remove();
-                continue;
-            }
-
+    private ConsensusRound updateRecentEventsAfterLastJudgeFound() {
+        for (final EventImpl insertedEvent : recentEvents) {
+            // TODO Leemon will get back to us on if we can break this look when a round
+            // reaches consensus or if we have to continue calling update on all non-ancient events.
             final ConsensusRound consensusRound = updateEventMemos(insertedEvent);
             if (consensusRound != null) {
                 return consensusRound;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private ConsensusRound updateRecentEventsAfterNewConsensusRound() {
+        for (final EventImpl insertedEvent : recentEvents) {
+            if (insertedEvent.getEventInfo().getPrevJudgeDesc()) {
+                final ConsensusRound consensusRound = updateEventMemos(insertedEvent);
+                if (consensusRound != null) {
+                    return consensusRound;
+                }
             }
         }
         return null;
@@ -450,8 +457,8 @@ public class ConsensusImplDAB implements Consensus {
         final long[] weights =
                 rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
 
-        final RoundInfoCore newRoundInfoCoreent = new RoundInfoCore(
-                roundInfo.core().pendingRound() + 1,
+        roundInfo = new RoundInfo(
+                roundInfo.pendingRound() + 1,
                 nodeIds,
                 weights,
                 config.coinFreq(),
@@ -459,7 +466,7 @@ public class ConsensusImplDAB implements Consensus {
                 false,
                 config.roundsNonAncient(),
                 NUM_ROUNDS_ROSTER);
-        roundInfo = new RoundInfo(newRoundInfoCoreent, updateResults.nextRoundInfoPrev());
+        roundInfoPrev = updateResults.nextRoundInfoPrev();
     }
 
     /**
