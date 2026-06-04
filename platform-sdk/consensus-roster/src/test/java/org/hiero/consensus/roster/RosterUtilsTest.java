@@ -9,20 +9,12 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.spi.ReadableStates;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
-import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 public class RosterUtilsTest {
 

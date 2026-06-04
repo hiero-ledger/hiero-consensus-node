@@ -164,7 +164,8 @@ public class ReconnectCoordinator {
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
         platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
-        final ReadableRosterStore rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         this.injectRosterHistory(rosterHistory);
 

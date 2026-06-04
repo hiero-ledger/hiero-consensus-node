@@ -13,7 +13,6 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -120,9 +119,12 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     @NonNull
     @Override
     public RosterHistory getRosterHistory() {
-        final List<RoundRosterPair> roundRosterPairs = requireNonNull(rosterState.get()).roundRosterPairs();
+        final List<RoundRosterPair> roundRosterPairs =
+                requireNonNull(rosterState.get()).roundRosterPairs();
         final Map<Bytes, Roster> mappedRosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(RoundRosterPair::activeRosterHash, pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
+                .collect(Collectors.toMap(
+                        RoundRosterPair::activeRosterHash,
+                        pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
         return new RosterHistory(roundRosterPairs, mappedRosterMap);
     }
 
