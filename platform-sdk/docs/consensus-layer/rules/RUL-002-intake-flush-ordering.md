@@ -22,22 +22,26 @@ curated_by: Kelly Greco (@poulok)
 
 ## Statement
 
-After PCES replay completes — and before the event creator is permitted to
-create new events — the consensus layer flushes the event intake pipeline by
-visiting each component **in topological (upstream-to-downstream) order** and,
-for each one, waiting until its task queue is empty **and** its last task has
-been fully handled before moving to the next component. When this flush
-returns, every event already in the pipeline has advanced as far as it can go:
-each one has either reached consensus, been buffered as a future event inside
-the component that will later release it, or been discarded as ancient or stale.
+After PCES replay completes and before the event creator may create new
+events, the consensus layer flushes the event intake pipeline component-by-
+component in topological (upstream-to-downstream) order, waiting for each
+component's task queue to drain and its last task to be fully handled before
+advancing to the next. When the flush returns, every event in the pipeline has
+advanced as far as it can — so the event creator has observed the latest self
+event before creating its next one.
 
-The load-bearing consequence is that the **event creator has observed the
-latest self event** before it creates its next event. Creating a new self
-event without knowing the most recent prior self event would produce two self
-events with the same self-parent — a **branch**, which is **byzantine
-behavior** and is detected and penalized by the network.
+## Context
 
-The same flush sequencing is also applied (via separate calls) to the
+When the flush returns, each event in the pipeline has either reached
+consensus, been buffered as a future event inside the component that will later
+release it, or been discarded as ancient or stale. The load-bearing
+consequence is that the **event creator has observed the latest self event**
+before it creates its next event: creating a new self event without knowing the
+most recent prior self event would produce two self events with the same
+self-parent — a **branch**, which is **byzantine behavior** that the network
+detects and penalizes.
+
+The same flush sequencing is also applied, via separate calls, to the
 transaction handler and state hasher. That extension is **not** a correctness
 requirement against branching; it is a performance choice — finish the work
 already in flight before admitting new work that may push the system to its
