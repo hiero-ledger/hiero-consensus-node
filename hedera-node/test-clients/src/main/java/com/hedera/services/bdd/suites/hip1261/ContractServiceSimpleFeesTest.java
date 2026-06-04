@@ -108,9 +108,9 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    KEYS, 1L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 2L,
+                                            KEYS, 1L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -135,9 +135,9 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 3L,
-                                    KEYS, 2L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 3L,
+                                            KEYS, 2L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -162,9 +162,9 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 4L,
-                                    KEYS, 3L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 4L,
+                                            KEYS, 3L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -190,9 +190,9 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 21L,
-                                    KEYS, 1L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 21L,
+                                            KEYS, 1L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -219,10 +219,10 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    KEYS, 1L,
-                                    HOOK_UPDATES, 1L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 2L,
+                                            KEYS, 1L,
+                                            HOOK_UPDATES, 1L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -249,9 +249,9 @@ public class ContractServiceSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             "createTxn",
                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    HOOK_UPDATES, 2L,
-                                    PROCESSING_BYTES, (long) txnSize))
+                                            SIGNATURES, 2L,
+                                            HOOK_UPDATES, 2L,
+                                            PROCESSING_BYTES, (long) txnSize))
                                     + gasUsedRef.get(),
                             0.01),
                     validateChargedAccount("createTxn", PAYER));
@@ -420,9 +420,9 @@ public class ContractServiceSimpleFeesTest {
                                     validateChargedUsdWithinWithTxnSize(
                                             "createTxn",
                                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                                    SIGNATURES, 1L,
-                                                    KEYS, 1L,
-                                                    PROCESSING_BYTES, (long) txnSize))
+                                                            SIGNATURES, 1L,
+                                                            KEYS, 1L,
+                                                            PROCESSING_BYTES, (long) txnSize))
                                                     + gasUsedRef.get(),
                                             0.01));
                         }),
@@ -455,9 +455,9 @@ public class ContractServiceSimpleFeesTest {
                                     validateChargedUsdWithinWithTxnSize(
                                             "createTxn",
                                             txnSize -> expectedContractCreateSimpleFeesUsd(Map.of(
-                                                    SIGNATURES, 2L,
-                                                    KEYS, 2L,
-                                                    PROCESSING_BYTES, (long) txnSize))
+                                                            SIGNATURES, 2L,
+                                                            KEYS, 2L,
+                                                            PROCESSING_BYTES, (long) txnSize))
                                                     + gasUsedRef.get(),
                                             0.01));
                         }),
