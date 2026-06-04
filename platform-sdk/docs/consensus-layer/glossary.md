@@ -172,6 +172,13 @@ A *Witness* voted *famous* by virtual voting. The famous witnesses of a round, m
 one per creator, are its *Judges*.
 See [concepts/voting.md](concepts/voting.md).
 
+### firstSee
+
+`firstSee(x, m)` — the first *Witness* on *x*'s self-ancestor line in the round of
+`lastSee(x, m)` (the most recent event by creator *m* that is an ancestor of *x*). A
+*see*-family helper used with *lastSee* and *seeThru* to compute *Strongly seeing*.
+See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
+
 ### Freeze and upgrade
 
 A coordinated network freeze at a chosen round that quiesces consensus so every node can
@@ -225,6 +232,12 @@ A node trailing its peers but still able to catch up through gossip; a lagging n
 self-suppress event creation to avoid authoring events that would go *Stale*. Contrast
 *Fallen behind*.
 See [architecture/topics/reasons-not-to-gossip.md](architecture/topics/reasons-not-to-gossip.md).
+
+### lastSee
+
+`lastSee(x, m)` — the most recent event by creator *m* that is an ancestor of *x*, or null if
+none. A *see*-family helper underlying *firstSee* and *seeThru*.
+See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
 ### Orphan buffer
 
@@ -312,8 +325,18 @@ See [architecture/topics/wiring-framework.md](architecture/topics/wiring-framewo
 
 ### Seeing
 
-Event *x* *sees* event *y* if *y* is an ancestor of *x* and *x* cannot detect a branch by
-*y*'s creator on that path; the building block for *Strongly seeing*.
+The paper's base relation, no longer used in the code: event *x* *sees* event *y* if *y* is
+an ancestor of *x* and *x* cannot detect a branch by *y*'s creator on that path — so if a
+creator branches, *x* sees none of the branched events. The code drops this branch test; its
+*see*-family helpers (*lastSee*, *firstSee*, *seeThru*) instead resolve to the first event of
+a branch.
+See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
+
+### seeThru
+
+`seeThru(x, m, m2)` — the *Witness* by creator *m* that *x* sees *through* an intermediate
+event by creator *m2*, i.e. `firstSee(lastSee(x, m2), m)`. *Strongly seeing* is computed by
+counting the distinct *m2* that resolve to the same witness.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
 ### Self-event
