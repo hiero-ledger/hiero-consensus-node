@@ -64,10 +64,10 @@ A gossip channel that pushes fresh self-events to peers immediately, complementi
 sending them twice.
 See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
-### cGen
+### CGen
 
 *Consensus generation* (`LocalConsensusGeneration`): a deterministic, temporary counter that
-orders events within a round as they reach consensus. Contrast *nGen* and *deGen*; see
+orders events within a round as they reach consensus. Contrast *NGen* and *DeGen*; see
 *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
@@ -80,7 +80,7 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 A periodic round in a fame *Election* (every `coinFreq` rounds, default 12) where a voter
 that does not strongly see a super-majority falls back to a pseudo-random bit derived
-from the event's `coin` field, guaranteeing the election eventually decides.
+from the voter's `coin` field, guaranteeing the election eventually decides.
 See [concepts/coin-rounds.md](concepts/coin-rounds.md).
 
 ### Consensus / Execution boundary
@@ -132,10 +132,10 @@ The intake stage that discards events already seen — keyed per creator — so 
 and hashgraph process each event once.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
-### deGen
+### DeGen
 
 *Deterministic generation* (`DeGen`): computed identically on every node and used to drive
-*lastSee* for *Strongly seeing*. Contrast *nGen* and *cGen*; see *Generation*.
+*lastSee* for *Strongly seeing*. Contrast *NGen* and *CGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Descendant
@@ -306,11 +306,11 @@ The smallest *Birth round* among a decided round's *Judges*; stored per round as
 `MinimumJudgeInfo`, it anchors the *Ancient threshold* and *Expired threshold*.
 See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
-### nGen
+### NGen
 
 *Non-deterministic generation* (`NonDeterministicGeneration`): a count assigned locally by
 each node, so it may differ between nodes; used only for topological ordering and "higher in
-the hashgraph" comparisons. Contrast the deterministic *deGen* and *cGen*; see *Generation*.
+the hashgraph" comparisons. Contrast the deterministic *DeGen* and *CGen*; see *Generation*.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
