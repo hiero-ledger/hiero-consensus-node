@@ -28,7 +28,11 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 500    | TBD                            |                                   |
   | 600    | Test Helpers                   |                                   |
   | 700    | AI Helpers                     | Helpers for AI workflows          |
-  | 800    | Reusable workflows             |                                   |
+  | 800 | Reusable workflows (all) | |
+  | 800 | Reusable workflows  (MATS) | Workflows related to MATS execution |
+  | 815 | Reusable workflows (XTS) | Workflows related to XTS execution |
+  | 830 | Reusable workflows (CITR) | Callable workflows relating to CITR |
+  | 850 | Reusable workflows (Release) | Reusable workflows for the release pipelines |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
 - Followed by `: ` (colon and a space)
