@@ -125,6 +125,7 @@ class HintsPartialSignatureHandlerTest {
         lenient().when(storeFactory.readableStore(ReadableHintsStore.class)).thenReturn(hintsStore);
         lenient().when(hintsStore.crsIfKnown()).thenReturn(CRS);
         lenient().when(signing.constructionId()).thenReturn(CONSTRUCTION_ID);
+        lenient().when(hintsContext.acceptsConstruction(CONSTRUCTION_ID)).thenReturn(true);
     }
 
     @Test
@@ -410,6 +411,20 @@ class HintsPartialSignatureHandlerTest {
         verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
         verify(hintsContext).newSigningForConstruction(eq(MESSAGE), eq(CONSTRUCTION_ID), any(Runnable.class));
         verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+    }
+
+    @Test
+    void handleDeterministicValidSignatureDoesNotIncorporateWhenConstructionRejected() {
+        given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
+        given(hintsContext.validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
+                .willReturn(true);
+        given(hintsContext.acceptsConstruction(CONSTRUCTION_ID)).willReturn(false);
+
+        subject.handle(handleContext);
+
+        verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
+        verify(hintsContext, never()).newSigningForConstruction(any(), anyLong(), any());
+        verifyNoInteractions(signing);
     }
 
     @Test

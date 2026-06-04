@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -46,30 +47,39 @@ public class HintsContext {
 
     public static final String INVALID_AGGREGATE_SIGNATURE_MESSAGE = "Aggregate hinTS signature was invalid";
 
+    private static final long NO_CONSTRUCTION_ID = Long.MIN_VALUE;
+    private static final long NO_BLOCK_STARTED = -1L;
+    private static final long MIXED_MODE_BLOCKS = 3L;
+
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
     private final Supplier<Configuration> configProvider;
     private final HintsSigningMetrics signingMetrics;
 
+    private final ReentrantReadWriteLock akCacheLock = new ReentrantReadWriteLock(true);
+
     private volatile ConstructionSnapshots constructionSnapshots = ConstructionSnapshots.EMPTY;
+    private volatile long lastStartedBlock = NO_BLOCK_STARTED;
+    private volatile long mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
+    private volatile long mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
+    private volatile long mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
 
     /**
-     * The active and immediately previous construction snapshots. Keeping both covers the handoff window where
-     * partial signatures for the just-finished block can arrive after the active construction id has advanced.
+     * The construction id whose aggregation key was last allowed to populate the native hinTS AK cache.
+     * Guarded by {@link #akCacheLock}'s write lock.
+     */
+    private long lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
+
+    /**
+     * The active and, during mixed mode, immediately previous construction snapshots.
      */
     private record ConstructionSnapshots(
             @Nullable ConstructionSnapshot active, @Nullable ConstructionSnapshot previous) {
         private static final ConstructionSnapshots EMPTY = new ConstructionSnapshots(null, null);
 
-        private @Nullable ConstructionSnapshot get(final long constructionId) {
-            if (active != null && active.constructionId() == constructionId) {
-                return active;
-            }
-            if (previous != null && previous.constructionId() == constructionId) {
-                return previous;
-            }
-            return null;
+        private @Nullable ConstructionSnapshot activeIf(final long constructionId) {
+            return active != null && active.constructionId() == constructionId ? active : null;
         }
     }
 
@@ -91,21 +101,6 @@ public class HintsContext {
             requireNonNull(verificationKey);
             requireNonNull(nodePartyIds);
             requireNonNull(nodeWeights);
-        }
-
-        private boolean validatePartial(
-                final long nodeId,
-                @NonNull final Bytes crs,
-                @NonNull final HintsPartialSignatureTransactionBody body,
-                @NonNull final HintsLibrary library) {
-            requireNonNull(crs);
-            requireNonNull(body);
-            requireNonNull(library);
-            if (body.constructionId() != constructionId || !nodePartyIds.containsKey(nodeId)) {
-                return false;
-            }
-            return library.verifyBls(
-                    crs, body.partialSignature(), body.message(), aggregationKey, nodePartyIds.get(nodeId));
         }
     }
 
@@ -134,19 +129,67 @@ public class HintsContext {
      * @param construction the construction to start using for signing
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public void setConstruction(@NonNull final HintsConstruction construction) {
+    public synchronized void setConstruction(@NonNull final HintsConstruction construction) {
         requireNonNull(construction);
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
         final var newSnapshot = snapshotOf(construction);
-        final var current = constructionSnapshots;
-        final var previous =
-                current.active() != null && current.active().constructionId() != newSnapshot.constructionId()
-                        ? current.active()
-                        : current.previous();
-        constructionSnapshots = new ConstructionSnapshots(newSnapshot, previous);
+        final var writeLock = akCacheLock.writeLock();
+        writeLock.lock();
+        try {
+            final var current = constructionSnapshots;
+            final var currentActive = current.active();
+            final boolean activeChanged =
+                    currentActive != null && currentActive.constructionId() != newSnapshot.constructionId();
+            final boolean canEnterMixedMode = activeChanged && lastStartedBlock != NO_BLOCK_STARTED;
+            constructionSnapshots = new ConstructionSnapshots(newSnapshot, canEnterMixedMode ? currentActive : null);
+            if (activeChanged) {
+                resetAkCache();
+                if (canEnterMixedMode) {
+                    beginMixedMode(currentActive.constructionId(), newSnapshot.constructionId());
+                } else {
+                    clearMixedMode();
+                }
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * Notifies the context that a block has started.
+     * <p>
+     * The first three blocks that overlap a construction handoff may still admit partial signatures from the previous
+     * construction. Starting with the fourth block, only the active construction is accepted again.
+     *
+     * @param blockNumber the block number being started
+     */
+    public synchronized void onBlockStarted(final long blockNumber) {
+        lastStartedBlock = blockNumber;
+        if (isMixedModeActive() && blockNumber >= mixedModeExpiresAtBlock) {
+            final var writeLock = akCacheLock.writeLock();
+            writeLock.lock();
+            try {
+                resetAkCache();
+                clearMixedMode();
+                final var snapshots = constructionSnapshots;
+                constructionSnapshots = new ConstructionSnapshots(snapshots.active(), null);
+            } finally {
+                writeLock.unlock();
+            }
+        }
+    }
+
+    /**
+     * Whether the given construction id can currently be used for hinTS partial signatures.
+     *
+     * @param constructionId the construction id
+     * @return true if the construction is active, or still in the mixed handoff window
+     */
+    public boolean acceptsConstruction(final long constructionId) {
+        return acceptedSnapshot(constructionId) != null;
     }
 
     /**
@@ -182,8 +225,54 @@ public class HintsContext {
         return snapshot == null ? null : snapshot.construction();
     }
 
+    private @Nullable ConstructionSnapshot acceptedSnapshot(final long constructionId) {
+        final var snapshots = constructionSnapshots;
+        final var active = snapshots.activeIf(constructionId);
+        if (active != null) {
+            return active;
+        }
+        final var previous = snapshots.previous();
+        return previous != null && previous.constructionId() == constructionId && isAcceptedPreviousConstruction()
+                ? previous
+                : null;
+    }
+
+    private boolean isAcceptedPreviousConstruction() {
+        return isMixedModeActive() && lastStartedBlock < mixedModeExpiresAtBlock;
+    }
+
+    private boolean isMixedModeActive() {
+        return mixedModePreviousConstructionId != NO_CONSTRUCTION_ID;
+    }
+
+    private boolean requiresExclusiveAkCacheAccess(final long constructionId) {
+        return isAcceptedPreviousConstruction()
+                && (constructionId == mixedModePreviousConstructionId
+                        || constructionId == mixedModeActiveConstructionId);
+    }
+
+    private void beginMixedMode(final long previousConstructionId, final long activeConstructionId) {
+        mixedModePreviousConstructionId = previousConstructionId;
+        mixedModeActiveConstructionId = activeConstructionId;
+        mixedModeExpiresAtBlock = lastStartedBlock + MIXED_MODE_BLOCKS;
+        log.info(
+                "Entering hinTS mixed construction mode for #{} and #{} through block #{}",
+                previousConstructionId,
+                activeConstructionId,
+                mixedModeExpiresAtBlock - 1);
+    }
+
+    private void clearMixedMode() {
+        if (isMixedModeActive()) {
+            log.info("Exiting hinTS mixed construction mode");
+        }
+        mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
+        mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
+        mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
+    }
+
     /**
-     * Validates a partial signature transaction body under an active or immediately previous hinTS construction.
+     * Validates a partial signature transaction body under an accepted hinTS construction.
      * @param nodeId the node ID
      * @param crs the CRS to validate under
      * @param body the transaction body
@@ -192,11 +281,18 @@ public class HintsContext {
     public boolean validate(
             final long nodeId, @Nullable final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
         requireNonNull(crs);
-        final var snapshot = constructionSnapshots.get(body.constructionId());
-        if (snapshot == null) {
+        final var snapshot = acceptedSnapshot(body.constructionId());
+        final var partyId = snapshot == null ? null : snapshot.nodePartyIds().get(nodeId);
+        if (snapshot == null || partyId == null) {
             return false;
         }
-        return snapshot.validatePartial(nodeId, crs, body, library);
+        return verifyBls(
+                snapshot.constructionId(),
+                crs,
+                body.partialSignature(),
+                body.message(),
+                snapshot.aggregationKey(),
+                partyId);
     }
 
     /**
@@ -231,7 +327,7 @@ public class HintsContext {
             @NonNull final Bytes blockHash, final long constructionId, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
-        final var snapshot = constructionSnapshots.get(constructionId);
+        final var snapshot = acceptedSnapshot(constructionId);
         return snapshot == null ? null : newSigningFrom(snapshot, blockHash, onCompletion);
     }
 
@@ -292,6 +388,81 @@ public class HintsContext {
             throw new IllegalStateException("Signing context not ready");
         }
         return snapshot;
+    }
+
+    private boolean verifyBls(
+            final long constructionId,
+            @NonNull final Bytes crs,
+            @NonNull final Bytes signature,
+            @NonNull final Bytes message,
+            @NonNull final Bytes aggregationKey,
+            final int partyId) {
+        requireNonNull(crs);
+        requireNonNull(signature);
+        requireNonNull(message);
+        requireNonNull(aggregationKey);
+        return withAkCacheProtection(
+                constructionId,
+                () -> acceptsConstruction(constructionId)
+                        && library.verifyBls(crs, signature, message, aggregationKey, partyId));
+    }
+
+    private @Nullable Bytes aggregateSignatures(
+            final long constructionId,
+            @NonNull final Bytes crs,
+            @NonNull final Bytes aggregationKey,
+            @NonNull final Bytes verificationKey,
+            @NonNull final Map<Integer, Bytes> partialSignatures) {
+        requireNonNull(crs);
+        requireNonNull(aggregationKey);
+        requireNonNull(verificationKey);
+        requireNonNull(partialSignatures);
+        return withAkCacheProtection(
+                constructionId,
+                () -> acceptsConstruction(constructionId)
+                        ? library.aggregateSignatures(crs, aggregationKey, verificationKey, partialSignatures)
+                        : null);
+    }
+
+    private <T> T withAkCacheProtection(final long constructionId, @NonNull final Supplier<T> operation) {
+        requireNonNull(operation);
+        if (requiresExclusiveAkCacheAccess(constructionId)) {
+            return withExclusiveAkCacheAccess(constructionId, operation);
+        }
+        final var readLock = akCacheLock.readLock();
+        readLock.lock();
+        try {
+            if (!requiresExclusiveAkCacheAccess(constructionId)) {
+                return operation.get();
+            }
+        } finally {
+            readLock.unlock();
+        }
+        return withExclusiveAkCacheAccess(constructionId, operation);
+    }
+
+    private <T> T withExclusiveAkCacheAccess(final long constructionId, @NonNull final Supplier<T> operation) {
+        requireNonNull(operation);
+        final var writeLock = akCacheLock.writeLock();
+        writeLock.lock();
+        try {
+            useAkCacheFor(constructionId);
+            return operation.get();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    private void useAkCacheFor(final long constructionId) {
+        if (lastAkCacheConstructionId != constructionId) {
+            resetAkCache();
+            lastAkCacheConstructionId = constructionId;
+        }
+    }
+
+    private void resetAkCache() {
+        library.resetCache();
+        lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
     }
 
     /**
@@ -394,11 +565,12 @@ public class HintsContext {
             requireNonNull(body);
             if (body.constructionId() != constructionId
                     || !body.message().equals(blockHash)
-                    || !partyIds.containsKey(nodeId)) {
+                    || !partyIds.containsKey(nodeId)
+                    || !acceptsConstruction(constructionId)) {
                 return false;
             }
-            return library.verifyBls(
-                    crs, body.partialSignature(), body.message(), aggregationKey, partyIds.get(nodeId));
+            return verifyBls(
+                    constructionId, crs, body.partialSignature(), body.message(), aggregationKey, partyIds.get(nodeId));
         }
 
         /**
@@ -425,10 +597,13 @@ public class HintsContext {
         public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
             requireNonNull(crs);
             requireNonNull(signature);
-            if (completed.get()) {
+            if (completed.get() || !acceptsConstruction(constructionId)) {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
+            if (partyId == null) {
+                return;
+            }
             if (signatures.put(partyId, signature) != null) {
                 // Each valid signature should only accumulate weight once, so abort on duplicates
                 return;
@@ -439,7 +614,7 @@ public class HintsContext {
             final boolean reachedThreshold = totalWeight > thresholdWeight;
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
-                        library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
+                        aggregateSignatures(constructionId, crs, aggregationKey, verificationKey, signatures);
                 final boolean valid = aggregatedSignature != null
                         && (!validateSignature
                                 || library.verifyAggregate(

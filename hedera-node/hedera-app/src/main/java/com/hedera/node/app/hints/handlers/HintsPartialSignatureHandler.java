@@ -156,6 +156,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      */
     private void incorporateIfConstructionMatches(
             @NonNull final HintsPartialSignatureTransactionBody op, @NonNull final Bytes crs, final long creatorId) {
+        if (!hintsContext.acceptsConstruction(op.constructionId())) {
+            return;
+        }
         final var signing = getOrCreateSigningFor(op);
         if (signing != null) {
             signing.incorporateValid(crs, creatorId, op.partialSignature());
