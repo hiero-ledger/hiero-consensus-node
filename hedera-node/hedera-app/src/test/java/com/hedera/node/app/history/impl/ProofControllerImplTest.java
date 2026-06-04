@@ -867,6 +867,10 @@ class ProofControllerImplTest {
 
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightThreshold()).willReturn(5L);
+        // This is the conversion case: wrapsEnabled=true with a not-yet-WRAPS-extensible proof, so
+        // the network must vote again. Only then do we purge the PERSISTED votes on completion, to
+        // keep a reconstructed controller from reloading stale votes.
+        given(tssConfig.wrapsEnabled()).willReturn(true);
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
                 .willReturn(construction);
 
@@ -874,6 +878,28 @@ class ProofControllerImplTest {
 
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
         verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(Set.of(SELF_ID)));
+    }
+
+    @Test
+    void finishingProofDoesNotPurgePersistedVotesWhenNoConversionFollows() {
+        // No-conversion case: the completed proof is already adequate for the WRAPS setting
+        // (wrapsEnabled == isWrapsExtensible -- here both false), so the network does NOT vote
+        // again. Purging the persisted votes here would write a redundant PROOF_VOTES removal into
+        // the block stream (they are purged at construction handoff anyway) and that extra state
+        // change breaks record/block-stream parity for the completing HistoryProofVote receipt.
+        // So clearProofVotes must NOT be called in this case.
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
+        verify(writableHistoryStore, never()).clearProofVotes(anyLong(), any());
     }
 
     @Test
