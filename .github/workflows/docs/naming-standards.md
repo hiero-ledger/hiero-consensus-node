@@ -33,7 +33,10 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 815    | Reusable workflows (XTS)       | Workflows related to XTS execution           |
   | 830    | Reusable workflows (CITR)      | Callable workflows relating to CITR          |
   | 850    | Reusable workflows (Release)   | Reusable workflows for the release pipelines |
-  | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom            |
+  | 800    | Reusable workflows (MATS)     | Workflows related to MATS execution          |
+  | 815    | Reusable workflows (XTS)       | Workflows related to XTS execution           |
+  | 830    | Reusable workflows (CITR)      | Workflows related to CITR          |
+  | 850    | Reusable workflows (Release)   | Workflows related to release pipelines |
 
 - Followed by `: ` (colon and a space)
 
