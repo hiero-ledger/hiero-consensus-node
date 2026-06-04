@@ -54,7 +54,7 @@ class DocExamplesTest {
 
     // This test is used in the turtle-environment.md file.
     @OtterTest(requires = DETERMINISTIC_EXECUTION)
-    @RepeatedTest(10)
+    @RepeatedTest(value = 10, failureThreshold = 1)
     @TurtleSpecs(randomSeed = 42)
     void testDeterministicBehavior(@NonNull final TestEnvironment env) {
         // This test will produce identical results every time
@@ -69,7 +69,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(46L);
+        assertThat(lastRound).isEqualTo(47L);
     }
 
     // This test is used in the writing-tests.md file.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.lang.management.ManagementFactory
 import org.hiero.gradle.environment.EnvAccess
 
 plugins {
@@ -38,10 +39,10 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                         memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
                     }
                 } else {
-                    // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
-                    // This is the Gradle daemon's max heap, not physical RAM, but provides a
-                    // reasonable lower bound for scaling test settings
-                    Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
+                    val os =
+                        ManagementFactory.getOperatingSystemMXBean()
+                            as com.sun.management.OperatingSystemMXBean
+                    os.totalMemorySize / 1024.0 / 1024.0 / 1024.0
                 }
             } catch (_: Exception) {
                 16.0
@@ -214,7 +215,7 @@ val prCheckPropOverrides =
             "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWrapsDownload" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
