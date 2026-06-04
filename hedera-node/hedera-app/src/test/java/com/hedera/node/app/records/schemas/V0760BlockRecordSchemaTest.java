@@ -78,6 +78,68 @@ class V0760BlockRecordSchemaTest {
     }
 
     @Test
+    void migrateIsNoopOnGenesis() {
+        given(ctx.isGenesis()).willReturn(true);
+
+        subject.migrate(ctx);
+
+        verify(ctx, never()).appConfig();
+        verifyNoInteractions(configuration, blockRecordStreamConfig);
+    }
+
+    @Test
+    void migrateDeletesFileWhenWriteFlagDisabledAndFilePresent(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        assertTrue(Files.exists(file));
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void migrateIsNoopWhenFileMissing(@TempDir final Path tempDir) {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        assertFalse(Files.exists(file));
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void migrateSwallowsIoExceptionWhenDeleteFails(@TempDir final Path tempDir) throws IOException {
+        // Create a directory at the file path. Files.deleteIfExists on a non-empty directory throws
+        // DirectoryNotEmptyException (an IOException) — this exercises the catch branch.
+        final var dirInsteadOfFile = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.createDirectory(dirInsteadOfFile);
+        Files.writeString(dirInsteadOfFile.resolve("blocker"), "x");
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertTrue(Files.exists(dirInsteadOfFile));
+    }
+
+    @Test
+    void migrateLeavesFileAloneWhenWriteFlagEnabled(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
+
+        subject.migrate(ctx);
+
+        assertTrue(Files.exists(file));
+        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
+    }
+
+    @Test
     void restartIsNoopOnGenesis() {
         given(ctx.isGenesis()).willReturn(true);
 
@@ -88,9 +150,29 @@ class V0760BlockRecordSchemaTest {
     }
 
     @Test
-    void restartReturnsEarlyWhenBlockInfoSingletonIsNullOnUpgrade() {
-        givenRestartUpgradePreconditions();
-        givenLiveWriteEnabled();
+    void restartIsNoopWhenLiveWriteAndCutoverDisabled() {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
+        given(hederaConfig.configVersion()).willReturn(0);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(false);
+        given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
+        given(blockStreamConfig.enableCutover()).willReturn(false);
+
+        subject.restart(ctx);
+
+        verify(blockInfoState, never()).put(any());
+    }
+
+    @Test
+    void restartSkipsVotingBlockWhenBlockInfoSingletonIsNull() {
+        givenRestartPreconditions();
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         given(blockInfoState.get()).willReturn(null);
@@ -98,14 +180,14 @@ class V0760BlockRecordSchemaTest {
         subject.restart(ctx);
 
         verify(blockInfoState, never()).put(any());
-        verify(ctx, never()).sharedValues();
-        verify(blockRecordStreamConfig, never()).writeWrappedRecordFileBlockHashesToDisk();
     }
 
     @Test
-    void restartSkipsVotingWhenNotUpgrade() {
+    void restartIsNoopWhenNotUpgrade() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
@@ -113,7 +195,6 @@ class V0760BlockRecordSchemaTest {
         given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(false);
-        givenWriteFlagDisabled("/tmp/whatever");
 
         subject.restart(ctx);
 
@@ -122,10 +203,8 @@ class V0760BlockRecordSchemaTest {
 
     @Test
     void restartReinitializesVotingFieldsWhenJumpstartEnabled() {
-        givenRestartUpgradePreconditions();
-        givenLiveWriteEnabled();
+        givenRestartPreconditions();
         givenCutoverDisabled();
-        givenWriteFlagDisabled("/tmp/whatever");
         given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
         given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
         given(ctx.newStates()).willReturn(writableStates);
@@ -149,11 +228,30 @@ class V0760BlockRecordSchemaTest {
     }
 
     @Test
-    void restartSkipsVotingInitWhenJumpstartNotPositive() {
-        givenRestartUpgradePreconditions();
-        givenLiveWriteEnabled();
+    void restartInitializesVotingDeadlineWhenJumpstartEnabled() {
+        givenRestartPreconditions();
         givenCutoverDisabled();
-        givenWriteFlagDisabled("/tmp/whatever");
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        given(blockInfoState.get()).willReturn(baseBlockInfo());
+
+        subject.restart(ctx);
+
+        verify(blockInfoState)
+                .put(baseBlockInfo()
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
+                        .migrationRootHashVotes(List.of())
+                        .build());
+    }
+
+    @Test
+    void restartSkipsInitializationWhenJumpstartNotPositive() {
+        givenRestartPreconditions();
+        givenCutoverDisabled();
         given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
         given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
         given(ctx.newStates()).willReturn(writableStates);
@@ -166,26 +264,12 @@ class V0760BlockRecordSchemaTest {
     }
 
     @Test
-    void restartSkipsVotingInitWhenLiveWriteDisabled() {
-        givenRestartUpgradePreconditions();
-        given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(false);
-        givenCutoverDisabled();
-        givenWriteFlagDisabled("/tmp/whatever");
-
-        subject.restart(ctx);
-
-        verifyNoInteractions(blockInfoState);
-    }
-
-    @Test
-    void restartSharesBlockInfoAndRunningHashesWhenCutoverEnabled() {
-        givenRestartUpgradePreconditions();
-        givenLiveWriteEnabled();
+    void sharesBlockInfoAndRunningHashesWhenCutoverEnabled() {
+        givenRestartPreconditions();
         given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
         given(blockStreamConfig.enableCutover()).willReturn(true);
         given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
         given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
-        givenWriteFlagEnabled();
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         final var blockInfo = baseBlockInfo();
@@ -206,11 +290,9 @@ class V0760BlockRecordSchemaTest {
     }
 
     @Test
-    void restartDoesNotShareValuesWhenCutoverDisabled() {
-        givenRestartUpgradePreconditions();
-        givenLiveWriteEnabled();
+    void doesNotShareValuesWhenCutoverDisabled() {
+        givenRestartPreconditions();
         givenCutoverDisabled();
-        givenWriteFlagDisabled("/tmp/whatever");
         given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
         given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
         given(ctx.newStates()).willReturn(writableStates);
@@ -222,64 +304,15 @@ class V0760BlockRecordSchemaTest {
         verify(ctx, never()).sharedValues();
     }
 
-    @Test
-    void restartDeletesFileWhenWriteFlagDisabledAndFilePresent(@TempDir final Path tempDir) throws IOException {
-        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
-        Files.writeString(file, "stale");
-        assertTrue(Files.exists(file));
-        givenRestartNonUpgrade();
-        givenCutoverDisabled();
-        givenWriteFlagDisabled(tempDir.toString());
-
-        subject.restart(ctx);
-
-        assertFalse(Files.exists(file));
+    private void givenMigrateWithDir(final String dir) {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(false);
+        given(blockRecordStreamConfig.wrappedRecordHashesDir()).willReturn(dir);
     }
 
-    @Test
-    void restartIsNoopWhenFileMissing(@TempDir final Path tempDir) {
-        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
-        assertFalse(Files.exists(file));
-        givenRestartNonUpgrade();
-        givenCutoverDisabled();
-        givenWriteFlagDisabled(tempDir.toString());
-
-        subject.restart(ctx);
-
-        assertFalse(Files.exists(file));
-    }
-
-    @Test
-    void restartSwallowsIoExceptionWhenDeleteFails(@TempDir final Path tempDir) throws IOException {
-        // Create a directory at the file path. Files.deleteIfExists on a non-empty directory throws
-        // DirectoryNotEmptyException (an IOException) — this exercises the catch branch.
-        final var dirInsteadOfFile = tempDir.resolve(DEFAULT_FILE_NAME);
-        Files.createDirectory(dirInsteadOfFile);
-        Files.writeString(dirInsteadOfFile.resolve("blocker"), "x");
-        givenRestartNonUpgrade();
-        givenCutoverDisabled();
-        givenWriteFlagDisabled(tempDir.toString());
-
-        subject.restart(ctx);
-
-        assertTrue(Files.exists(dirInsteadOfFile));
-    }
-
-    @Test
-    void restartLeavesFileAloneWhenWriteFlagEnabled(@TempDir final Path tempDir) throws IOException {
-        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
-        Files.writeString(file, "stale");
-        givenRestartNonUpgrade();
-        givenCutoverDisabled();
-        givenWriteFlagEnabled();
-
-        subject.restart(ctx);
-
-        assertTrue(Files.exists(file));
-        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
-    }
-
-    private void givenRestartUpgradePreconditions() {
+    private void givenRestartPreconditions() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
         given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
@@ -288,36 +321,12 @@ class V0760BlockRecordSchemaTest {
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-    }
-
-    private void givenRestartNonUpgrade() {
-        given(ctx.isGenesis()).willReturn(false);
-        given(ctx.appConfig()).willReturn(configuration);
-        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 76, 0, "", ""));
-        given(hederaConfig.configVersion()).willReturn(0);
-        given(ctx.isUpgrade(any())).willReturn(false);
-    }
-
-    private void givenLiveWriteEnabled() {
         given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(true);
     }
 
     private void givenCutoverDisabled() {
         given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
         given(blockStreamConfig.enableCutover()).willReturn(false);
-    }
-
-    private void givenWriteFlagEnabled() {
-        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
-    }
-
-    private void givenWriteFlagDisabled(final String dir) {
-        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(false);
-        given(blockRecordStreamConfig.wrappedRecordHashesDir()).willReturn(dir);
     }
 
     private static BlockInfo baseBlockInfo() {
