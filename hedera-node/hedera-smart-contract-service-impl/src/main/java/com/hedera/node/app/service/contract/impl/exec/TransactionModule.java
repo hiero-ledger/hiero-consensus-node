@@ -173,6 +173,7 @@ public interface TransactionModule {
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
                 false,
+                false,
                 hederaEvmBlocks,
                 tinybarValues,
                 systemContractGasCalculator,
