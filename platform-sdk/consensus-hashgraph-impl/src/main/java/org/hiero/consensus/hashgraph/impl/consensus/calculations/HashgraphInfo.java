@@ -112,12 +112,20 @@ public class HashgraphInfo {
      * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
      * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
      */
-    public void setPrevIsConsensus(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
+    public void setPrevIsConsensus(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
         int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
         boolean firstJudge = true;
+
         if (roundInfoPrev.prevJudges == null || roundInfoPrev.prevJudges.length == 0) {
-            return;
+            throw new IllegalArgumentException("roundInfoPrev.prevJudges has no judges (null or empty)");
         }
+        if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
+            throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound");
+        }
+        if (pendingRound != 0) {
+            throw new IllegalArgumentException("setPrevIsConsensus() was called after EventInfo.update() was called");
+        }
+        
         /**/
         // calculate minNonAncientRound
         for (EventInfo judge : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
