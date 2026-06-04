@@ -1040,21 +1040,21 @@ jobs:
           status=0
           run_subtask() {
             local t=$1
-            echo "::group::$t"
-            if ${GRADLE_EXEC} "$t" --no-daemon; then
+            echo "::group::${t}"
+            if ${GRADLE_EXEC} "${t}" --no-daemon; then
               echo "::endgroup::"
               return 0
             fi
             echo "::endgroup::"
             status=1
-            echo "::error::$t failed"
-            echo "❌ $t FAILED — expand group above for details"
+            echo "::error::${t} failed"
+            echo "❌ ${t} FAILED — expand group above for details"
           }
           run_subtask hapiTestCrypto
           run_subtask hapiTestCryptoEmbedded
           run_subtask hapiTestCryptoSerial
           run_subtask hapiTestMiscSerial
-          exit $status
+          exit "${status}"
 
       - name: Publish HAPI Test (Crypto & Misc Serial) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
