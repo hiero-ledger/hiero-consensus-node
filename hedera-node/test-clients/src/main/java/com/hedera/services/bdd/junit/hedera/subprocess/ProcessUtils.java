@@ -180,7 +180,7 @@ public class ProcessUtils {
             try {
                 final int poolMib = Integer.parseInt(nodePoolMib);
                 final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
-                final int perNodeMib = Math.max(512, Math.min(4096, poolMib / networkSize));
+                final int perNodeMib = Math.clamp(poolMib / networkSize, 2048, 4096);
                 commandLine.add("-Xmx" + perNodeMib + "m");
             } catch (NumberFormatException e) {
                 log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);
