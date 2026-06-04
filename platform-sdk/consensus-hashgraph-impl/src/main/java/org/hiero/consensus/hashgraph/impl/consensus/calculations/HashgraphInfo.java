@@ -60,6 +60,7 @@ public class HashgraphInfo {
     private EventInfo selfParent;
     private int parentsMaxSize = 0; //largest parents has ever been (used to recover from massive branching)
     private boolean nodesChanged; //true for round 1 and for any round where nodes[] differs from the round before it
+    private int currMark = 0;
 
     private boolean roundDecided;
 
@@ -115,7 +116,37 @@ public class HashgraphInfo {
      * @param roundInfo round info for the pending round (the round currently being calculated)
      */
     public void setPrevIsConsensus(RoundInfo roundInfo) {
-        // TODO
+        int targetCount = roundInfo.prev.prevJudgeCon1 ? 1 : roundInfo.prev.prevJudges.length;
+        boolean firstJudge = true;
+        if (roundInfo.prev.prevJudges == null || roundInfo.prev.prevJudges.length == 0) {
+            return;
+        }
+        /**/ //calculate minNonAncientRound
+        for (EventInfo judge : roundInfo.prev.prevJudges) { //depth-first search starting from each judge
+            EventInfo x = judge;
+            currMark++;
+            x.searchChild = null; //backtracking up from this x means the search is done
+            do { //depth-first search starting from this judge
+                x.searchMark = currMark;
+                x.searchParent = -1; //descend through the first parent first
+                x.searchCount = firstJudge ? 1 : x.searchCount + 1; //x is ancestor of this many judges so far
+                if (x.searchCount == targetCount) {
+                    x.isConsensus = true; //SUCCESS: found an event that is an ancestor of the target number of judges
+                }
+                EventInfo xNew = null;
+                //while xNew is bad (null, ancient, or marked), search/backtrack until a good one is found or done
+                while (x != null &&
+                        (xNew == null || xNew.birthRound < minNonAncientRound || xNew.searchMark == currMark)) {
+                    while (x != null && x.searchParent == x.parentsSigned.length - 1) {
+                        x = x.searchChild; //backtrack up the graph until an event found with an unexplored parent
+                    }
+                    x.searchParent++;
+                    xNew = (x == null) ? null : x.parentsSigned[x.searchParent];
+                }
+                x = xNew; //move to the new event that was good
+            } while (x != null); //once we backtrack to null, the search from this judge is done
+            firstJudge = false;
+        }
     }
 
     /**
@@ -145,7 +176,11 @@ public class HashgraphInfo {
         private long consensusOrder;
         private Instant consensusTimestamp;
         private boolean isPrevJudge;
-        private long mark; //used for graph searches on the hashgraph
+        //the following are used for graph searches in the hashgraph
+        private long searchMark;
+        private int searchCount;
+        private int searchParent;
+        private EventInfo searchChild;
 
         /**
          * True iff this event is the descendent of at least one judge from the previous round.
@@ -253,8 +288,20 @@ public class HashgraphInfo {
             return isPrevJudge;
         }
 
-        public long getMark() {
-            return mark;
+        public long getSearchMark() {
+            return searchMark;
+        }
+
+        public int getSearchCount() {
+            return searchCount;
+        }
+
+        public int getSearchParent() {
+            return searchParent;
+        }
+
+        public EventInfo getSearchChild() {
+            return searchChild;
         }
 
         /**
@@ -300,6 +347,7 @@ public class HashgraphInfo {
             voteE = null;
             voteB = null;
             consensusTimestamp = null;
+            searchChild = null;
         }
 
         /**
