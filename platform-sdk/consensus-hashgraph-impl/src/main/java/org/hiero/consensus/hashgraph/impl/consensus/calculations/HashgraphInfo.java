@@ -6,8 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
@@ -54,7 +52,7 @@ public class HashgraphInfo {
     private long pendingRound;
     private int numNodes;
     private long[] nodeIDs;
-    private Map<Long, Integer> nodeIdToIndex;
+    private HashMap<Long, Integer> nodeIdToIndex;
     private long totalStake;
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
@@ -128,6 +126,7 @@ public class HashgraphInfo {
     public static class EventInfo {
         private HashgraphInfo hashgraph;
         private final long creatorNodeID; //nodeID of this event's creator
+        private final Instant timeCreated;
         private EventInfo[] parentsSigned;
         private int creator; //index into the nodes array of this event's creator
         private final long birthRound;
@@ -194,6 +193,10 @@ public class HashgraphInfo {
             return creator;
         }
 
+        public Instant getTimeCreated() {
+            return timeCreated;
+        }
+
         public long getBirthRound() {
             return birthRound;
         }
@@ -250,6 +253,10 @@ public class HashgraphInfo {
             return isPrevJudge;
         }
 
+        public long getMark() {
+            return mark;
+        }
+
         /**
          * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
          * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
@@ -257,13 +264,16 @@ public class HashgraphInfo {
          * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
          * then it is ok to pass in null, or an array of all nulls, or an empty array.
          *
-         * @param hashgraph which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
-         * @param creator   the nodeID of the creator of this event
-         * @param parents   array of parents, in the same order as in the signed event that is gossiped.
+         * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
+         * @param creator     the nodeID of the creator of this event
+         * @param timeCreated when this event was created, as claimed by its creator node
+         * @param parents     array of parents, in the same order as in the signed event that is gossiped.
          */
-        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, long birthRound, EventInfo[] parents) {
+        public EventInfo(@NonNull HashgraphInfo hashgraph, long creator, @NonNull Instant timeCreated,
+                         long birthRound, EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
+            this.timeCreated = timeCreated;
             this.birthRound = birthRound;
             this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
         }
@@ -296,7 +306,7 @@ public class HashgraphInfo {
          * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
          */
         public record UpdateResults(
-                List<EventInfo> consensusEvents, RoundInfoPrev nextRoundInfoPrev) {
+                EventInfo[] consensusEvents, RoundInfoPrev nextRoundInfoPrev) {
         }
 
         /**
@@ -347,6 +357,7 @@ public class HashgraphInfo {
             final HashgraphInfo h = x.hashgraph;
             long parentRound;
             ArrayList<EventInfo> roundJudges;
+            ArrayList<EventInfo> consensusEvents;
             long minJudgeBirthRound;
 
             if (hashgraph == null) {
@@ -561,9 +572,10 @@ public class HashgraphInfo {
             if (!h.roundDecided) {
                 return null;
             }
+            consensusEvents = new ArrayList<>();
 
             // function roundJudges
-            roundJudges = new ArrayList<EventInfo>();  /**/
+            roundJudges = new ArrayList<>();
 
             // function receivedEvents
 
@@ -594,13 +606,13 @@ public class HashgraphInfo {
             }
 
             return new UpdateResults(
-                    null, //consensusEvents
+                    consensusEvents.toArray(new EventInfo[0]), //consensusEvents
                     new RoundInfoPrev(
                             r.judgeCon1, //prevJudgeCon1
                             roundJudges.toArray(new EventInfo[0]), //prevJudges
-                            false,
-                            0, //prevMinNonAncientRound
-                            0,
+                            false, //prevJudgesCopied /**/
+                            h.minNonAncientRound, //prevMinNonAncientRound
+                            rp.prevNumCons + consensusEvents.size(), //prevNumCons
                             minJudgeBirthRound)); //prevMinJudgeBirthRound
         }
     }
