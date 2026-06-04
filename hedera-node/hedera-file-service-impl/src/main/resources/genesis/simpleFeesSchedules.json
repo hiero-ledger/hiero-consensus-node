@@ -638,7 +638,8 @@
         {
           "name": "ContractCall",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ContractUpdate",
