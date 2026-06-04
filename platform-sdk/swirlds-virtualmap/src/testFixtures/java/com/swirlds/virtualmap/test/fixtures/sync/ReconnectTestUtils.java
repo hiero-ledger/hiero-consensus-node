@@ -91,7 +91,7 @@ public final class ReconnectTestUtils {
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
+                    new TeachingSynchronizer(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
                                 ThreadManager threadManager,
@@ -115,8 +115,7 @@ public final class ReconnectTestUtils {
             ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
-            workGroup.execute(
-                    "teaching-synchronizer-main", () -> teachingSynchronizerThread(teacherMap, streams, teacher));
+            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
             workGroup.execute(
                     "learning-synchronizer-main",
                     () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
@@ -162,10 +161,9 @@ public final class ReconnectTestUtils {
         assertVmsAreEqual(teacherMap, reconnectMap);
     }
 
-    private static void teachingSynchronizerThread(
-            final VirtualMap teacherMap, final PairedStreams streams, final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize(teacherMap, streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
+            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }

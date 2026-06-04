@@ -168,6 +168,7 @@ public class LearningSynchronizer {
             throw ie;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while receiving tree", t);
+            workGroup.handleError(t); // notify other tasks to cancel
             exchanger.abortOnException();
             throw new RuntimeException(t);
         }
@@ -177,9 +178,16 @@ public class LearningSynchronizer {
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
         } else {
-            logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
-            logger.info(RECONNECT.getMarker(), reconnectStats::format);
-            return exchanger.onSuccessfulComplete();
+            try {
+                VirtualMap syncedVirtualMap = exchanger.onSuccessfulComplete();
+                logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
+                logger.info(RECONNECT.getMarker(), reconnectStats::format);
+                return syncedVirtualMap;
+            } catch (final Throwable t) {
+                logger.info(RECONNECT.getMarker(), "Caught exception while completing synchronization", t);
+                exchanger.abortOnException();
+                throw new MerkleSynchronizationException("Failed to finish synchronization", t);
+            }
         }
     }
 

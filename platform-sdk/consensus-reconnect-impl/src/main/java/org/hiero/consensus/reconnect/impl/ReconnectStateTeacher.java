@@ -14,7 +14,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
@@ -45,7 +44,6 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final VirtualMap teacherMap;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -62,9 +60,6 @@ public class ReconnectStateTeacher {
      * After reconnect is finished, restore the socket timeout to the original value.
      */
     private int originalSocketTimeout;
-
-    private final ThreadManager threadManager;
-    private final Time time;
 
     /**
      * @param configuration the platform context
@@ -91,8 +86,9 @@ public class ReconnectStateTeacher {
             @NonNull final ReconnectMetrics statistics) {
 
         Objects.requireNonNull(configuration);
-        this.time = Objects.requireNonNull(time);
-        this.threadManager = Objects.requireNonNull(threadManager);
+        Objects.requireNonNull(time);
+        Objects.requireNonNull(threadManager);
+
         this.connection = Objects.requireNonNull(connection);
         this.reconnectSocketTimeout = reconnectSocketTimeout;
 
@@ -106,10 +102,9 @@ public class ReconnectStateTeacher {
         roster = signedState.getRoster();
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
-        teacherMap = virtualMapState.getRoot();
 
-        synchronizer =
-                new TeachingSynchronizer(time, threadManager, configuration.getConfigData(ReconnectConfig.class));
+        synchronizer = new TeachingSynchronizer(
+                virtualMapState.getRoot(), time, threadManager, configuration.getConfigData(ReconnectConfig.class));
 
         logReconnectStart(signedState);
     }
@@ -220,7 +215,6 @@ public class ReconnectStateTeacher {
         connection.getDis().byteCounter().getAndReset();
 
         synchronizer.synchronize(
-                teacherMap,
                 new DataInputStream(connection.getDis()),
                 new DataOutputStream(connection.getDos()),
                 connection::disconnect);

@@ -41,6 +41,7 @@ public class TeachingSynchronizer {
 
     private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
+    private final RecordAccessor teacherView;
     private final Time time;
     private final ThreadManager threadManager;
     private final ReconnectConfig reconnectConfig;
@@ -48,15 +49,18 @@ public class TeachingSynchronizer {
     /**
      * Constructs a new teaching synchronizer.
      *
+     * @param teacherMap teacher virtual map that would be detached so it can be released after this instance is created
      * @param time the wall clock time
      * @param threadManager responsible for managing thread lifecycles
      * @param reconnectConfig the reconnect configuration
      */
     public TeachingSynchronizer(
+            @NonNull final VirtualMap teacherMap,
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectConfig reconnectConfig) {
 
+        teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
         this.time = Objects.requireNonNull(time, "time is null");
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
@@ -65,7 +69,6 @@ public class TeachingSynchronizer {
     /**
      * Perform reconnect in the role of the teacher blocking until it's finished.
      *
-     * @param teacherMap current virtual map of the teacher
      * @param in data input stream for reading requests from the learner
      * @param out data output stream for sending responses to the learner
      * @param breakConnection action to break the connection, which should be called if a reconnect-related exception is encountered and the connection should be closed.
@@ -74,17 +77,14 @@ public class TeachingSynchronizer {
      * @throws MerkleSynchronizationException if any error occurs during synchronization
      */
     public void synchronize(
-            @NonNull final VirtualMap teacherMap,
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
             @NonNull final Runnable breakConnection)
             throws InterruptedException {
-        Objects.requireNonNull(teacherMap, "teacherMap cannot be null");
         Objects.requireNonNull(in, "input stream cannot be null");
         Objects.requireNonNull(out, "output stream cannot be null");
         Objects.requireNonNull(breakConnection, "break connection action cannot be null");
 
-        final RecordAccessor teacherView = teacherMap.detach();
         final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
         final Function<Throwable, Boolean> reconnectExceptionListener = e -> {
             Throwable cause = e;
@@ -187,7 +187,8 @@ public class TeachingSynchronizer {
      * @param out         the async output stream to send the root response to
      * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
      */
-    private void exchangeRootNode(RecordAccessor teacherView, final AsyncInputStream in, final AsyncOutputStream out) {
+    private void exchangeRootNode(
+            final RecordAccessor teacherView, final AsyncInputStream in, final AsyncOutputStream out) {
         final byte[] rootRequestBytes = in.readOrWait(YieldStrategy.PARK);
         if (rootRequestBytes == null) {
             throw new MerkleSynchronizationException("Stream closed before root node request was received");

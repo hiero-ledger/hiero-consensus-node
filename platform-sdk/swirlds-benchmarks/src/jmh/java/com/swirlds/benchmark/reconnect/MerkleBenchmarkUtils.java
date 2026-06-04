@@ -93,7 +93,8 @@ public class MerkleBenchmarkUtils {
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
-                teacher = new TeachingSynchronizer(Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+                teacher = new TeachingSynchronizer(
+                        desiredTree, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         reconnectConfig,
@@ -121,8 +122,7 @@ public class MerkleBenchmarkUtils {
             ValueReference<VirtualMap> syncMapContainer = new ValueReference<>();
             final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
-            workGroup.execute(
-                    "teaching-synchronizer-main", () -> teachingSynchronizerThread(desiredTree, streams, teacher));
+            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
             workGroup.execute(
                     "learning-synchronizer-main",
                     () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
@@ -143,10 +143,9 @@ public class MerkleBenchmarkUtils {
         }
     }
 
-    private static void teachingSynchronizerThread(
-            final VirtualMap teacherMap, final PairedStreams streams, final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize(teacherMap, streams.getTeacherInput(), streams.getTeacherOutput(), () -> {
+            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), () -> {
                 try {
                     streams.disconnect();
                 } catch (final IOException e) {
