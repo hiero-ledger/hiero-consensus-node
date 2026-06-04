@@ -53,8 +53,8 @@ See [concepts/birth-round.md](concepts/birth-round.md).
 ### Branching
 
 Byzantine equivocation (the paper calls it *forking*) in which one creator signs two
-events sharing a self-parent — neither a self-ancestor of the other. Strong-seeing and
-the judge merge tolerate it without extra messages.
+events, neither a self-ancestor of the other, with birth rounds within the non-ancient
+window. Strong-seeing and the judge merge tolerate it without extra messages.
 See [concepts/branching.md](concepts/branching.md).
 
 ### Broadcast
