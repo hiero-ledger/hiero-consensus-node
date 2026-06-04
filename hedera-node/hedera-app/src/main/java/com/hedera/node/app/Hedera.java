@@ -907,23 +907,15 @@ public final class Hedera
         migrationStateChanges = new ArrayList<>(migrationChanges);
         immediateStateChangeListener.reset(null);
         boundaryStateChangeListener.reset();
-        // Persist the V0740 cutover schema's "preview block stream info overwritten" marker
-        // to state whenever the schema actually ran. The schema's restart() hook runs on every
-        // restart, not just upgrades; gating this persistence on isUpgrade meant the marker was
-        // never written when the binary's Implementation-Version did not change across the cutover
-        // upgrade (e.g. the e2e cutover script reuses the same local build), so every subsequent
-        // restart re-ran the schema overwrite and diverged from consensus on event replay (SELF_ISS).
-        final boolean schemaOverwroteBsi = streamMode != RECORDS && blockStreamService.isBsiSchemaOverwriteExecuted();
-        if (schemaOverwroteBsi) {
-            markBsiSchemaOverwriteExecuted(state);
-        }
         // If still using BlockRecordManager state, then for specifically a non-genesis upgrade,
         // set in state that post-upgrade work is pending
-        final boolean isNonReconnectUpgrade = isUpgrade && trigger != RECONNECT && trigger != GENESIS;
-        if (isNonReconnectUpgrade && streamMode != BLOCKS) {
-            unmarkMigrationRecordsStreamed(state);
-        }
-        if (isNonReconnectUpgrade || schemaOverwroteBsi) {
+        if (isUpgrade && trigger != RECONNECT && trigger != GENESIS) {
+            if (streamMode != BLOCKS) {
+                unmarkMigrationRecordsStreamed(state);
+            }
+            if (streamMode != RECORDS && blockStreamService.isBsiSchemaOverwriteExecuted()) {
+                markBsiSchemaOverwriteExecuted(state);
+            }
             migrationStateChanges.add(
                     StateChanges.newBuilder().stateChanges(boundaryStateChangeListener.allStateChanges()));
             boundaryStateChangeListener.reset();
