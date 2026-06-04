@@ -107,6 +107,19 @@ blockNode:
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "plugins-storage-block-node-%NODE_ID%-0"
 
+  health:
+    readiness:
+      endpoint: "/healthz/readyz"
+      initialDelaySeconds: 60
+      timeoutSeconds: 30
+    liveness:
+      endpoint: "/healthz/livez"
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 30
+      successThreshold: 1
+      failureThreshold: 99999999999
+
   logs:
     # Available Levels are (from most verbose to least verbose):
     # ALL FINEST FINER FINE CONFIG INFO WARNING SEVERE OFF
