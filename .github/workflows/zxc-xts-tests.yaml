@@ -430,12 +430,12 @@ jobs:
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
-            test
-            test
-            test
-            test
-            test
-            test
+            ${{ needs.hedera-node-jrs-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.sdk-tck-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.mirror-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             build
