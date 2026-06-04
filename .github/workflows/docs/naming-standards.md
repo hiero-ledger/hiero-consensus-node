@@ -22,6 +22,7 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 200    | CITR Manual Runs               | Adhoc runs                        |
   | 220    | CITR Daily Workflows           | Automatic daily runs              |
   | 240    | CITR Multi-Day Runs            | Multi-day runs                    |
+  | 260    | CITR Reserved                  |                                   |
   | 300    | Trigger-based `main` workflows |                                   |
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
