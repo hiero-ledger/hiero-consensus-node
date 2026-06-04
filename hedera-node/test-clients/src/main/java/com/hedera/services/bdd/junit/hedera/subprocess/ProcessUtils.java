@@ -185,6 +185,13 @@ public class ProcessUtils {
                 log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);
             }
         }
+        // Write GC logs to the node's output dir so multi-second stalls can be diagnosed as long stop-the-world GC
+        // pauses (or ruled out)
+        final var gcLogPath = metadata.workingDirOrThrow()
+                .resolve(OUTPUT_DIR)
+                .resolve("gc.log")
+                .toAbsolutePath();
+        commandLine.add("-Xlog:gc*:file=" + gcLogPath + ":time,uptime,level,tags");
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
