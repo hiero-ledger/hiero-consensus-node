@@ -101,7 +101,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     // Getters and setters
     //
 
-    @Nullable
+    @NonNull
     public EventInfo getEventInfo() {
         return eventInfo;
     }

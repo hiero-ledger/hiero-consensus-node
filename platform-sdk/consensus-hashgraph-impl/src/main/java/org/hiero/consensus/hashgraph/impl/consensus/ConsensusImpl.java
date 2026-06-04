@@ -1307,11 +1307,6 @@ public class ConsensusImpl implements Consensus {
     }
 
     @Override
-    public long getMaxRound() {
-        return rounds.getMaxRound();
-    }
-
-    @Override
     public long getFameDecidedBelow() {
         return rounds.getFameDecidedBelow();
     }

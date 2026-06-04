@@ -519,10 +519,7 @@ public class HashgraphInfo {
             for (EventInfo parent : h.parents) {
                 x.maxJudgeRound = Math.max(x.maxJudgeRound, parent.maxJudgeRound);
             }
-            x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); //use alg in comments in paper, not the equation
-
-
-
+            x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); // use alg in comments in paper, not the equation
 
             // function ancestorJudge (for each y that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {

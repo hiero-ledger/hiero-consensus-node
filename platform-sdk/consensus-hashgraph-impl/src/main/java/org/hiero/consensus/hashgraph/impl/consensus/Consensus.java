@@ -5,7 +5,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /** An interface for classes that calculate consensus of events */
@@ -51,14 +50,6 @@ public interface Consensus {
      * @return true if consensus is still waiting for init judges
      */
     boolean waitingForInitJudges();
-
-    /**
-     * Return the max round number for which we have an event. If there are none yet, return {@link
-     * ConsensusConstants#ROUND_UNDEFINED}.
-     *
-     * @return the max round number, or {@link ConsensusConstants#ROUND_UNDEFINED} if none.
-     */
-    long getMaxRound();
 
     /**
      * return the round number below which the fame of all witnesses has been decided for all earlier rounds.
