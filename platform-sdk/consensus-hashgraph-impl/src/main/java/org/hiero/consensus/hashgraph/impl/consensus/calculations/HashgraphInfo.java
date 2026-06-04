@@ -203,6 +203,7 @@ public class HashgraphInfo {
 
         // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
 
+        /* //for the moment, I'll comment these out, to ensure our integration doesn't accidentally rely on them
         public HashgraphInfo getHashgraph() {
             return hashgraph;
         }
@@ -294,7 +295,7 @@ public class HashgraphInfo {
         public EventInfo getSearchChild() {
             return searchChild;
         }
-
+        */
 
         /**
          * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
