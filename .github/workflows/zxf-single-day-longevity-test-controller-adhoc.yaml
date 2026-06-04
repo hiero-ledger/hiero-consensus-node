@@ -5,16 +5,12 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "AdHocSD8"
+        default: "AdHoc6"
         description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
         type: choice
         options:
-          - AdHoc5
           - AdHoc6
-          - AdHoc7
-          - AdHoc14
-          - AdHocSD8
-          - AdHocSD9
+
       ref:
         required: true
         default: "main"
@@ -27,7 +23,7 @@ on:
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "100000"
+        default: "20000000"
         description: "Number of Accounts and NFT tokens"
         type: choice
         options:
@@ -41,7 +37,7 @@ on:
           - "1000000000"
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "3"
+        default: "60"
         description: "Test execution time options"
         type: choice
         options:
@@ -75,7 +71,7 @@ on:
         description: "Algorithmic analysis"
       NLGDparams:
         required: false
-        default: '-Dbenchmark.maxtps=8000'
+        default: '-Dbenchmark.maxtps=20000'
         description: 'Java props for Network Load Generator, e.g. -Dbenchmark.maxtps=8000'
         type: string
 
