@@ -7,19 +7,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * This class implements the Hashgraph consensus algorithm. It is self-contained, with
- * no dependencies other than on the standard Java libraries. This package
- * {@link org.hiero.consensus.hashgraph.impl.consensus.calculations ...consensus.calculations} contains a single
- * file that does all the consensus calculations for the Hashgraph consensus algorithm. There is one class with several
+ * This package, {@link org.hiero.consensus.hashgraph.impl.consensus.calculations ...consensus.calculations}, contains
+ * a single file that does all the consensus calculations for the Hashgraph consensus algorithm. It is self-contained,
+ * with no dependencies other than on the standard Java libraries. There is one class with several
  * inner classes and record types:
- * <p>
- * {@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph needed for consensus calculations.
- * <p>
- * {@link EventInfo EventInfo} has all the information about an event needed for the consensus calculations.
- * <p>
- * {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the information about a
- * round needed for the consensus calculations.
- * <p>
+ * <ul>
+ *   <li>{@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph that is needed for the consensus
+ * calculations.
+ *   <li> {@link EventInfo EventInfo} has all the information about an event that is needed for the consensus calculations.
+ *   <li> {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the information about a
+ * round that is needed for the consensus calculations.
+ * </ul>
  * There are constructors and getters, but no setters. Other than that, there are only two public methods:
  * {@link EventInfo#update EventInfo.update()}, which updates an event with a set of calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
@@ -29,16 +27,17 @@ import java.util.HashMap;
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
  * <p>
- * A {@link EventInfo EventInfo} should be instantiated for each event. The update method is called on all the events
+ * An {@link EventInfo EventInfo} should be instantiated for each event. The update method is called on all the events
  * to calculate consensus. At some time after an event becomes
- * ancient, it should have its {@link EventInfo#clear EventInfo.clear} method called to clean up memory by erasing
+ * ancient, it should have its {@link EventInfo#clear EventInfo.clear()} method called to clean up memory by erasing
  * all its references to older events. This can happen immediately after it becomes ancient, or
  * many rounds later when it expires, or at any other time after becoming ancient.
  * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
  * It should instantiate a {@link RoundInfo RoundInfo} and {@link RoundInfoPrev RoundInfoPrev} for the pending round
- * (the round for which consensus is currently being calculated). After a round reaches consensus, its
- * {@link RoundInfoPrev RoundInfoPrev} is calculated and returned by {@link EventInfo#update EventInfo.update()}.
+ * (the round for which consensus is currently being calculated). After a round reaches consensus, a new
+ * {@link RoundInfoPrev RoundInfoPrev} is calculated and returned by {@link EventInfo#update EventInfo.update()},
+ * which can then be used for the next round.
  * <p>
  * The network's overall consensus state should include the {@link RoundInfoPrev RoundInfoPrev} for the pending round
  * (the round currently being calculated), and the {@link RoundInfo RoundInfo} for it and the next few rounds.
@@ -50,7 +49,7 @@ import java.util.HashMap;
  * be reached for that round (a "keystone event"). In that case, it returns a record that contains
  * the list of all the events that reached consensus in that round. Which might be an empty list if none reached
  * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
- * calls to update.
+ * calls to {@link EventInfo#update update()} in the next round.
  */
 public class HashgraphInfo {
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
