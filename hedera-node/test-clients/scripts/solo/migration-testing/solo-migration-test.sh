@@ -53,6 +53,34 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
+# Real-NMT upgrade flow (issue #25736). Replaces `solo consensus node setup`
+# / `start` with NMT install + `nmt watch`, and replaces `solo consensus
+# network upgrade` with yahcli-driven PREPARE_UPGRADE + FREEZE_UPGRADE.
+NMT_VERSION="${NMT_VERSION:-v1.3.4}"
+NMT_INSTALLER_BASENAME="node-mgmt-tools-installer-v1.3.4-efea0dd4.run"
+NMT_INSTALLER_URL="https://builds.hedera.com/node/mgmt-tools/v1.3/${NMT_INSTALLER_BASENAME}"
+NMT_PROFILE="jrs"
+OPENJDK_VERSION="${OPENJDK_VERSION:-21.0.1}"
+HGCAPP_DIR="/opt/hgcapp"
+NMT_DIR="${HGCAPP_DIR}/node-mgmt-tools"
+HAPI_PATH="${HGCAPP_DIR}/services-hedera/HapiApp2.0"
+UPGRADE_CURRENT_DIR="${HAPI_PATH}/data/upgrade/current"
+HEDERA_HOME_DIR="/home/hedera"
+CACHE_DIR="${CACHE_DIR:-${HOME}/.cache/hiero-migration}"
+YAHCLI_JAR="${YAHCLI_JAR:-}"
+MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
+UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-900}"
+NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-900}"
+
+# Filled in by fetch_artifacts / build_upgrade_zip.
+PLATFORM_INSTALLER_BASENAME=""
+PLATFORM_INSTALLER_URL=""
+PLATFORM_INSTALLER_PATH=""
+NMT_INSTALLER_PATH=""
+UPGRADE_ZIP_PATH=""
+UPGRADE_ZIP_SHA384=""
+YAHCLI_PF_PID=""
+
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
 # deployments seed by default. Override via env vars in CI if needed.
@@ -82,6 +110,14 @@ require_cmd() {
 
 cleanup() {
   local ec=$?
+  # #25736: kill the yahcli port-forward and any in-pod `nmt watch`
+  # processes before tearing down the cluster.
+  [[ -n "${YAHCLI_PF_PID}" ]] && kill "${YAHCLI_PF_PID}" >/dev/null 2>&1 || true
+  if [[ "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
+    for _pod in $(iterate_pods 2>/dev/null); do
+      kexec "${_pod}" pkill -f "nmt watch" >/dev/null 2>&1 || true
+    done
+  fi
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
@@ -279,17 +315,13 @@ deploy_baseline() {
     --pvcs true \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
-  solo consensus node setup \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
-
-  solo consensus node start \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --force-port-forward false
-
   wait_for_consensus_pods_ready 600
+
+  # #25736: instead of `solo consensus node setup` + `start`, install real
+  # NMT inside each pod, start `nmt watch`, and let NMT bring up the JVM
+  # via its docker-compose stack — mirrors mainnet topology.
+  fetch_artifacts
+  bring_up_consensus_via_nmt
   wait_for_haproxy_ready 600
 
   log "Adding Mirror Node (with Pinger enabled)"
@@ -329,30 +361,305 @@ deploy_baseline() {
 }
 
 # === Step 3 ====================================================================
-# Upgrade the running consensus network to the local build (current branch
-# checkout) labeled UPGRADE_VERSION, then verify each CN is actually running
-# the local build's HederaNode.jar.
+# #25736: upgrade through real PREPARE_UPGRADE + FREEZE_UPGRADE transactions.
+# NMT's `nmt watch` inside each pod sees now_frozen.mf via inotify, stops
+# the JVM, swaps artifacts from data/upgrade/pending/ -> current/, and
+# restarts on the local build. This is the production code path; the old
+# `solo consensus network upgrade --local-build-path` bypassed it.
 upgrade_to_local() {
-  log "Upgrading consensus network to local build (labeled ${UPGRADE_VERSION})"
+  build_upgrade_zip
+  ensure_yahcli
+  start_yahcli_port_forward
 
-  local upgrade_cmd=(
-    solo consensus network upgrade
-    --deployment "${SOLO_DEPLOYMENT}"
-    --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
-    --quiet-mode
-    --force
-  )
+  yahcli_run sysfiles upload software-zip
+  yahcli_run prepare-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}"
+  wait_for_marker "execute_immediate.mf" "${MARKER_TIMEOUT_SECS}"
 
-  run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
+  local freeze_at
+  freeze_at="$(date -u -v+30S '+%Y-%m-%d.%H:%M:%S' 2>/dev/null \
+    || date -u -d '+30 seconds' '+%Y-%m-%d.%H:%M:%S')"
+  yahcli_run freeze-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}" \
+    --start-time "${freeze_at}"
 
-  log "Waiting for post-upgrade pod readiness"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
+  wait_for_marker "now_frozen.mf" "${MARKER_TIMEOUT_SECS}"
+
+  log "Waiting for NMT to restart each node on the local build"
+  local pod
+  for pod in $(iterate_pods); do
+    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}"
+  done
 
   log "Verifying every consensus node is running the local build"
   verify_local_build_on_consensus_nodes
+}
+
+# === NMT helpers (issue #25736) ==============================================
+# Real-NMT bring-up + freeze-upgrade flow, vendored/adapted from
+# solo-charts' .github/workflows/support/scripts/helper.sh.
+
+kexec() {
+  local pod="$1"; shift
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- "$@"
+}
+
+kcp() {
+  local src="$1" pod="$2" dst="$3"
+  kubectl -n "${SOLO_NAMESPACE}" cp "${src}" "${pod}:${dst}" -c root-container
+}
+
+iterate_pods() {
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    printf '%s\n' "network-${node}-0"
+  done
+}
+
+# Fetch NMT installer + previous-minor platform build, cached on the runner.
+# Builds URL from DEPLOY_RELEASE_TAG using the builds.hedera.com layout:
+# node/software/v<MAJOR>.<MINOR>/build-<tag>.zip
+fetch_artifacts() {
+  local nmt_cache="${CACHE_DIR}/nmt"
+  local plat_cache="${CACHE_DIR}/platform"
+  mkdir -p "${nmt_cache}" "${plat_cache}"
+
+  local prev_major_minor="${DEPLOY_RELEASE_TAG%.*}"
+  prev_major_minor="${prev_major_minor%-*}"
+  PLATFORM_INSTALLER_BASENAME="build-${DEPLOY_RELEASE_TAG}.zip"
+  PLATFORM_INSTALLER_URL="https://builds.hedera.com/node/software/${prev_major_minor}/${PLATFORM_INSTALLER_BASENAME}"
+  NMT_INSTALLER_PATH="${nmt_cache}/${NMT_INSTALLER_BASENAME}"
+  PLATFORM_INSTALLER_PATH="${plat_cache}/${PLATFORM_INSTALLER_BASENAME}"
+
+  if [[ ! -f "${NMT_INSTALLER_PATH}" ]]; then
+    log "Fetching NMT installer ${NMT_VERSION}"
+    curl -sSL --fail -o "${NMT_INSTALLER_PATH}" "${NMT_INSTALLER_URL}"
+  else
+    log "Using cached NMT installer ${NMT_INSTALLER_PATH}"
+  fi
+
+  if [[ ! -f "${PLATFORM_INSTALLER_PATH}" ]]; then
+    log "Fetching platform build ${DEPLOY_RELEASE_TAG}"
+    curl -sSL --fail -o "${PLATFORM_INSTALLER_PATH}" "${PLATFORM_INSTALLER_URL}"
+  else
+    log "Using cached platform build ${PLATFORM_INSTALLER_PATH}"
+  fi
+}
+
+# Generate JRS-style config.txt from real pod IPs. Adapted from
+# helper.sh::prep_address_book. log4j2-jrs.xml, settings.txt, and the
+# application/api-permission/bootstrap properties still need to be vendored
+# under scripts/.../nmt-config/ (TODO #25736).
+prep_address_book_and_configs() {
+  local config_file="${WORK_DIR}/config.txt"
+  local node_seq=0 account_id_seq=3
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  : > "${config_file}"
+  echo "swirld, 123" >> "${config_file}"
+  echo "app, HederaNode.jar" >> "${config_file}"
+
+  for node in "${nodes[@]}"; do
+    local pod="network-${node}-0" pod_ip svc_ip
+    pod_ip="$(kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o jsonpath='{.status.podIP}')"
+    svc_ip="$(kubectl -n "${SOLO_NAMESPACE}" get svc "network-${node}-svc" -o jsonpath='{.spec.clusterIP}')"
+    [[ -n "${pod_ip}" && -n "${svc_ip}" ]] || {
+      echo "Missing pod/svc IP for ${node}" >&2; return 1
+    }
+    echo "address, ${node_seq}, ${node}, ${node}, 1, ${pod_ip}, 50111, ${svc_ip}, 50111, 0.0.${account_id_seq}" >> "${config_file}"
+    node_seq=$((node_seq + 1))
+    account_id_seq=$((account_id_seq + 1))
+  done
+  echo "nextNodeId, ${node_seq}" >> "${config_file}"
+
+  log "Generated address book:"
+  sed 's/^/  /' "${config_file}"
+}
+
+# kubectl cp + run the installer in the pod. The installer's systemd
+# registration of nmt-ics.service is a no-op in a Linux container (no
+# PID-1 systemd); start_nmt_watcher() takes over that role.
+install_nmt_in_pod() {
+  local pod="$1"
+  log "Copying NMT installer to ${pod}:${HEDERA_HOME_DIR}"
+  kcp "${NMT_INSTALLER_PATH}" "${pod}" "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}"
+  kexec "${pod}" chmod +x "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}"
+
+  log "Running NMT installer in ${pod}"
+  kexec "${pod}" sudo "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}" --accept -- -fg
+}
+
+install_platform_via_nmt() {
+  local pod="$1" node="$2"
+  log "Copying platform build to ${pod}"
+  kcp "${PLATFORM_INSTALLER_PATH}" "${pod}" "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}"
+
+  log "nmt preflight in ${pod}"
+  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV preflight \
+    -j "${OPENJDK_VERSION}" -df -i "${NMT_PROFILE}" -k 256m -m 512m
+
+  log "nmt install in ${pod} (platform ${DEPLOY_RELEASE_TAG})"
+  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV install \
+    -p "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}" \
+    -n "${node}" \
+    -x "${DEPLOY_RELEASE_TAG}"
+}
+
+seed_node_config() {
+  local pod="$1"
+  log "Seeding config.txt into ${pod}:${HAPI_PATH}"
+  kcp "${WORK_DIR}/config.txt" "${pod}" "${HAPI_PATH}/config.txt"
+  kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/config.txt"
+
+  # TODO(#25736): seed log4j2.xml, settings.txt, application.properties,
+  # api-permission.properties, bootstrap.properties from a vendored
+  # nmt-config/. See helper.sh::copy_config_files for the canonical list.
+
+  # gc.log workaround from helper.sh — JVM refuses to start without it.
+  kexec "${pod}" touch "${HAPI_PATH}/gc.log"
+  kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/gc.log"
+}
+
+# Manual stand-in for nmt-ics.service. The subshell + nohup + & is needed
+# so kubectl exec returns instead of blocking on the watcher.
+start_nmt_watcher() {
+  local pod="$1"
+  log "Starting nmt watch in ${pod}"
+  kexec "${pod}" bash -c \
+    "(nohup ${NMT_DIR}/bin/nmt watch -L debug > /tmp/nmt-watch.log 2>&1 &) ; sleep 1"
+  if ! kexec "${pod}" pgrep -f "nmt watch" >/dev/null; then
+    echo "nmt watch did not stay up in ${pod}" >&2
+    kexec "${pod}" tail -50 /tmp/nmt-watch.log >&2 || true
+    return 1
+  fi
+}
+
+# helper.sh::nmt_start — `nmt start` ups swirlds-node + swirlds-haveged via
+# docker-compose.jrs.yml inside the pod.
+start_consensus_node_via_nmt() {
+  local pod="$1"
+  log "nmt start in ${pod}"
+  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV start
+
+  local attempts=0
+  while (( attempts < 60 )); do
+    local state
+    state="$(kexec "${pod}" docker ps -a -f 'name=swirlds-node' --format '{{.State}}' 2>/dev/null || true)"
+    [[ "${state}" == "running" ]] && { log "  swirlds-node running in ${pod}"; return 0; }
+    attempts=$((attempts + 1))
+    sleep 5
+  done
+  echo "swirlds-node failed to come up in ${pod}" >&2
+  kexec "${pod}" docker ps -a >&2 || true
+  return 1
+}
+
+# Poll HAPI_PATH/logs/hgcaa.log for "ACTIVE" — helper.sh::verify_network_state.
+wait_for_node_active() {
+  local pod="$1" timeout_secs="$2"
+  local deadline=$((SECONDS + timeout_secs))
+  while (( SECONDS < deadline )); do
+    if kexec "${pod}" grep -q "ACTIVE" "${HAPI_PATH}/logs/hgcaa.log" 2>/dev/null; then
+      log "  ${pod}: ACTIVE"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "${pod} never reached ACTIVE within ${timeout_secs}s" >&2
+  kexec "${pod}" tail -100 "${HAPI_PATH}/logs/hgcaa.log" >&2 || true
+  return 1
+}
+
+bring_up_consensus_via_nmt() {
+  prep_address_book_and_configs
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    local pod="network-${node}-0"
+    install_nmt_in_pod "${pod}"
+    install_platform_via_nmt "${pod}" "${node}"
+    seed_node_config "${pod}"
+    start_nmt_watcher "${pod}"
+    start_consensus_node_via_nmt "${pod}"
+  done
+  log "Waiting for all consensus nodes to reach ACTIVE"
+  local pod
+  for pod in $(iterate_pods); do
+    wait_for_node_active "${pod}" "${NETWORK_ACTIVE_TIMEOUT_SECS}"
+  done
+}
+
+build_upgrade_zip() {
+  local zip_path="${WORK_DIR}/softwareUpgrade.zip"
+  log "Packaging local build at ${LOCAL_BUILD_PATH} into ${zip_path}"
+  (cd "${LOCAL_BUILD_PATH}" && zip -qr "${zip_path}" .)
+  UPGRADE_ZIP_PATH="${zip_path}"
+  UPGRADE_ZIP_SHA384="$(shasum -a 384 "${zip_path}" | awk '{print $1}')"
+  log "  sha384: ${UPGRADE_ZIP_SHA384}"
+}
+
+ensure_yahcli() {
+  if [[ -n "${YAHCLI_JAR}" && -f "${YAHCLI_JAR}" ]]; then
+    log "Using pre-built yahcli at ${YAHCLI_JAR}"
+    return 0
+  fi
+  log "Building yahcli from source"
+  (cd "${REPO_ROOT}" && ./gradlew :yahcli:assemble -q)
+  YAHCLI_JAR="$(ls -t "${REPO_ROOT}"/hedera-node/yahcli/build/libs/yahcli-*.jar 2>/dev/null | head -n 1)"
+  [[ -n "${YAHCLI_JAR}" && -f "${YAHCLI_JAR}" ]] || {
+    echo "yahcli build did not produce a JAR" >&2; return 1
+  }
+}
+
+# Run yahcli against the local port-forward, using a generated config dir
+# under WORK_DIR. TODO(#25736): generate localhost/keys/account58.{pem,pass}
+# and config.yml per yahcli/README.md before this can actually submit.
+yahcli_run() {
+  local yahcli_dir="${WORK_DIR}/yahcli-config"
+  if [[ ! -d "${yahcli_dir}" ]]; then
+    mkdir -p "${yahcli_dir}/localhost/sysfiles" "${yahcli_dir}/localhost/keys"
+    [[ -n "${UPGRADE_ZIP_PATH}" ]] && \
+      cp "${UPGRADE_ZIP_PATH}" "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip"
+  fi
+  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p 58 "$@")
+}
+
+start_yahcli_port_forward() {
+  pkill -f "kubectl.*port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
+  sleep 1
+  log "Port-forwarding haproxy-node1-svc -> 127.0.0.1:${CN_GRPC_LOCAL_PORT} (yahcli)"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward \
+    svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
+    > "${WORK_DIR}/pf-yahcli.log" 2>&1 < /dev/null &
+  YAHCLI_PF_PID=$!
+  local deadline=$((SECONDS + 30))
+  while (( SECONDS < deadline )); do
+    (: </dev/tcp/127.0.0.1/${CN_GRPC_LOCAL_PORT}) >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  echo "yahcli port-forward never came up" >&2
+  return 1
+}
+
+# Wait for a marker file (execute_immediate.mf, now_frozen.mf, ...) to appear
+# in the first pod's data/upgrade/current/ directory.
+wait_for_marker() {
+  local marker="$1" timeout_secs="$2"
+  local pod1 marker_path
+  pod1="$(iterate_pods | head -n 1)"
+  marker_path="${UPGRADE_CURRENT_DIR}/${marker}"
+  log "Waiting for ${marker} in ${pod1}:${marker_path}"
+  local deadline=$((SECONDS + timeout_secs))
+  while (( SECONDS < deadline )); do
+    if kexec "${pod1}" test -f "${marker_path}"; then
+      log "  ${marker} appeared in ${pod1}"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "${marker} never appeared in ${pod1} within ${timeout_secs}s" >&2
+  kexec "${pod1}" ls -la "${UPGRADE_CURRENT_DIR}" >&2 || true
+  return 1
 }
 
 # === Step 4 + 4a ===============================================================
