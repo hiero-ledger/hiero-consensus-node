@@ -170,18 +170,14 @@ The consensus layer leaves quiescence when a new command supersedes
 - **`DONT_QUIESCE`** — the whole network is resuming. The `QuiescenceRule`
   permits creation again and `TipsetEventCreator#maybeCreateEvent` resumes
   building ordinary tipset events. No special event is needed.
-- **`BREAK_QUIESCENCE`** — the edge case where this node alone has a
-  transaction to introduce while its peers are still quiescing. With every
-  peer idle, the tipset algorithm may offer no other-parent that advances
-  consensus, so an ordinary event cannot be built. In
-  [`TipsetEventCreator`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java)`#maybeCreateEvent`,
-  if no ordinary event can be created and the command is
-  `BREAK_QUIESCENCE` and one has not already been created this period, the
-  node creates a **quiescence-breaker (QB)** event via
-  `#createQuiescenceBreakEvent` and sets `breakQuiescenceEventCreated`.
-  Gossiping that QB out is what lets peers observe the new work and resume.
-  Once an ordinary event can again be created, `breakQuiescenceEventCreated`
-  is reset, re-arming the QB exception for the next period.
+- **`BREAK_QUIESCENCE`** — this node alone has a transaction while its
+  peers stay quiescing. With every peer idle the tipset algorithm may
+  offer no advancing other-parent, so no ordinary event can be built.
+  [`TipsetEventCreator`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java)`#maybeCreateEvent`
+  then builds a **quiescence-breaker (QB)** via
+  `#createQuiescenceBreakEvent`, sets `breakQuiescenceEventCreated` so
+  only one is made this period, and relies on gossip to carry it out so
+  peers resume. The flag clears once ordinary creation resumes.
 
 The QB is built on a **single self-parent only**, with no other-parent —
 the simplest event that still propagates the waiting transactions.
@@ -197,9 +193,6 @@ has just broken quiescence therefore typically stays `ACTIVE`, and only
 slips to `CHECKING` if its events are not reaching consensus.
 
 ## Rationale
-
-*Paraphrased from the design discussion; no claim here is load-bearing for
-mechanics — those are anchored above.*
 
 Quiescence was motivated by small, low-traffic networks that run at a high
 round rate: without the feature they continuously produce blocks with
