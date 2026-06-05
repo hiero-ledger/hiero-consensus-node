@@ -140,7 +140,7 @@ jobs:
           MIRROR=https://hub.mirror.docker.lat.ope.eng.hashgraph.io
           REPO=library/registry
           TAG=latest
-          
+
           echo "::group::Fetch index"
           INDEX=$(curl -sS "$MIRROR/v2/$REPO/manifests/$TAG" \
             -H 'Accept: application/vnd.oci.image.index.v1+json' \
@@ -149,7 +149,7 @@ jobs:
             -H 'Accept: application/vnd.docker.distribution.manifest.v2+json')
           echo "$INDEX" | jq .
           echo "::endgroup::"
-          
+
           # If it's an index, pick the linux/amd64 manifest; else use it directly.
           AMD_DIGEST=$(echo "$INDEX" | jq -r '
             if .manifests then
@@ -165,7 +165,7 @@ jobs:
           fi
           echo "$MAN" | jq .
           echo "::endgroup::"
-          
+
           echo "::group::Probe every blob"
           # config + layer digests with expected sizes from the manifest
           echo "$MAN" | jq -r '
@@ -183,7 +183,7 @@ jobs:
               printf "%-6s %s  size=%s  %s%s\n" "$kind" "$digest" "$size" "$out" "$flag"
             done
           echo "::endgroup::"
-          
+
           echo "::group::Probe the same image via raw docker pull"
           docker pull registry:latest || true
           echo "::endgroup::"
