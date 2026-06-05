@@ -2,10 +2,13 @@
 package com.hedera.node.app.records.schemas;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doReturn;
@@ -26,18 +29,22 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class V0750BlockRecordSchemaTest {
+class V0760BlockRecordSchemaTest {
     @Mock
-    private MigrationContext ctx;
+    private MigrationContext<SemanticVersion> ctx;
 
     @Mock
     private Configuration configuration;
@@ -63,11 +70,73 @@ class V0750BlockRecordSchemaTest {
     @Mock
     private WritableSingletonState<BlockInfo> blockInfoState;
 
-    private final V0750BlockRecordSchema subject = new V0750BlockRecordSchema();
+    private final V0760BlockRecordSchema subject = new V0760BlockRecordSchema();
 
     @Test
-    void versionIsV0750() {
-        assertEquals(new SemanticVersion(0, 75, 0, "", ""), subject.getVersion());
+    void versionIsV0760() {
+        assertEquals(new SemanticVersion(0, 76, 0, "", ""), subject.getVersion());
+    }
+
+    @Test
+    void migrateIsNoopOnGenesis() {
+        given(ctx.isGenesis()).willReturn(true);
+
+        subject.migrate(ctx);
+
+        verify(ctx, never()).appConfig();
+        verifyNoInteractions(configuration, blockRecordStreamConfig);
+    }
+
+    @Test
+    void migrateDeletesFileWhenWriteFlagDisabledAndFilePresent(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        assertTrue(Files.exists(file));
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void migrateIsNoopWhenFileMissing(@TempDir final Path tempDir) {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        assertFalse(Files.exists(file));
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void migrateSwallowsIoExceptionWhenDeleteFails(@TempDir final Path tempDir) throws IOException {
+        // Create a directory at the file path. Files.deleteIfExists on a non-empty directory throws
+        // DirectoryNotEmptyException (an IOException) — this exercises the catch branch.
+        final var dirInsteadOfFile = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.createDirectory(dirInsteadOfFile);
+        Files.writeString(dirInsteadOfFile.resolve("blocker"), "x");
+        givenMigrateWithDir(tempDir.toString());
+
+        subject.migrate(ctx);
+
+        assertTrue(Files.exists(dirInsteadOfFile));
+    }
+
+    @Test
+    void migrateLeavesFileAloneWhenWriteFlagEnabled(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
+
+        subject.migrate(ctx);
+
+        assertTrue(Files.exists(file));
+        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
     }
 
     @Test
@@ -88,7 +157,7 @@ class V0750BlockRecordSchemaTest {
         given(ctx.appConfig()).willReturn(configuration);
         given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
@@ -123,7 +192,7 @@ class V0750BlockRecordSchemaTest {
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
         given(blockStreamConfig.enableCutover()).willReturn(false);
-        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(false);
 
@@ -235,12 +304,20 @@ class V0750BlockRecordSchemaTest {
         verify(ctx, never()).sharedValues();
     }
 
+    private void givenMigrateWithDir(final String dir) {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(false);
+        given(blockRecordStreamConfig.wrappedRecordHashesDir()).willReturn(dir);
+    }
+
     private void givenRestartPreconditions() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
         given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
