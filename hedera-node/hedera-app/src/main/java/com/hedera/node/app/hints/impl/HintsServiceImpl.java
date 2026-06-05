@@ -9,7 +9,6 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -133,15 +132,26 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
+        final var blockHashSigning = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
-                .newSigning(b, () -> component.signings().remove(blockHash)));
-        final var submissionFuture = component.submissions().submitPartialSignature(blockHash);
+                .newSigningForActiveConstruction(b, () -> component.signings().remove(blockHash)));
+        if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
+            throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
+        }
+        // Submit under the construction captured by the signing attempt, not whatever construction is active after a
+        // possible handoff.
+        final var submissionFuture =
+                component.submissions().submitPartialSignature(signing.constructionId(), blockHash);
         submissionFuture.exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
         });
         return new SigningResult(signing, submissionFuture);
+    }
+
+    @Override
+    public void onBlockStarted(final long blockNumber) {
+        component.signingContext().onBlockStarted(blockNumber);
     }
 
     @Override
@@ -173,7 +183,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
         if (hintsStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
-            HintsLibraryBridge.getInstance().resetCache();
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
             component.signingContext().setConstruction(activeConstruction);
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
