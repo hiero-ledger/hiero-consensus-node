@@ -66,9 +66,10 @@ See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
 ### CGen
 
-*Consensus generation* (`LocalConsensusGeneration`): a deterministic, temporary counter that
-orders events within a round as they reach consensus. Contrast *NGen* and *DeGen*; see
-*Generation*.
+*Consensus generation* (`LocalConsensusGeneration`): orders the events that reach consensus
+within a single round (ties broken by event hash). Assigned to those events identically on
+every node, but temporary — cleared once the round is complete. Used only within the
+hashgraph algorithm. Contrast *NGen* and *DeGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Child
@@ -134,8 +135,10 @@ See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### DeGen
 
-*Deterministic generation* (`DeGen`): computed identically on every node and used to drive
-*lastSee* for *Strongly seeing*. Contrast *NGen* and *CGen*; see *Generation*.
+*Deterministic generation* (`DeGen`): drives *lastSee* for *Strongly seeing*. Assigned to the
+descendants of the last round's judges, identically on every node, and recomputed whenever
+hashgraph metadata is recalculated. Used only within the hashgraph algorithm. Contrast *NGen*
+and *CGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Descendant
@@ -308,9 +311,11 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### NGen
 
-*Non-deterministic generation* (`NonDeterministicGeneration`): a count assigned locally by
-each node, so it may differ between nodes; used only for topological ordering and "higher in
-the hashgraph" comparisons. Contrast the deterministic *DeGen* and *CGen*; see *Generation*.
+*Non-deterministic generation* (`NonDeterministicGeneration`): orders events into one valid
+topological order and answers "higher in the hashgraph" comparisons. Assigned to every
+non-orphan event, locally by each node, so it may differ between nodes; set once at intake and
+then stable. Used throughout the consensus layer. Contrast the deterministic *DeGen* and
+*CGen*; see *Generation*.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
