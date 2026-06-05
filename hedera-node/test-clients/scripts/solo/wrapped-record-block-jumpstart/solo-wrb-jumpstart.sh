@@ -1284,7 +1284,10 @@ configure_mirror_rest_endpoint() {
 }
 
 log "Validating prerequisites"
-require_cmd kind
+# kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  require_cmd kind
+fi
 require_cmd kubectl
 require_cmd solo
 require_cmd curl

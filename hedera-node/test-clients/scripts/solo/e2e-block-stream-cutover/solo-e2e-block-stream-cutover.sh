@@ -3575,7 +3575,10 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
-require_cmd kind
+# kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  require_cmd kind
+fi
 require_cmd kubectl
 require_cmd solo
 require_cmd npm
