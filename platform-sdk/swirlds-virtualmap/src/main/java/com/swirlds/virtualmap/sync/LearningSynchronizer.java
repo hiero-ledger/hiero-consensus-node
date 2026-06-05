@@ -26,8 +26,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -143,22 +142,27 @@ public class LearningSynchronizer {
             // send tasks can generate meaningful non-root requests.
             exchangeRootNode(exchanger, input, output);
 
-            final AtomicLong expectedResponses = new AtomicLong(0);
             // FUTURE WORK: configurable number of tasks
             for (int i = 0; i < 16; i++) {
-                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
-                        reconnectConfig, workGroup, input, exchanger, expectedResponses);
+                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
+                        new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, input, exchanger);
                 learnerReceiveTask.exec();
             }
 
             // FUTURE WORK: configurable number of tasks
             final int learnerSendTasks = 16;
-            final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
+            final CountDownLatch sendTasksDone = new CountDownLatch(learnerSendTasks);
             for (int i = 0; i < learnerSendTasks; i++) {
                 final LearnerPullVirtualTreeSendTask learnerSendTask =
-                        new LearnerPullVirtualTreeSendTask(workGroup, output, exchanger, expectedResponses, tasksDone);
+                        new LearnerPullVirtualTreeSendTask(workGroup, output, exchanger, sendTasksDone);
                 learnerSendTask.exec();
             }
+
+            // when all send tasks done, output can be closed, which signals the teacher that no more requests will be
+            // sent.
+            // This allows the teacher to complete and close its input stream, which allows the receive tasks to finish.
+            sendTasksDone.await();
+            output.done();
 
             workGroup.waitForTermination();
         } catch (final InterruptedException ie) {
