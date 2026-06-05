@@ -125,6 +125,8 @@ MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 APP_PROPS_076_GENERATED_FILE="${WORK_DIR}/application-076-public-wraps.properties"
 MIRROR_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
+# Filled in by ensure_wraps_artifacts_downloaded; reported in the end-of-run summary.
+WRAPS_DOWNLOAD_REPORT=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -187,11 +189,13 @@ wait_for_haproxy_ready() {
 ensure_wraps_artifacts_downloaded() {
   local file_count="" tmp_dir="" extract_dir="" extracted_root=""
   local extracted_dirs="" extracted_entries=""
+  local dl_start="" dl_end="" dl_secs=""
 
   if [[ -d "${WRAPS_KEY_PATH}" ]]; then
     file_count="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
     if [[ "${file_count}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" && -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
       log "Using cached WRAPS artifacts from ${WRAPS_KEY_PATH}"
+      WRAPS_DOWNLOAD_REPORT="reused on-host cache (no download); artifacts already present at ${WRAPS_KEY_PATH}"
       return 0
     fi
   fi
@@ -199,8 +203,15 @@ ensure_wraps_artifacts_downloaded() {
   mkdir -p "$(dirname "${WRAPS_TARBALL_CACHE_PATH}")"
   if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
     log "Downloading WRAPS artifacts from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
+    dl_start="$(date +%s)"
     curl -fL "${WRAPS_ARTIFACTS_DOWNLOAD_URL}" -o "${WRAPS_TARBALL_CACHE_PATH}.partial"
+    dl_end="$(date +%s)"
     mv "${WRAPS_TARBALL_CACHE_PATH}.partial" "${WRAPS_TARBALL_CACHE_PATH}"
+    dl_secs=$((dl_end - dl_start))
+    log "Downloaded WRAPS artifacts in ${dl_secs}s from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
+    WRAPS_DOWNLOAD_REPORT="downloaded in ${dl_secs}s from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
+  else
+    WRAPS_DOWNLOAD_REPORT="reused cached tarball ${WRAPS_TARBALL_CACHE_PATH} (no download)"
   fi
 
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps-extract.XXXXXX")"
@@ -578,7 +589,7 @@ wait_for_tcp_open() {
   local host="$1" port="$2" max_attempts="$3" sleep_secs="$4"
   local attempt=1
   while (( attempt <= max_attempts )); do
-    if nc -z "${host}" "${port}" >/dev/null 2>&1; then
+    if (: < "/dev/tcp/${host}/${port}") >/dev/null 2>&1; then
       return 0
     fi
     sleep "${sleep_secs}"
@@ -602,7 +613,6 @@ build_default_block_node_priority_mapping() {
 # Lets the BN verify the mock-signature (RSA WRB) blocks streamed before TSS goes real.
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
-  require_cmd xxd
   local node node_idx node_id pem hex
   local nodes=()
   local cn_pod="network-node1-0"
@@ -621,7 +631,7 @@ generate_rsa_bootstrap_roster_json() {
     hex="$(printf '%s' "${pem}" \
       | openssl x509 -pubkey -noout 2>/dev/null \
       | openssl pkey -pubin -outform DER 2>/dev/null \
-      | xxd -p | tr -d '\n')"
+      | od -An -v -tx1 | tr -d ' \n')"
     if [[ -z "${hex}" ]]; then
       echo "Failed to extract X.509 SPKI hex for node${node_idx}" >&2
       return 1
@@ -1026,9 +1036,7 @@ require_cmd unzip
 require_cmd node
 require_cmd npm
 require_cmd jq
-require_cmd nc
 require_cmd openssl
-require_cmd xxd
 require_cmd grpcurl
 validate_block_node_repo || {
   echo "BLOCK_NODE_REPO_PATH is invalid: ${BLOCK_NODE_REPO_PATH}" >&2
@@ -1075,3 +1083,4 @@ verify_block_node_has_blocks 180
 log "PASS: 0.75 (${DEPLOY_RELEASE_TAG}) -> 0.76 (TSS enabled, mock signatures) upgrade completed cleanly"
 log "PASS: Block Node verified the mock-sig (RSA WRB) blocks across the 0.75 -> 0.76 upgrade"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
+log "WRAPS proving key artifact (host fetch from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}): ${WRAPS_DOWNLOAD_REPORT:-unknown}"

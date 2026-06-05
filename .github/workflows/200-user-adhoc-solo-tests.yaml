@@ -414,15 +414,6 @@ jobs:
           kind --version
           kubectl version --client=true
 
-      - name: Install xxd
-        run: |
-          set -eo pipefail
-          if ! command -v xxd >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y xxd
-          fi
-          xxd -v
-
       - name: Install grpcurl
         run: |
           curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
