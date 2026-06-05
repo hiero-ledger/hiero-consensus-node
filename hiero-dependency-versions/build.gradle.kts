@@ -105,7 +105,9 @@ dependencies.constraints {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
     api("org.hyperledger.besu:gnark:1.4.2")
-    api("org.hyperledger.besu:secp256r1:1.4.2")
+    api("org.hyperledger.besu:secp256r1:1.4.2") {
+        because("org.hyperledger.besu.nativelib.secp256r1")
+    }
     api("org.hyperledger.besu:arithmetic:1.4.2")
     api("org.hyperledger.besu:blake2bf:1.4.2") {
         because("org.hyperledger.besu.nativelib.blake2bf")

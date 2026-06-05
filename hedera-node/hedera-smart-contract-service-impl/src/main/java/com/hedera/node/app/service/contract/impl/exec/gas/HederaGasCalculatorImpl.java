@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.logGasLifetimeOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
 import static com.swirlds.base.units.UnitConstants.MINUTES_TO_SECONDS;
@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
-import com.hedera.node.config.data.CacheConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -57,15 +56,11 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     }
 
     protected static int payloadZeroBytes(@NonNull final Bytes payload) {
+        final byte[] payloadArray = payload.toArrayUnsafe();
         int zeros = 0;
 
-        if (!payload.isEmpty()) {
-            final byte[] payloadArray = payload.toArrayUnsafe();
-            for (final var p : payloadArray) {
-                if (p == 0) {
-                    zeros++;
-                }
-            }
+        for (final byte b : payloadArray) {
+            zeros += (b == 0) ? 1 : 0;
         }
         return zeros;
     }
@@ -102,7 +97,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
         requireNonNull(frame);
         final var evmGasCost = super.logOperationGasCost(frame, dataOffset, dataLength, numTopics);
 
-        final var lifetime = configOf(frame).getConfigData(CacheConfig.class).recordsTtl();
+        final var lifetime = logGasLifetimeOf(frame);
         final var tinybarValues = tinybarValuesFor(frame);
         final var hevmGasCost = gasCostOfStoring(
                 logSize(numTopics, dataLength),

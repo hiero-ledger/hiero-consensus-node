@@ -9,11 +9,13 @@ import com.hedera.node.app.service.contract.impl.test.TestByteUtils;
 import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.IntStream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class HederaGasCalculatorImplTest {
 
@@ -102,6 +104,55 @@ class HederaGasCalculatorImplTest {
         assertEquals(
                 HederaGasCalculatorImpl.TX_BASE_COST + (zeros + (randomPayload.length - zeros) * 4) * 10,
                 gasRequirements.minimumGasUsed());
+    }
+
+    // Verifies the word-at-a-time zero-byte scan matches a naive per-byte count for the public
+    // intrinsic gas across word boundaries, tail lengths, and high-bit / 0x01 byte values.
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 100, 1000, 2048, 2049})
+    void payloadZeroCountMatchesNaiveCountAcrossLengths(final int length) {
+        final var payload = new byte[length];
+        final var rnd = new Random(length * 31L + 7L);
+        for (int i = 0; i < length; i++) {
+            // ~40% zeros, otherwise any non-zero value including high-bit (>= 0x80) and 0x01 bytes
+            payload[i] = (byte) (rnd.nextInt(10) < 4 ? 0 : (rnd.nextInt(255) + 1));
+        }
+        long expectedZeros = 0;
+        for (final var b : payload) {
+            if (b == 0) {
+                expectedZeros++;
+            }
+        }
+        final long nonZeros = length - expectedZeros;
+
+        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(payload), false, null, null);
+
+        assertEquals(
+                HederaGasCalculatorImpl.TX_BASE_COST
+                        + HederaGasCalculatorImpl.TX_DATA_ZERO_COST * expectedZeros
+                        + HederaGasCalculatorImpl.ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros,
+                gasRequirements.intrinsicGas());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 7, 8, 9, 16, 17})
+    void payloadOfAllZerosCountsEveryByte(final int length) {
+        final var payload = new byte[length]; // all zeros
+        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(payload), false, null, null);
+        assertEquals(
+                HederaGasCalculatorImpl.TX_BASE_COST + HederaGasCalculatorImpl.TX_DATA_ZERO_COST * length,
+                gasRequirements.intrinsicGas());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 7, 8, 9, 16, 17})
+    void payloadWithNoZerosCountsNone(final int length) {
+        final var payload = new byte[length];
+        Arrays.fill(payload, (byte) 0x01); // exercises the SWAR borrow edge case (0x01 bytes)
+        final var gasRequirements = subject.transactionGasRequirements(Bytes.of(payload), false, null, null);
+        assertEquals(
+                HederaGasCalculatorImpl.TX_BASE_COST + HederaGasCalculatorImpl.ISTANBUL_TX_DATA_NON_ZERO_COST * length,
+                gasRequirements.intrinsicGas());
     }
 
     @ParameterizedTest

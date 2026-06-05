@@ -42,7 +42,7 @@ public final class NativeLibVerifier {
     public static List<Library> getDefaultNativeLibs() {
         final var libs = new ArrayList<Library>();
         libs.add(new Library("secp256k1", () -> new SECP256K1().isNative()));
-        libs.add(new Library("secp256r1", () -> new SECP256R1().isNative()));
+        libs.add(new Library("secp256r1", SECP256R1::isNativeAvailable));
         libs.add(new Library("besu blake2bf", Blake2bfMessageDigest.Blake2bfDigest::isNative));
         libs.add(new Library("besu gnark", AbstractBLS12PrecompiledContract::isAvailable));
         libs.add(new Library("altbn128 gnark196", AbstractAltBnPrecompiledContract::maybeEnableNative));

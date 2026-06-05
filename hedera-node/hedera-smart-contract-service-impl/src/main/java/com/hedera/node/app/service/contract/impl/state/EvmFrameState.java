@@ -332,4 +332,18 @@ public interface EvmFrameState {
      */
     @NonNull
     EntityIdFactory entityIdFactory();
+
+    /**
+     * Hint to invalidate any per-frame cached values that may have become stale because
+     * a child {@link org.hyperledger.besu.evm.worldstate.WorldUpdater} just committed
+     * writes through the same underlying state. Implementations that do not maintain
+     * such caches may leave this as a no-op.
+     *
+     * <p>Caches keyed only on content (e.g. flyweight {@code SlotKey} interning) and
+     * caches of values that are invariant for the life of the transaction (e.g. original
+     * pre-tx slot values) need not be cleared.
+     */
+    default void invalidateReadCaches() {
+        // No-op by default
+    }
 }

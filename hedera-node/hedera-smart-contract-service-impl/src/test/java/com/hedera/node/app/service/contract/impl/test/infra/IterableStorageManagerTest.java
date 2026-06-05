@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -295,6 +296,82 @@ class IterableStorageManagerTest {
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_2, 1);
         verify(store).adjustSlotCount(+1);
         verifyNoMoreInteractions(store);
+        verifyNoMoreInteractions(hederaOperations);
+    }
+
+    @Test
+    void skipsAccountLookupForUpdateOnlyAccesses() {
+        // A plain value UPDATE (non-zero -> non-zero) never changes the linked list or the slot map,
+        // so persistChanges must not load the contract account or touch the slot store for it.
+        final var accesses = List.of(new StorageAccesses(
+                CONTRACT_1, List.of(StorageAccess.newWrite(UInt256.ONE, UInt256.valueOf(5L), UInt256.valueOf(7L)))));
+
+        final var sizeChanges = List.of(new StorageSizeChange(CONTRACT_1, 0, 0));
+
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, writableEvmHookStore);
+
+        verify(hederaNativeOperations, never()).getAccount((ContractID) any());
+        verifyNoInteractions(store);
+    }
+
+    @Test
+    void sameValueWriteDoesNotLoadAccountOrTouchStore() {
+        // A write of the same value (non-zero -> same non-zero) is classified as UPDATE and similarly
+        // requires no linked-list maintenance.
+        final var accesses = List.of(new StorageAccesses(
+                CONTRACT_1, List.of(StorageAccess.newWrite(UInt256.ONE, UInt256.MAX_VALUE, UInt256.MAX_VALUE))));
+
+        subject.persistChanges(enhancement, accesses, List.of(), store, writableEvmHookStore);
+
+        verify(hederaNativeOperations, never()).getAccount((ContractID) any());
+        verifyNoInteractions(store);
+    }
+
+    @Test
+    void zeroIntoEmptySlotStillRemovesWithoutHeadChange() {
+        // Zeroing an already-empty slot still loads the head pointer (to keep firstKeys consistent
+        // with the metadata loop) but must only remove the superfluous pending update without
+        // altering the contract's head key.
+        final var accesses = List.of(new StorageAccesses(
+                CONTRACT_1, List.of(StorageAccess.newWrite(UInt256.valueOf(2L), UInt256.ZERO, UInt256.ZERO))));
+
+        final var sizeChanges = List.of(new StorageSizeChange(CONTRACT_1, 0, 0));
+
+        given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
+        given(account.firstContractStorageKey()).willReturn(BYTES_1);
+
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, writableEvmHookStore);
+
+        // Only removes the K/V slot; the head key (BYTES_1) is never rewritten
+        verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_2));
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test
+    void removesIsolatedSlotWithoutRelinkingNeighbors() {
+        // Removing the only slot in a contract's list (no prev/next neighbors) must not issue any
+        // neighbor putSlot calls via the fast path.
+        final var accesses = List.of(new StorageAccesses(
+                CONTRACT_1, List.of(StorageAccess.newWrite(UInt256.ONE, UInt256.MAX_VALUE, UInt256.ZERO))));
+
+        final var sizeChanges = List.of(new StorageSizeChange(CONTRACT_1, 1, 0));
+
+        given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
+        given(account.firstContractStorageKey()).willReturn(BYTES_1);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        // The slot being removed is isolated: both previous and next keys are empty
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
+                .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, Bytes.EMPTY));
+
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, writableEvmHookStore);
+
+        verify(store).getSlotValue(new SlotKey(CONTRACT_1, BYTES_1));
+        verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_1));
+        verify(store).adjustSlotCount(-1);
+        // No neighbor relink writes
+        verifyNoMoreInteractions(store);
+        // The list is now empty, so the new head key is Bytes.EMPTY
+        verify(hederaOperations).updateStorageMetadata(CONTRACT_1, Bytes.EMPTY, -1);
         verifyNoMoreInteractions(hederaOperations);
     }
 
