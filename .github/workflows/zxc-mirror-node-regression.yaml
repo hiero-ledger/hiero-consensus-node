@@ -73,7 +73,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-          checkout-fetch-depth: 0
+          checkout-fetch-depth: "0"
           setup-java: "true"
           java-distribution: "${{ inputs.java-distribution }}"
           java-version: "${{ inputs.java-version }}"
