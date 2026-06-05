@@ -8,10 +8,22 @@ import java.util.HashMap;
 
 /**
  * This class implements the Hashgraph consensus algorithm. It is self-contained, with
- * no dependencies other than on the standard Java libraries. The HashgraphInfo class
- * contains the inner class {@link EventInfo EventInfo} and the inner record types {@link RoundInfo RoundInfo},
- * {@link RoundInfo RoundInfoCore},and {@link RoundInfoPrev RoundInfoPrev}. All 5 of these have getters
- * but no setters. For arrays passed to their constructors, the caller must never change any array elements.
+ * no dependencies other than on the standard Java libraries. This package
+ * {@link org.hiero.consensus.hashgraph.impl.consensus.calculations ...consensus.calculations} contains a single
+ * file that does all the consensus calculations for the Hashgraph consensus algorithm. There is one class with several
+ * inner classes and record types:
+ * <p>
+ * {@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph needed for consensus calculations.
+ * <p>
+ * {@link EventInfo EventInfo} has all the information about an event needed for the consensus calculations.
+ * <p>
+ * {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the information about a
+ * round needed for the consensus calculations.
+ * <p>
+ * There are constructors and getters, but no setters. Other than that, there are only two public methods:
+ * {@link EventInfo#update EventInfo.update()}, which updates an event with a set of calculations, and
+ * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
+ * For arrays passed to the constructors, the caller must never change any array elements.
  * This file implements the equations from the tech report Swirlds-TR-2026-01.
  * <p>
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
