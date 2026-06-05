@@ -1411,6 +1411,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
@@ -1444,6 +1445,44 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         invoke_updateConnectionIfNeeded();
 
         // with no active connection the gauge must transition to 0 rather than retaining a stale IP
+        verify(metrics).recordActiveConnectionIp(0L);
+    }
+
+    @Test
+    void testUpdateConnectionIfNeeded_recordsZeroIpAfterAllConfigRemoved() throws Throwable {
+        // an active connection is streaming to a configured block node (192.168.1.1 -> 3232235777)
+        final BlockNodeConfiguration nodeConfig = newBlockNodeConfig("localhost", 1234, 1);
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final StreamingConnectionStatistics activeConnStats = mock(StreamingConnectionStatistics.class);
+        when(activeConnStats.lastHeartbeatMillis())
+                .thenReturn(Instant.now().plusSeconds(2).toEpochMilli());
+        when(activeConnection.connectionStatistics()).thenReturn(activeConnStats);
+        when(activeConnection.configuration()).thenReturn(nodeConfig);
+        when(activeConnection.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(90));
+        when(activeConnection.ipV4AddressAsInt()).thenReturn(3232235777L);
+        activeConnectionRef().set(activeConnection);
+        final BlockNode node = mock(BlockNode.class);
+        when(node.configuration()).thenReturn(nodeConfig);
+        when(node.isStreamingCandidate()).thenReturn(false);
+        blockNodes().put(nodeConfig.streamingEndpoint(), node);
+        // the active configuration currently has a single block node
+        activeConfigRef().set(new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig)));
+        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        // the whole block-nodes.json is removed -> the config service publishes an empty, version-bumped set
+        when(blockNodeConfigService.latestConfiguration())
+                .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
+
+        // tick 1: the removal is detected and the node is told to terminate its connection; while the
+        // connection is still active the gauge reports its IP address
+        invoke_updateConnectionIfNeeded();
+        verify(node).onTerminate(CloseReason.CONFIG_UPDATE);
+        verify(metrics).recordActiveConnectionIp(3232235777L);
+
+        // simulate the connection actually closing (in production notifyConnectionClosed clears the active ref)
+        activeConnectionRef().set(null);
+
+        // tick 2: with no active connection remaining, the gauge transitions to 0 instead of keeping the old IP
+        invoke_updateConnectionIfNeeded();
         verify(metrics).recordActiveConnectionIp(0L);
     }
 
@@ -1487,6 +1526,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // in the real world, when BlockNode#onTerminate(CloseReason) is called, it will close the connection
         // associated with the node, but since this is using mocks, those side effects aren't verifiable here
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
@@ -1520,6 +1560,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // the active connection - having some sort of connection is better than nothing in this scenario
         verify(activeConnection, never()).closeAtBlockBoundary(any(CloseReason.class));
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
@@ -1581,6 +1622,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(lowerPriorityConnection).closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
@@ -1636,6 +1678,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(existingActiveConnection, times(2)).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
@@ -1666,6 +1709,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // the active connection should not be changed
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(activeConnection);
         verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
     @Test
