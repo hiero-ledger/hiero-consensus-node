@@ -13,6 +13,7 @@ import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -120,7 +121,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         // any parallel tasks. The root response carries the teacher's first/last leaf path range,
         // which must be known before the traversal order can be started and before any parallel
         // send tasks can generate meaningful non-root requests.
-        exchangeRootNode(in, out);
+        try {
+            exchangeRootNode(in, out);
+        } catch (Exception e) {
+            workGroup.handleError(e);
+            throw e; // rethrow
+        }
 
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
@@ -164,8 +170,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         mapStats.incrementTransfersFromLearner();
 
         // wait for response
-        final byte[] rootResponseBytes =
-                in.readAnticipatedMessageSync(reconnectConfig.pullLearnerRootResponseTimeout());
+        final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);
         if (rootResponseBytes == null) {
             throw new MerkleSynchronizationException("Stream closed before root node response was received");
         }
