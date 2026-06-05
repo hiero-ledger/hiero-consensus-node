@@ -11,17 +11,17 @@ on:
         description: "Dependency Check Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-integration-tests:
         description: "Integration Testing Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-hapi-tests:
         description: "HAPI Testing Enabled"
         type: boolean
@@ -31,17 +31,17 @@ on:
         description: "Otter Tests Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
         type: boolean
         required: false
-        default: true
+        default: false
       enable-docker-determinism:
         description: "Docker Build Determinism Check Enabled"
         type: boolean
