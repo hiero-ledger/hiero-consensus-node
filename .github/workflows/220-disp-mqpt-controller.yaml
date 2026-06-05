@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [CITR] Merge Queue Performance Test Controller"
+name: "220: [DISP] CITR MQPT Controller"
 on:
   workflow_dispatch:
     inputs:

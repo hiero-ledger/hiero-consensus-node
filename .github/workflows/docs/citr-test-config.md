@@ -338,7 +338,7 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 ### Workflows
 
 - MQPT is triggered by
-  the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller.yaml)
+  the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/220-disp-mqpt-controller.yaml)
   workflow.
 - MQPT AdHoc Run is triggered manually via
   the [ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller-adhoc.yaml)
