@@ -211,14 +211,16 @@ public class ProcessUtils {
         // System.err/System.out (which it does for passing tests).
         final int availableCpus = Runtime.getRuntime().availableProcessors();
         try {
-            new java.io.FileOutputStream(java.io.FileDescriptor.err).write(
-                    String.format("Node %d resource allocation: heap=%s, ActiveProcessorCount=%s (of %d available)%n",
+            new java.io.FileOutputStream(java.io.FileDescriptor.err)
+                    .write(String.format(
+                                    "Node %d resource allocation: heap=%s, ActiveProcessorCount=%s (of %d available)%n",
                                     metadata.nodeId(),
                                     perNodeMib == -1 ? "unbounded" : perNodeMib + "m",
                                     perNodeProcessorCount == -1 ? "not set" : String.valueOf(perNodeProcessorCount),
                                     availableCpus)
                             .getBytes());
-        } catch (java.io.IOException ignored) {}
+        } catch (java.io.IOException ignored) {
+        }
 
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
@@ -230,9 +232,7 @@ public class ProcessUtils {
         // for diagnosing OS-level starvation spikes visible in JVMPauseDetector and HealthMonitor logs.
         // FlightRecorderOptions.repository= writes chunks continuously to an existing directory so
         // they survive a SIGKILL; filename= is only flushed on graceful exit.
-        final var outputDir = metadata.workingDirOrThrow()
-                .resolve(OUTPUT_DIR)
-                .toAbsolutePath();
+        final var outputDir = metadata.workingDirOrThrow().resolve(OUTPUT_DIR).toAbsolutePath();
         final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
         commandLine.add("-XX:FlightRecorderOptions=repository=" + outputDir);
         commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile + ",settings=profile,disk=true,name=hapitest");
