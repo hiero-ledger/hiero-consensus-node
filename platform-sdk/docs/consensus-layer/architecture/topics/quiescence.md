@@ -261,13 +261,6 @@ Interface:
   `QuiescenceController` and the quiescence conditions live on the
   Execution side of this seam.
 
-Overview:
-
-- [`../overview.md`](../overview.md) — **reviewer note:** the overview's
-  topic map still lists eleven topics and does not include quiescence.
-  It needs a quiescence entry on its next pass (this is the twelfth
-  topic).
-
 Spec:
 
 - HIP-1238, *Network Quiescence* — the authoritative specification of
@@ -275,10 +268,10 @@ Spec:
 
 Pending catalogs:
 
-- Invariants — [TBD: INV-NNN once `../invariants.md` catalog populates].
-- Decisions — [TBD: ADR-NNN once `../decisions/` catalog populates —
-  the "detection lives on Execution" and "no dedicated quiescence status"
-  choices are decision seeds].
+- Invariants — see [`../../invariants/`](../../invariants/); no entry tagged to this topic yet.
+- Decisions — see [`../../decisions/`](../../decisions/); no entry tagged
+  to this topic yet. The "detection lives on Execution" and "no dedicated
+  quiescence status" choices are decision seeds.
 - Scenarios — [TBD: SCN-NNN — quiescence entry/exit edge cases (lone-node
   break, quiescence-breaker propagation, status timing on resume) are
   likely scenario seeds].
