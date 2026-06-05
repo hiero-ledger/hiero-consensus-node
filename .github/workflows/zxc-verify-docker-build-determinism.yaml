@@ -133,6 +133,25 @@ jobs:
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
 
+      - name: Probe Docker Daemon Config
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: |
+          echo "::group::/etc/docker/daemon.json"
+          sudo cat /etc/docker/daemon.json 2>/dev/null || echo "(no daemon.json)"
+          echo "::endgroup::"
+          echo "::group::docker info"
+          docker info
+          echo "::endgroup::"
+          echo "::group::RegistryConfig"
+          docker system info --format '{{json .RegistryConfig}}' | jq .
+          echo "::endgroup::"
+          echo "::group::Mirror reachability from runner"
+          curl -sS -o /dev/null -w "mirror /v2/  HTTP=%{http_code}  total=%{time_total}s\n" \
+            https://hub.mirror.docker.lat.ope.eng.hashgraph.io/v2/ || true
+          curl -sS -o /dev/null -w "mirror manifest  HTTP=%{http_code}  total=%{time_total}s\n" \
+            https://hub.mirror.docker.lat.ope.eng.hashgraph.io/v2/library/registry/manifests/latest || true
+          echo "::endgroup::"
+
       - name: Setup Local Docker Registry
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
