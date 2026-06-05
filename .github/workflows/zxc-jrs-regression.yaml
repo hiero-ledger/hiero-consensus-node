@@ -561,6 +561,15 @@ jobs:
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Look for script
+        if: ${{ always() }}
+        run: |
+          echo "checking for the script"
+          if [ -e ".github/workflows/support/scripts/set-failure-mode.sh" ]; then
+            echo "File exists"
+          else
+            echo "File does not exist"
+          fi
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
