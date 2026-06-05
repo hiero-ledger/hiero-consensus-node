@@ -119,8 +119,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // If fees are turned off globally then return empty FeeResult
-        if (simpleFeeContext.configuration().getConfigData(FeesConfig.class).simpleFeesAreFree()) {
-            return new FeeResult();
+        if(simpleFeeContext.configuration() != null) {
+            final var config = simpleFeeContext.configuration().getConfigData(FeesConfig.class);
+            if (config != null && config.simpleFeesAreFree()) {
+                return new FeeResult();
+            }
         }
         // Extract primitive counts (no allocations)
         final long signatures = simpleFeeContext.numTxnSignatures();
