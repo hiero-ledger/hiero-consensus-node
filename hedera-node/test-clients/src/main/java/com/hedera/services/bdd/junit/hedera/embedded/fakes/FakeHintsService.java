@@ -72,6 +72,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
     public @NonNull TssSubmissions submissions() {
         return delegate.submissions();
     }

@@ -595,20 +595,48 @@ public class BlockBufferService {
      * Prunes the block buffer deterministically by always removing the oldest acknowledged blocks first
      * until the buffer size is within the configured limit. Also computes saturation based on the number of
      * unacknowledged blocks.
+     *
+     * <p>When backpressure is enabled, pruning also enforces a soft retention floor configured via
+     * {@code blockStream.buffer.minAckedBlocksToBuffer}: at least this many of the most recent
+     * acknowledged blocks are retained; older acknowledged blocks are dropped even when the buffer is
+     * below {@code maxBlocks}. This keeps steady-state memory low when the block node is healthy while
+     * still preserving a recent window of acked blocks in case one is re-requested. The hard
+     * {@code maxBlocks} ceiling still wins when the buffer is dominated by unacknowledged blocks.
      */
     private @NonNull PruneResult pruneBuffer() {
         final long highestBlockAcked = highestAckedBlockNumber.get();
         final int maxBufferSize = maxBufferedBlocks();
+        final boolean backpressureEnabled = isBackpressureEnabled();
+
+        // Create a sorted snapshot of keys so the pruning order is oldest-first
+        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(orderedBuffer); // ascending (oldest first)
+
+        // Soft-limit threshold: acknowledged blocks strictly below this number are eligible for
+        // aggressive pruning, leaving exactly `minAckedBlocksToBuffer` of the most recent acked blocks
+        // in the buffer. Anchor the retention window on the most recent acked block that is actually
+        // present in the buffer: `highestBlockAcked` is a high-water mark that can run ahead of the
+        // highest buffered block (e.g. an ack for a block that was never buffered), and anchoring on
+        // the raw watermark in that case would prune one genuinely-retained block. The retained window
+        // is then `[anchor - N + 1, anchor]`, which spans N block numbers; the `+ 1` makes the lower
+        // bound exclusive so the count matches the configured value (e.g. N=0 retains no acked blocks,
+        // N=3 retains 3). When no blocks have been acknowledged yet, or the buffer is empty, leave the
+        // threshold at Long.MIN_VALUE so the branch is inert (and the subtraction cannot underflow).
+        // Only read the config when backpressure is enabled.
+        final long pruneBlockNumberThreshold;
+        if (backpressureEnabled && highestBlockAcked != Long.MIN_VALUE && !orderedBuffer.isEmpty()) {
+            final long highestAckedInBuffer = Math.min(highestBlockAcked, orderedBuffer.get(orderedBuffer.size() - 1));
+            pruneBlockNumberThreshold = highestAckedInBuffer - bufferConfig().minAckedBlocksToBuffer() + 1;
+        } else {
+            pruneBlockNumberThreshold = Long.MIN_VALUE;
+        }
+
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
         int numInProgress = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
-
-        // Create a sorted snapshot of keys so the pruning order is oldest-first
-        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
-        Collections.sort(orderedBuffer); // ascending (oldest first)
 
         int size = blockBuffer.size();
         for (final long blockNumber : orderedBuffer) {
@@ -623,12 +651,14 @@ public class BlockBufferService {
             }
 
             final boolean shouldPrune;
-            if (!isBackpressureEnabled()) {
+            if (!backpressureEnabled) {
                 // If backpressure is disabled, remove blocks based solely on the maximum buffer size
                 shouldPrune = (size > maxBufferSize);
             } else {
-                // If backpressure is enabled, only prune acknowledged blocks when over capacity
-                shouldPrune = (size > maxBufferSize && blockNumber <= highestBlockAcked);
+                // If backpressure is enabled, prune an acknowledged block when either the buffer
+                // exceeds the hard ceiling, or the block is older than the soft retention floor.
+                shouldPrune = (blockNumber <= highestBlockAcked)
+                        && ((size > maxBufferSize) || (blockNumber < pruneBlockNumberThreshold));
             }
 
             if (shouldPrune) {

@@ -19,7 +19,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -220,9 +219,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         log.info("Starting node {}...", selfId);
 
         if (savedStateDirectory != null) {
-            final StateCommonConfig stateCommonConfig =
-                    configuration().current().getConfigData(StateCommonConfig.class);
-            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+            final PathsConfig pathsConfig = configuration().current().getConfigData(PathsConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, pathsConfig, savedStateDirectory);
         }
 
         final InitRequest initRequest = InitRequest.newBuilder()
@@ -559,8 +557,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void downloadStateFiles() {
-        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
-        final Path stateDirectory = stateConfig.savedStateDirectory().resolve(OtterApp.APP_NAME);
+        final PathsConfig pathsConfig = nodeConfiguration.current().getConfigData(PathsConfig.class);
+        final Path stateDirectory = pathsConfig.savedStateDir().resolve(OtterApp.APP_NAME);
         copyFolderFromContainer(stateDirectory.toString());
     }
 
@@ -571,12 +569,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         if (!consistencyServiceEnabled) {
             return;
         }
-        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
+
+        final PathsConfig pathsConfig = nodeConfiguration.current().getConfigData(PathsConfig.class);
         final ConsistencyServiceConfig consistencyServiceConfig =
                 nodeConfiguration.current().getConfigData(ConsistencyServiceConfig.class);
 
-        final Path historyFileDirectory = stateConfig
-                .savedStateDirectory()
+        final Path historyFileDirectory = pathsConfig
+                .savedStateDir()
                 .resolve(consistencyServiceConfig.historyFileDirectory())
                 .resolve(Long.toString(selfId.id()));
 
