@@ -91,14 +91,15 @@ public final class HashgraphInfo {
      * the minimum birth round that counts as non-ancient, during the time when these two infos
      * correspond to the pending round
      *
-      * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
+     * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
      * @param roundInfoPrev info about the pending round regarding the previous round
      * @return the minimum birth round that counts as non-ancient
      */
     public static long minNonAncientRound(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
         // function minNonAncientRound ---------------------------------------------------------------------------
-        return Math.max(roundInfoPrev.prevMinNonAncientRound,
-                        roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
+        return Math.max(
+                roundInfoPrev.prevMinNonAncientRound,
+                roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
     }
 
     /** true iff n is a supermajority of the total stake */
@@ -266,7 +267,9 @@ public final class HashgraphInfo {
         /**
          * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
          */
-        public record UpdateResults(@NonNull EventInfo[] consensusEvents, @NonNull RoundInfoPrev nextRoundInfoPrev) {}
+        public record UpdateResults(
+                @NonNull EventInfo[] consensusEvents,
+                @NonNull RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
          * This should be called for each event just after it is added to the hashgraph. When consensus is
@@ -339,7 +342,7 @@ public final class HashgraphInfo {
                 int firstMark = h.currMark + 1;
 
                 // function minNonAncientRound -------------------------------------------------------------------
-                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r,rp);
+                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
 
                 for (EventInfo e : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
                     h.currMark++;
