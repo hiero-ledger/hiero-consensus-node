@@ -117,7 +117,8 @@ public class ProcessUtils {
         return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
                 .map(testOverrides -> Arrays.stream(testOverrides.split(","))
                         .map(override -> override.split("="))
-                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1])))
+                        // Last-wins on duplicate keys so later overrides supersede earlier ones instead of throwing.
+                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1], (first, last) -> last)))
                 .orElse(Map.of());
     }
 
@@ -179,7 +180,7 @@ public class ProcessUtils {
             try {
                 final int poolMib = Integer.parseInt(nodePoolMib);
                 final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
-                final int perNodeMib = Math.max(512, Math.min(4096, poolMib / networkSize));
+                final int perNodeMib = Math.clamp(poolMib / networkSize, 2048, 4096);
                 commandLine.add("-Xmx" + perNodeMib + "m");
             } catch (NumberFormatException e) {
                 log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);

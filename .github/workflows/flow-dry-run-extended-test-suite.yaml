@@ -62,6 +62,11 @@ on:
         type: boolean
         default: true
         description: "Run Migration Testing Panel"
+      enable-hapi-tests-blocks-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -115,6 +120,7 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable HAPI Tests BLOCKS Suite: ${{ inputs.enable-hapi-tests-blocks-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
@@ -162,6 +168,7 @@ jobs:
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
       enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
+      enable-hapi-tests-blocks-suite: ${{ inputs.enable-hapi-tests-blocks-suite }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       custom-job-label: "XTS (Dry Run):"
     secrets:
