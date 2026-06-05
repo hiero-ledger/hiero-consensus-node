@@ -73,11 +73,12 @@ public class BlockState {
      * Adds an item to the block.
      *
      * @param item the item to add
+     * @return the index of the item within the block, or -1 if the item wasn't added to the block
      * @throws IllegalStateException if the block is closed
      */
-    public void addItem(@Nullable final BlockItem item) {
+    public int addItem(@Nullable final BlockItem item) {
         if (item == null) {
-            return;
+            return -1;
         }
 
         if (closedTimestamp != null) {
@@ -91,6 +92,8 @@ public class BlockState {
             openedTimestamp = Instant.now();
         }
         sizeBytes += item.protobufSize();
+
+        return index;
     }
 
     /**

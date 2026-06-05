@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.BufferedBlock;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
@@ -128,6 +129,8 @@ public class BlockBufferService {
      */
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
 
+    private final BlockStreamingObs streamingObs;
+
     /**
      * Creates a new BlockBufferService with the given configuration.
      *
@@ -136,9 +139,12 @@ public class BlockBufferService {
      */
     @Inject
     public BlockBufferService(
-            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        this.configProvider = configProvider;
-        this.blockStreamMetrics = blockStreamMetrics;
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final BlockStreamingObs streamingObs) {
+        this.configProvider = requireNonNull(configProvider);
+        this.blockStreamMetrics = requireNonNull(blockStreamMetrics);
+        this.streamingObs = requireNonNull(streamingObs);
         this.bufferIO = new BlockBufferIO(bufferConfig().bufferDirectory(), maxReadDepth());
     }
 
@@ -300,6 +306,7 @@ public class BlockBufferService {
 
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
+        streamingObs.onBlockOpen(blockNumber, System.nanoTime());
         blockBuffer.put(blockNumber, blockState);
         // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
@@ -325,8 +332,17 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
+
+        final long nanosTick = System.nanoTime();
+        final int itemIndex = blockState.addItem(blockItem);
+        final int itemSizeBytes = blockItem.protobufSize();
+
+        streamingObs.onBlockItemAdd(blockNumber, itemIndex, nanosTick, itemSizeBytes);
+        if (blockItem.hasBlockProof()) {
+            streamingObs.onBlockProofAdd(blockNumber, nanosTick);
+        }
+
         blockStreamMetrics.recordBlockItemBytes(blockItem.protobufSize());
-        blockState.addItem(blockItem);
     }
 
     /**
@@ -343,6 +359,9 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
+
+        streamingObs.onBlockClose(blockNumber, System.nanoTime());
+
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
@@ -411,6 +430,16 @@ public class BlockBufferService {
         }
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
+        final long nanosTick = System.nanoTime();
+
+        for (long blockNum = highestBlock; ; --blockNum) {
+            if (blockBuffer.containsKey(blockNum)) {
+                streamingObs.onBlockAcknowledge(blockNum, nanosTick);
+            } else {
+                break;
+            }
+        }
+
         blockStreamMetrics.recordLatestBlockAcked(highestBlock);
         completeAcknowledgementFutures(highestBlock);
     }

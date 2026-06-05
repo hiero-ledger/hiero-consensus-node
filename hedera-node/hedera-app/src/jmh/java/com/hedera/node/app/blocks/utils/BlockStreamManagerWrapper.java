@@ -11,6 +11,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -120,7 +121,8 @@ public class BlockStreamManagerWrapper {
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
-                new NoOpDependencies.NoOpMetrics());
+                new NoOpDependencies.NoOpMetrics(),
+                new BlockStreamingObs(configProvider));
 
         manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }
