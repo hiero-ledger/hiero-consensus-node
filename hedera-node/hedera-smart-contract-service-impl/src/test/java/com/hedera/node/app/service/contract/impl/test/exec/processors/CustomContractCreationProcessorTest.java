@@ -7,12 +7,16 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BY
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -42,6 +46,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -257,7 +262,92 @@ class CustomContractCreationProcessorTest {
         verify(streamBuilder).addInitcode(any());
     }
 
+    @Test
+    void codeSuccessSplitsInitcodeAtRuntimeBytecodeOffset() {
+        final var contractId = ContractID.newBuilder().contractNum(321L).build();
+        // initcode = [9, 1, 2, 3, 9], runtime bytecode = [1, 2, 3] -> found at offset 1
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG, Bytes.of(1, 2, 3), Bytes.of(9, 1, 2, 3, 9));
+
+        subject.codeSuccess(frame, tracer);
+
+        final var captor = ArgumentCaptor.forClass(ExecutedInitcode.class);
+        verify(streamBuilder).addInitcode(captor.capture());
+        final var executed = captor.getValue();
+        assertNull(executed.explicitInitcode());
+        assertNotNull(executed.initcodeBookends());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {9}),
+                executed.initcodeBookends().deployBytecode());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {9}),
+                executed.initcodeBookends().metadataBytecode());
+    }
+
+    @Test
+    void codeSuccessSplitsInitcodeWhenRuntimeBytecodeAtHead() {
+        final var contractId = ContractID.newBuilder().contractNum(322L).build();
+        // initcode = [1, 2, 3, 9], runtime bytecode = [1, 2, 3] -> found at offset 0 (empty left bookend)
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG, Bytes.of(1, 2, 3), Bytes.of(1, 2, 3, 9));
+
+        subject.codeSuccess(frame, tracer);
+
+        final var captor = ArgumentCaptor.forClass(ExecutedInitcode.class);
+        verify(streamBuilder).addInitcode(captor.capture());
+        final var executed = captor.getValue();
+        assertNotNull(executed.initcodeBookends());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY,
+                executed.initcodeBookends().deployBytecode());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {9}),
+                executed.initcodeBookends().metadataBytecode());
+    }
+
+    @Test
+    void codeSuccessSplitsInitcodeWhenRuntimeBytecodeAtTail() {
+        final var contractId = ContractID.newBuilder().contractNum(323L).build();
+        // initcode = [9, 1, 2, 3], runtime bytecode = [1, 2, 3] -> found at offset 1 (empty right bookend)
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG, Bytes.of(1, 2, 3), Bytes.of(9, 1, 2, 3));
+
+        subject.codeSuccess(frame, tracer);
+
+        final var captor = ArgumentCaptor.forClass(ExecutedInitcode.class);
+        verify(streamBuilder).addInitcode(captor.capture());
+        final var executed = captor.getValue();
+        assertNotNull(executed.initcodeBookends());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {9}),
+                executed.initcodeBookends().deployBytecode());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY,
+                executed.initcodeBookends().metadataBytecode());
+    }
+
+    @Test
+    void codeSuccessUsesExplicitInitcodeWhenRuntimeBytecodeAbsent() {
+        final var contractId = ContractID.newBuilder().contractNum(324L).build();
+        // initcode = [1, 2, 3], runtime bytecode = [7, 8] -> not present
+        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG, Bytes.of(7, 8), Bytes.of(1, 2, 3));
+
+        subject.codeSuccess(frame, tracer);
+
+        final var captor = ArgumentCaptor.forClass(ExecutedInitcode.class);
+        verify(streamBuilder).addInitcode(captor.capture());
+        final var executed = captor.getValue();
+        assertNull(executed.initcodeBookends());
+        assertEquals(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {1, 2, 3}), executed.explicitInitcode());
+    }
+
     private void setupCodeSuccessFrame(final ContractID contractId, final Configuration config) {
+        setupCodeSuccessFrame(contractId, config, Bytes.EMPTY, Bytes.of(1, 2, 3));
+    }
+
+    private void setupCodeSuccessFrame(
+            final ContractID contractId,
+            final Configuration config,
+            final Bytes runtimeBytecode,
+            final Bytes initcode) {
 
         given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(frame.hasContextVariable(BYTECODE_SIDECARS_VARIABLE)).willReturn(true);
@@ -280,9 +370,9 @@ class CustomContractCreationProcessorTest {
         given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
         given(worldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(contract);
         given(contract.hederaContractId()).willReturn(contractId);
-        given(contract.getCode()).willReturn(Bytes.EMPTY);
+        given(contract.getCode()).willReturn(runtimeBytecode);
 
         given(frame.getCode()).willReturn(code);
-        given(code.getBytes()).willReturn(Bytes.of(1, 2, 3));
+        given(code.getBytes()).willReturn(initcode);
     }
 }

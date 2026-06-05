@@ -65,36 +65,46 @@ public class IterableStorageManager {
             @NonNull final List<StorageSizeChange> allSizeChanges,
             @NonNull final ContractStateStore store,
             @NonNull final WritableEvmHookStore writableEvmHookStore) {
-        // Stores the first storage key for each contract
-        final Map<ContractID, Bytes> firstKeys = new HashMap<>();
-        // Adjust the storage linked lists for each contract
-        allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
-            if (access.isUpdate()) {
-                final var contractId = contractAccesses.contractID();
-                if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
-                    // Skip managing linked list for 0x16d, as its storage is managed separately
-                    return;
+        // Stores the first storage key for each contract (one entry per contract that mutates its list)
+        final Map<ContractID, Bytes> firstKeys = HashMap.newHashMap(allAccesses.size());
+        // Adjust the storage linked lists for each contract. The vast majority of accesses are plain
+        // value UPDATEs (or reads) that never change the linked list or the slot K/V map; classifying
+        // the access type up front lets us skip the head-pointer lookup (and the associated account
+        // load) entirely for those, only paying for it on the INSERTION/REMOVAL/ZERO paths.
+        for (final var contractAccesses : allAccesses) {
+            final var contractId = contractAccesses.contractID();
+            if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
+                // Skip managing linked list for 0x16d, as its storage is managed separately
+                continue;
+            }
+            final var accesses = contractAccesses.accesses();
+            for (int i = 0, n = accesses.size(); i < n; i++) {
+                final var access = accesses.get(i);
+                if (!access.isUpdate()) {
+                    continue;
                 }
+                final var type = StorageAccessType.getAccessType(access);
+                // Only these access types can touch the slot K/V map or the storage linked list; for
+                // UPDATE/UNKNOWN/READ_ONLY the value write was already committed during EVM execution
+                // and there is nothing for this method to maintain.
+                if (type != StorageAccessType.INSERTION
+                        && type != StorageAccessType.REMOVAL
+                        && type != StorageAccessType.ZERO_INTO_EMPTY_SLOT) {
+                    continue;
+                }
+                final var keyBytes = tuweniToPbjBytes(access.key());
                 // If we have already changed the head pointer for this contract,
                 // use that; otherwise, get the contract's head pointer from state
                 final var firstContractKey =
-                        firstKeys.computeIfAbsent(contractId, cid -> contractFirstKeyOf(enhancement, contractId));
+                        firstKeys.computeIfAbsent(contractId, cid -> contractFirstKeyOf(enhancement, cid));
 
-                // Only certain access types can change the head slot in a contract's storage linked list
                 final var newFirstContractKey =
-                        switch (StorageAccessType.getAccessType(access)) {
-                            case UNKNOWN, READ_ONLY, UPDATE -> firstContractKey;
+                        switch (type) {
                             // We might be removing the head slot from the existing list
-                            case REMOVAL ->
-                                removeAccessedValue(
-                                        store,
-                                        firstContractKey,
-                                        contractAccesses.contractID(),
-                                        tuweniToPbjBytes(access.key()));
+                            case REMOVAL -> removeAccessedValue(store, firstContractKey, contractId, keyBytes);
                             case ZERO_INTO_EMPTY_SLOT -> {
                                 // Ensure a "new" zero isn't put into state, remove from KV state
-                                store.removeSlot(
-                                        new SlotKey(contractAccesses.contractID(), tuweniToPbjBytes(access.key())));
+                                store.removeSlot(new SlotKey(contractId, keyBytes));
                                 yield firstContractKey;
                             }
                             // We always insert the new slot at the head
@@ -103,12 +113,14 @@ public class IterableStorageManager {
                                         store,
                                         firstContractKey,
                                         tuweniToPbjBytes(requireNonNull(access.writtenValue())),
-                                        contractAccesses.contractID(),
-                                        tuweniToPbjBytes(access.key()));
+                                        contractId,
+                                        keyBytes);
+                            // Unreachable; filtered out above
+                            default -> firstContractKey;
                         };
-                firstKeys.put(contractAccesses.contractID(), newFirstContractKey);
+                firstKeys.put(contractId, newFirstContractKey);
             }
-        }));
+        }
 
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
@@ -190,10 +202,19 @@ public class IterableStorageManager {
             final var slotValue = slotValueFor(store, slotKey, "Missing key ");
             final var nextKey = slotValue.nextKey();
             final var prevKey = slotValue.previousKey();
-            if (!Bytes.EMPTY.equals(nextKey)) {
+            final var hasNext = !Bytes.EMPTY.equals(nextKey);
+            final var hasPrev = !Bytes.EMPTY.equals(prevKey);
+            if (!hasNext && !hasPrev) {
+                // Fast path: removing an isolated slot (no neighbors to relink), so there are no
+                // prev/next pointers to repair. This avoids up to two extra getSlot+putSlot pairs.
+                firstContractKey = key.equals(firstContractKey) ? nextKey : firstContractKey;
+                store.removeSlot(slotKey);
+                return firstContractKey;
+            }
+            if (hasNext) {
                 updatePrevFor(new SlotKey(contractID, nextKey), prevKey, store);
             }
-            if (!Bytes.EMPTY.equals(prevKey)) {
+            if (hasPrev) {
                 updateNextFor(new SlotKey(contractID, prevKey), nextKey, store);
             }
             firstContractKey = key.equals(firstContractKey) ? nextKey : firstContractKey;
