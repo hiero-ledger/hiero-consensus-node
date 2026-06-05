@@ -32,6 +32,7 @@ public class FrameUtils {
     public static final String ACTION_SIDECARS_VALIDATION_VARIABLE = "actionSidecarsValidation";
     public static final String BYTECODE_SIDECARS_VARIABLE = "bytecodeSidecars";
     public static final String TINYBAR_VALUES_CONTEXT_VARIABLE = "tinybarValues";
+    public static final String LOG_GAS_LIFETIME_CONTEXT_VARIABLE = "logGasLifetime";
     public static final String HAPI_RECORD_BUILDER_CONTEXT_VARIABLE = "hapiRecordBuilder";
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
@@ -125,6 +126,18 @@ public class FrameUtils {
 
     public static @NonNull TinybarValues tinybarValuesFor(@NonNull final MessageFrame frame) {
         return initialFrameOf(frame).getContextVariable(TINYBAR_VALUES_CONTEXT_VARIABLE);
+    }
+
+    /**
+     * Returns the records TTL (in seconds) used to price log storage gas, precomputed once per
+     * transaction and cached on the initial frame to avoid re-resolving {@code CacheConfig} on every
+     * {@code LOG} operation.
+     *
+     * @param frame any frame in the transaction
+     * @return the records TTL in seconds
+     */
+    public static long logGasLifetimeOf(@NonNull final MessageFrame frame) {
+        return (int) initialFrameOf(frame).getContextVariable(LOG_GAS_LIFETIME_CONTEXT_VARIABLE);
     }
 
     /**

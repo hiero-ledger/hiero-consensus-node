@@ -59,15 +59,17 @@ public class StorageAccessTracker {
      * @return the merged list of all storage accesses
      */
     public List<StorageAccesses> getReadsMergedWith(@NonNull final List<StorageAccesses> writes) {
-        writes.forEach(scoped -> {
+        for (final var scoped : writes) {
             final var reads = accessesByContract.computeIfAbsent(scoped.contractID(), MAP_FACTORY);
-            scoped.accesses().forEach(write -> reads.put(write.key(), write));
-        });
-        final List<StorageAccesses> allAccesses = new ArrayList<>();
-        accessesByContract.forEach((contract, accesses) -> {
-            final var scopedAccesses = new ArrayList<>(accesses.values());
-            allAccesses.add(new StorageAccesses(contract, scopedAccesses));
-        });
+            for (final var write : scoped.accesses()) {
+                reads.put(write.key(), write);
+            }
+        }
+        final List<StorageAccesses> allAccesses = new ArrayList<>(accessesByContract.size());
+        for (final var entry : accessesByContract.entrySet()) {
+            allAccesses.add(new StorageAccesses(
+                    entry.getKey(), new ArrayList<>(entry.getValue().values())));
+        }
         return allAccesses;
     }
 }

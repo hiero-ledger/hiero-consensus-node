@@ -254,10 +254,9 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
         contractStateStore.getModifiedSlotKeys().forEach(slotKey -> {
+            final var key = pbjToTuweniUInt256(slotKey.key());
             final var access = StorageAccess.newWrite(
-                    pbjToTuweniUInt256(slotKey.key()),
-                    valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
-                    valueOrZero(contractStateStore.getSlotValue(slotKey)));
+                    key, originalValueForCommit(slotKey, key), valueOrZero(contractStateStore.getSlotValue(slotKey)));
             modifications
                     .computeIfAbsent(slotKey.contractID(), _ -> new ArrayList<>())
                     .add(access);
@@ -265,10 +264,32 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 changedKeys.add(slotKey);
             }
         });
-        final List<StorageAccesses> allChanges = new ArrayList<>();
+        final List<StorageAccesses> allChanges = new ArrayList<>(modifications.size());
         modifications.forEach(
                 (number, storageAccesses) -> allChanges.add(new StorageAccesses(number, storageAccesses)));
         return new TxStorageUsage(allChanges, changedKeys);
+    }
+
+    /**
+     * Returns the original (pre-transaction) value for a modified slot, reusing the never-invalidated
+     * {@link #originalValueCache} when this frame already read it. Original values are invariant for the
+     * life of the transaction, so a cache hit here is always correct and avoids re-parsing the stored
+     * {@link SlotValue} at commit.
+     *
+     * @param slotKey the modified slot key
+     * @param key the Tuweni form of {@code slotKey.key()}, already converted by the caller
+     * @return the original value, or {@code ZERO} if the slot did not exist before the transaction
+     */
+    private @NonNull UInt256 originalValueForCommit(@NonNull final SlotKey slotKey, @NonNull final UInt256 key) {
+        final var contractId = slotKey.contractID();
+        if (contractId.hasContractNum()) {
+            setProbe(contractId.contractNumOrThrow(), key);
+            final var cached = originalValueCache.get(probeKey);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        return valueOrZero(contractStateStore.getOriginalSlotValue(slotKey));
     }
 
     /**
