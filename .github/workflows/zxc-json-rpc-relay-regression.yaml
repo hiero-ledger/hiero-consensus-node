@@ -200,6 +200,12 @@ jobs:
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
