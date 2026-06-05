@@ -158,6 +158,12 @@ SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
 MIRROR_RESTJAVA_MEMORY_REQUEST="${MIRROR_RESTJAVA_MEMORY_REQUEST:-512Mi}"
 MIRROR_RESTJAVA_MEMORY_LIMIT="${MIRROR_RESTJAVA_MEMORY_LIMIT:-1000Mi}"
+# The mirror importer (GraalVM native image) defaults to only 220Mi, which OOMKills while ingesting
+# the block stream from the BN (crash-loops right after "Start streaming block N"). Bump its
+# container memory like restjava; being a native image it sizes its heap from the cgroup limit, so
+# no -Xmx is needed.
+MIRROR_IMPORTER_MEMORY_REQUEST="${MIRROR_IMPORTER_MEMORY_REQUEST:-768Mi}"
+MIRROR_IMPORTER_MEMORY_LIMIT="${MIRROR_IMPORTER_MEMORY_LIMIT:-1536Mi}"
 
 # WRAPS proving-key config (Step 10).
 # WRAPS_KEY_PATH holds the extracted artifacts pre-staged into each CN pod via Solo's
@@ -175,6 +181,13 @@ WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
 # CNs can pull it from inside the kind cluster without an internet round-trip.
 WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}"
 WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
+# Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
+# ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
+# upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
+# multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
+# speed for much lower peak memory. Default 3 keeps node_count x cores within the ~15 visible CPUs at
+# 4 nodes (4 x 3 = 12), avoiding oversubscription. Set empty (or 0) to use all cores.
+WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-2}"
 
 # SHA-384 hashes are 48 bytes => 96 hex chars.
 SHA384_ZERO_HEX="$(printf '0%.0s' {1..96})"
@@ -206,6 +219,13 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 # If true, script continues when Grafana forwarding cannot be established.
 ALLOW_GRAFANA_PORT_FORWARD_FAILURE="${ALLOW_GRAFANA_PORT_FORWARD_FAILURE:-true}"
 KEEP_PORT_FORWARD_WATCHDOG="${KEEP_PORT_FORWARD_WATCHDOG:-true}"
+# Observability stack (kube-prometheus-stack: Prometheus + Grafana + node-exporter +
+# kube-state-metrics + the Solo ServiceMonitor + a long-lived Grafana port-forward).
+# Default OFF: on a single-node kind VM this is a large, constant CPU/memory/scrape load
+# that is pure observability — it contributes to Docker Desktop instability under the
+# upgrade bursts and is not needed to validate the cutover. Set ENABLE_MONITORING=true
+# to bring it back.
+ENABLE_MONITORING="${ENABLE_MONITORING:-false}"
 
 # Root for generated artifacts (record streams, wrap outputs, comparison logs).
 # This directory is .gitignored so all run-time output stays in one place.
@@ -235,7 +255,16 @@ BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 # Defaults to "<node>=1,..." across NODE_ALIASES if empty.
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_CHART_DIR="${BLOCK_NODE_CHART_DIR:-}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.34.0-rc1}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0-rc1}"
+# Solo deploys the BN with a tiny 160Mi memory limit and no JVM heap flag (its deploy profile
+# overrides the chart's generous 12Gi/15Gi + -Xmx16G defaults), so the BN's container-aware heap is
+# only ~40MiB. It then OOMs ("Java heap space") verifying the first post-cutover block, crash-loops,
+# and -- because 0.77 is BLOCKS-only (CN streams only to the BN) -- backpressure stalls CN block
+# production (mirror/transactions freeze at the last persisted block). We bump it via a direct
+# statefulset patch after deploy (helm/solo value precedence for BN resources is unreliable).
+BLOCK_NODE_MEMORY_LIMIT="${BLOCK_NODE_MEMORY_LIMIT:-4Gi}"
+BLOCK_NODE_MEMORY_REQUEST="${BLOCK_NODE_MEMORY_REQUEST:-2Gi}"
+BLOCK_NODE_HEAP_OPTS="${BLOCK_NODE_HEAP_OPTS:--Xms512m -Xmx3g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/dump.hprof}"
 BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-}"
 BLOCK_NODE_IMAGE_TAG="${BLOCK_NODE_IMAGE_TAG:-}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
@@ -270,8 +299,9 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MI
 ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE:-100}"
 
 # Mirror node Block Node cutover overrides (Step 9 mirror reconfiguration).
-# When set, written into the importer env as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION.
-MIRROR_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION:-}"
+# Only used on MN >= 0.155 (written as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION). On 0.154
+# there is no hapiVersion key — leave empty and the importer auto-detects the record→block cutover.
+MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # Mirror node chart version used by `solo mirror node upgrade` in Step 9.
 # Block-cutover env wiring requires MN >= 0.153.1; Solo's default is v0.152.0 which silently ignores the env keys.
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.154.0}"
@@ -304,6 +334,14 @@ WRAP_COMPRESSED_DAYS_DIR="${WORK_DIR}/compressedDays"
 ZSTD_WRAPPER_DIR="${WORK_DIR}/zstd-wrapper"
 ZSTD_WRAPPER_SRC="${ZSTD_WRAPPER_DIR}/ZstdCat.java"
 ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
+
+# Extractor that pulls the LedgerIdPublicationTransactionBody out of a block-stream
+# file, used to seed the Block Node's TSS parameters before the 0.77 cutover.
+LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
+LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
+BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-parameters.bin"
+BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
+BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/verification/tss-parameters.bin}"
 PORT_FORWARD_WATCHDOG_SCRIPT="${WORK_DIR}/post-run-port-forward-watchdog.sh"
 PORT_FORWARD_WATCHDOG_LOG="${WORK_DIR}/post-run-port-forward-watchdog.log"
 
@@ -344,7 +382,7 @@ print_step_complete() {
 }
 
 # Foreground wrapper for long-running subprocesses (solo / kind / gradle).
-# Usage: run_with_spinner "Human-readable label" cmd arg1 arg2 ...
+# Usage: run_step "Human-readable label" cmd arg1 arg2 ...
 #
 # Behavior:
 # - Prints "▶ <label>" and the literal command, then runs the command in the
@@ -354,7 +392,7 @@ print_step_complete() {
 # - Prints "✓ <label> (Ns)" on success, "✗ <label> (rc=N, Ns)" on failure,
 #   then returns the command's exit code so `set -e` aborts naturally.
 # - Name retained so existing call sites stay unchanged.
-run_with_spinner() {
+run_step() {
   local label="$1"; shift
   echo "▶ ${label}"
   echo "  $ $*"
@@ -425,6 +463,242 @@ trap cleanup EXIT
 require_cmd() {
   local cmd="$1"
   command -v "${cmd}" >/dev/null 2>&1 || { echo "Required command not found: ${cmd}" >&2; exit 1; }
+}
+
+# Writes the LedgerIdPublication extractor: a dependency-free Python script that walks
+# the protobuf wire format of a block-stream file and slices out the serialized
+# LedgerIdPublicationTransactionBody — exactly the form the Block Node expects at
+# verification.tssParametersFilePath. No protobuf classes / JVM / compile needed: a
+# length-delimited field's value bytes ARE the serialized sub-message, so we navigate by
+# field number  Block.items(1) -> BlockItem.signed_transaction(4) ->
+# SignedTransaction.bodyBytes(1) -> TransactionBody.ledger_id_publication(77).
+write_ledger_id_extractor() {
+  mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
+  cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+import sys
+import gzip
+
+
+def read_varint(buf, pos):
+    shift = 0
+    result = 0
+    while True:
+        b = buf[pos]
+        pos += 1
+        result |= (b & 0x7F) << shift
+        if not (b & 0x80):
+            return result, pos
+        shift += 7
+
+
+def iter_fields(msg):
+    pos = 0
+    n = len(msg)
+    while pos < n:
+        key, pos = read_varint(msg, pos)
+        fnum = key >> 3
+        wtype = key & 0x07
+        if wtype == 0:
+            val, pos = read_varint(msg, pos)
+            yield fnum, wtype, val
+        elif wtype == 1:
+            yield fnum, wtype, msg[pos : pos + 8]
+            pos += 8
+        elif wtype == 2:
+            length, pos = read_varint(msg, pos)
+            yield fnum, wtype, msg[pos : pos + length]
+            pos += length
+        elif wtype == 5:
+            yield fnum, wtype, msg[pos : pos + 4]
+            pos += 4
+        else:
+            return
+
+
+def find_field(msg, field_num):
+    for fnum, wtype, val in iter_fields(msg):
+        if fnum == field_num and wtype == 2:
+            return val
+    return None
+
+
+def extract_from_block(data):
+    # Block.items = field 1 (repeated). Each item -> BlockItem.
+    for fnum, wtype, val in iter_fields(data):
+        if fnum != 1 or wtype != 2:
+            continue
+        stx = find_field(val, 4)  # BlockItem.signed_transaction
+        if stx is None:
+            continue
+        body = find_field(stx, 1)  # SignedTransaction.bodyBytes
+        if body is None:
+            continue
+        pub = find_field(body, 77)  # TransactionBody.ledger_id_publication
+        if pub is not None:
+            return pub
+    return None
+
+
+def main():
+    if len(sys.argv) < 3:
+        sys.stderr.write("usage: extract.py <out.bin> <blockFile.blk[.gz]> [...]\n")
+        sys.exit(2)
+    out = sys.argv[1]
+    for path in sys.argv[2:]:
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+            data = gzip.decompress(raw) if path.endswith(".gz") else raw
+            pub = extract_from_block(data)
+            if pub is not None:
+                with open(out, "wb") as o:
+                    o.write(pub)
+                print("FOUND ledgerIdPublication in %s -> wrote %d bytes to %s" % (path, len(pub), out))
+                return
+        except Exception as e:  # noqa: BLE001 - skip unreadable/foreign files, keep scanning
+            sys.stderr.write("skip %s: %s\n" % (path, e))
+    sys.stderr.write("No ledgerIdPublication found in any input block file\n")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+EOF
+}
+
+# Bootstraps the Block Node with the network's TSS ledger ID so it can verify the
+# real-TSS-signed blocks produced after the 0.77 cutover.
+#
+# WHY THIS MIGHT NOT BE NEEDED: the BN learns the ledger ID from a
+# LedgerIdPublicationTransactionBody, but its built-in scan only fires for block 0
+# (genesis). In this Solo flow the BN is deployed mid-chain and the ledger id is
+# published mid-chain (when the WRAPS/history construction completes during the 0.76
+# step), so the BN never picks it up and rejects every real-TSS block (verifySignature
+# returns false on a null ledgerId). The BN design doc sanctions placing the TSS
+# parameters file manually for mid-chain joiners. If the BN is later changed to learn
+# the ledger id from any block (not just block 0), or the deploy is provisioned with the
+# parameters through the normal operational path, this whole step becomes unnecessary
+# and can be deleted.
+#
+# Source: the LedgerIdPublication tx is a synthetic "Ledger id" admin tx in the block
+# stream; we pull .blk.gz from the MinIO solo-streams bucket (the CN block-stream
+# uploader writes them there; gzip, no zstd needed), extract the body, drop it into the
+# BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
+seed_block_node_tss_parameters() {
+  local minio_pod creds_tmp u p in_pod_dir bn_pod
+  minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
+    .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
+  if [[ -z "${minio_pod}" ]]; then
+    echo "seed_block_node_tss_parameters: no MinIO pod found in ${MINIO_NAMESPACE}" >&2
+    return 1
+  fi
+
+  creds_tmp="$(mktemp)"
+  if ! minio_discover_pod_credentials "${MINIO_NAMESPACE}" >"${creds_tmp}"; then
+    rm -f "${creds_tmp}"
+    echo "seed_block_node_tss_parameters: could not discover MinIO credentials" >&2
+    return 1
+  fi
+  u="$(sed -n '1p' "${creds_tmp}")"
+  p="$(sed -n '2p' "${creds_tmp}")"
+  rm -f "${creds_tmp}"
+
+  # Copy all block-stream objects out of the bucket via in-pod mc, then kubectl cp the dir.
+  in_pod_dir="/tmp/bn-blk-$$"
+  echo "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
+  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+      "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
+       mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
+       mc cp --recursive 'local/${MINIO_BUCKET}/blockStreams/' '${in_pod_dir}/' >/dev/null 2>&1"; then
+    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams failed" >&2
+    return 1
+  fi
+  rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
+  # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
+  # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
+  # binary stream, so .blk.gz bytes survive intact.
+  local rel base dest pulled=0
+  while IFS= read -r rel; do
+    [[ -n "${rel}" ]] || continue
+    base="$(basename "${rel}")"
+    dest="${BN_BLOCK_FILES_DIR}/${base}"
+    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null
+    if [[ -s "${dest}" ]]; then ((pulled++)); else rm -f "${dest}"; fi
+  done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
+  kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
+
+  local blk_files=()
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f -name '*.blk.gz' | sort)
+  if [[ "${#blk_files[@]}" -eq 0 ]]; then
+    echo "seed_block_node_tss_parameters: no .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2
+    return 1
+  fi
+  echo "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
+
+  require_cmd python3
+  write_ledger_id_extractor || return 1
+  rm -f "${BN_TSS_PARAMS_LOCAL}"
+  if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
+    echo "seed_block_node_tss_parameters: extractor found no LedgerIdPublication in block stream" >&2
+    return 1
+  fi
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed_block_node_tss_parameters: extracted tss-parameters.bin is empty" >&2; return 1; }
+
+  bn_pod="block-node-${BLOCK_NODE_ID}-0"
+  echo "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc \
+    "mkdir -p '$(dirname "${BN_TSS_PARAMS_CONTAINER_PATH}")'" >/dev/null 2>&1 || true
+  # Tar-free push (kubectl cp needs tar in the target container): stream the file into the
+  # pod's cat via stdin.
+  if ! kubectl -n "${SOLO_NAMESPACE}" exec -i "${bn_pod}" -- sh -lc "cat > '${BN_TSS_PARAMS_CONTAINER_PATH}'" < "${BN_TSS_PARAMS_LOCAL}"; then
+    echo "seed_block_node_tss_parameters: streaming tss-parameters into ${bn_pod} failed" >&2
+    return 1
+  fi
+
+  # Roll the BN so init() reloads and calls initializeTssParameters from the file.
+  kubectl -n "${SOLO_NAMESPACE}" delete pod "${bn_pod}" --wait=true >/dev/null 2>&1 || true
+  # Wait on the StatefulSet rollout, NOT `wait pod/<name>`: the latter can match the OLD pod (still
+  # Ready during graceful termination) and return before the new pod exists, which made the marker
+  # poll below race and false-negative. `rollout status` blocks until the freshly-recreated pod is up.
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" --timeout=300s >/dev/null 2>&1 || true
+  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/${bn_pod}" --timeout=300s >/dev/null 2>&1 || {
+    echo "seed_block_node_tss_parameters: ${bn_pod} did not become ready after roll" >&2
+    return 1
+  }
+
+  # Authoritative success signal: the seeded file survived the roll into the running pod. (kubectl cp
+  # needs tar, which the distroless BN image lacks, so verify presence + non-empty via exec test.)
+  if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- sh -lc "test -s '${BN_TSS_PARAMS_CONTAINER_PATH}'" >/dev/null 2>&1; then
+    echo "seed_block_node_tss_parameters: ${BN_TSS_PARAMS_CONTAINER_PATH} missing or empty in ${bn_pod} after roll" >&2
+    return 1
+  fi
+
+  # Confirmation: the BN logs "Loaded TSS parameters from file" during init. `kubectl logs` can
+  # briefly return a transitioning container right after the roll, so poll generously. An explicit
+  # parse/load failure is fatal; but if we merely never observe the marker (a logs-cutover race)
+  # while the file is present and the pod is Ready, continue with a warning — the post-cutover BN
+  # verification is the real gate.
+  sleep 5
+  local deadline=$((SECONDS + 180))
+  local bn_logs=""
+  while (( SECONDS < deadline )); do
+    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
+    if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
+      echo "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
+      return 0
+    fi
+    if grep -qiE "failed to (load|parse|read).*tss|invalid tss parameters|tss parameters.*(error|corrupt)" <<<"${bn_logs}"; then
+      echo "seed_block_node_tss_parameters: BN reported a TSS parameters load failure:" >&2
+      grep -iE "tss" <<<"${bn_logs}" | tail -5 >&2
+      return 1
+    fi
+    sleep 3
+  done
+  echo "WARN seed_block_node_tss_parameters: did not observe 'Loaded TSS parameters from file' in ${bn_pod} after polling ~180s, but the seeded file is present and the pod is Ready (likely a kubectl-logs cutover race); continuing" >&2
+  return 0
 }
 
 ensure_zstd_command_for_block_node() {
@@ -526,7 +800,7 @@ wait_for_http_ok() {
     done
     return 1
   fi
-  _spinner_wait "${label}" "${max_attempts}" "${sleep_secs}" \
+  wait_until "${label}" "${max_attempts}" "${sleep_secs}" \
     curl -sf -o /dev/null "${url}"
 }
 
@@ -551,10 +825,10 @@ wait_for_tcp_open() {
     return 1
   fi
   if command -v nc >/dev/null 2>&1; then
-    _spinner_wait "${label}" "${max_attempts}" "${sleep_secs}" \
+    wait_until "${label}" "${max_attempts}" "${sleep_secs}" \
       nc -z "${host}" "${port}"
   else
-    _spinner_wait "${label}" "${max_attempts}" "${sleep_secs}" \
+    wait_until "${label}" "${max_attempts}" "${sleep_secs}" \
       bash -c "(: <\"/dev/tcp/${host}/${port}\") >/dev/null 2>&1"
   fi
 }
@@ -563,7 +837,7 @@ wait_for_tcp_open() {
 # Runs the predicate command every sleep_secs (up to max_attempts), printing one
 # line per attempt and a final ✓/✗ summary. No spinner so the surrounding logs
 # (solo / kubectl) stream uninterrupted.
-_spinner_wait() {
+wait_until() {
   local label="$1"
   local max_attempts="$2"
   local sleep_secs="$3"
@@ -638,6 +912,28 @@ cleanup_stale_port_forwards() {
   if [[ "${include_grafana}" == "true" ]]; then
     pkill -f "port-forward svc/.*grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
   fi
+}
+
+# Aggressively clear port-forwards + helper processes left over from PRIOR runs. Solo's persisted
+# port-forwards (persist-port-forward.js) and the post-run watchdog survive a failed/kept run and
+# otherwise pile up across back-to-back runs (memory + FDs) and re-bind our local ports. Safe ONLY
+# at the very start (Step 1), before this run's cluster exists -- it does NOT distinguish "this run"
+# from "old runs", so never call it mid-run.
+preflight_kill_stale_port_forwards() {
+  echo "Preflight: clearing stray port-forwards / helper procs from previous runs"
+  # Stop watchdogs FIRST so they can't immediately re-spawn the forwards we kill below.
+  # WORK_DIR varies per run, but the watchdog script filename is stable across runs.
+  pkill -f "post-run-port-forward-watchdog.sh" >/dev/null 2>&1 || true
+  # Solo's own persisted explorer / mirror-ingress port-forwards from a prior run.
+  pkill -f "persist-port-forward.js" >/dev/null 2>&1 || true
+  # Known service-forward patterns (incl. grafana).
+  cleanup_stale_port_forwards true
+  # Belt-and-suspenders: free every local port this script forwards to, regardless of how the
+  # forward was launched (catches stale forwards whose svc/pattern no longer matches).
+  local p
+  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}" "${EXPLORER_INGRESS_LOCAL_PORT}" "${GRAFANA_LOCAL_PORT}" "${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"; do
+    kill_processes_on_local_port "${p}"
+  done
 }
 
 mirror_rest_service_exists() {
@@ -800,12 +1096,30 @@ reconnect_importer_to_minio() {
   MINIO_DISCONNECTED_OWNER_NAME=""
 }
 
-# kubectl port-forward ties to pod endpoints; consensus network upgrade rolls HAProxy/backends and
-# leaves the old tunnel broken even though localhost still listens. Port numbers (50211 in-cluster)
-# do not change — the forward must be recreated.
+# CN gRPC / Mirror REST port-forwards target Kubernetes *Services*, so kubectl re-resolves endpoints
+# across an upgrade's pod + HAProxy rolls and the tunnels keep working on their own (verified
+# end-to-end across the 0.74/0.75/0.76/0.77 upgrades: every post-upgrade cryptoCreate succeeded with
+# NO re-establishment). The legacy refresh below (kill all stale forwards + re-spawn) was therefore
+# unnecessary -- and worse, that kill/respawn storm raced the post-upgrade container+network churn
+# through Docker Desktop's gvisor stack and crashed the VM right after the 0.76/0.77 cutover. So we
+# leave healthy forwards untouched and only fall through to the destructive re-establishment when a
+# forward is actually DOWN.
 restart_post_upgrade_port_forwards() {
   local cn_log="${WORK_DIR}/port-forward-cn.log"
   local mirror_log="${WORK_DIR}/port-forward-mirror.log"
+
+  local cn_ok=false mirror_ok=false
+  wait_for_tcp_open "127.0.0.1" "${CN_GRPC_LOCAL_PORT}" 1 1 && cn_ok=true
+  if mirror_rest_service_exists; then
+    wait_for_tcp_open "127.0.0.1" "${MIRROR_REST_LOCAL_PORT}" 1 1 && mirror_ok=true
+  else
+    mirror_ok=true
+  fi
+  if [[ "${cn_ok}" == "true" && "${mirror_ok}" == "true" ]]; then
+    echo "  CN gRPC (:${CN_GRPC_LOCAL_PORT}) and Mirror REST (:${MIRROR_REST_LOCAL_PORT}) forwards survived the upgrade; skipping destructive re-establishment"
+    return 0
+  fi
+  echo "  Post-upgrade forward health check: cn_ok=${cn_ok} mirror_ok=${mirror_ok} -- a forward is down, re-establishing it"
 
   # Don't even attempt to talk to the apiserver while it's still flapping from
   # the post-upgrade rolling-restart burst; the get-endpoints poll below would
@@ -956,7 +1270,7 @@ minio_discover_pod_credentials() {
   # ${MINIO_CONFIG_ENV_FILE} is intentionally expanded inside the minio container (not by the host shell),
   # since the env var is set by the minio chart on the pod. Single quotes around the sh -lc payload are required.
   # shellcheck disable=SC2016
-  cfg="$(kubectl -n "${ns}" exec "${pod}" -c minio -- sh -lc 'cat "${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}" 2>/dev/null || true' 2>/dev/null || true)"
+  cfg="$(kubectl -n "${ns}" exec "${pod}" -c minio -- sh -c 'cat "${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}" 2>/dev/null || true' 2>/dev/null || true)"
   if [[ -n "${cfg}" ]]; then
     u="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_USER=//p' | head -1 | tr -d '\r')"
     p="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_PASSWORD=//p' | head -1 | tr -d '\r')"
@@ -1038,7 +1352,7 @@ download_solo_record_streams_via_pod_mc() {
     return 1
   fi
 
-  cfg_full="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+  cfg_full="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -c \
     "cat \"\${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}\" 2>/dev/null || true" 2>/dev/null || true)"
   server_url="$(echo "${cfg_full}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_SERVER_URL=//p' | head -1 | tr -d '"\r')"
 
@@ -1053,7 +1367,7 @@ download_solo_record_streams_via_pod_mc() {
       endpoint="${endpoint_try}"
       while IFS=$'\t' read -r u p; do
         [[ -n "${u}" && -n "${p}" ]] || continue
-        if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+        if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -c \
           "mc alias set local '${endpoint}' '${u}' '${p}' >/dev/null 2>&1; mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcd*'" \
           >"${all_objects}" 2>/tmp/inpod-mc-list.err; then
           selected_u="${u}"
@@ -1114,7 +1428,7 @@ download_solo_record_streams_via_pod_mc() {
 
     local copied=0
     for _ in 1 2 3; do
-      if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+      if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -c \
         "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" \
         >"${dest}" 2>/dev/null; then
         copied=1
@@ -1323,7 +1637,7 @@ run_075_upgrade() {
     --force
   )
 
-  run_with_spinner "Upgrading consensus network to ${UPGRADE_075_VERSION} (jumpstart)" \
+  run_step "Upgrading consensus network to ${UPGRADE_075_VERSION} (jumpstart)" \
     run_command_with_timeout "${SOLO_075_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
@@ -1544,7 +1858,11 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  echo "Injecting TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir} into 4 consensus StatefulSets (log: ${log_file})"
+  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
+    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
+  fi
+  echo "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
 
   # `kubectl set env` emits a wave of duplicate-port warnings on every call
   # because Solo's pod template has `pprof`/`stats` named ports duplicated
@@ -1556,7 +1874,7 @@ inject_wraps_env_into_statefulsets() {
     {
       echo "=== set env statefulset/${sts} ==="
       kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/${sts}" -c root-container \
-        "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}" 2>&1
+        "${wraps_env_args[@]}" 2>&1
     } >> "${log_file}"
   done
 
@@ -1612,7 +1930,7 @@ run_076_upgrade() {
   # the JAR cp and restarts them after, so the previous JAR-staging race that
   # forced the stuck-pod recovery dance is gone. We let any non-zero Solo exit
   # (timeout, deploy validation, ACTIVE check failure) propagate via set -e.
-  run_with_spinner "Upgrading consensus network to ${UPGRADE_076_VERSION} (local build, 0.76 properties)" \
+  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (local build, 0.76 properties)" \
     run_command_with_timeout "${SOLO_076_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
@@ -1658,7 +1976,7 @@ run_077_upgrade() {
     --force
   )
 
-  run_with_spinner "Upgrading consensus network to ${UPGRADE_077_VERSION} (local build, 0.77 BLOCKS-only cutover)" \
+  run_step "Upgrading consensus network to ${UPGRADE_077_VERSION} (local build, 0.77 BLOCKS-only cutover)" \
     run_command_with_timeout "${SOLO_077_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   echo "--- Step 11 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
@@ -2537,7 +2855,7 @@ prepare_wrap_day_archives_from_record_streams() {
     return 1
   fi
 
-  if ! run_with_spinner "Building wrap input archives (gradle :tools:run days compress)" \
+  if ! run_step "Building wrap input archives (gradle :tools:run days compress)" \
       bash -c "cd '${BLOCK_NODE_REPO_PATH}' && ./gradlew :tools:run --args='days compress -o ${WRAP_COMPRESSED_DAYS_DIR} ${WRAP_DAYS_SRC_DIR}'"; then
     echo "Failed to build .tar.zstd wrap input archives" >&2
     return 1
@@ -2578,7 +2896,7 @@ run_block_node_wrap_tool() {
     wrap_args="${wrap_args} ${BLOCKS_WRAP_EXTRA_ARGS}"
   fi
 
-  if ! run_with_spinner "Running block-node wrap tool (gradle :tools:run blocks wrap)" \
+  if ! run_step "Running block-node wrap tool (gradle :tools:run blocks wrap)" \
       bash -c "cd '${BLOCK_NODE_REPO_PATH}' && ./gradlew :tools:run --args='${wrap_args}'"; then
     echo "Block Node wrap command failed" >&2
     return 1
@@ -2797,13 +3115,19 @@ restjava:
       memory: ${MIRROR_RESTJAVA_MEMORY_REQUEST}
     limits:
       memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
+importer:
+  resources:
+    requests:
+      memory: ${MIRROR_IMPORTER_MEMORY_REQUEST}
+    limits:
+      memory: ${MIRROR_IMPORTER_MEMORY_LIMIT}
 EOF
 }
 
 deploy_mirror_node_for_cutover() {
   local ec=0
   write_mirror_node_values_override
-  if run_with_spinner "Deploying mirror node" \
+  if run_step "Deploying mirror node" \
     solo mirror node add \
     --deployment "${SOLO_DEPLOYMENT}" \
     --enable-ingress \
@@ -3038,8 +3362,21 @@ deploy_block_node_for_cutover() {
   add_args+=(--values-file "${values_files}")
 
   echo "Deploying Block Node ${BLOCK_NODE_ID} and routing consensus nodes with priority mapping '${BLOCK_NODE_PRIORITY_MAPPING}'"
-  run_with_spinner "Deploying Block Node ${BLOCK_NODE_ID}" \
+  run_step "Deploying Block Node ${BLOCK_NODE_ID}" \
     "${add_args[@]}"
+
+  # Override solo's 160Mi BN memory default + give the JVM a real heap (see BLOCK_NODE_MEMORY_* above).
+  # Patch the deployed statefulset directly so we don't depend on helm/solo value precedence; this
+  # rolls the fresh (block-less) BN pod once, before any blocks are streamed.
+  # Heap goes in JAVA_OPTS (the BN's heap knob); JAVA_TOOL_OPTIONS is logging-only and putting -Xmx
+  # there collides with the image's default -Xms16G (Xms>Xmx -> VM won't start).
+  echo "Bumping Block Node memory (limit=${BLOCK_NODE_MEMORY_LIMIT}, request=${BLOCK_NODE_MEMORY_REQUEST}) and JVM heap (JAVA_OPTS='${BLOCK_NODE_HEAP_OPTS}')"
+  kubectl -n "${SOLO_NAMESPACE}" set resources "statefulset/block-node-${BLOCK_NODE_ID}" -c block-node-server \
+    --limits="memory=${BLOCK_NODE_MEMORY_LIMIT}" --requests="memory=${BLOCK_NODE_MEMORY_REQUEST}" || true
+  kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/block-node-${BLOCK_NODE_ID}" -c block-node-server \
+    "JAVA_OPTS=${BLOCK_NODE_HEAP_OPTS}" || true
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" --timeout=300s || true
+
   kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
 }
 
@@ -3111,7 +3448,75 @@ verify_block_node_has_blocks() {
   return 1
 }
 
+# After seeding rolls the BN, wait for it to resume ingesting the live stream before the 0.77 upgrade
+# restarts the CN (which RESETS the CN's in-memory block buffer to the post-restart tip). Otherwise
+# the blocks produced during the roll are orphaned: the BN's wanted block falls below the reset CN
+# buffer floor ("block out of range"), the publisher never reconnects, and the BN stalls. We require
+# the BN's lastAvailableBlock to advance again (publisher reconnected + streaming the post-roll blocks).
+wait_for_block_node_caught_up() {
+  local timeout_secs="${1:-300}"
+  local svc="block-node-${BLOCK_NODE_ID}"
+  local remote_port="${BLOCK_NODE_GRPC_PORT:-40840}"
+  local local_port="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+  local pf_log="${WORK_DIR}/port-forward-bn-catchup.log"
+  local pf_pid=""
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_services_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf"
+  local proto_file="block-node/api/node_service.proto"
+  local cn_pod="network-${NODE_ALIASES%%,*}-0"
+  local comms_log="/opt/hgcapp/services-hedera/HapiApp2.0/output/block-node-comms.log"
+
+  kill_processes_on_local_port "${local_port}"
+  : > "${pf_log}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${svc}" "${local_port}:${remote_port}" >"${pf_log}" 2>&1 < /dev/null &
+  pf_pid=$!
+  disown "${pf_pid}" 2>/dev/null || true
+  if ! wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1 "Waiting for BN gRPC port-forward on 127.0.0.1:${local_port}"; then
+    kill "${pf_pid}" >/dev/null 2>&1 || true
+    echo "catchup: could not port-forward to ${svc}" >&2
+    return 1
+  fi
+
+  # Wait until the CN reports the Block Node in-range for streaming ("available for streaming
+  # (wantedBlock: N)") after the seed roll, before the 0.77 cutover. The seed restart transiently
+  # drops the CN<->BN stream; this confirms the CN has re-selected the BN as a streaming target.
+  # Failure signature is "block out of range" / "No block nodes available". On timeout we warn and
+  # proceed -- the cutover re-establishes the stream and the freeze-time ack-wait drains the lag.
+  echo "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the 0.77 cutover"
+  local prev="" cur raw cn_view
+  local deadline=$((SECONDS + timeout_secs))
+  while (( SECONDS < deadline )); do
+    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_services_root}" \
+            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
+            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
+    cur="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+    cn_view="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- sh -c \
+      "grep -aE 'available for streaming \(wantedBlock|block out of range|No block nodes available for streaming' '${comms_log}' 2>/dev/null | tail -1" 2>/dev/null || true)"
+    case "${cn_view}" in
+      *"available for streaming (wantedBlock"*)
+        echo "Block Node in-range for streaming (BN lastAvailableBlock=${cur:-?}); safe to cut over"
+        kill "${pf_pid}" >/dev/null 2>&1 || true
+        return 0
+        ;;
+    esac
+    if [[ "${cur}" =~ ^[0-9]+$ && "${cur}" != "${prev}" ]]; then
+      echo "  BN lastAvailableBlock=${cur} (CN view: ${cn_view:-pending})"
+      prev="${cur}"
+    fi
+    sleep 5
+  done
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN lastAvailableBlock=${prev:-?}); proceeding with the cutover anyway" >&2
+  kill "${pf_pid}" >/dev/null 2>&1 || true
+  return 1
+}
+
 write_mirror_node_block_cutover_values() {
+  # Enable block-stream ingestion and point the importer at the Block Node. Per Mirror Node
+  # guidance: in v0.154 hiero.mirror.importer.block.enabled defaults FALSE so it MUST be set true,
+  # and there is NO block.cutover.hapiVersion — the importer auto-switches to blockstream when no
+  # record-stream file arrives within block.cutover.threshold (~16s), which is exactly what happens
+  # at the 0.77 cutover (BLOCKS-only, gRPC-only, no MinIO record files). Once it reads one block
+  # from the BN the switch is permanent. (hapiVersion exists only in 0.155+.)
   cat > "${MIRROR_NODE_CUTOVER_VALUES_FILE}" <<EOF
 restjava:
   resources:
@@ -3120,15 +3525,19 @@ restjava:
     limits:
       memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
 importer:
+  resources:
+    requests:
+      memory: ${MIRROR_IMPORTER_MEMORY_REQUEST}
+    limits:
+      memory: ${MIRROR_IMPORTER_MEMORY_LIMIT}
   env:
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true'
     HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
-    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_ENABLED: 'true'
-    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_FIRSTSTAGE_ENABLED: 'true'
 EOF
-  if [[ -n "${MIRROR_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION}" ]]; then
-    # Append while preserving indentation under importer.env.
-    printf '    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION: %s\n' \
-      "'${MIRROR_BLOCK_CUTOVER_FIRSTSTAGE_HAPIVERSION}'" >> "${MIRROR_NODE_CUTOVER_VALUES_FILE}"
+  if [[ -n "${MIRROR_BLOCK_CUTOVER_HAPIVERSION}" ]]; then
+    # 0.155+ only: pin the HAPI version at which to switch from record to block stream.
+    printf '    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION: %s\n' \
+      "'${MIRROR_BLOCK_CUTOVER_HAPIVERSION}'" >> "${MIRROR_NODE_CUTOVER_VALUES_FILE}"
   fi
 }
 
@@ -3162,10 +3571,8 @@ update_mirror_node_for_block_cutover() {
   )
 
   write_mirror_node_block_cutover_values
-  echo "Upgrading mirror node to ${MIRROR_NODE_VERSION} reading from block-node-${BLOCK_NODE_ID} (cutover enabled, version gates bypassed)"
-  # DISABLE_IMPORTER_SPRING_PROFILES=true keeps solo from pinning sourceType=BLOCK_NODE
-  # and disabling the record-stream downloader, so the importer can still read MinIO records.
-  DISABLE_IMPORTER_SPRING_PROFILES=true "${upgrade_args[@]}"
+  echo "Upgrading mirror node to ${MIRROR_NODE_VERSION} reading from block-node-${BLOCK_NODE_ID} (block.enabled=true, auto-cutover, version gates bypassed)"
+  "${upgrade_args[@]}"
 }
 
 require_cmd kind
@@ -3210,8 +3617,9 @@ if [[ ! -x "${REPO_ROOT}/gradlew" ]]; then
 fi
 
 if should_run_step 1; then
-  # Full reset: clear any stale Grafana tunnel before recreating the cluster.
-  cleanup_stale_port_forwards true
+  # Full reset: clear ALL stray port-forwards + helper procs left over from previous runs before
+  # recreating the cluster (prevents back-to-back accumulation of forwards/watchdogs/FDs).
+  preflight_kill_stale_port_forwards
   print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
   if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
@@ -3220,16 +3628,16 @@ if should_run_step 1; then
   rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
 
   if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
-    run_with_spinner "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
+    run_step "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
       kind create cluster -n "${SOLO_CLUSTER_NAME}"
   fi
 
-  run_with_spinner "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
+  run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
     solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
   solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
-  run_with_spinner "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
+  run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-  run_with_spinner "Attaching cluster to deployment" \
+  run_step "Attaching cluster to deployment" \
     solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
     # Shared remote cluster: clear any prior network; only set up cluster prereqs if missing
@@ -3240,43 +3648,50 @@ if should_run_step 1; then
       if kubectl get pods -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers 2>/dev/null | grep -q .; then
         minio_flag="--no-minio"
       fi
-      run_with_spinner "Installing Solo cluster prerequisites (${minio_flag})" \
+      run_step "Installing Solo cluster prerequisites (${minio_flag})" \
         solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --no-prometheus-stack "${minio_flag}"
     fi
-  else
-    run_with_spinner "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
+  elif [[ "${ENABLE_MONITORING}" == "true" ]]; then
+    run_step "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+    ensure_grafana_port_forward
+  else
+    run_step "Installing Solo cluster prerequisites (MinIO only; monitoring disabled)" \
+      solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack false
   fi
-  ensure_grafana_port_forward
   print_step_complete "Step 1/12"
 else
   print_banner "Resume mode: START_STEP=${START_STEP}; assuming cluster matches end of step $((START_STEP - 1))"
   prepare_js_sdk_runtime
   restart_post_upgrade_port_forwards
-  ensure_grafana_port_forward
+  [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_grafana_port_forward
   STEP_START_TS=""
 fi
 
 if should_run_step 2; then
   print_banner "Step 2/12: Deploy consensus network at ${INITIAL_RELEASE_TAG} (v0.73.0)"
-  run_with_spinner "Generating consensus keys (gossip + tls)" \
+  run_step "Generating consensus keys (gossip + tls)" \
     solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-  run_with_spinner "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
-    solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
-  run_with_spinner "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
+  # --service-monitor needs the ServiceMonitor CRD, which only exists when the
+  # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
+  service_monitor_flag="false"
+  [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
+  run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
+    solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor "${service_monitor_flag}" --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
+  run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
     solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
-  run_with_spinner "Starting consensus nodes" \
+  run_step "Starting consensus nodes" \
     solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  ensure_solo_service_monitor_for_prometheus
+  [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_solo_service_monitor_for_prometheus
   print_step_complete "Step 2/12"
 fi
 
 if should_run_step 3; then
   print_banner "Step 3/12: Deploy mirror/explorer and validate baseline transactions"
   deploy_mirror_node_for_cutover
-  run_with_spinner "Deploying explorer node" \
+  run_step "Deploying explorer node" \
     solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
   if ! start_explorer_ingress_port_forward; then
     echo "WARNING: Explorer UI tunnel is unavailable; explorer may be inaccessible after run." >&2
@@ -3296,7 +3711,7 @@ fi
 
 if should_run_step 4; then
   print_banner "Step 4/12: Upgrade consensus network to ${UPGRADE_074_RELEASE_TAG} with 0.74 properties"
-  run_with_spinner "Upgrading consensus network to ${UPGRADE_074_RELEASE_TAG}" \
+  run_step "Upgrading consensus network to ${UPGRADE_074_RELEASE_TAG}" \
     solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_074_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_074_FILE}"
 
   wait_for_consensus_pods_ready 600
@@ -3411,35 +3826,31 @@ if should_run_step 9; then
 fi
 
 # FUTURE enable when TSS support is ready and tested
-#if should_run_step 10; then
-#  print_banner "Step 10/12: Upgrade local build with 0.76 properties as ${UPGRADE_076_VERSION}"
-#  ensure_wraps_artifacts_downloaded
-#  if [[ "${SKIP_076_SOLO_UPGRADE:-false}" == "true" ]]; then
-#    # Retry path: a prior Step 10 already fired the freeze; the network is now
-#    # running on the 0.76 properties on disk but some CNs are missing the
-#    # WRAPS env + artifacts. Skip the solo upgrade (which would fail against
-#    # an unhealthy network or be a no-op against an already-upgraded one) and
-#    # just apply the remedy + verify.
-#    log "SKIP_076_SOLO_UPGRADE=true; re-injecting WRAPS env + verifying only (skipping solo network upgrade)"
-#    ensure_wraps_proving_key_server
-#    inject_wraps_env_into_statefulsets
-#    restart_post_upgrade_port_forwards
-#    verify_local_build_on_consensus_nodes
-#    verify_wraps_on_consensus_nodes 600
-#  else
-#    sleep 5
-#    # Still streaming WRBs but TSS is enabled, force mock signatures
-#    run_076_upgrade
-#  fi
-#  print_step_complete "Step 10/12"
-#fi
-#
-#if should_run_step 11; then
-#  print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
-#  sleep 5
-#  run_077_upgrade
-#  print_step_complete "Step 11/12"
-#fi
+if should_run_step 10; then
+  print_banner "Step 10/12: Upgrade local build with 0.76 properties as ${UPGRADE_076_VERSION}"
+  ensure_wraps_artifacts_downloaded
+  sleep 5
+  # Still streaming WRBs but TSS is enabled, force mock signatures
+  run_076_upgrade
+  print_step_complete "Step 10/12"
+fi
+
+if should_run_step 11; then
+  print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
+  sleep 5
+  # Pre-cutover: bootstrap the Block Node with the network's TSS ledger id so it can
+  # verify the real-TSS-signed blocks the 0.77 cutover starts producing. The ledger id
+  # was published mid-chain during the 0.76 step; the BN (deployed mid-chain) never
+  # picked it up on its own. See seed_block_node_tss_parameters for why this may become
+  # unnecessary. Run AFTER Step 10 (publication exists) and BEFORE run_077_upgrade.
+  seed_block_node_tss_parameters
+  # The seed rolled the BN; let it re-catch-up to the live stream on 0.76 before run_077_upgrade
+  # restarts the CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the
+  # BN stalls (mirror then can't get the post-cutover blocks).
+  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding with the 0.77 cutover anyway" >&2
+  run_077_upgrade
+  print_step_complete "Step 11/12"
+fi
 
 if should_run_step 12; then
   print_banner "Step 12/12: Post-upgrade readiness and end-to-end transaction verification"
