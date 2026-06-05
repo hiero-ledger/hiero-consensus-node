@@ -11,7 +11,8 @@ related:
 status: accepted
 date: 2026-06-04
 deciders:
-  - Kelly Greco (@poulok)
+  - Cody Littley (@cody-littley)
+  - Austin Littley (@litt3)
 curated_by: Kelly Greco (@poulok)
 ---
 
