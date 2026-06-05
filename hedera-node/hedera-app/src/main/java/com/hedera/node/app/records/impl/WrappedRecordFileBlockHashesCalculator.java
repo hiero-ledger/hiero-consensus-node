@@ -73,7 +73,7 @@ public final class WrappedRecordFileBlockHashesCalculator {
         final var header = BlockHeader.newBuilder()
                 .hapiProtoVersion(in.hapiProtoVersion())
                 .number(in.blockNumber())
-                .blockTimestamp(in.blockCreationTime())
+                .blockTimestamp(firstConsensusTimestamp)
                 .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
 
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();

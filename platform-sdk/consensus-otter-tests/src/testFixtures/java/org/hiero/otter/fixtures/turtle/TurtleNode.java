@@ -59,7 +59,6 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -270,7 +269,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
             OtterStateUtils.commitState(state);
 
-            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
