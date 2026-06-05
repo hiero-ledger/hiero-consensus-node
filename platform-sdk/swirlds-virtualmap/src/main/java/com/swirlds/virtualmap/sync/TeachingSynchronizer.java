@@ -22,7 +22,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -124,12 +124,18 @@ public class TeachingSynchronizer {
 
             // FUTURE work: pool size config
             final int teacherTasks = 16;
-            final AtomicInteger tasksDone = new AtomicInteger(teacherTasks);
+            final CountDownLatch tasksDone = new CountDownLatch(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
                 final TeacherPullVirtualTreeReceiveTask teacherReceiveTask = new TeacherPullVirtualTreeReceiveTask(
                         time, reconnectConfig, workGroup, input, output, teacherView, tasksDone);
                 teacherReceiveTask.exec();
             }
+
+            // when all receive tasks done, output can be closed, which signals the learner that no more responses will
+            // be sent.
+            // This allows the learner to complete and close its input stream.
+            tasksDone.await();
+            output.done();
 
             workGroup.waitForTermination();
         } catch (final InterruptedException ie) {

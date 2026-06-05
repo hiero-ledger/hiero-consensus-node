@@ -1,45 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
-import java.time.Duration;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
- *
- * <p>The task keeps running as long as the corresponding {@link LearnerPullVirtualTreeSendTask}
- * is alive, or some responses are expected from the teacher.
- *
- * <p>For every response from the teacher, the learner view is notified, which in turn notifies
+ * <p>
+ * This tasks terminates either on exception or when no more messages are provided by {@link AsyncInputStream}.
+ * <p>
+ * For every response from the teacher, the learner view is notified, which in turn notifies
  * the current traversal order, so it can recalculate the next virtual path to request.
  */
 public class LearnerPullVirtualTreeReceiveTask {
-
-    private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeReceiveTask.class);
 
     private static final String NAME = "reconnect-learner-receiver";
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final LearnerTreeExchanger treeExchanger;
-
-    // Number of requests sent to teacher / responses expected from the teacher. Increased in
-    // sending tasks, decreased in receiving tasks
-    private final AtomicLong expectedResponses;
-
-    private final Duration allMessagesReceivedTimeout;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
@@ -55,14 +39,10 @@ public class LearnerPullVirtualTreeReceiveTask {
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
-            final LearnerTreeExchanger treeExchanger,
-            final AtomicLong expectedResponses) {
+            final LearnerTreeExchanger treeExchanger) {
         this.workGroup = workGroup;
         this.in = in;
         this.treeExchanger = treeExchanger;
-        this.expectedResponses = expectedResponses;
-
-        this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
     /**
@@ -74,8 +54,8 @@ public class LearnerPullVirtualTreeReceiveTask {
 
     /**
      * Main loop for the receiver thread. Reads responses from the async input stream,
-     * tracks reconnect statistics, and delegates to the learner view. Terminates when the
-     * stream signals completion via {@link Path#INVALID_PATH}.
+     * tracks reconnect statistics, and delegates to the learner view.
+     * Terminates when input streams returns no more messages to process.
      */
     private void run() {
         try {
@@ -86,27 +66,10 @@ public class LearnerPullVirtualTreeReceiveTask {
                 }
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
-                final long path = response.path();
-                if (path != Path.INVALID_PATH) {
-                    treeExchanger.responseReceived(response);
-                }
-                expectedResponses.decrementAndGet();
-                if (path == Path.INVALID_PATH) {
-                    logger.info(
-                            RECONNECT.getMarker(),
-                            "The last response is received, {} responses are in progress",
-                            expectedResponses.get());
-                    // There may be other messages for this view being handled by other threads
-                    final long waitStart = System.currentTimeMillis();
-                    while (expectedResponses.get() != 0) {
-                        Thread.sleep(0, 1);
-                        if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
-                            throw new MerkleSynchronizationException(
-                                    "Timed out waiting for view all remaining view messages to be processed");
-                        }
-                    }
-                    logger.info(RECONNECT.getMarker(), "Learning is complete");
-                }
+
+                assert response.path() != Path.INVALID_PATH : "Invalid path received from teacher: " + response.path();
+
+                treeExchanger.responseReceived(response);
             }
         } catch (final Exception ex) {
             workGroup.handleError(ex);
