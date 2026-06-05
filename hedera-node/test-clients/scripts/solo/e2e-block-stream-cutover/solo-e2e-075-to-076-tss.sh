@@ -1,31 +1,35 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Isolated reproducer for the 0.75 -> 0.76 (TSS enablement) upgrade that
-# corresponds to step 10 of solo-e2e-block-stream-cutover.sh. The full cutover
-# script takes 30+ minutes and exercises Block Node + jumpstart + mirror node
-# before reaching the failing TSS-enabling upgrade. This script skips all of
-# that machinery and goes straight to:
+# End-to-end test for the 0.75 -> 0.76 (TSS enablement, mock signatures) upgrade.
 #
-#   1. Deploy a baseline CN network at the published v0.75.0-rc.1 release tag
-#      with resources/0.75/application.properties. Solo's `consensus network
-#      deploy` does NOT accept --local-build-path (only the upgrade command
-#      does), so the baseline binaries come from the registry.
-#   2. Upgrade in place to the local build (0.75-SNAPSHOT) with
-#      resources/0.76/application.properties + application.env, enabling TSS
-#      with tss.forceMockSignatures=true. The upgrade-version label must be a
-#      published Solo tag (Solo fetches it before applying --local-build-path),
-#      so we reuse v0.75.0-rc.1 — same as deploy — since no newer RC is
-#      published yet.
+# There is no published 0.76 release tag, and Solo's `consensus network deploy`
+# does NOT accept --local-build-path (only the upgrade command does). So we
+# cannot start directly at 0.76. Instead we deploy a published 0.75 baseline
+# and upgrade in place to the local 0.76 build:
 #
-# WRAPS handling mirrors step 10 of the main cutover script:
-#   - download wraps-v1.0.0.tar.gz into a local cache
-#   - run an nginx docker container exposing the tarball at
-#     http://host.docker.internal:8089/
-#   - inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container
-#     spec BEFORE solo's upgrade fires (lockstep WRAPS init across nodes)
+#   1. Deploy a baseline CN network at the published v0.75.0-rc.4 release tag
+#      with resources/0.75/application.properties.
+#   2. Deploy a mirror node + explorer UI on top of the 0.75 baseline (importer
+#      reads RECORD streams from MinIO).
+#   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks
+#      streamed by the CN through the RSA bootstrap roster.
+#   4. Upgrade in place to the local build with resources/0.76/application.properties
+#      + application.env, enabling TSS with tss.forceMockSignatures=true (the
+#      0.76 "dual-write, mock signatures" state). The 0.76 properties are
+#      regenerated at runtime so tss.wrapsProvingKeyDownloadUrl points at the
+#      public mirror (https://builds.hedera.com/...) instead of the local nginx
+#      server used by the wider cutover scripts; the shared resources/0.76/
+#      file on disk stays untouched. WRAPS env (TSS_LIB_WRAPS_ARTIFACTS_PATH +
+#      TSS_LIB_NUM_OF_CORES) is pre-injected so all nodes initialize the WRAPS
+#      library in lockstep across the freeze-restart.
 #
-# No Block Node, no jumpstart, no mirror node, no port-forwards.
+# Verifications after the 0.76 upgrade:
+#   - local-build version on all consensus nodes
+#   - WRAPS env wired, artifacts on disk, mock WRAPS proof construction in hgcaa.log
+#   - Block Node still receiving + verifying mock-sig blocks (lastAvailableBlock advances)
+#
+# Block Node and mirror node + explorer are always deployed in this script — no toggles.
 
 set -euo pipefail
 set +m
@@ -33,8 +37,8 @@ set +m
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 
-SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-tss-upgrade}"
-SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-tss-upgrade}"
+SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-075-to-076}"
+SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-075-to-076}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
@@ -42,20 +46,27 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.1}"
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.4}"
 
-# Upgrade uses the local build (0.75-SNAPSHOT). The label must point at a
-# published Solo tag (Solo fetches it before applying --local-build-path).
-# Reusing v0.75.0-rc.1 because no newer RC of 0.75.0 is published yet.
-UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.1}"
+# Target version for the 0.76 upgrade.
+#   Blank (default): upgrade in place to the LOCAL build at LOCAL_BUILD_PATH
+#     (--local-build-path). Solo still requires --upgrade-version to be a published
+#     tag; we reuse DEPLOY_RELEASE_TAG as that label.
+#   Non-blank: upgrade to the published Solo tag named here (no --local-build-path).
+UPGRADE_TAG="${UPGRADE_TAG:-}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
 WRAPS_TARBALL_CACHE_PATH="${WRAPS_TARBALL_CACHE_PATH:-${HOME}/.solo/cache/wraps-v1.0.0.tar.gz}"
 WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
-WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}"
-WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
+# Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
+# ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
+# upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
+# multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
+# speed for much lower peak memory. Default 3 keeps node_count x cores within the ~15 visible CPUs at
+# 4 nodes (4 x 3 = 12), avoiding oversubscription. Set empty (or 0) to use all cores.
+WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-3}"
 
 APP_PROPS_075_FILE="${APP_PROPS_075_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 APP_PROPS_076_FILE="${APP_PROPS_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.properties}"
@@ -73,10 +84,47 @@ OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
+# --- Block Node config -----------------------------------------------------------------
+BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
+BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.34.0-rc1}"
+BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
+BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
+BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
+BLOCK_NODE_GRPC_LOCAL_PORT="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
+# earliestManagedBlock: must sit ABOVE the CN's current block-stream block number when the
+# BN joins mid-chain. Auto-computed (current max block + margin) unless set explicitly.
+BLOCK_NODE_CUTOVER_START_BLOCK="${BLOCK_NODE_CUTOVER_START_BLOCK:-}"
+BLOCK_NODE_START_BLOCK_MARGIN="${BLOCK_NODE_START_BLOCK_MARGIN:-20}"
+# RSA roster-bootstrap env (BN >= 0.34). Unused in v0.34.0-rc1 (plugin jar not shipped) and
+# this script has no mirror REST exposed inside the BN's reach, so the base URL is left empty.
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL:-}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS:-5}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS:-10}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE:-100}"
+
+# Mirror node + explorer. The explorer is only a UI over the mirror node's REST API, so this
+# script deploys BOTH (matching the full e2e script).
+MIRROR_RESTJAVA_MEMORY_REQUEST="${MIRROR_RESTJAVA_MEMORY_REQUEST:-512Mi}"
+MIRROR_RESTJAVA_MEMORY_LIMIT="${MIRROR_RESTJAVA_MEMORY_LIMIT:-1000Mi}"
+MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
+MIRROR_REST_SERVICE="${MIRROR_REST_SERVICE:-mirror-1-rest}"
+EXPLORER_INGRESS_LOCAL_PORT="${EXPLORER_INGRESS_LOCAL_PORT:-38080}"
+EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1-solo}"
+SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
+SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
+
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-e2e-075-to-076.XXXXXX")"
 NUDGE_SCRIPT="${WORK_DIR}/nudge-consensus.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
 CLUSTER_CREATED_THIS_RUN="false"
+RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
+BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
+MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
+APP_PROPS_076_GENERATED_FILE="${WORK_DIR}/application-076-public-wraps.properties"
+MIRROR_PORT_FORWARD_PID=""
+EXPLORER_INGRESS_PORT_FORWARD_PID=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -89,16 +137,14 @@ require_cmd() {
   }
 }
 
-stop_wraps_proving_key_server() {
-  if command -v docker >/dev/null 2>&1; then
-    docker rm -f "${WRAPS_SERVER_CONTAINER_NAME}" >/dev/null 2>&1 || true
-  fi
-}
-
 cleanup() {
   local ec=$?
-  stop_wraps_proving_key_server
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
+    # Only tear down the mirror REST/explorer UI port-forwards when we are actually deleting
+    # the cluster. When the cluster is kept (KEEP_NETWORK=true, incl. on a failed exit), leave
+    # them up so the explorer stays reachable for inspection.
+    [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    [[ -n "${EXPLORER_INGRESS_PORT_FORWARD_PID}" ]] && kill "${EXPLORER_INGRESS_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
@@ -134,9 +180,10 @@ wait_for_haproxy_ready() {
   done
 }
 
-# Same shape as ensure_wraps_artifacts_downloaded in the main cutover script:
-# cache the tarball alongside the extracted dir so step 10's local nginx server
-# can serve it without re-downloading.
+# Cache the WRAPS tarball alongside the extracted dir so subsequent runs do not re-download.
+# The CN itself downloads the tarball from WRAPS_ARTIFACTS_DOWNLOAD_URL (the public mirror)
+# via tss.wrapsProvingKeyDownloadEnabled=true; we still need the local extraction to count the
+# expected artifact files in verify_wraps_on_consensus_nodes.
 ensure_wraps_artifacts_downloaded() {
   local file_count="" tmp_dir="" extract_dir="" extracted_root=""
   local extracted_dirs="" extracted_entries=""
@@ -175,28 +222,6 @@ ensure_wraps_artifacts_downloaded() {
   rm -rf "${tmp_dir}"
 }
 
-ensure_wraps_proving_key_server() {
-  local server_url
-  server_url="http://127.0.0.1:${WRAPS_SERVER_PORT}/$(basename "${WRAPS_TARBALL_CACHE_PATH}")"
-
-  if curl -sfI "${server_url}" >/dev/null 2>&1; then
-    log "Wraps proving key server already serving ${server_url}"
-    return 0
-  fi
-
-  require_cmd docker
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    echo "Wraps tarball cache not found: ${WRAPS_TARBALL_CACHE_PATH}" >&2
-    return 1
-  fi
-
-  log "Starting wraps proving key server (nginx Docker on port ${WRAPS_SERVER_PORT})"
-  WRAPS_TAR_PATH="${WRAPS_TARBALL_CACHE_PATH}" \
-  WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT}" \
-  WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME}" \
-    "${SCRIPT_DIR}/start-wraps-proving-key-server.sh"
-}
-
 configured_wraps_artifacts_container_dir() {
   local configured=""
   configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_076_FILE}" | head -n 1)"
@@ -207,14 +232,24 @@ configured_wraps_artifacts_container_dir() {
   fi
 }
 
+# Writes a copy of the shared 0.76 application.properties with tss.wrapsProvingKeyDownloadUrl
+# switched to the public WRAPS URL (the local nginx server is not used in this script). The
+# shared resources/0.76/application.properties is left untouched so the wider cutover scripts
+# that rely on the local nginx URL still work.
+generate_076_application_properties_with_public_wraps_url() {
+  sed -E "s#^tss.wrapsProvingKeyDownloadUrl=.*#tss.wrapsProvingKeyDownloadUrl=${WRAPS_ARTIFACTS_DOWNLOAD_URL}#" \
+    "${APP_PROPS_076_FILE}" > "${APP_PROPS_076_GENERATED_FILE}"
+  log "Generated 0.76 application.properties with public WRAPS URL at ${APP_PROPS_076_GENERATED_FILE}"
+}
+
 # Pre-inject TSS_LIB_WRAPS_ARTIFACTS_PATH into every consensus StatefulSet's
-# container spec BEFORE Solo's upgrade. Solo's --application-env drops the env
-# file onto disk but the container entrypoint never sources it, so the JVM
+# container spec BEFORE Solo's 0.76 upgrade. Solo's --application-env drops the
+# env file onto disk but the container entrypoint never sources it, so the JVM
 # never sees it. `kubectl set env statefulset/...` is the only path that
 # reliably reaches the JVM's /proc/<pid>/environ AND survives subsequent
-# kubectl-delete-pod restarts. Doing this BEFORE solo upgrade ensures all
-# nodes initialize WRAPS in lockstep during the freeze-restart; injecting
-# AFTER triggers independent rolling restarts that produce SELF_ISS failures.
+# kubectl-delete-pod restarts. Doing this BEFORE the upgrade ensures all nodes
+# initialize WRAPS in lockstep during the freeze-restart; injecting AFTER
+# triggers independent rolling restarts that produce SELF_ISS failures.
 inject_wraps_env_into_statefulsets() {
   local node sts log_file wraps_dir
   local nodes=()
@@ -223,14 +258,18 @@ inject_wraps_env_into_statefulsets() {
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  log "Injecting TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
+  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
+  if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
+    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
+  fi
+  log "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
 
   for node in "${nodes[@]}"; do
     sts="network-${node}"
     {
       echo "=== set env statefulset/${sts} ==="
       kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/${sts}" -c root-container \
-        "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}" 2>&1
+        "${wraps_env_args[@]}" 2>&1
     } >> "${log_file}"
   done
 
@@ -306,10 +345,18 @@ wraps_proof_present_in_log() {
     "grep -Eq 'Constructing (genesis|incremental) WRAPS proof with:' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
 }
 
+# Detect a GENUINE WRAPS failure to bail early. We deliberately do NOT match a
+# bare "WRAPS library is not ready" — with the readiness-retry change that
+# string also appears in the benign "Deferring <phase> output ... (will retry
+# each consensus round until ready)" log line, which is transient and expected.
+# We only treat the old drop-the-publication behavior as fatal: "Skipping
+# publication of <phase> output: WRAPS library is not ready". If WRAPS never
+# becomes ready, the deferral loops forever and the proof-construction wait
+# below times out with a clear message instead.
 wraps_failure_present_in_log() {
   local pod="$1"
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "grep -Eq 'WRAPS library is not ready|Skipping publication of POST_AGGREGATION output: WRAPS library is not ready' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+    "grep -Eq 'Skipping publication of [A-Z_]+ output: WRAPS library is not ready' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
 }
 
 # Submit a few cryptoCreate transactions against a CN's gRPC port to drive
@@ -321,7 +368,6 @@ nudge_consensus_with_transactions() {
   local pf_pid="" tx_count="${NUDGE_TX_COUNT}"
 
   log "Setting up CN gRPC port-forward (svc/haproxy-node1-svc → localhost:${CN_GRPC_LOCAL_PORT})"
-  # Kill any stale port-forward on this port.
   pkill -f "port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
   sleep 1
   nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc \
@@ -329,7 +375,6 @@ nudge_consensus_with_transactions() {
     > "${CN_PORT_FORWARD_LOG}" 2>&1 < /dev/null &
   pf_pid=$!
 
-  # Wait for the port to become reachable (up to 30s).
   local deadline=$((SECONDS + 30))
   while (( SECONDS < deadline )); do
     if (: </dev/tcp/127.0.0.1/"${CN_GRPC_LOCAL_PORT}") >/dev/null 2>&1; then
@@ -344,7 +389,6 @@ nudge_consensus_with_transactions() {
   fi
   log "CN gRPC reachable on 127.0.0.1:${CN_GRPC_LOCAL_PORT}"
 
-  # Write the tx-nudge script.
   cat > "${NUDGE_SCRIPT}" <<'EOF'
 const {
   Client,
@@ -396,7 +440,6 @@ main().catch((err) => {
 });
 EOF
 
-  # Make sure @hashgraph/sdk is installed in WORK_DIR (idempotent, fast on re-run).
   if [[ ! -d "${WORK_DIR}/node_modules/@hashgraph/sdk" ]]; then
     log "Installing @hashgraph/sdk into ${WORK_DIR} (one-time, ~30s)"
     (
@@ -406,7 +449,7 @@ EOF
     )
   fi
 
-  log "Submitting ${tx_count} cryptoCreate txns to drive consensus rounds past CRS-adoption stall"
+  log "Submitting ${tx_count} cryptoCreate txns to drive consensus rounds"
   local rc=0
   (
     cd "${WORK_DIR}"
@@ -443,10 +486,6 @@ verify_wraps_on_consensus_nodes() {
     pod="network-${node}-0"
     deadline=$((SECONDS + timeout_secs))
 
-    # Phase 1: wait for TSS_LIB_WRAPS_ARTIFACTS_PATH to be set in the JVM env
-    # AND for WrapsProvingKeyVerification to finish downloading + extracting
-    # the proving-key archive. Both happen asynchronously after the pod
-    # reports Ready, so poll rather than failing fast on the initial sample.
     ready_for_proof=false
     found_env=""
     found_wraps=""
@@ -523,10 +562,226 @@ run_command_with_timeout() {
   wait "${cmd_pid}"
 }
 
+# ======================================================================================
+# Block Node machinery. Deploys a BN mid-chain on the 0.75 baseline so it verifies the
+# mock-sig (RSA WRB) blocks streamed by the CN through the RSA bootstrap roster. The BN
+# stays through the 0.76 upgrade (which keeps mock signatures) and continues to verify.
+# ======================================================================================
+
+kill_processes_on_local_port() {
+  local port="$1"
+  pkill -f "port-forward.*:${port}\b" >/dev/null 2>&1 || true
+  pkill -f "port-forward.* ${port}:" >/dev/null 2>&1 || true
+}
+
+wait_for_tcp_open() {
+  local host="$1" port="$2" max_attempts="$3" sleep_secs="$4"
+  local attempt=1
+  while (( attempt <= max_attempts )); do
+    if nc -z "${host}" "${port}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "${sleep_secs}"
+    ((attempt++))
+  done
+  return 1
+}
+
+build_default_block_node_priority_mapping() {
+  local node mapping=""
+  local nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    [[ -n "${mapping}" ]] && mapping+=","
+    mapping+="${node}=1"
+  done
+  echo "${mapping}"
+}
+
+# Build the RSA bootstrap roster JSON from each CN's gossip public key (s-public-nodeN.pem).
+# Lets the BN verify the mock-signature (RSA WRB) blocks streamed before TSS goes real.
+generate_rsa_bootstrap_roster_json() {
+  require_cmd openssl
+  require_cmd xxd
+  local node node_idx node_id pem hex
+  local nodes=()
+  local cn_pod="network-node1-0"
+  local entries=""
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    node_idx="${node#node}"
+    node_id="$((node_idx - 1))"
+    pem="$(kubectl -n "${SOLO_NAMESPACE}" exec "${cn_pod}" -c root-container -- \
+      cat "${HAPI_PATH}/data/keys/s-public-node${node_idx}.pem" 2>/dev/null || true)"
+    if [[ -z "${pem}" ]]; then
+      echo "Failed to read s-public-node${node_idx}.pem from ${cn_pod}" >&2
+      return 1
+    fi
+    hex="$(printf '%s' "${pem}" \
+      | openssl x509 -pubkey -noout 2>/dev/null \
+      | openssl pkey -pubin -outform DER 2>/dev/null \
+      | xxd -p | tr -d '\n')"
+    if [[ -z "${hex}" ]]; then
+      echo "Failed to extract X.509 SPKI hex for node${node_idx}" >&2
+      return 1
+    fi
+    [[ -n "${entries}" ]] && entries+=","
+    if [[ "${node_id}" == "0" ]]; then
+      entries+=$'\n    {"RSAPubKey": "'"${hex}"'"}'
+    else
+      entries+=$'\n    {"nodeId": "'"${node_id}"'", "RSAPubKey": "'"${hex}"'"}'
+    fi
+  done
+
+  cat > "${RSA_BOOTSTRAP_ROSTER_FILE}" <<EOF
+{
+  "nodeAddress": [${entries}
+  ]
+}
+EOF
+  log "Generated RSA bootstrap roster (${#nodes[@]} entries): ${RSA_BOOTSTRAP_ROSTER_FILE}"
+}
+
+# Helm values: earliestManagedBlock/backfill floor + a seed-rsa-bootstrap-roster init
+# container that bakes the roster JSON onto the live PVC. (See the full e2e script for the
+# field-by-field rationale; this is a verbatim port.)
+write_block_node_cutover_values() {
+  local roster_indented
+  roster_indented="$(sed 's/^/          /' "${RSA_BOOTSTRAP_ROSTER_FILE}")"
+
+  cat > "${BLOCK_NODE_CUTOVER_VALUES_FILE}" <<EOF
+blockNode:
+  config:
+    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "${BLOCK_NODE_CUTOVER_START_BLOCK}"
+    BACKFILL_START_BLOCK: "${BLOCK_NODE_CUTOVER_START_BLOCK}"
+    APP_STATE_RSA_BOOTSTRAP_FILE_PATH: "/opt/hiero/block-node/data/live/rsa-bootstrap-roster.json"
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL}"
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS}"
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS}"
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE}"
+  initContainers:
+    - name: init-storage-dirs
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /live-pvc/live-data && \\
+          chown 2000:2000 /live-pvc/live-data && \\
+          chmod 700 /live-pvc/live-data && \\
+          mkdir -p /archive-pvc/archive-data && \\
+          chown 2000:2000 /archive-pvc/archive-data && \\
+          chmod 700 /archive-pvc/archive-data && \\
+          chown 2000:2000 /verification-pvc && \\
+          chmod 700 /verification-pvc
+      volumeMounts:
+        - name: live-storage
+          mountPath: /live-pvc
+        - name: archive-storage
+          mountPath: /archive-pvc
+        - name: verification-storage
+          mountPath: /verification-pvc
+    - name: seed-rsa-bootstrap-roster
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          cat > /live-pvc/live-data/rsa-bootstrap-roster.json <<'ROSTER'
+${roster_indented}
+          ROSTER
+          chown 2000:2000 /live-pvc/live-data/rsa-bootstrap-roster.json
+          chmod 644 /live-pvc/live-data/rsa-bootstrap-roster.json
+          echo "Seeded rsa-bootstrap-roster.json:"
+          ls -la /live-pvc/live-data/rsa-bootstrap-roster.json
+      volumeMounts:
+        - name: live-storage
+          mountPath: /live-pvc
+EOF
+}
+
+deploy_block_node() {
+  validate_block_node_repo || return 1
+  # earliestManagedBlock must sit ABOVE the CN's current block at deploy time; the BN then
+  # snaps down to whatever CN first publishes. This script produces few blocks before this
+  # point, so a high constant is safely above current. Override via env if needed.
+  [[ -z "${BLOCK_NODE_CUTOVER_START_BLOCK}" ]] && BLOCK_NODE_CUTOVER_START_BLOCK="1000"
+  [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
+
+  generate_rsa_bootstrap_roster_json || return 1
+  write_block_node_cutover_values
+
+  local add_args=(
+    solo block node add
+    --deployment "${SOLO_DEPLOYMENT}"
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+    --quiet-mode
+    --priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}"
+  )
+  [[ -n "${BLOCK_NODE_CHART_VERSION}" ]] && add_args+=(--chart-version "${BLOCK_NODE_CHART_VERSION}")
+  local values_files="${BLOCK_NODE_CUTOVER_VALUES_FILE}"
+  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && values_files="${BLOCK_NODE_VALUES_FILE},${BLOCK_NODE_CUTOVER_VALUES_FILE}"
+  add_args+=(--values-file "${values_files}")
+
+  log "Deploying Block Node ${BLOCK_NODE_ID} (earliestManagedBlock=${BLOCK_NODE_CUTOVER_START_BLOCK}, priority '${BLOCK_NODE_PRIORITY_MAPPING}')"
+  "${add_args[@]}"
+  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
+}
+
+validate_block_node_repo() {
+  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
+    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH} (needed for the serverStatus proto)" >&2
+    return 1
+  fi
+}
+
+# Poll BN serverStatus until lastAvailableBlock > 0, proving CN is streaming into it.
+verify_block_node_has_blocks() {
+  local timeout_secs="${1:-120}"
+  local svc="block-node-${BLOCK_NODE_ID}"
+  local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
+  local pf_log="${WORK_DIR}/port-forward-block-node-status.log" pf_pid=""
+  require_cmd grpcurl
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_services_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf"
+  local proto_file="block-node/api/node_service.proto"
+  if [[ ! -f "${proto_api_root}/${proto_file}" ]]; then
+    echo "verify_block_node_has_blocks: proto not found at ${proto_api_root}/${proto_file}" >&2
+    return 1
+  fi
+
+  kill_processes_on_local_port "${local_port}"
+  : > "${pf_log}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${svc}" "${local_port}:${remote_port}" >"${pf_log}" 2>&1 < /dev/null &
+  pf_pid=$!
+  disown "${pf_pid}" 2>/dev/null || true
+  if ! wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1; then
+    kill "${pf_pid}" >/dev/null 2>&1 || true
+    echo "Could not port-forward to ${svc} (see ${pf_log})" >&2
+    return 1
+  fi
+
+  local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
+  log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
+  while (( SECONDS < deadline )); do
+    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_services_root}" \
+            -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
+            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
+    last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
+    if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
+      log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
+      kill "${pf_pid}" >/dev/null 2>&1 || true
+      return 0
+    fi
+    sleep 5
+  done
+  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last: ${raw:-<empty>})" >&2
+  kill "${pf_pid}" >/dev/null 2>&1 || true
+  return 1
+}
+
 create_cluster() {
-  # Deleting + recreating the kind cluster is enough cleanup for a repeat run.
-  # We deliberately do NOT wipe ~/.solo/ here so the cached WRAPS proving-key
-  # tarball (~1.9 GB at ~/.solo/cache/wraps-v1.0.0.tar.gz) survives across runs.
   log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
   kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
 
@@ -595,46 +850,169 @@ deploy_baseline_075() {
   wait_for_haproxy_ready 600
 }
 
+# ======================================================================================
+# Mirror node + explorer. The explorer is a UI over the mirror node's REST API, so both
+# are deployed together (matching the full e2e script).
+# ======================================================================================
+deployment_ready() {
+  local deployment="$1"
+  local timeout_secs="${2:-5}"
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "deployment/${deployment}" --timeout="${timeout_secs}s" >/dev/null 2>&1
+}
+
+required_mirror_services_ready() {
+  local deployment
+  for deployment in mirror-1-rest mirror-1-grpc mirror-1-importer mirror-1-monitor mirror-1-web3; do
+    deployment_ready "${deployment}" 5 || return 1
+  done
+}
+
+wait_for_required_mirror_services_ready() {
+  local timeout_secs="${1:-600}" start_ts
+  start_ts="$(date +%s)"
+  while true; do
+    if required_mirror_services_ready; then
+      return 0
+    fi
+    if (( $(date +%s) - start_ts >= timeout_secs )); then
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+# `solo mirror node add` can report failure solely because REST Java is slow to become ready,
+# even though the services needed for ingestion + REST are up. Distinguish that case.
+mirror_node_failed_only_on_restjava() {
+  kubectl -n "${SOLO_NAMESPACE}" get deployment mirror-1-restjava >/dev/null 2>&1 || return 1
+  required_mirror_services_ready || return 1
+  deployment_ready mirror-1-restjava 5 && return 1
+  return 0
+}
+
+write_mirror_node_values_override() {
+  cat > "${MIRROR_NODE_VALUES_FILE}" <<EOF
+restjava:
+  resources:
+    requests:
+      memory: ${MIRROR_RESTJAVA_MEMORY_REQUEST}
+    limits:
+      memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
+EOF
+}
+
+# Minimal curl-based HTTP readiness wait.
+wait_for_http_ok_simple() {
+  local url="$1" max_attempts="$2" sleep_secs="$3" attempt=1
+  while (( attempt <= max_attempts )); do
+    if curl -sf -o /dev/null "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "${sleep_secs}"
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
+start_mirror_rest_port_forward() {
+  kubectl -n "${SOLO_NAMESPACE}" get svc "${MIRROR_REST_SERVICE}" >/dev/null 2>&1 || {
+    echo "mirror REST service not found: ${SOLO_NAMESPACE}/${MIRROR_REST_SERVICE}" >&2; return 1
+  }
+  kill_processes_on_local_port "${MIRROR_REST_LOCAL_PORT}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${MIRROR_REST_SERVICE}" \
+    "${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 < /dev/null &
+  MIRROR_PORT_FORWARD_PID="$!"
+  disown "${MIRROR_PORT_FORWARD_PID}" 2>/dev/null || true
+  wait_for_tcp_open "127.0.0.1" "${MIRROR_REST_LOCAL_PORT}" 20 1
+}
+
+start_explorer_ingress_port_forward() {
+  kubectl -n "${SOLO_NAMESPACE}" get svc "${EXPLORER_INGRESS_SERVICE_NAME}" >/dev/null 2>&1 || {
+    echo "explorer service not found: ${SOLO_NAMESPACE}/${EXPLORER_INGRESS_SERVICE_NAME}" >&2; return 1
+  }
+  kill_processes_on_local_port "${EXPLORER_INGRESS_LOCAL_PORT}"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${EXPLORER_INGRESS_SERVICE_NAME}" \
+    "${EXPLORER_INGRESS_LOCAL_PORT}:80" >/dev/null 2>&1 < /dev/null &
+  EXPLORER_INGRESS_PORT_FORWARD_PID="$!"
+  disown "${EXPLORER_INGRESS_PORT_FORWARD_PID}" 2>/dev/null || true
+  if wait_for_tcp_open "127.0.0.1" "${EXPLORER_INGRESS_LOCAL_PORT}" 20 1; then
+    log "Explorer UI available at http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}"
+    return 0
+  fi
+  return 1
+}
+
+# Deploys a mirror node (with ingress) and the explorer UI, then opens local port-forwards.
+# Returns non-zero only if the mirror node or explorer could not be deployed at all; transient
+# REST-Java readiness and port-forward issues are downgraded to warnings.
+deploy_mirror_and_explorer() {
+  log "=== Deploying mirror node + explorer ==="
+  write_mirror_node_values_override
+  if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
+      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress \
+      --values-file "${MIRROR_NODE_VALUES_FILE}"; then
+    if mirror_node_failed_only_on_restjava; then
+      log "Mirror node add failed only on REST Java readiness; required mirror services are up — continuing"
+    else
+      log "Mirror node add failed; waiting up to 600s for required mirror services"
+      wait_for_required_mirror_services_ready 600 || {
+        echo "mirror: required services did not become ready" >&2; return 1
+      }
+    fi
+  fi
+  if ! run_command_with_timeout "${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS}" \
+      solo explorer node add --deployment "${SOLO_DEPLOYMENT}"; then
+    echo "explorer: 'solo explorer node add' failed" >&2; return 1
+  fi
+  start_explorer_ingress_port_forward || log "WARN: explorer UI tunnel unavailable; explorer may be inaccessible"
+  start_mirror_rest_port_forward || log "WARN: mirror REST tunnel unavailable on localhost:${MIRROR_REST_LOCAL_PORT}"
+  if wait_for_http_ok_simple "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5; then
+    log "Mirror REST is serving blocks; explorer UI at http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}"
+  else
+    log "WARN: mirror REST /api/v1/blocks not OK yet; explorer data may lag (importer still catching up)"
+  fi
+}
+
+# The focus of this script: the 0.75 -> 0.76 upgrade with TSS enabled in mock-signature mode.
+# Solo's `consensus network deploy` does not accept --local-build-path, so we deploy a published
+# 0.75 baseline first and then upgrade in place — to the local 0.76 build by default, or to a
+# published Solo tag when UPGRADE_TAG is set.
 upgrade_to_local_076() {
-  log "Upgrading consensus network to local build (labeled ${UPGRADE_VERSION_LABEL}) with 0.76 properties (TSS, mocked signatures)"
-
   ensure_wraps_artifacts_downloaded
-  ensure_wraps_proving_key_server
-
-  # Pre-inject TSS_LIB_WRAPS_ARTIFACTS_PATH before Solo's upgrade so all CNs
-  # initialize WRAPS in lockstep during the freeze-restart.
+  generate_076_application_properties_with_public_wraps_url
   inject_wraps_env_into_statefulsets
 
-  # --wraps-key-path is intentionally omitted: Solo only honors it on deploy,
-  # not on upgrade. The 0.76 properties drive WRAPS via tss.wrapsProvingKeyDownloadUrl
-  # (the local nginx server) + tss.wrapsProvingKeyDownloadEnabled=true.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION_LABEL}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
-    --application-properties "${APP_PROPS_076_FILE}"
+    --application-properties "${APP_PROPS_076_GENERATED_FILE}"
     --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
     --force
   )
-
-  # With hiero-ledger/solo#4440 in place, the upgrade stops the JVMs before
-  # the JAR cp and restarts them after, so the previous JAR-staging race is
-  # gone. We let any non-zero Solo exit (timeout, deploy validation, ACTIVE
-  # check failure) propagate via set -e.
+  if [[ -n "${UPGRADE_TAG}" ]]; then
+    log "=== 0.76 upgrade: upgrade to published tag ${UPGRADE_TAG} with 0.76 properties (TSS, mock signatures) ==="
+    upgrade_cmd+=(--upgrade-version "${UPGRADE_TAG}")
+  else
+    log "=== 0.76 upgrade: upgrade to local build at ${LOCAL_BUILD_PATH} (label ${DEPLOY_RELEASE_TAG}) with 0.76 properties (TSS, mock signatures) ==="
+    upgrade_cmd+=(--upgrade-version "${DEPLOY_RELEASE_TAG}" --local-build-path "${LOCAL_BUILD_PATH}")
+  fi
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
-  log "--- Check 1/3: wait for consensus pods + haproxy + verify local-build version ---"
+  log "--- 0.76 check 1/3: wait for consensus pods + haproxy + verify upgrade target ---"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_local_build_on_consensus_nodes
+  if [[ -z "${UPGRADE_TAG}" ]]; then
+    verify_local_build_on_consensus_nodes
+  else
+    log "Skipping local-build version check (UPGRADE_TAG=${UPGRADE_TAG}); Solo's ACTIVE gate is the upgrade success signal"
+  fi
 
-  log "--- Check 2/3: nudge consensus with a few cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
+  log "--- 0.76 check 2/3: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
   nudge_consensus_with_transactions
 
-  log "--- Check 3/3: verify WRAPS runtime + proof construction on every consensus node ---"
+  log "--- 0.76 check 3/3: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
 }
 
@@ -644,26 +1022,56 @@ require_cmd kubectl
 require_cmd solo
 require_cmd curl
 require_cmd tar
-require_cmd docker
 require_cmd unzip
 require_cmd node
 require_cmd npm
+require_cmd jq
+require_cmd nc
+require_cmd openssl
+require_cmd xxd
+require_cmd grpcurl
+validate_block_node_repo || {
+  echo "BLOCK_NODE_REPO_PATH is invalid: ${BLOCK_NODE_REPO_PATH}" >&2
+  echo "Set BLOCK_NODE_REPO_PATH to a hiero-block-node checkout." >&2
+  exit 1
+}
 
 [[ -f "${APP_PROPS_075_FILE}" ]] || { echo "Missing file: ${APP_PROPS_075_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_076_FILE}" ]] || { echo "Missing file: ${APP_PROPS_076_FILE}" >&2; exit 1; }
 [[ -f "${APP_ENV_076_FILE}" ]] || { echo "Missing file: ${APP_ENV_076_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 
-validate_local_build_path "${LOCAL_BUILD_PATH}" || {
-  echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
-  echo "Expected ${LOCAL_BUILD_PATH}/apps/HederaNode.jar and ${LOCAL_BUILD_PATH}/lib" >&2
-  exit 1
-}
+if [[ -z "${UPGRADE_TAG}" ]]; then
+  validate_local_build_path "${LOCAL_BUILD_PATH}" || {
+    echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
+    echo "Expected ${LOCAL_BUILD_PATH}/apps/HederaNode.jar and ${LOCAL_BUILD_PATH}/lib" >&2
+    echo "(Set UPGRADE_TAG to a published Solo tag to skip the local-build requirement.)" >&2
+    exit 1
+  }
+fi
 
 create_cluster
 configure_solo
 setup_cluster_prereqs
 deploy_baseline_075
+
+# Deploy mirror node + explorer on the 0.75 baseline FIRST (before the BN) so the importer is
+# wired to read RECORD streams from MinIO (the CN writes record streams in 0.75/0.76). If the BN
+# were deployed first, Solo would auto-wire it as the importer's only block source and the
+# importer would stall trying to fetch block 0 from a mid-chain BN.
+deploy_mirror_and_explorer
+
+# Deploy the BN mid-chain on the 0.75 baseline so it verifies the mock-sig (RSA WRB) blocks
+# via the bootstrap roster through the 0.76 phase (which keeps mock signatures).
+log "=== Deploying Block Node ${BLOCK_NODE_ID} (will verify mock-sig blocks on the 0.75 baseline) ==="
+deploy_block_node
+verify_block_node_has_blocks 180
+
 upgrade_to_local_076
 
-log "PASS: v0.75.0-rc.1 release -> local 0.75-SNAPSHOT (TSS, mocked signatures) upgrade completed"
+log "--- Post-0.76 BN check: Block Node still receiving + verifying mock-sig blocks ---"
+verify_block_node_has_blocks 180
+
+log "PASS: 0.75 (${DEPLOY_RELEASE_TAG}) -> 0.76 (TSS enabled, mock signatures) upgrade completed cleanly"
+log "PASS: Block Node verified the mock-sig (RSA WRB) blocks across the 0.75 -> 0.76 upgrade"
+log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
