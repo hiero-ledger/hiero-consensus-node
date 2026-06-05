@@ -140,7 +140,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             result.setNetworkMultiplier(multiplier);
         }
         // If this service is free then return just what we have so far (node + network)
-        if (serviceFeeDefinition.free()) {
+        if (serviceFeeDefinition != null && serviceFeeDefinition.free()) {
             return result;
         }
         final var serviceFeeCalculator =
