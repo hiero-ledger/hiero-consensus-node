@@ -881,8 +881,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         allPrevBlocksRootHash,
                         serializedRosterSignatures))
                 .exceptionally(t -> {
-                    logger.warn(
-                            "Unhandled exception while signing WRB block #{} after record file close", blockNumber, t);
+                    if (t instanceof CancellationException || t.getCause() instanceof CancellationException) {
+                        // Expected when the node falls BEHIND and cancels in-flight RSA signings
+                        logger.info("Signing cancelled for WRB block #{} after record file close", blockNumber);
+                    } else {
+                        logger.warn(
+                                "Unhandled exception while signing WRB block #{} after record file close",
+                                blockNumber,
+                                t);
+                    }
                     return null;
                 });
     }

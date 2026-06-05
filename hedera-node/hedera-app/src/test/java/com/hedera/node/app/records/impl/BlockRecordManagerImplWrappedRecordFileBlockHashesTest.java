@@ -2007,6 +2007,75 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
+    void logsAtInfoNotWarnWhenWrbSigningCancelled() throws Exception {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                    .build();
+
+            seedRequiredState(app);
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var recordFileHashFuture = new CompletableFuture<Bytes>();
+            final var producer = new FakeStreamProducer(recordFileHashFuture);
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var blockHashSigner = mock(BlockHashSigner.class);
+            final var signatureListFuture = new CompletableFuture<Bytes>();
+            final var submissionFuture = new CompletableFuture<Void>();
+            when(blockHashSigner.sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES)))
+                    .thenReturn(new BlockHashSigner.Attempt(null, null, signatureListFuture, submissionFuture));
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    blockHashSigner,
+                    InitTrigger.RECONNECT)) {
+                final var t0 = InstantUtils.instant(10, 1);
+                mgr.startUserTransaction(t0, state);
+                mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+                mgr.closeCurrentRecordFileIfOpen(state);
+
+                recordFileHashFuture.complete(LEGACY_RECORD_FILE_HASH);
+                verify(blockHashSigner, timeout(1_000))
+                        .sign(eq(LEGACY_RECORD_FILE_HASH), eq(LIST_OF_PARTIAL_SIGNATURES));
+
+                // Simulate the BEHIND status handler cancelling all in-flight RSA signings
+                signatureListFuture.cancel(false);
+
+                final long deadline = System.currentTimeMillis() + 2_000;
+                while (System.currentTimeMillis() < deadline
+                        && logCaptor.infoLogs().stream().noneMatch(s -> s.contains("Signing cancelled for WRB block"))
+                        && logCaptor.warnLogs().stream()
+                                .noneMatch(s -> s.contains("Unhandled exception while signing WRB block"))) {
+                    Thread.sleep(10);
+                }
+                assertTrue(
+                        logCaptor.infoLogs().stream().anyMatch(s -> s.contains("Signing cancelled for WRB block")),
+                        "expected INFO log for cancelled WRB signing");
+                assertTrue(
+                        logCaptor.warnLogs().stream()
+                                .noneMatch(s -> s.contains("Unhandled exception while signing WRB block")),
+                        "cancellation must not be logged at WARN");
+            }
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
     void closeFlushesPendingWrbWritersWhenFlagEnabled() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
