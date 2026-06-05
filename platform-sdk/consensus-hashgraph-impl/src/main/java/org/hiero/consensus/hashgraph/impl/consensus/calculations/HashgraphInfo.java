@@ -415,9 +415,9 @@ public class HashgraphInfo {
             if (roundInfo.pendingRound != h.pendingRound
                     && roundInfo.pendingRound != h.pendingRound + 1
                     && h.pendingRound != 0) {
-                throw new IllegalArgumentException("roundInfo.pendingRound didn't match the last call, nor increment by 1");
+                throw new IllegalArgumentException(
+                        "roundInfo.pendingRound didn't match the last call, nor increment by 1");
             }
-
 
             // If this is the first time update has ever been called on an event for this hashgraph, and round > 1,
             // then set isConsensus for all the ancestors of the previous round's judges, according to judgeCons1 for it
@@ -440,9 +440,10 @@ public class HashgraphInfo {
                         }
                         EventInfo eNew = null;
                         // while eNew is bad (null / ancient / marked), search until a good one is found or done
-                        while (e != null && (eNew == null
-                                || eNew.birthRound < h.minNonAncientRound
-                                || eNew.searchMark == h.currMark)) {
+                        while (e != null
+                                && (eNew == null
+                                        || eNew.birthRound < h.minNonAncientRound
+                                        || eNew.searchMark == h.currMark)) {
                             while (e != null && e.searchParent >= e.parentsSigned.length - 1) {
                                 e = e.searchChild; // backtrack up until an event is found with an unexplored parent
                             }
@@ -613,7 +614,7 @@ public class HashgraphInfo {
                         }
                     }
                     EventInfo w = null; // find w = firstSelfWitness(r,first(s2))
-                    EventInfo p = null;  // find p = event in s3 with the max gen
+                    EventInfo p = null; // find p = event in s3 with the max gen
                     boolean s2empty = true;
                     long maxGen = -1;
                     for (EventInfo parent : h.parents) {
@@ -701,7 +702,7 @@ public class HashgraphInfo {
             return new UpdateResults(
                     consensusEvents.toArray(new EventInfo[0]), // consensusEvents
                     new RoundInfoPrev(
-                            h.pendingRound + 1, //pendingRound
+                            h.pendingRound + 1, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
                             roundJudges.toArray(new EventInfo[0]), // prevJudges
                             false, // prevJudgesCopied /**/
