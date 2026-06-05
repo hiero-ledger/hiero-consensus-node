@@ -96,6 +96,13 @@ public final class StaticPlatformBuilder {
         // Initialize JVMPauseDetectorThread, if enabled via settings
         startJVMPauseDetectorThread(configuration);
 
+        final Runtime rt = Runtime.getRuntime();
+        logger.info(
+                STARTUP.getMarker(),
+                "JVM runtime resources: maxHeapMb={}, availableProcessors={}",
+                rt.maxMemory() / (1024 * 1024),
+                rt.availableProcessors());
+
         return true;
     }
 

@@ -176,11 +176,12 @@ public class ProcessUtils {
         // Limit node JVM heap if configured, to avoid overcommitting runner memory.
         // The pool is the total memory available for all nodes; divide by actual network size.
         final var nodePoolMib = System.getProperty("hapi.spec.node.poolMib");
+        int perNodeMib = -1;
         if (nodePoolMib != null && !nodePoolMib.isBlank()) {
             try {
                 final int poolMib = Integer.parseInt(nodePoolMib);
                 final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
-                final int perNodeMib = Math.clamp(poolMib / networkSize, 2048, 4096);
+                perNodeMib = Math.clamp(poolMib / networkSize, 2048, 4096);
                 commandLine.add("-Xmx" + perNodeMib + "m");
             } catch (NumberFormatException e) {
                 log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);
@@ -193,12 +194,48 @@ public class ProcessUtils {
                 .resolve("gc.log")
                 .toAbsolutePath();
         commandLine.add("-Xlog:gc*:file=" + gcLogPath + ":time,uptime,level,tags");
+
+        final var nodeProcessorBudgetProp = System.getProperty("hapi.spec.node.processorBudget");
+        int perNodeProcessorCount = -1;
+        if (nodeProcessorBudgetProp != null && !nodeProcessorBudgetProp.isBlank()) {
+            try {
+                final int processorBudget = Integer.parseInt(nodeProcessorBudgetProp);
+                final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
+                perNodeProcessorCount = Math.max(processorBudget / networkSize, 4);
+                commandLine.add("-XX:ActiveProcessorCount=" + perNodeProcessorCount);
+            } catch (NumberFormatException e) {
+                log.warn("Invalid hapi.spec.node.processorBudget value: {}", nodeProcessorBudgetProp);
+            }
+        }
+        // Write directly to the raw stderr FD so this appears even when Gradle suppresses
+        // System.err/System.out (which it does for passing tests).
+        final int availableCpus = Runtime.getRuntime().availableProcessors();
+        try {
+            new java.io.FileOutputStream(java.io.FileDescriptor.err).write(
+                    String.format("Node %d resource allocation: heap=%s, ActiveProcessorCount=%s (of %d available)%n",
+                                    metadata.nodeId(),
+                                    perNodeMib == -1 ? "unbounded" : perNodeMib + "m",
+                                    perNodeProcessorCount == -1 ? "not set" : String.valueOf(perNodeProcessorCount),
+                                    availableCpus)
+                            .getBytes());
+        } catch (java.io.IOException ignored) {}
+
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
+        // Enable JFR to capture CPU scheduling delays, GC events, and thread activity
+        // for diagnosing OS-level starvation spikes visible in JVMPauseDetector and HealthMonitor logs.
+        // FlightRecorderOptions.repository= writes chunks continuously to an existing directory so
+        // they survive a SIGKILL; filename= is only flushed on graceful exit.
+        final var outputDir = metadata.workingDirOrThrow()
+                .resolve(OUTPUT_DIR)
+                .toAbsolutePath();
+        final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
+        commandLine.add("-XX:FlightRecorderOptions=repository=" + outputDir);
+        commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile + ",settings=profile,disk=true,name=hapitest");
         commandLine.addAll(List.of(
                 "--module-path",
                 // Use the same module path that started this process, excluding test-clients
