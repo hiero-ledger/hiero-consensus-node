@@ -15,7 +15,6 @@ import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
@@ -25,7 +24,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -165,6 +163,7 @@ public class ConsensusImplDAB implements Consensus {
      * no transactions).
      */
     private Instant lastConsensusTime = null;
+
     /**
      * if consensus is not starting from genesis, this instance is used to accurately calculate the round for events
      */
@@ -181,21 +180,25 @@ public class ConsensusImplDAB implements Consensus {
      */
     private final long transactionOffsetNanos;
 
-    private final HashgraphInfo hashgraphInfo = new HashgraphInfo();
+    private HashgraphInfo hashgraphInfo = new HashgraphInfo();
     private RoundInfo roundInfo;
     private RoundInfoPrev roundInfoPrev;
+
     /** When fully dynamic address book is implemented, this will be a configurable value. It is the number of rounds
      * between a roster being known (as a result of handling a round's transactions or the execution layer requesting
      * it be adopted) and it being used to calculate consensus. */
     private static final int NUM_ROUNDS_ROSTER = 5;
+
     /** A map used to lookup events from the memos object. Once an event reaches consensus and is returned in a round,
      * the entry is no longer needed in this map. It mirrors recentEvents. */
     private final Map<EventInfo, EventImpl> memosEventMap = new IdentityHashMap<>();
+
     /** stores the minimum judge ancient identifier for all decided and non-expired rounds */
     private final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage;
 
     /** The rate limited logger for rounds without a super majority of weight on judges */
     private final RateLimitedLogger noSuperMajorityLogger;
+
     /** The rate limited logger for rounds with no judge */
     private final RateLimitedLogger noJudgeLogger;
 
@@ -235,7 +238,11 @@ public class ConsensusImplDAB implements Consensus {
      */
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
-        reset();
+        recentEvents.clear();
+        memosEventMap.clear();
+        hashgraphInfo = new HashgraphInfo();
+        roundInfoPrev = null;
+
         final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
                 .map(judge -> new Hash(judge.judgeHash()))
                 .collect(toSet());
@@ -265,14 +272,6 @@ public class ConsensusImplDAB implements Consensus {
 
         numConsensus = snapshot.nextConsensusNumber();
         lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
-    }
-
-    /** Reset this instance to a state of a newly created instance */
-    private void reset() {
-        recentEvents.clear();
-        numConsensus = 0;
-        lastConsensusTime = null;
-        initJudges = null;
     }
 
     /**
@@ -324,7 +323,7 @@ public class ConsensusImplDAB implements Consensus {
             final boolean lastJudgeFound = checkInitJudges(event);
 
             if (waitingForInitJudges()) {
-                // we should not do any calculations or voting until we have found all the init judges
+                // we should not call update on any event until we have found all the init judges
                 return List.of();
             }
 
@@ -332,21 +331,26 @@ public class ConsensusImplDAB implements Consensus {
 
             if (lastJudgeFound) {
                 // when we find the last init judge, we have to create the round state objects
-                final EventInfo[] judgeMemos = initJudges.getJudges().stream()
+                final EventInfo[] judgeInfos = initJudges.getJudges().stream()
                         .map(EventImpl::getEventInfo)
-                        .toList()
                         .toArray(EventInfo[]::new);
                 final long minJudgeBirthRound = initJudges.getJudges().stream()
                         .mapToLong(EventImpl::getBirthRound)
                         .min()
                         .orElseThrow();
                 roundInfoPrev = new RoundInfoPrev(
-                        roundInfo.pendingRound(), false, judgeMemos, false,
-                        config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
+                        roundInfo.pendingRound(),
+                        false,
+                        judgeInfos,
+                        false,
+                        minJudgeBirthRound - config.roundsNonAncient() + 1,
+                        numConsensus - 1,
+                        minJudgeBirthRound);
 
                 results = updateRecentEvents();
             } else {
-                // this is the most common case, we are not looking for init judges so we simply
+                // this is the most common case, we are not looking for init judges
+                // so we simply call update on the new event
                 results = updateEvent(event);
             }
 
@@ -369,12 +373,6 @@ public class ConsensusImplDAB implements Consensus {
         return event.getEventInfo().update(roundInfo, roundInfoPrev);
     }
 
-    private void updateMinimumJudgeInfo(final MinimumJudgeInfo minimumJudgeInfo) {
-        minimumJudgeStorage.add(roundInfo.pendingRound(), minimumJudgeInfo);
-        // Delete the oldest rounds with round number which is expired
-        minimumJudgeStorage.removeOlderThan(roundInfo.pendingRound() - config.roundsExpired());
-    }
-
     @Nullable
     private UpdateResults updateRecentEvents() {
         for (final Iterator<EventImpl> iterator = recentEvents.iterator(); iterator.hasNext(); ) {
@@ -383,12 +381,16 @@ public class ConsensusImplDAB implements Consensus {
             // latest consensus round, including all judges in the latest consensus round even if they
             // are consensus events.
             if (insertedEvent.getBirthRound() >= roundInfoPrev.prevMinJudgeBirthRound()) {
-                final UpdateResults results = insertedEvent.getEventInfo().update(roundInfo, roundInfoPrev);
+                final UpdateResults results = updateEvent(insertedEvent);
                 if (results != null) {
                     return results;
                 }
             }
 
+            // Only remove consensus (and ancient) events if update did not result in a round reaching consensus.
+            // The events that just reached consensus could include one of the judges for the round, and that judge
+            // must have update called on it when calculating the next round. So it must not be removed from the
+            // list of recent events yet.
             if (insertedEvent.isConsensus() || ancient(insertedEvent)) {
                 iterator.remove();
                 memosEventMap.remove(insertedEvent.getEventInfo());
@@ -397,30 +399,9 @@ public class ConsensusImplDAB implements Consensus {
         return null;
     }
 
-    private void updateRoundInfo(@NonNull final UpdateResults updateResults) {
-        // When fully dynamic address book is enabled, we will have a map from round to rosterLookup or from round to
-        // roster (and we will create the rosterLookup as needed).
-        final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
-        final long[] nodeIds =
-                rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
-        final long[] weights =
-                rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
-
-        roundInfo = new RoundInfo(
-                roundInfo.pendingRound() + 1,
-                nodeIds,
-                weights,
-                config.coinFreq(),
-                false,
-                false,
-                config.roundsNonAncient(),
-                NUM_ROUNDS_ROSTER);
-        roundInfoPrev = updateResults.nextRoundInfoPrev();
-    }
     /**
      * This round has been decided, this means that the fame of all known witnesses in that round
-     * has been decided, and so any new witnesses discovered in the future will be guaranteed to not
-     * be famous.
+     * has been decided.
      *
      * <p>Since fame for this round is now decided, it is now possible to decide consensus and time
      * stamps for events in earlier rounds. If it's an ancestor of all the famous witnesses, then it
@@ -438,47 +419,35 @@ public class ConsensusImplDAB implements Consensus {
         // Check for no judges or super majority conditions.
         logJudgeErrors(judges, decidedRoundNumber);
 
-        // all events that reach consensus during this method call, in consensus order
-        final List<PlatformEvent> consensusEvents =
-                findConsensusEvents(judges, decidedRoundNumber, ConsensusUtils.generateWhitening(judges)).stream()
-                        .map(EventImpl::getBaseEvent)
-                        .toList();
+        final List<PlatformEvent> consensusEvents = Arrays.stream(results.consensusEvents())
+                .map(this::copyConsensusDataFromEventInfoToEvent)
+                .toList();
 
         // all rounds before this round are now decided, and appropriate events marked consensus
         consensusMetrics.consensusReachedOnRound(decidedRoundNumber);
 
-        // lastConsensusTime is updated above with the last transaction in the last event that reached consensus
-        // if no events reach consensus, then we need to calculate the lastConsensusTime differently
-        if (consensusEvents.isEmpty()) {
-            if (lastConsensusTime == null) {
-                // if this is the first round ever, and there are no events (which is usually the case)
-                // we take the median of all the judge created times
-                final List<Instant> judgeTimes =
-                        judges.stream().map(EventImpl::getTimeCreated).sorted().toList();
-                lastConsensusTime = judgeTimes.get(judgeTimes.size() / 2);
-            } else {
-                // if we have reached consensus before, we simply increase the lastConsensusTime by the min amount
-                lastConsensusTime = ConsensusUtils.calcMinTimestampForNextEvent(lastConsensusTime);
-            }
-        }
-
-        final MinimumJudgeInfo info = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
+        // Before calculating the new expired threshold, update the minimum judge storage
         final RoundInfoPrev decidedRoundInfo = results.nextRoundInfoPrev();
-        final long nonExpiredThreshold =
-                info == null ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED : info.minimumJudgeBirthRound();
+        final MinimumJudgeInfo minimumJudgeInfo = MinimumJudgeInfo.newBuilder()
+                .round(decidedRoundNumber)
+                .minimumJudgeBirthRound(decidedRoundInfo.prevMinJudgeBirthRound())
+                .build();
+        updateMinimumJudgeInfo(minimumJudgeInfo);
+
+        // Calculate the ancient and expired thresholds for the newly decided round
+        final MinimumJudgeInfo minJudgeInfo = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
+        final long nonExpiredThreshold = minJudgeInfo == null
+                ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED
+                : minJudgeInfo.minimumJudgeBirthRound();
         final long nonAncientThreshold = decidedRoundInfo.prevMinNonAncientRound();
 
+        // Extract the judge ids for the consensus snapshot
         final List<JudgeId> judgeIds = judges.stream()
                 .map(j -> JudgeId.newBuilder()
                         .judgeHash(j.getBaseHash().getBytes())
                         .creatorId(j.getCreatorId().id())
                         .build())
                 .toList();
-        final MinimumJudgeInfo minimumJudgeInfo = MinimumJudgeInfo.newBuilder()
-                .round(decidedRoundNumber)
-                .minimumJudgeBirthRound(decidedRoundInfo.prevMinJudgeBirthRound())
-                .build();
-        updateMinimumJudgeInfo(minimumJudgeInfo);
 
         final long oldestNonAncientRound = RoundCalculationUtils.getOldestNonAncientRound(
                 roundInfo.targetNumRoundsNonAncient(), decidedRoundNumber);
@@ -508,6 +477,42 @@ public class ConsensusImplDAB implements Consensus {
                 time.now());
     }
 
+    @NonNull
+    private PlatformEvent copyConsensusDataFromEventInfoToEvent(@NonNull final EventInfo eventInfo) {
+        final EventImpl e = memosEventMap.get(eventInfo);
+        if (e == null) {
+            throw new IllegalStateException("Could not find event in memos map for consensus event");
+        }
+
+        final Instant finalConsensusTimestamp;
+        // the minimum timestamp for this event
+        final Instant minTimestamp =
+                lastConsensusTime == null ? null : ConsensusUtils.calcMinTimestampForNextEvent(lastConsensusTime);
+        // advance this event's consensus timestamp to be at least minTimestamp
+        if (minTimestamp != null && eventInfo.getConsensusTimestamp().isBefore(minTimestamp)) {
+            finalConsensusTimestamp = minTimestamp;
+        } else {
+            finalConsensusTimestamp = eventInfo.getConsensusTimestamp();
+        }
+
+        final EventConsensusData consensusData = EventConsensusData.newBuilder()
+                .consensusOrder(eventInfo.getConsensusOrder())
+                .consensusTimestamp(toPbjTimestamp(finalConsensusTimestamp))
+                .build();
+        e.getPlatformEvent().setConsensusData(consensusData);
+
+        lastConsensusTime = EventUtils.getLastTransTime(e.getPlatformEvent(), transactionOffsetNanos);
+        consensusMetrics.consensusReached(e);
+        return e.getPlatformEvent();
+    }
+
+    private void updateMinimumJudgeInfo(@NonNull final MinimumJudgeInfo minimumJudgeInfo) {
+        minimumJudgeStorage.add(roundInfo.pendingRound(), minimumJudgeInfo);
+        // Delete the oldest rounds with round number which is expired
+        minimumJudgeStorage.removeOlderThan(roundInfo.pendingRound() - config.roundsExpired());
+    }
+
+    @Nullable
     private MinimumJudgeInfo getMinimumJudgeIndicator(final long round) {
         final MinimumJudgeInfo minimumJudgeInfo = minimumJudgeStorage.get(round);
         if (minimumJudgeInfo == null) {
@@ -522,87 +527,25 @@ public class ConsensusImplDAB implements Consensus {
         return minimumJudgeInfo;
     }
 
-    /**
-     * Find all events that are ancestors of the judges in round and update them. A non-consensus
-     * event that is an ancestor of all of them should be marked as consensus, and have its
-     * consensus roundReceived and timestamp set. This should not be called on any round greater
-     * than R until after it has been called on round R.
-     *
-     * @param judges the judges for this round
-     * @param decidedRound the info for the round with the unique famous witnesses, which is also
-     *     the round received for these events reaching consensus now
-     * @param whitening a XOR of all judge hashes in this round
-     */
-    private @NonNull List<EventImpl> findConsensusEvents(
-            @NonNull final List<EventImpl> judges, final long decidedRound, @NonNull final byte[] whitening) {
-        // the newly-consensus events where round received is "round"
-        final List<EventImpl> consensus = search.commonAncestorsOf(judges, this::nonConsensusNonAncient);
-        // event has reached consensus, so set consensus timestamp, and set isConsensus to true
-        consensus.forEach(e -> setIsConsensusTrue(e, decidedRound));
+    private void updateRoundInfo(@NonNull final UpdateResults updateResults) {
+        // When fully dynamic address book is enabled, we will have a map from round to rosterLookup or from round to
+        // roster (and we will create the rosterLookup as needed).
+        final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
+        final long[] nodeIds =
+                rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
+        final long[] weights =
+                rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
 
-        // "consensus" now has all events in history with receivedRound==round
-        // there will never be any more events with receivedRound<=round (not even if the address
-        // book changes)
-        ConsensusSorter.sort(consensus, whitening);
-
-        // Set the consensus number for every event that just became a consensus
-        // event. Add more info about it to the hashgraph. Set event.lastInRoundReceived
-        // to true for the last event in "consensus".
-        setConsensusOrder(consensus);
-
-        // reclaim the memory for the list of received times
-        consensus.forEach(e -> e.setRecTimes(null));
-
-        return consensus;
-    }
-
-    /**
-     * Set event.isConsensus to true, set its consensusTimestamp, and record speed statistics.
-     *
-     * @param event the event to modify, with event.getRecTimes() containing all the times judges
-     *     first saw it
-     * @param receivedRound the round in which event was received
-     */
-    private static void setIsConsensusTrue(@NonNull final EventImpl event, final long receivedRound) {
-        event.setRoundReceived(receivedRound);
-        event.setConsensus(true);
-
-        // list of when e1 first became ancestor of each ufw
-        // these timestamps have been sorted beforehand
-        final List<Instant> times = event.getRecTimes();
-
-        // take middle. If there are 2 middle (even length) then use the 2nd (max) of them
-        event.setPreliminaryConsensusTimestamp(times.get(times.size() / 2));
-    }
-
-    /**
-     * Set event.consensusOrder for every event that just reached consensus, and update the count
-     * numConsensus accordingly. The last event in events is marked as being the last received in
-     * its round. Consensus timestamps are adjusted, if necessary, to ensure that each event in
-     * consensus order is later than the previous one, by enough nanoseconds so that each
-     * transaction can be given a later timestamp than the last.
-     *
-     * @param events the events to set (such that a for(EventImpl e:events) loop visits them in
-     *     consensus order)
-     */
-    private void setConsensusOrder(@NonNull final Collection<EventImpl> events) {
-        for (final EventImpl e : events) {
-            // the minimum timestamp for this event
-            final Instant minTimestamp =
-                    lastConsensusTime == null ? null : ConsensusUtils.calcMinTimestampForNextEvent(lastConsensusTime);
-            // advance this event's consensus timestamp to be at least minTimestamp
-            if (minTimestamp != null && e.getPreliminaryConsensusTimestamp().isBefore(minTimestamp)) {
-                e.setPreliminaryConsensusTimestamp(minTimestamp);
-            }
-
-            e.getBaseEvent()
-                    .setConsensusData(new EventConsensusData(
-                            HapiUtils.asTimestamp(e.getPreliminaryConsensusTimestamp()), numConsensus));
-
-            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent(), transactionOffsetNanos);
-            numConsensus++;
-            consensusMetrics.consensusReached(e);
-        }
+        roundInfo = new RoundInfo(
+                roundInfo.pendingRound() + 1,
+                nodeIds,
+                weights,
+                config.coinFreq(),
+                false,
+                false,
+                config.roundsNonAncient(),
+                NUM_ROUNDS_ROSTER);
+        roundInfoPrev = updateResults.nextRoundInfoPrev();
     }
 
     /**
@@ -664,18 +607,10 @@ public class ConsensusImplDAB implements Consensus {
         return true;
     }
 
-    private boolean nonConsensusNonAncient(@NonNull final EventImpl e) {
-        return !e.isConsensus() && !ancient(e);
-    }
-
     @Override
     public long getFameDecidedBelow() {
         return roundInfo.pendingRound();
     }
-
-    // -----------------------------------------------------------------------------------------------------------------
-    // Functions from SWIRLDS-TR-2020-01, verified by Coq proof
-    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Check if the event is ancient
