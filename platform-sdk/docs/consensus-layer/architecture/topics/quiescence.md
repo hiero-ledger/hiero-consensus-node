@@ -10,8 +10,8 @@ Quiescence is an opt-in feature that pauses self-event creation while a
 network has no work to do, so an idle network stops producing empty events
 and the blocks that would carry them. The specification is
 [HIP-1238](#cross-references) (*Network Quiescence*); this file documents
-what the consensus layer actually does today and points to where the spec
-extends beyond current code.
+what the consensus layer actually does today and where the rest of the
+feature lives outside the consensus layer.
 
 The division of labor is the key thing to hold onto. **Deciding** whether
 to quiesce — counting outstanding user transactions, ignoring block- and
@@ -161,19 +161,6 @@ while `isQuiescing` is true the node stays `ACTIVE` regardless of how long
 it has been since one of its own events reached consensus — which would
 otherwise drop it to `CHECKING`.
 
-HIP-1238 requires that a quiescent node "report a status reflecting the new
-state." Current code does not expose a node-level `PlatformStatus` for
-quiescence; the state is observable only via the event creator's internal
-`EventCreationStatus.QUIESCENCE` and the monitor's `lastQuiescenceCommand`.
-
-[TBD: question for engineer — HIP-1238 §Requirements states a quiescent
-node "shall report a status reflecting the new state," but the current
-code keeps `PlatformStatus` at `ACTIVE` and surfaces quiescence only
-through `EventCreationStatus.QUIESCENCE` and
-`DefaultPlatformMonitor#lastQuiescenceCommand`. Is the requirement
-considered satisfied by those internal signals, or is a distinct
-node-level status still intended?]
-
 ## Exit
 
 The consensus layer leaves quiescence when a new command supersedes
@@ -302,13 +289,3 @@ Pending catalogs:
 - Scenarios — [TBD: SCN-NNN — quiescence entry/exit edge cases (lone-node
   break, quiescence-breaker propagation, status timing on resume) are
   likely scenario seeds].
-
-## Future state
-
-> **Specified, not yet implemented (HIP).** One part of HIP-1238 is not
-> matched by current code:
->
-> - **Quiescence-reflecting status.** The HIP requires a node to report a
->   status reflecting quiescence; current code keeps `PlatformStatus` at
->   `ACTIVE` and exposes quiescence only through internal signals. See
->   [Platform status](#platform-status).
