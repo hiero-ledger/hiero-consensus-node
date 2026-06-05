@@ -1,5 +1,5 @@
 ---
-id: ADR-005
+id: ADR-007
 title: Save the Reconnect State to Disk Before Resuming Event Creation
 topics: [reconnect, platform-status, event-creation, pces, signed-state]
 related:
@@ -15,7 +15,7 @@ deciders:
 curated_by: Kelly Greco (@poulok)
 ---
 
-# ADR-005 — Save the Reconnect State to Disk Before Resuming Event Creation
+# ADR-007 — Save the Reconnect State to Disk Before Resuming Event Creation
 
 ## Context
 
