@@ -608,14 +608,15 @@ public class BlockBufferService {
         final int maxBufferSize = maxBufferedBlocks();
         final boolean backpressureEnabled = isBackpressureEnabled();
         // Soft-limit threshold: acknowledged blocks strictly below this number are eligible for
-        // aggressive pruning, leaving at least `minAckedBlocksToBuffer` of the most recent acked
-        // blocks in the buffer (in practice one more than N, since `highestBlockAcked` is a
-        // watermark that may exceed any individual block number in the buffer). When no blocks
-        // have been acknowledged yet, leave the threshold at Long.MIN_VALUE so the branch is
-        // inert (and to avoid arithmetic underflow on the subtraction). Only read the config when
-        // backpressure is enabled.
+        // aggressive pruning, leaving exactly `minAckedBlocksToBuffer` of the most recent acked
+        // blocks in the buffer. The retained window is `[highestBlockAcked - N + 1, highestBlockAcked]`,
+        // which spans N block numbers; the `+ 1` makes the lower bound exclusive so the count matches
+        // the configured value (e.g. N=0 retains no acked blocks, N=3 retains 3). When no blocks have
+        // been acknowledged yet, leave the threshold at Long.MIN_VALUE so the branch is inert (and to
+        // avoid arithmetic underflow on the subtraction). Only read the config when backpressure is
+        // enabled.
         final long pruneBlockNumberThreshold = (backpressureEnabled && highestBlockAcked != Long.MIN_VALUE)
-                ? highestBlockAcked - bufferConfig().minAckedBlocksToBuffer()
+                ? highestBlockAcked - bufferConfig().minAckedBlocksToBuffer() + 1
                 : Long.MIN_VALUE;
         int numPruned = 0;
         int numChecked = 0;

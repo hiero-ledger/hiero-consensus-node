@@ -1953,10 +1953,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        // Threshold = 10 - 3 = 7; acked blocks strictly below 7 are pruned, leaving blocks 7..10
-        // (one more than `minAckedBlocksToBuffer` because the threshold block itself is retained,
-        // which still satisfies the "at least N" guarantee).
-        assertThat(buffer.keySet()).containsExactlyInAnyOrder(7L, 8L, 9L, 10L);
+        // Threshold = 10 - 3 + 1 = 8; acked blocks strictly below 8 are pruned, leaving blocks 8..10,
+        // i.e. exactly `minAckedBlocksToBuffer` of the most recent acked blocks.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(8L, 9L, 10L);
 
         final PruneResult result = lastPruningResultRef(blockBufferService).get();
         assertThat(result).isNotNull();
@@ -1964,15 +1963,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(result.numBlocksPendingAck).isZero();
         assertThat(result.saturationPercent).isZero();
         assertThat(result.isSaturated).isFalse();
-        assertThat(result.numBlocksPruned).isEqualTo(6);
+        assertThat(result.numBlocksPruned).isEqualTo(7);
 
         verify(blockStreamMetrics, times(10)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(10)).recordBlockOpened();
         verify(blockStreamMetrics, times(10)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(10L);
         verify(blockStreamMetrics).recordBufferSaturation(0.0);
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(6);
-        verify(blockStreamMetrics).recordBufferOldestBlock(7L);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(7);
+        verify(blockStreamMetrics).recordBufferOldestBlock(8L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verifyBlockSizingMetrics();
@@ -2007,7 +2006,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        // Threshold = 3 - 10 = -7; the soft floor is inert for positive block numbers, so only the
+        // Threshold = 3 - 10 + 1 = -6; the soft floor is inert for positive block numbers, so only the
         // hard ceiling drives pruning. Blocks 1 and 2 are evicted to bring size back to maxBlocks=5
         // even though the soft floor (10) wanted to keep them. End state: [3, 4, 5, 6, 7].
         assertThat(buffer.keySet()).containsExactlyInAnyOrder(3L, 4L, 5L, 6L, 7L);
@@ -2054,20 +2053,20 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        // Threshold = 4 - 0 = 4; acked blocks strictly below 4 are pruned. Block 4 (the threshold
-        // itself) is retained as the lone acked survivor, plus the unacked block 5.
-        assertThat(buffer.keySet()).containsExactlyInAnyOrder(4L, 5L);
+        // Threshold = 4 - 0 + 1 = 5; all acked blocks (1..4) are strictly below 5 and pruned, leaving
+        // zero acked blocks. Only the unacked block 5 remains.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(5L);
         final PruneResult result = lastPruningResultRef(blockBufferService).get();
         assertThat(result).isNotNull();
-        assertThat(result.numBlocksPruned).isEqualTo(3);
+        assertThat(result.numBlocksPruned).isEqualTo(4);
 
         verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(5)).recordBlockOpened();
         verify(blockStreamMetrics, times(5)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(4L);
         verify(blockStreamMetrics).recordBufferSaturation(5.0);
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(3);
-        verify(blockStreamMetrics).recordBufferOldestBlock(4L);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(4);
+        verify(blockStreamMetrics).recordBufferOldestBlock(5L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verifyBlockSizingMetrics();
