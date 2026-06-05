@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * This package, {@link org.hiero.consensus.hashgraph.impl.consensus.calculations ...consensus.calculations}, contains
- * a single file that does all the consensus calculations for the Hashgraph consensus algorithm. It is self-contained,
- * with no dependencies other than on the standard Java libraries. There is one class with several
- * inner classes and record types:
+ * This package contains a single file that does all the consensus calculations for the Hashgraph consensus algorithm.
+ * It is self-contained, with no dependencies other than on the standard Java libraries. In this package named
+ * {@link org.hiero.consensus.hashgraph.impl.consensus.calculations ...consensus.calculations}
+ * there is one class with several inner classes and record types:
  * <ul>
  *   <li>{@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph that is needed for the
  *   consensus calculations.
@@ -19,8 +19,10 @@ import java.util.HashMap;
  *   <li> {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the
  *   information about a round that is needed for the consensus calculations.
  * </ul>
- * There are constructors and getters, but no setters. Other than that, there are only two public methods:
- * {@link EventInfo#update EventInfo.update()}, which updates an event with a set of calculations, and
+ * There are constructors and getters, but no setters. Other than that, there are only 3 public methods:
+ * {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()}, which gives the minimum birth round
+ * that is not ancient,
+ * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
  * For arrays passed to the constructors, the caller must never change any array elements.
  * This file implements the equations from the tech report Swirlds-TR-2026-01.
@@ -107,7 +109,7 @@ public final class HashgraphInfo {
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
     public record RoundInfo(
-            long pendingRound, // this record is round information for this round number
+            long pendingRound, // this record is the round information for this round number
             @NonNull long[] nodes, // NodeID for each node
             @NonNull long[] stake,
             int coinInterval,
@@ -116,9 +118,12 @@ public final class HashgraphInfo {
             int targetNumRoundsNonAncient,
             int numRoundsAddressBook) {}
 
-    /** Info about a round that is only available when the previous round reaches consensus. No element can be null. */
+    /**
+     * Info about a round that is only available when the previous round reaches consensus. No element can be null.
+     * For the first round (round 1) the parameters should be {1,false,[],false,0,0,0}, where [] is an empty array.
+     */
     public record RoundInfoPrev(
-            long pendingRound, // this record is round information for this round number, regarding the one before
+            long pendingRound, // this record is the round information for this round number, regarding the one before
             boolean prevJudgeCon1,
             @NonNull EventInfo[] prevJudges,
             boolean prevJudgesCopied,
