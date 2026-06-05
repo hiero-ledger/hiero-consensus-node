@@ -278,6 +278,9 @@ jobs:
           rm grpcurl.tar.gz
           grpcurl --version
 
+      - name: Build Consensus Node Local Artifacts
+        run: ${GRADLE_EXEC} assemble
+
       - name: Run E2E Block Stream Cutover Scenario
         run: |
           set -eo pipefail
