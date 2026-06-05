@@ -932,7 +932,7 @@ deploy_mirror_and_explorer() {
   log "=== Deploying mirror node + explorer ==="
   write_mirror_node_values_override
   if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
-      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress \
+      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger \
       --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     if mirror_node_failed_only_on_restjava; then
       log "Mirror node add failed only on REST Java readiness; required mirror services are up — continuing"
