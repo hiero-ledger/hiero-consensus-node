@@ -117,7 +117,8 @@ public class ProcessUtils {
         return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
                 .map(testOverrides -> Arrays.stream(testOverrides.split(","))
                         .map(override -> override.split("="))
-                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1])))
+                        // Last-wins on duplicate keys so later overrides supersede earlier ones instead of throwing.
+                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1], (first, last) -> last)))
                 .orElse(Map.of());
     }
 

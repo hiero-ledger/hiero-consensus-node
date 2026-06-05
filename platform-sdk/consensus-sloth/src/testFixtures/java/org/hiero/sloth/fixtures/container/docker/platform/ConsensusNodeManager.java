@@ -45,7 +45,6 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.sloth.fixtures.SlothTransactionType;
@@ -139,7 +138,7 @@ public class ConsensusNodeManager {
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
         SlothStateUtils.commitState(state);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         SlothApp.APP_NAME,
