@@ -444,8 +444,7 @@ public class HashgraphInfo {
                 }
             }
 
-            // if this is a new round (or the first round called on this hashgraph), calculate all the functions of
-            // round
+            // if this is a new round (or the first round called on this hashgraph), calculate all HashgraphInfo fields
             if (h.pendingRound != r.pendingRound) {
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
@@ -601,10 +600,8 @@ public class HashgraphInfo {
                             k = y.votingRound;
                         }
                     }
-                    // find w = firstSelfWitness(r,first(s2))
-                    // find p = event in s3 with the max gen
-                    EventInfo w = null;
-                    EventInfo p = null;
+                    EventInfo w = null; // find w = firstSelfWitness(r,first(s2))
+                    EventInfo p = null;  // find p = event in s3 with the max gen
                     boolean s2empty = true;
                     long maxGen = -1;
                     for (EventInfo parent : h.parents) {
