@@ -93,7 +93,7 @@ public class HashgraphInfo {
      * @param roundInfoPrev info about the pending round regarding the previous round
      * @return the minimum birth round that counts as non-ancient
      */
-    static long  minNonAncientRound(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
+    public static long  minNonAncientRound(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
         return Math.max(roundInfoPrev.prevMinNonAncientRound,
                         roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
     }
