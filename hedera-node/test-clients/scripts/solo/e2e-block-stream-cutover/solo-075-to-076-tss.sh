@@ -42,7 +42,6 @@ SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-075-to-076}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
-KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
@@ -118,7 +117,6 @@ SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-e2e-075-to-076.XXXXXX")"
 NUDGE_SCRIPT="${WORK_DIR}/nudge-consensus.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
-CLUSTER_CREATED_THIS_RUN="false"
 RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
@@ -141,14 +139,12 @@ require_cmd() {
 
 cleanup() {
   local ec=$?
-  if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
-    # Only tear down the mirror REST/explorer UI port-forwards when we are actually deleting
-    # the cluster. When the cluster is kept (KEEP_NETWORK=true, incl. on a failed exit), leave
-    # them up so the explorer stays reachable for inspection.
-    [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-    [[ -n "${EXPLORER_INGRESS_PORT_FORWARD_PID}" ]] && kill "${EXPLORER_INGRESS_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-  fi
+  # The network is always kept: this script never tears down the kind cluster, and leaves the
+  # mirror REST / explorer UI port-forwards up so everything stays reachable for inspection
+  # (incl. on a failed exit). In CI the workflow's "Always Destroy Kind Cluster" step handles
+  # teardown at the end of the run; locally, remove it yourself when done with:
+  #   kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+  # Only the throwaway temp work dir is cleaned up here.
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
   exit "${ec}"
 }
@@ -797,7 +793,6 @@ create_cluster() {
 
   log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
-  CLUSTER_CREATED_THIS_RUN="true"
 }
 
 configure_solo() {
@@ -1070,10 +1065,12 @@ deploy_baseline_075
 deploy_mirror_and_explorer
 
 # Deploy the BN mid-chain on the 0.75 baseline so it verifies the mock-sig (RSA WRB) blocks
-# via the bootstrap roster through the 0.76 phase (which keeps mock signatures).
-log "=== Deploying Block Node ${BLOCK_NODE_ID} (will verify mock-sig blocks on the 0.75 baseline) ==="
+# via the bootstrap roster through the 0.76 phase (which keeps mock signatures). We do NOT
+# verify it has blocks pre-upgrade: on this non-jumpstarted network the CN starts at genesis,
+# so the BN's earliestManagedBlock would sit above the CN tip and the BN never ingests. The
+# post-upgrade check below is the BN gate.
+log "=== Deploying Block Node ${BLOCK_NODE_ID} ==="
 deploy_block_node
-verify_block_node_has_blocks 180
 
 upgrade_to_local_076
 

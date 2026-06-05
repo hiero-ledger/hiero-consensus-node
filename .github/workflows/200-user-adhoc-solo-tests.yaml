@@ -428,14 +428,13 @@ jobs:
       - name: Run 0.75 -> 0.76 TSS Upgrade Scenario
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-075-to-076-tss.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-075-to-076-tss.sh"
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               DEPLOY_RELEASE_TAG="${{ inputs.tss-starting-tag || 'v0.75.0-rc.3' }}" \
               UPGRADE_TAG="${{ inputs.tss-upgrade-tag }}" \
-              KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/075-to-076-tss-script.log"
 
       - name: Collect Diagnostics On Failure
@@ -464,11 +463,11 @@ jobs:
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
           fi
 
-      - name: Upload 0.75 -> 0.76 TSS Failure Artifacts
+      - name: Upload 075-to-076 TSS Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 0.75 -> 0.76 TSS Failure Artifacts
+          name: 075-to-076-TSS-Failure-Artifacts
           path: |
             ${{ runner.temp }}/075-to-076-tss-script.log
             ${{ runner.temp }}/075-to-076-tss-diagnostics/**
