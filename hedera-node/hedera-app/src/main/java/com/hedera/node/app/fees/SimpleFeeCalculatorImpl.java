@@ -118,6 +118,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
+        // If fees are turned off globally then return empty FeeResult
+        if (simpleFeeContext.configuration().getConfigData(FeesConfig.class).simpleFeesAreFree()) {
+            return new FeeResult();
+        }
         // Extract primitive counts (no allocations)
         final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
@@ -135,7 +139,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
             result.setNetworkMultiplier(multiplier);
         }
-
+        // If this service is free then return just what we have so far (node + network)
         if (serviceFeeDefinition.free()) {
             return result;
         }

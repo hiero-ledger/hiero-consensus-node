@@ -20,6 +20,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -52,6 +53,7 @@ import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import java.time.Instant;
 import java.util.Map;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -149,9 +151,16 @@ class TransactionModuleTest {
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
+        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
         final var pendingCreationBuilder = new PendingCreationMetadataRef();
         final var result = provideHederaEvmContext(
-                context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
+                context,
+                HederaFunctionality.CONTRACT_CALL,
+                tinybarValues,
+                gasCalculator,
+                hederaOperations,
+                blocks,
+                pendingCreationBuilder);
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.streamBuilder());
