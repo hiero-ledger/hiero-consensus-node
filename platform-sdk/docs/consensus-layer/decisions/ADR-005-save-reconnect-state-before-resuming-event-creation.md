@@ -35,16 +35,27 @@ it crashed, it could not restart from its own disk.
 
 ### The network-wide unrecoverability scenario
 
-Consider a network where reconnects ripple across the membership faster than the normal state-save cadence:
+A reconnect gap only forms when **consensus advances far enough past a node that is falling behind** that the node can
+no longer catch up from gossip and has *fallen* behind — that is what makes the events between the node's last on-disk
+state and the learned state garbage-collected and unreachable. Consensus advances only with a supermajority (more than
+2/3 of the weight) online, so a node can fall behind only while **strictly fewer than 1/3 of the weight is lagging**. If
+half — or any third or more — of the network is lagging at once, consensus *stalls*, the network never moves far enough
+past the lagging nodes for them to fall behind, and they learn nothing newer on reconnect: no gap forms. The dangerous
+case is therefore not a large group dropping at once, but a small minority continuously falling behind while the network
+keeps advancing.
 
-1. One third of the nodes fall behind; consensus stalls until they reconnect. Consensus resumes.
-2. A *different* third falls behind; consensus stalls until they reconnect. Consensus resumes.
-3. The *remaining* third falls behind and reconnects. Consensus resumes.
+Consider a network where a **rolling minority** lags and reconnects:
 
-If all of this happens **between normal state-save boundaries**, every node now carries a PCES gap between its last
-on-disk state and the state it learned via reconnect. No node can restart cleanly from its own disk. A simultaneous
-crash of the whole network would be **unrecoverable** — there is no node anywhere holding a startable on-disk state that
-covers the current consensus position.
+1. At every instant, under 1/3 of the weight is behind and reconnecting, so the supermajority keeps consensus advancing
+   the whole time.
+2. *Which* nodes make up that lagging minority rotates over time.
+3. Within a single state-save interval, the lag rotates across the entire membership — so every node reconnects, each
+   learning a state newer than its last on-disk save, and none reaches the next state-save boundary.
+
+By the end, every node's on-disk state predates its reconnect, so every node carries a PCES gap between its last on-disk
+state and the state it learned. No node can restart cleanly from its own disk. A simultaneous crash of the whole network
+would be **unrecoverable** — there is no node anywhere holding a startable on-disk state that covers the current
+consensus position.
 
 ### The invariant that prevents this
 
@@ -61,7 +72,9 @@ made itself crash resilient again, which means **writing the learned state to di
 
 **After a reconnect, the learner must write the learned state to disk before it resumes creating events.**
 
-This is enforced through the platform status state machine and the event-creation gate:
+This is enforced through the platform status state machine and the event-creation gate (the post-reconnect resumption
+path is described in [`../architecture/topics/reconnect.md`](../architecture/topics/reconnect.md); this ADR records the
+*why* behind it):
 
 - The reconnect path transitions the learner to the `RECONNECT_COMPLETE` status
   (`PlatformStatus.java:47-51`), and **before** beginning the disk save, so the status is guaranteed to be
@@ -148,6 +161,9 @@ See **Decision** above.
 
 ## References
 
+- [`../architecture/topics/reconnect.md`](../architecture/topics/reconnect.md) — the reconnect topic; its
+  *Post-reconnect resumption* section documents the `RECONNECT_COMPLETE` → `CHECKING` transition and the
+  state-written-to-disk gate on event creation that this ADR explains the rationale for.
 - [`../../core/platform-status.md`](../../core/platform-status.md) — the platform status explainer; describes
   `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — how a node replays PCES
