@@ -133,23 +133,59 @@ jobs:
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
 
-      - name: Probe Docker Daemon Config
+      - name: Probe Mirror Blobs
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: |
-          echo "::group::/etc/docker/daemon.json"
-          sudo cat /etc/docker/daemon.json 2>/dev/null || echo "(no daemon.json)"
+          set -u
+          MIRROR=https://hub.mirror.docker.lat.ope.eng.hashgraph.io
+          REPO=library/registry
+          TAG=latest
+          
+          echo "::group::Fetch index"
+          INDEX=$(curl -sS "$MIRROR/v2/$REPO/manifests/$TAG" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json')
+          echo "$INDEX" | jq .
           echo "::endgroup::"
-          echo "::group::docker info"
-          docker info
+          
+          # If it's an index, pick the linux/amd64 manifest; else use it directly.
+          AMD_DIGEST=$(echo "$INDEX" | jq -r '
+            if .manifests then
+              (.manifests[] | select(.platform.os=="linux" and .platform.architecture=="amd64") | .digest)
+            else empty end')
+          if [ -n "${AMD_DIGEST:-}" ]; then
+            echo "::group::Fetch amd64 manifest $AMD_DIGEST"
+            MAN=$(curl -sS "$MIRROR/v2/$REPO/manifests/$AMD_DIGEST" \
+              -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+              -H 'Accept: application/vnd.docker.distribution.manifest.v2+json')
+          else
+            MAN="$INDEX"
+          fi
+          echo "$MAN" | jq .
           echo "::endgroup::"
-          echo "::group::RegistryConfig"
-          docker system info --format '{{json .RegistryConfig}}' | jq .
+          
+          echo "::group::Probe every blob"
+          # config + layer digests with expected sizes from the manifest
+          echo "$MAN" | jq -r '
+            (.config // empty | "config\t\(.digest)\t\(.size)"),
+            (.layers[]? | "layer\t\(.digest)\t\(.size)")' \
+          | while IFS=$'\t' read -r kind digest size; do
+              # follow redirects, write body to /dev/null, capture actual bytes received
+              out=$(curl -sS -L -o /dev/null \
+                -w "http=%{http_code} bytes=%{size_download} cl=%{size_header} time=%{time_total}s" \
+                "$MIRROR/v2/$REPO/blobs/$digest")
+              flag=""
+              # extract bytes downloaded
+              got=$(echo "$out" | sed -n 's/.*bytes=\([0-9]*\).*/\1/p')
+              if [ "$got" != "$size" ]; then flag=" <-- MISMATCH (expected $size)"; fi
+              printf "%-6s %s  size=%s  %s%s\n" "$kind" "$digest" "$size" "$out" "$flag"
+            done
           echo "::endgroup::"
-          echo "::group::Mirror reachability from runner"
-          curl -sS -o /dev/null -w "mirror /v2/  HTTP=%{http_code}  total=%{time_total}s\n" \
-            https://hub.mirror.docker.lat.ope.eng.hashgraph.io/v2/ || true
-          curl -sS -o /dev/null -w "mirror manifest  HTTP=%{http_code}  total=%{time_total}s\n" \
-            https://hub.mirror.docker.lat.ope.eng.hashgraph.io/v2/library/registry/manifests/latest || true
+          
+          echo "::group::Probe the same image via raw docker pull"
+          docker pull registry:latest || true
           echo "::endgroup::"
 
       - name: Setup Local Docker Registry
