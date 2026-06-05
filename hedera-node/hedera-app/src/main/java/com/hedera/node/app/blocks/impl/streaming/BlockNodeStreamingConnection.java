@@ -1161,8 +1161,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          */
         private boolean doWork() {
             connStats.recordHeartbeat(System.currentTimeMillis());
-            // Re-emit the active connection IP metric so it is available on every metrics scrape
-            blockStreamMetrics.recordActiveConnectionIp(ipV4AddressAsInt());
 
             switchBlockIfNeeded();
 

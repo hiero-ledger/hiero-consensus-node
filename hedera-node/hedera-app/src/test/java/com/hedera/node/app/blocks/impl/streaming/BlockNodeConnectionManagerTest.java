@@ -1414,6 +1414,40 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testUpdateConnectionIfNeeded_recordsActiveConnectionIpWhenConnectionActive() throws Throwable {
+        // a healthy active connection exists with a known IP address (192.168.1.1 -> 3232235777)
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final StreamingConnectionStatistics activeConnStats = mock(StreamingConnectionStatistics.class);
+        when(activeConnStats.lastHeartbeatMillis())
+                .thenReturn(Instant.now().plusSeconds(2).toEpochMilli());
+        when(activeConnection.connectionStatistics()).thenReturn(activeConnStats);
+        when(activeConnection.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
+        when(activeConnection.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(90));
+        when(activeConnection.ipV4AddressAsInt()).thenReturn(3232235777L);
+        activeConnectionRef().set(activeConnection);
+        // healthy buffer and no configuration changes so the active connection is left in place
+        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+
+        invoke_updateConnectionIfNeeded();
+
+        // the gauge should report the active connection's IP address
+        verify(metrics).recordActiveConnectionIp(3232235777L);
+    }
+
+    @Test
+    void testUpdateConnectionIfNeeded_recordsZeroIpWhenNoActiveConnection() throws Throwable {
+        // no active connection exists
+        activeConnectionRef().set(null);
+        // healthy buffer and no configured block nodes so no new connection is selected
+        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+
+        invoke_updateConnectionIfNeeded();
+
+        // with no active connection the gauge must transition to 0 rather than retaining a stale IP
+        verify(metrics).recordActiveConnectionIp(0L);
+    }
+
+    @Test
     void testUpdateConnectionIfNeeded_updatedConfigOnly() throws Throwable {
         // set active connection that is healthy
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig("localhost", 1234, 1);

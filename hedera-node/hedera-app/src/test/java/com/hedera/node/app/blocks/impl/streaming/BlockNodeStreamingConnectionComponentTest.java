@@ -382,7 +382,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -468,7 +467,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -627,7 +625,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -743,7 +740,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed(CloseReason.SHUTDOWN);
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -870,7 +866,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed(CloseReason.SHUTDOWN);
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1097,7 +1092,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
