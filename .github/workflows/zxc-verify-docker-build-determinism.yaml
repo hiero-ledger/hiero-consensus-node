@@ -66,7 +66,7 @@ jobs:
 
     services:
       registry:
-        image: registry:latest
+        image: registry@sha256:85347ed2ecde64161c7a4788a4d7d3dcc9d6f86f7be95834022e3c6a423a945a # v3.1.1
         ports:
           - 5000:5000
 
@@ -238,7 +238,7 @@ jobs:
 
     services:
       registry:
-        image: registry:latest
+        image: registry@sha256:85347ed2ecde64161c7a4788a4d7d3dcc9d6f86f7be95834022e3c6a423a945a # v3.1.1
         ports:
           - 5000:5000
 
