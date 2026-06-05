@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -1464,6 +1465,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNode node = mock(BlockNode.class);
         when(node.configuration()).thenReturn(nodeConfig);
         when(node.isStreamingCandidate()).thenReturn(false);
+        // terminating the node ultimately closes its connection, which in production calls back into the
+        // manager via notifyConnectionClosed; drive that real callback so the active connection reference is
+        // cleared by production code rather than by the test poking the field directly
+        doAnswer(inv -> {
+                    connectionManager.notifyConnectionClosed(activeConnection);
+                    return null;
+                })
+                .when(node)
+                .onTerminate(CloseReason.CONFIG_UPDATE);
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
         // the active configuration currently has a single block node
         activeConfigRef().set(new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig)));
@@ -1472,14 +1482,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(blockNodeConfigService.latestConfiguration())
                 .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
 
-        // tick 1: the removal is detected and the node is told to terminate its connection; while the
-        // connection is still active the gauge reports its IP address
+        // tick 1: the removal is detected and the node terminates its connection; the resulting (real)
+        // notifyConnectionClosed callback clears the active connection reference. The connection was still
+        // active at the start of the tick, so the gauge reports its IP address.
         invoke_updateConnectionIfNeeded();
         verify(node).onTerminate(CloseReason.CONFIG_UPDATE);
         verify(metrics).recordActiveConnectionIp(3232235777L);
-
-        // simulate the connection actually closing (in production notifyConnectionClosed clears the active ref)
-        activeConnectionRef().set(null);
+        // the active connection reference was cleared by production code, not by the test
+        assertThat(activeConnectionRef()).hasNullValue();
 
         // tick 2: with no active connection remaining, the gauge transitions to 0 instead of keeping the old IP
         invoke_updateConnectionIfNeeded();
