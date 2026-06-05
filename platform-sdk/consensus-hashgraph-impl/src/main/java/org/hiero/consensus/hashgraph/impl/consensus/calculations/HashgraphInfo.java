@@ -17,37 +17,31 @@ import java.util.HashMap;
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
  * <p>
- * A {@link EventInfo EventInfo} should be instantiated for each event. The update methods for all the events are
- * called to calculate consensus. At some time after an event becomes
+ * A {@link EventInfo EventInfo} should be instantiated for each event. The update method is called on all the events
+ * to calculate consensus. At some time after an event becomes
  * ancient, it should have its {@link EventInfo#clear EventInfo.clear} method called to clean up memory by erasing
- * all its references to even older events. This can happen immediately after it becomes ancient, or
+ * all its references to older events. This can happen immediately after it becomes ancient, or
  * many rounds later when it expires, or at any other time after becoming ancient.
  * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
- * It should instantiate a {@link RoundInfo RoundInfo} for the pending round (the round for which consensus is
- * currently being calculated). It should instantiate a {@link RoundInfo RoundInfoCore} for each of the next several
- * rounds. After a round reaches consensus, its {@link RoundInfoPrev RoundInfoPrev} is calculated, which can be combined with the
- * {@link RoundInfo RoundInfoCore} to form the {@link RoundInfo RoundInfo} for the next round.
+ * It should instantiate a {@link RoundInfo RoundInfo} and {@link RoundInfoPrev RoundInfoPrev} for the pending round
+ * (the round for which consensus is currently being calculated). After a round reaches consensus, its
+ * {@link RoundInfoPrev RoundInfoPrev} is calculated and returned by {@link EventInfo#update EventInfo.update()}.
  * <p>
- * The network's overall consensus state should include the {@link RoundInfo RoundInfo} for the pending round
- * (the round currently being calculated), and the {@link RoundInfo RoundInfoCore}  for the next few rounds.
+ * The network's overall consensus state should include the {@link RoundInfoPrev RoundInfoPrev} for the pending round
+ * (the round currently being calculated), and the {@link RoundInfo RoundInfo} for it and the next few rounds.
  * An implementation might also include a "roster" for these and for all the non-ancient previous rounds. The roster
  * might contain info such as the public keys for all the nodes, used to verify their signatures. This class doesn't
- * use rosters. It only uses the {@link RoundInfo RoundInfo}, and its two parts.
- * <p>
- * For a hashgraph, this class should be instantiated once. The {@link EventInfo#update EventInfo.update} method should
- * be called on each event for each round, according to the schedule described in the comments
- * for the update method.
+ * use rosters. It only uses the two round info records.
  * <p>
  * If a call to {@link EventInfo#update EventInfo.update} returns a non-null value, then the event caused consensus to
  * be reached for that round (a "keystone event"). In that case, it returns a record that contains
  * the list of all the events that reached consensus in that round. Which might be an empty list if none reached
- * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev}  record, which should be used to build the
- * {@link RoundInfo RoundInfo} for the next round.
+ * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
+ * calls to update.
  */
 public class HashgraphInfo {
-    // these fields are used in EventInfo.update and are updated the first time it is called
-    // with any given pending round.
+    // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long pendingRound;
     private int numNodes;
     private long[] nodeIDs;
@@ -60,12 +54,66 @@ public class HashgraphInfo {
     private int parentsMaxSize = 0; // largest parents has ever been (used to recover from massive branching)
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
-
     private boolean roundDecided;
 
-    /**
-     * info about a round that might be known multiple rounds in advance
-     */
+    // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
+
+    /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
+
+    public long getPendingRound() {
+        return pendingRound;
+    }
+
+    public int getNumNodes() {
+        return numNodes;
+    }
+
+    public long[] getNodeIDs() {
+        return nodeIDs;
+    }
+
+    public HashMap<Long, Integer> getNodeIdToIndex() {
+        return nodeIdToIndex;
+    }
+
+    public long getTotalStake() {
+        return totalStake;
+    }
+
+    public long getMinNonAncientRound() {
+        return minNonAncientRound;
+    }
+
+    public int getVoteD() {
+        return voteD;
+    }
+
+    public ArrayList<EventInfo> getParents() {
+        return parents;
+    }
+
+    public EventInfo getSelfParent() {
+        return selfParent;
+    }
+
+    public int getParentsMaxSize() {
+        return parentsMaxSize;
+    }
+
+    public boolean isNodesChanged() {
+        return nodesChanged;
+    }
+
+    public int getCurrMark() {
+        return currMark;
+    }
+
+    public boolean isRoundDecided() {
+        return roundDecided;
+    }
+    */
+
+    /** Info about a round that might be known multiple rounds in advance. No element can be null. */
     public record RoundInfo(
             long pendingRound, // this record is round information for this round number
             long[] nodes, // NodeID for each node
@@ -76,9 +124,7 @@ public class HashgraphInfo {
             int targetNumRoundsNonAncient,
             int numRoundsAddressBook) {}
 
-    /**
-     * info about a round that is only available when the previous round reaches consensus
-     */
+    /** Info about a round that is only available when the previous round reaches consensus. No element can be null. */
     public record RoundInfoPrev(
             long pendingRound, // this record is round information for this round number, regarding the one before
             boolean prevJudgeCon1,
@@ -88,71 +134,9 @@ public class HashgraphInfo {
             long prevNumCons,
             long prevMinJudgeBirthRound) {}
 
-    //    /**
-    //     * The round info with info about nodes, weights, previous judges, per-round
-    //     * setting, etc. The consensus state should include the full {@link xxxxRoundInfo RoundInfo} for the
-    //     * pending round, and the {@link RoundInfoCore xxxxRoundInfoCore} portion of it for the next few rounds.
-    //     * Pass this to {@link EventInfo#update ExxxxventInfo.update} when
-    //     * {@link RoundInfoCore#pendingRound xxxxRoundInfoCore.pendingRound} matches the pending round, and
-    //     * {@link RoundInfoPrev xxxxRoundInfoPrev} was returned by reaching consensus for the round before that.
-    //     */
-
-    /**
-     * true iff n is a supermajority of the total stake
-     */
+    /** true iff n is a supermajority of the total stake*/
     private boolean supermajority(long n) {
         return n > 2 * totalStake / 3;
-    }
-
-    /**
-     * Given the round info for the pending round, set the {@link EventInfo#isConsensus EventInfo.isConsensus} field
-     * for every non-ancient event that reached consensus in previous rounds. This is only needed after a restart or
-     * reconnect. In normal operation, those events will already have been marked, when they reached consensus.
-     *
-     * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
-     * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
-     */
-    public void setPrevIsConsensus(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
-        int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
-        boolean firstJudge = true;
-
-        if (roundInfoPrev.prevJudges == null || roundInfoPrev.prevJudges.length == 0) {
-            throw new IllegalArgumentException("roundInfoPrev.prevJudges has no judges (null or empty)");
-        }
-        if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
-            throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound");
-        }
-        if (pendingRound != 0) {
-            throw new IllegalArgumentException("setPrevIsConsensus() was called after EventInfo.update() was called");
-        }
-        
-        /**/
-        // calculate minNonAncientRound
-        for (EventInfo judge : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
-            EventInfo x = judge;
-            currMark++;
-            x.searchChild = null; // backtracking up from this x means the search is done
-            do { // depth-first search starting from this judge
-                x.searchMark = currMark;
-                x.searchParent = -1; // descend through the first parent first
-                x.searchCount = firstJudge ? 1 : x.searchCount + 1; // x is ancestor of this many judges so far
-                if (x.searchCount == targetCount) {
-                    x.isConsensus = true; // SUCCESS: found an event that is an ancestor of the target number of judges
-                }
-                EventInfo xNew = null;
-                // while xNew is bad (null, ancient, or marked), search/backtrack until a good one is found or done
-                while (x != null
-                        && (xNew == null || xNew.birthRound < minNonAncientRound || xNew.searchMark == currMark)) {
-                    while (x != null && x.searchParent == x.parentsSigned.length - 1) {
-                        x = x.searchChild; // backtrack up the graph until an event found with an unexplored parent
-                    }
-                    x.searchParent++;
-                    xNew = (x == null) ? null : x.parentsSigned[x.searchParent];
-                }
-                x = xNew; // move to the new event that was good
-            } while (x != null); // once we backtrack to null, the search from this judge is done
-            firstJudge = false;
-        }
     }
 
     /**
@@ -188,6 +172,31 @@ public class HashgraphInfo {
         private int searchCount; // number of judges that are descendents of this event
         private int searchParent; // index of the parent of this event currently being searched
         private EventInfo searchChild; // the child of this event through which it was reached
+
+        /**
+         * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
+         * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
+         * in the array, it must be in the first position. It is ok if the parents array is missing some or all of the
+         * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
+         * then it is ok to pass in null, or an array of all nulls, or an empty array.
+         *
+         * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
+         * @param creator     the nodeID of the creator of this event
+         * @param timeCreated when this event was created, as claimed by its creator node
+         * @param parents     array of parents, in the same order as in the signed event that is gossiped.
+         */
+        public EventInfo(
+                @NonNull HashgraphInfo hashgraph,
+                long creator,
+                @NonNull Instant timeCreated,
+                long birthRound,
+                EventInfo[] parents) {
+            this.hashgraph = hashgraph;
+            this.creatorNodeID = creator;
+            this.timeCreated = timeCreated;
+            this.birthRound = birthRound;
+            this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
+        }
 
         /**
          * True iff this event has reached consensus. (If false, it may still reach consensus later).
@@ -307,31 +316,6 @@ public class HashgraphInfo {
         */
 
         /**
-         * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
-         * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
-         * in the array, it must be in the first position. It is ok if the parents array is missing some or all of the
-         * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
-         * then it is ok to pass in null, or an array of all nulls, or an empty array.
-         *
-         * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
-         * @param creator     the nodeID of the creator of this event
-         * @param timeCreated when this event was created, as claimed by its creator node
-         * @param parents     array of parents, in the same order as in the signed event that is gossiped.
-         */
-        public EventInfo(
-                @NonNull HashgraphInfo hashgraph,
-                long creator,
-                @NonNull Instant timeCreated,
-                long birthRound,
-                EventInfo[] parents) {
-            this.hashgraph = hashgraph;
-            this.creatorNodeID = creator;
-            this.timeCreated = timeCreated;
-            this.birthRound = birthRound;
-            this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
-        }
-
-        /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
          * but only after it is ancient. It also sets to null the reference to the hashgraph, so after being cleared,
          * any future call to update will return null. This must be called eventually on every event, to allow the
@@ -370,11 +354,8 @@ public class HashgraphInfo {
          * When starting with an empty hashgraph after a reconnect or restart, there will be a period before all
          * the previous judges have been added to the hashgraph. Do not call this update function
          * during that period. Once all the judges in {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges}
-         * have been added to the hashgraph, then call
-         * {@link HashgraphInfo#setPrevIsConsensus HashgraphInfo.setPrevIsConsensus} once.
-         * Then call this update call update on
-         * all the judges that were just added, and their descendents. Stop updating them if one of those calls
-         * reaches consensus.
+         * have been added to the hashgraph, then call update on all the judges that were just added, and their
+         * descendents. Stop updating them if one of those calls reaches consensus.
          * <p>
          * This is sometimes called on a batch of events, because it is the start of a new round,
          * or because the last of the previous judges was finally added after a restart. For such a
@@ -425,6 +406,43 @@ public class HashgraphInfo {
                 throw new IllegalArgumentException("roundInfo.pendingRound didn't match the last call, nor increment by 1");
             }
 
+
+            // If this is the first time update has ever been called on an event for this hashgraph, and round > 1,
+            // then set isConsensus for all the ancestors of the previous round's judges, according to judgeCons1 for it
+            if (h.pendingRound == 0 && roundInfo.pendingRound > 1) {
+                // events reach consensus when they are an ancestor of this many judges
+                int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
+                // mark used while searching from the first judge (later judges' marks are greater)
+                int firstMark = h.currMark + 1;
+                // calculate h.minNonAncientRound /**/
+                for (EventInfo e : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
+                    h.currMark++;
+                    e.searchChild = null; // backtracking up from this e means the search is done
+                    do { // depth-first search starting from this judge
+                        // e is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
+                        e.searchCount = (e.searchMark < firstMark) ? 1 : e.searchCount + 1;
+                        e.searchMark = h.currMark;
+                        e.searchParent = -1; // descend through the first parent first (index 0)
+                        if (e.searchCount == targetCount) {
+                            e.isConsensus = true; // SUCCESS: found an event that is an ancestor of enough judges
+                        }
+                        EventInfo eNew = null;
+                        // while eNew is bad (null / ancient / marked), search until a good one is found or done
+                        while (e != null && (eNew == null
+                                || eNew.birthRound < h.minNonAncientRound
+                                || eNew.searchMark == h.currMark)) {
+                            while (e != null && e.searchParent >= e.parentsSigned.length - 1) {
+                                e = e.searchChild; // backtrack up until an event is found with an unexplored parent
+                            }
+                            if (e != null) {
+                                e.searchParent++;
+                            }
+                            eNew = (e == null) ? null : e.parentsSigned[e.searchParent];
+                        }
+                        e = eNew; // move to the new event that was good
+                    } while (e != null); // once we backtrack to null, the search from this judge is done
+                }
+            }
 
             // if this is a new round (or the first round called on this hashgraph), calculate all the functions of
             // round

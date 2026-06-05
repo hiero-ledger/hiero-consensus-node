@@ -344,7 +344,6 @@ public class ConsensusImplDAB implements Consensus {
                         roundInfo.pendingRound(), false, judgeMemos, false,
                         config.roundsNonAncient(), numConsensus - 1, minJudgeBirthRound);
 
-                hashgraphInfo.setPrevIsConsensus(roundInfo, roundInfoPrev);
                 results = updateRecentEvents();
             } else {
                 // this is the most common case, we are not looking for init judges so we simply
