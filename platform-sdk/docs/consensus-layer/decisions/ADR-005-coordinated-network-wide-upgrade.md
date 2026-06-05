@@ -32,8 +32,8 @@ function the network is computing.
 
 State and blocks are agreed across the network. If more than a threshold of the network disagrees
 on the resulting state or blocks, the divergence is **catastrophic** — the network can no longer
-agree on what happened. Any upgrade mechanism must therefore guarantee that, at every block, all
-nodes are computing with the **same** handling logic. The same constraint extends to the consensus
+agree on what happened. Any upgrade mechanism must therefore guarantee that, at every block, at least a super majority of the network (>2/3)
+is computing with the **same** handling logic. The same constraint extends to the consensus
 layer: the logic that builds the hashgraph and derives ordering must also be identical across
 nodes at any given point.
 
