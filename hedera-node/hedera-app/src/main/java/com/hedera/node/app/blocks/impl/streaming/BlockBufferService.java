@@ -607,27 +607,36 @@ public class BlockBufferService {
         final long highestBlockAcked = highestAckedBlockNumber.get();
         final int maxBufferSize = maxBufferedBlocks();
         final boolean backpressureEnabled = isBackpressureEnabled();
+
+        // Create a sorted snapshot of keys so the pruning order is oldest-first
+        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(orderedBuffer); // ascending (oldest first)
+
         // Soft-limit threshold: acknowledged blocks strictly below this number are eligible for
-        // aggressive pruning, leaving exactly `minAckedBlocksToBuffer` of the most recent acked
-        // blocks in the buffer. The retained window is `[highestBlockAcked - N + 1, highestBlockAcked]`,
-        // which spans N block numbers; the `+ 1` makes the lower bound exclusive so the count matches
-        // the configured value (e.g. N=0 retains no acked blocks, N=3 retains 3). When no blocks have
-        // been acknowledged yet, leave the threshold at Long.MIN_VALUE so the branch is inert (and to
-        // avoid arithmetic underflow on the subtraction). Only read the config when backpressure is
-        // enabled.
-        final long pruneBlockNumberThreshold = (backpressureEnabled && highestBlockAcked != Long.MIN_VALUE)
-                ? highestBlockAcked - bufferConfig().minAckedBlocksToBuffer() + 1
-                : Long.MIN_VALUE;
+        // aggressive pruning, leaving exactly `minAckedBlocksToBuffer` of the most recent acked blocks
+        // in the buffer. Anchor the retention window on the most recent acked block that is actually
+        // present in the buffer: `highestBlockAcked` is a high-water mark that can run ahead of the
+        // highest buffered block (e.g. an ack for a block that was never buffered), and anchoring on
+        // the raw watermark in that case would prune one genuinely-retained block. The retained window
+        // is then `[anchor - N + 1, anchor]`, which spans N block numbers; the `+ 1` makes the lower
+        // bound exclusive so the count matches the configured value (e.g. N=0 retains no acked blocks,
+        // N=3 retains 3). When no blocks have been acknowledged yet, or the buffer is empty, leave the
+        // threshold at Long.MIN_VALUE so the branch is inert (and the subtraction cannot underflow).
+        // Only read the config when backpressure is enabled.
+        final long pruneBlockNumberThreshold;
+        if (backpressureEnabled && highestBlockAcked != Long.MIN_VALUE && !orderedBuffer.isEmpty()) {
+            final long highestAckedInBuffer = Math.min(highestBlockAcked, orderedBuffer.get(orderedBuffer.size() - 1));
+            pruneBlockNumberThreshold = highestAckedInBuffer - bufferConfig().minAckedBlocksToBuffer() + 1;
+        } else {
+            pruneBlockNumberThreshold = Long.MIN_VALUE;
+        }
+
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
         int numInProgress = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
-
-        // Create a sorted snapshot of keys so the pruning order is oldest-first
-        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
-        Collections.sort(orderedBuffer); // ascending (oldest first)
 
         int size = blockBuffer.size();
         for (final long blockNumber : orderedBuffer) {
