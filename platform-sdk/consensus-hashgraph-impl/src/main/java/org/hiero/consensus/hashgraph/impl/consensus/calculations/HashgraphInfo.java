@@ -12,11 +12,12 @@ import java.util.HashMap;
  * with no dependencies other than on the standard Java libraries. There is one class with several
  * inner classes and record types:
  * <ul>
- *   <li>{@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph that is needed for the consensus
- * calculations.
- *   <li> {@link EventInfo EventInfo} has all the information about an event that is needed for the consensus calculations.
- *   <li> {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the information about a
- * round that is needed for the consensus calculations.
+ *   <li>{@link HashgraphInfo HashgraphInfo} has all the information about the hashgraph that is needed for the
+ *   consensus calculations.
+ *   <li> {@link EventInfo EventInfo} has all the information about an event that is needed for the
+ *   consensus calculations.
+ *   <li> {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the
+ *   information about a round that is needed for the consensus calculations.
  * </ul>
  * There are constructors and getters, but no setters. Other than that, there are only two public methods:
  * {@link EventInfo#update EventInfo.update()}, which updates an event with a set of calculations, and
