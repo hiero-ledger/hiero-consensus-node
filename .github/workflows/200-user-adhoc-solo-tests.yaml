@@ -20,8 +20,17 @@ on:
         default: "jumpstart"
         options:
           - "jumpstart"
+          - "jumpstart-075"
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
+      cluster-target:
+        description: "[All] Where to run the scenario. kind = ephemeral Kind cluster on the runner; remote-sdlt-n6 = pre-allocated remote cluster solo-sdlt-n6 (via Teleport). Remote is fully wired/validated for jumpstart-075."
+        required: true
+        type: choice
+        default: "kind"
+        options:
+          - "kind"
+          - "remote-sdlt-n6"
       jumpstart-starting-tag:
         description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.74.0."
         required: false
@@ -29,6 +38,16 @@ on:
         default: ""
       jumpstart-upgrade-tag:
         description: "[Jumpstart] Consensus-node release tag to upgrade the network to. Leave blank to build and upgrade to the local build from the checked-out ref."
+        required: false
+        type: string
+        default: ""
+      jumpstart-075-starting-tag:
+        description: "[Jumpstart-075] Consensus-node release tag for the initial network deployment. Leave blank to default to v0.74.0."
+        required: false
+        type: string
+        default: ""
+      jumpstart-075-upgrade-tag:
+        description: "[Jumpstart-075] Consensus-node release tag to upgrade to. Leave blank to default to v0.75.0-rc.3."
         required: false
         type: string
         default: ""
@@ -50,6 +69,7 @@ defaults:
 permissions:
   contents: read
   actions: read
+  id-token: write # required for Teleport OIDC auth when cluster-target == remote-sdlt-n6
 
 env:
   SOLO_CLUSTER_NAME: "solo"
@@ -71,9 +91,14 @@ jobs:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
-    if: ${{ inputs.scenario == 'jumpstart' }}
-    runs-on: hl-cn-rpc-relay-lin-lg
+    if: ${{ inputs.scenario == 'jumpstart' || inputs.scenario == 'jumpstart-075' }}
+    # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
+    env:
+      # On the shared remote cluster the network lives in the solo-sdlt-n6 namespace; on Kind it is
+      # the default "solo". This job-level override also applies to the diagnostics/cleanup steps.
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -106,6 +131,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
+        if: ${{ inputs.cluster-target == 'kind' }}
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
@@ -114,6 +140,38 @@ jobs:
           kubectl_version: v1.32.2
           verbosity: 3
           wait: 120s
+
+      # Remote-only: Kind normally provides kubectl, so install it explicitly here.
+      - name: Install KubeCtl
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.32.5
+
+      - name: Install Teleport Client
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
         run: |
@@ -131,14 +189,20 @@ jobs:
         run: |
           set -eo pipefail
           helm version --short
-          kind --version
+          if command -v kind >/dev/null 2>&1; then kind --version; fi
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
-        if: ${{ inputs.jumpstart-upgrade-tag == '' }}
+        # jumpstart-075 always upgrades to a release tag, so it never needs a local build.
+        if: ${{ inputs.scenario == 'jumpstart' && inputs.jumpstart-upgrade-tag == '' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
+        env:
+          INITIAL_RELEASE_TAG: ${{ inputs.scenario == 'jumpstart-075' && (inputs.jumpstart-075-starting-tag || 'v0.74.0') || (inputs.jumpstart-starting-tag || 'v0.74.0') }}
+          UPGRADE_TAG: ${{ inputs.scenario == 'jumpstart-075' && (inputs.jumpstart-075-upgrade-tag || 'v0.75.0-rc.3') || inputs.jumpstart-upgrade-tag }}
+          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
@@ -146,8 +210,11 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}" \
-              UPGRADE_TAG="${{ inputs.jumpstart-upgrade-tag }}" \
+              INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG}" \
+              UPGRADE_TAG="${UPGRADE_TAG}" \
+              CLUSTER_TARGET="${CLUSTER_TARGET}" \
+              KUBE_CONTEXT="${KUBE_CONTEXT}" \
+              SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
@@ -187,8 +254,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted; on remote the
+      # script's own KEEP_NETWORK=false cleanup tears down just the consensus network.
       - name: Always Destroy Kind Cluster
-        if: ${{ always() }}
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
         run: |
           kind delete cluster -n "wrb-jumpstart"
@@ -198,10 +267,11 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
-    runs-on: hl-cn-rpc-relay-lin-lg
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 180
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -234,6 +304,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
+        if: ${{ inputs.cluster-target == 'kind' }}
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
@@ -242,6 +313,38 @@ jobs:
           kubectl_version: v1.32.2
           verbosity: 3
           wait: 120s
+
+      # Remote-only: Kind normally provides kubectl, so install it explicitly here.
+      - name: Install KubeCtl
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.32.5
+
+      - name: Install Teleport Client
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
         run: |
@@ -259,7 +362,7 @@ jobs:
         run: |
           set -eo pipefail
           helm version --short
-          kind --version
+          if command -v kind >/dev/null 2>&1; then kind --version; fi
           kubectl version --client=true
 
       - name: Install xxd
@@ -279,6 +382,9 @@ jobs:
           grpcurl --version
 
       - name: Run E2E Block Stream Cutover Scenario
+        env:
+          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
@@ -287,6 +393,9 @@ jobs:
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.3' }}" \
+              CLUSTER_TARGET="${CLUSTER_TARGET}" \
+              KUBE_CONTEXT="${KUBE_CONTEXT}" \
+              SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 4 | tee "${RUNNER_TEMP}/cutover-script.log"
 
@@ -328,8 +437,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
-        if: ${{ always() }}
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
@@ -339,8 +449,10 @@ jobs:
     needs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'wrb-streaming' }}
-    runs-on: hl-cn-rpc-relay-lin-lg
+    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
+    env:
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -364,6 +476,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
+        if: ${{ inputs.cluster-target == 'kind' }}
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
@@ -372,6 +485,38 @@ jobs:
           kubectl_version: v1.32.2
           verbosity: 3
           wait: 120s
+
+      # Remote-only: Kind normally provides kubectl, so install it explicitly here.
+      - name: Install KubeCtl
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.32.5
+
+      - name: Install Teleport Client
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
         run: |
@@ -395,7 +540,7 @@ jobs:
         run: |
           set -eo pipefail
           helm version --short
-          kind --version
+          if command -v kind >/dev/null 2>&1; then kind --version; fi
           grpcurl --version
           kubectl version --client=true
 
@@ -417,6 +562,9 @@ jobs:
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Streaming to Block Node Scenario
+        env:
+          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-block-node-streaming.sh"
@@ -427,6 +575,9 @@ jobs:
               BLOCK_NODE_RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
               USE_LOCAL_BUILD="${{ inputs.streaming-tag == '' && 'true' || 'false' }}" \
+              CLUSTER_TARGET="${CLUSTER_TARGET}" \
+              KUBE_CONTEXT="${KUBE_CONTEXT}" \
+              SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
 
@@ -468,8 +619,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
-        if: ${{ always() }}
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"

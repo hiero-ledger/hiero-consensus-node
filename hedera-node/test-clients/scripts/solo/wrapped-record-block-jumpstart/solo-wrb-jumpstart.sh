@@ -96,12 +96,29 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
 export SOLO_CLUSTER_NAME="wrb-jumpstart"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
-export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
-# Dedicated deployment name so this scenario never collides with other Solo deployments
-# (e.g. the shared "solo-deployment" used by the e2e cutover work). Hard-coded like the
-# cluster name; the kind cluster is reset each run, so the pre-create delete below removes
-# this deployment from local config cleanly on re-runs.
-export SOLO_DEPLOYMENT="wrb-jumpstart"
+
+# Cluster target: "kind" (default, ephemeral local cluster created/destroyed by this script) or
+# "remote" (a pre-allocated cluster reached via an already-current kubectl context, e.g. Teleport).
+# On remote we adopt the proven CITR conventions (context/cluster-ref/deployment/setup-namespace)
+# so the network lands on the shared cluster the same way the longevity tooling does.
+CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
+  CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
+  export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-${SOLO_NAMESPACE}-test}"
+elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
+  CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
+  # Dedicated deployment name so this scenario never collides with other Solo deployments
+  # (e.g. the shared "solo-deployment" used by the e2e cutover work). The kind cluster is reset
+  # each run, so the pre-create delete below removes this deployment from local config cleanly.
+  export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-wrb-jumpstart}"
+else
+  echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
+  exit 1
+fi
 
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
@@ -142,6 +159,9 @@ MIRROR_REST_URL="${MIRROR_REST_URL:-}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_SERVICE_NAME="${MINIO_SERVICE_NAME:-}"
+# Name of the MinIO server container to exec into. "minio" works for Solo's bundled MinIO (kind)
+# and for MinIO-operator tenant pods (remote). Override if the remote tenant uses a different name.
+MINIO_CONTAINER="${MINIO_CONTAINER:-minio}"
 
 GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated}"
 RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${GENERATED_DIR}/recordStreams}"
@@ -211,12 +231,15 @@ cleanup() {
     kill "${EXPLORER_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   fi
   if [[ "${KEEP_NETWORK}" != "true" && ${exit_code} -eq 0 ]]; then
-    log "KEEP_NETWORK=false, destroying Solo resources and kind cluster"
+    log "KEEP_NETWORK=false, destroying Solo resources (and the kind cluster when CLUSTER_TARGET=kind)"
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
-    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+    # Never delete the shared remote cluster; only an ephemeral kind cluster is torn down here.
+    if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+      kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+    fi
   fi
 }
 trap cleanup EXIT
@@ -519,6 +542,34 @@ minio_discover_service_port() {
   echo "${port}"
 }
 
+# Operator-managed MinIO (remote) keeps the root credentials in a Kubernetes Secret rather than an
+# in-pod /tmp/minio/config.env file. Probe the likely secret shapes and print "<user>\n<password>"
+# when found. Best-effort; only used as a fallback for the remote path.
+minio_resolve_creds_from_secret() {
+  local ns="$1" secret env_blob u="" p=""
+  while IFS= read -r secret; do
+    [[ -n "${secret}" ]] || continue
+    env_blob="$(kubectl -n "${ns}" get secret "${secret}" -o jsonpath='{.data.config\.env}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    if [[ -n "${env_blob}" ]]; then
+      u="$(echo "${env_blob}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_USER=//p' | sed -n '1p' | tr -d '"\r')"
+      p="$(echo "${env_blob}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_PASSWORD=//p' | sed -n '1p' | tr -d '"\r')"
+    fi
+    if [[ -z "${u}" || -z "${p}" ]]; then
+      u="$(kubectl -n "${ns}" get secret "${secret}" -o jsonpath='{.data.MINIO_ROOT_USER}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+      p="$(kubectl -n "${ns}" get secret "${secret}" -o jsonpath='{.data.MINIO_ROOT_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    fi
+    if [[ -z "${u}" || -z "${p}" ]]; then
+      u="$(kubectl -n "${ns}" get secret "${secret}" -o jsonpath='{.data.accesskey}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+      p="$(kubectl -n "${ns}" get secret "${secret}" -o jsonpath='{.data.secretkey}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    fi
+    if [[ -n "${u}" && -n "${p}" ]]; then
+      printf '%s\n%s\n' "${u}" "${p}"
+      return 0
+    fi
+  done < <(kubectl -n "${ns}" get secrets -o json 2>/dev/null | jq -r '.items[].metadata.name | select(test("minio|storage|tenant"; "i"))')
+  return 1
+}
+
 download_solo_record_streams_via_pod_mc() {
   local names_file="$1"
   local svc="$2"
@@ -534,10 +585,21 @@ download_solo_record_streams_via_pod_mc() {
   ' | sed -n '1p')"
   [[ -n "${pod}" ]] || { echo "Could not find MinIO pod in namespace ${MINIO_NAMESPACE}" >&2; return 1; }
 
-  creds="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+  creds="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc \
     "cat \"\${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}\" 2>/dev/null || true" 2>/dev/null || true)"
   selected_u="$(echo "${creds}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_USER=//p' | sed -n '1p' | tr -d '"\r')"
   selected_p="$(echo "${creds}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_PASSWORD=//p' | sed -n '1p' | tr -d '"\r')"
+  # Fallbacks for operator-managed MinIO (remote): no /tmp/minio/config.env, so read the root creds
+  # from the container env, then from the tenant Secret.
+  if [[ -z "${selected_u}" || -z "${selected_p}" ]]; then
+    selected_u="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc 'printf %s "${MINIO_ROOT_USER}"' 2>/dev/null || true)"
+    selected_p="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc 'printf %s "${MINIO_ROOT_PASSWORD}"' 2>/dev/null || true)"
+  fi
+  if [[ -z "${selected_u}" || -z "${selected_p}" ]]; then
+    creds="$(minio_resolve_creds_from_secret "${MINIO_NAMESPACE}")"
+    selected_u="$(echo "${creds}" | sed -n '1p')"
+    selected_p="$(echo "${creds}" | sed -n '2p')"
+  fi
   [[ -n "${selected_u}" && -n "${selected_p}" ]] || {
     echo "Could not discover MinIO root credentials in ${MINIO_NAMESPACE}" >&2
     return 1
@@ -545,7 +607,7 @@ download_solo_record_streams_via_pod_mc() {
 
   endpoint="http://${svc}.${MINIO_NAMESPACE}.svc.cluster.local:${svc_port}"
   all_objects="$(mktemp)"
-  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc \
     "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; { mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcd*'; mc find local/${MINIO_BUCKET}/recordstreams --name '*.rcs_sig'; }" \
     >"${all_objects}" 2>/dev/null; then
     rm -f "${all_objects}"
@@ -578,7 +640,7 @@ download_solo_record_streams_via_pod_mc() {
     subpath="${remote#*/"${MINIO_BUCKET}"/recordstreams/}"
     dest="${RECORD_STREAMS_DIR}/${subpath}"
     mkdir -p "$(dirname "${dest}")"
-    if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
+    if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc \
       "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" >"${dest}" 2>/dev/null; then
       ((found+=1))
       [[ "${dest}" == *.rcd_sig || "${dest}" == *.rcs_sig ]] && ((sig_found+=1))
@@ -1184,7 +1246,7 @@ ensure_explorer_node() {
     log "Deploying Hiero Explorer"
     if ! solo explorer node add \
       --deployment "${SOLO_DEPLOYMENT}" \
-      --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+      --cluster-ref "${CLUSTER_REF}" \
       --enable-ingress \
       --force-port-forward false \
       --quiet-mode; then
@@ -1259,16 +1321,38 @@ rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${WORK_DIR}" >/dev/null 
 mkdir -p "${GENERATED_DIR}" "${WORK_DIR}" >/dev/null 2>&1 || true
 cleanup_stale_port_forwards
 
-log "Resetting kind cluster ${SOLO_CLUSTER_NAME}"
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  log "Resetting kind cluster ${SOLO_CLUSTER_NAME}"
+  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+fi
 
-log "Configuring solo deployment ${SOLO_DEPLOYMENT} for ${CONSENSUS_NODE_COUNT} node(s)"
-solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+log "Configuring solo deployment ${SOLO_DEPLOYMENT} for ${CONSENSUS_NODE_COUNT} node(s) (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})"
+solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
 solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  # Shared remote cluster: remove any pre-existing consensus network in this namespace before
+  # redeploying the fresh records-mode network this jumpstart run needs.
+  log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
+  solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force --quiet-mode >/dev/null 2>&1 || true
+  # The remote cluster is already set up (MinIO via the minio-operator, monitoring, etc.). Only run
+  # cluster-ref setup if the cluster-setup release is missing, skip MinIO when the operator is
+  # present, and never (re)install the prometheus stack on the shared cluster.
+  if helm list --all-namespaces 2>/dev/null | grep -q "solo-cluster-setup"; then
+    log "cluster-setup release already present; skipping cluster-ref config setup"
+  else
+    minio_flag="--minio"
+    if kubectl get pods -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers 2>/dev/null | grep -q .; then
+      minio_flag="--no-minio"
+    fi
+    solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --no-prometheus-stack "${minio_flag}" || true
+  fi
+else
+  solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+fi
 
 log "Deploying consensus network with release tag ${INITIAL_RELEASE_TAG}"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"

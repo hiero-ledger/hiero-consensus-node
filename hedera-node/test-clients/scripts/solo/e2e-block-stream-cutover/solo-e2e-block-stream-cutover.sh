@@ -106,10 +106,27 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
-export SOLO_CLUSTER_NAME="cutover-e2e-testing"
-export SOLO_NAMESPACE="solo"
-export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
-export SOLO_DEPLOYMENT="solo-deployment"
+export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-cutover-e2e-testing}"
+export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
+export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
+export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+
+# Cluster target: "kind" (default, ephemeral local cluster) or "remote" (pre-allocated cluster
+# reached via an already-current kubectl context, e.g. Teleport). On remote, adopt the CITR
+# conventions so this lands on the shared cluster the same way the longevity tooling does.
+CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
+  CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
+  export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
+elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
+  CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
+else
+  echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
+  exit 1
+fi
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
     3) NODE_ALIASES="node1,node2,node3" ;;
@@ -396,7 +413,10 @@ cleanup() {
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
   fi
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  # Never delete the shared remote cluster; only an ephemeral kind cluster is torn down here.
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
 
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
 }
@@ -2980,7 +3000,7 @@ deploy_block_node_for_cutover() {
   local add_args=(
     solo block node add
     --deployment "${SOLO_DEPLOYMENT}"
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+    --cluster-ref "${CLUSTER_REF}"
     --quiet-mode
   )
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
@@ -3193,22 +3213,40 @@ if should_run_step 1; then
   # Full reset: clear any stale Grafana tunnel before recreating the cluster.
   cleanup_stale_port_forwards true
   print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
   cleanup_record_stream_files_only
   rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
 
-  run_with_spinner "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
-    kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    run_with_spinner "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
+      kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  fi
 
-  run_with_spinner "Connecting Solo to kind cluster" \
-    solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+  run_with_spinner "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
+    solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
   solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_with_spinner "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_with_spinner "Attaching cluster to deployment" \
-    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-  run_with_spinner "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
-    solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    # Shared remote cluster: clear any prior network; only set up cluster prereqs if missing
+    # (skip MinIO when the operator is present; never install the prometheus stack here).
+    solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force --quiet-mode >/dev/null 2>&1 || true
+    if ! helm list --all-namespaces 2>/dev/null | grep -q "solo-cluster-setup"; then
+      minio_flag="--minio"
+      if kubectl get pods -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers 2>/dev/null | grep -q .; then
+        minio_flag="--no-minio"
+      fi
+      run_with_spinner "Installing Solo cluster prerequisites (${minio_flag})" \
+        solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --no-prometheus-stack "${minio_flag}"
+    fi
+  else
+    run_with_spinner "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
+      solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+  fi
   ensure_grafana_port_forward
   print_step_complete "Step 1/12"
 else
