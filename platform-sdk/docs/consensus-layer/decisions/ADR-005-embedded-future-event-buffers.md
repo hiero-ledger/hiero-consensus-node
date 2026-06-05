@@ -28,21 +28,11 @@ to it, at which point it is released for processing. (Far-future events beyond
 the event horizon, which cannot be validated, are never stored — only
 near-future events are buffered.)
 
-Two components in the consensus layer need this future-event holding behavior,
-and they need it relative to **different thresholds**:
-
-- The **hashgraph** (`DefaultConsensusEngine`) must not feed an event into the
-  consensus algorithm until the pending consensus round has reached the event's birth
-  round. Its threshold is the **pending consensus round**
-  (`FutureEventBufferingOption.PENDING_CONSENSUS_ROUND`).
-- The **event creator** (`DefaultEventCreationManager`) must not register an
-  event as a potential parent until the event is non-future relative to the
-  birth round it would assign to a newly created event. Its threshold is the
-  **new-event birth round** (`FutureEventBufferingOption.EVENT_BIRTH_ROUND`).
-
-The shared holding logic is implemented once, in the reusable
-`FutureEventBuffer` class (`consensus-utility`), which is parameterized by a
-`FutureEventBufferingOption` so the same data structure serves both thresholds.
+Two components in the consensus layer need this future-event holding behavior:
+the **hashgraph** (`DefaultConsensusEngine`) and the **event creator**
+(`DefaultEventCreationManager`). Each uses a `FutureEventBuffer`
+(`consensus-utility`) as a private internal data structure to hold events until
+its event window has advanced far enough to process them.
 
 ### The pressure: where does the buffer live?
 
@@ -90,16 +80,16 @@ restore the guarantee that no event is left stranded mid-pipeline.
 in-process helper data structure, rather than introducing a single standalone
 buffering component upstream of both consumers.**
 
-- `DefaultConsensusEngine` constructs its own `FutureEventBuffer` with
-  `PENDING_CONSENSUS_ROUND` and drives it inside `addEvent(...)`. The
+- `DefaultConsensusEngine` constructs its own `FutureEventBuffer` and drives it
+  inside `addEvent(...)`. The
   consensus-advance → event-window-advance → release-buffered-events loop is
   closed **within the handling of a single `addEvent` task**: the method's
   internal `while (!eventsToAdd.isEmpty())` loop calls
   `futureEventBuffer.updateEventWindow(eventWindow)` each time a round reaches
   consensus and feeds the released events back into the same loop until no
   more rounds reach consensus.
-- `DefaultEventCreationManager` constructs its own `FutureEventBuffer` with
-  `EVENT_BIRTH_ROUND`. `registerEvent(...)` buffers future events;
+- `DefaultEventCreationManager` constructs its own `FutureEventBuffer`.
+  `registerEvent(...)` buffers future events;
   `setEventWindow(...)` releases the now-current events directly to the
   underlying creator.
 
@@ -122,10 +112,6 @@ with no special fixed-point iteration.
 - **No feedback edge in the wiring graph.** The consensus-progress loop is an
   implementation detail internal to `DefaultConsensusEngine.addEvent(...)`,
   invisible to the wiring topology and to the flush logic.
-- **Each consumer buffers against its own correct threshold.** Embedding lets
-  each component pick the `FutureEventBufferingOption` it actually needs
-  (`PENDING_CONSENSUS_ROUND` vs `EVENT_BIRTH_ROUND`) without a shared
-  component having to serve two different release policies.
 - **Logic stays reusable without being centralized.** The holding mechanism is
   still written once in `FutureEventBuffer`; only its *placement* is
   distributed.
@@ -171,9 +157,6 @@ as the event window advances.
   that no event is left stranded mid-pipeline after PCES replay. That
   complexity is exactly what threatens the no-branching guarantee in
   [RUL-002](../rules/RUL-002-intake-flush-ordering.md).
-- A single component would also have to reconcile two different release
-  thresholds (pending consensus round vs new-event birth round) for its two
-  consumers.
 
 ### 2. Status quo — no future-event buffering at all
 
@@ -193,15 +176,12 @@ See **Decision** above.
 ## References
 
 - `consensus-utility/.../FutureEventBuffer.java` — the reusable holding data
-  structure, parameterized by `FutureEventBufferingOption`.
-- `consensus-utility/.../FutureEventBufferingOption.java` — the two thresholds
-  (`PENDING_CONSENSUS_ROUND`, `EVENT_BIRTH_ROUND`) and their release-round
-  arithmetic.
+  structure used internally by both consuming components.
 - `consensus-hashgraph-impl/.../DefaultConsensusEngine.java` — owns the
-  `PENDING_CONSENSUS_ROUND` buffer; `addEvent(...)` closes the
-  consensus-progress loop inside a single task.
+  `FutureEventBuffer`; `addEvent(...)` closes the consensus-progress loop
+  inside a single task.
 - `consensus-event-creator-impl/.../DefaultEventCreationManager.java` — owns
-  the `EVENT_BIRTH_ROUND` buffer; releases events to the creator on
+  the `FutureEventBuffer`; releases events to the creator on
   `setEventWindow(...)`.
 - `swirlds-platform-core/.../PlatformCoordinator.java` —
   `flushIntakePipeline()`, the ordered flush this decision keeps simple.

@@ -39,7 +39,7 @@ consequence is that the **event creator has observed the latest self event**
 before it creates its next event: creating a new self event without knowing the
 most recent prior self event would produce two self events with the same
 self-parent — a **branch**, which is **byzantine behavior** that the network
-detects and penalizes.
+detects and can penalize.
 
 The same flush sequencing is also applied, via separate calls, to the
 transaction handler and state hasher. That extension is **not** a correctness
