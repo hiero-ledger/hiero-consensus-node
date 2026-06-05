@@ -190,7 +190,9 @@ jobs:
 
       - name: Setup Local Docker Registry
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
+        run: |
+          skopeo copy --override-os linux --override-arch amd64 docker://registry:latest docker-daemon:registry:latest
+          docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Show Docker Version
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
