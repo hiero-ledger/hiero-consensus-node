@@ -335,8 +335,7 @@ class CustomContractCreationProcessorTest {
         verify(streamBuilder).addInitcode(captor.capture());
         final var executed = captor.getValue();
         assertNull(executed.initcodeBookends());
-        assertEquals(
-                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {1, 2, 3}), executed.explicitInitcode());
+        assertEquals(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {1, 2, 3}), executed.explicitInitcode());
     }
 
     private void setupCodeSuccessFrame(final ContractID contractId, final Configuration config) {
