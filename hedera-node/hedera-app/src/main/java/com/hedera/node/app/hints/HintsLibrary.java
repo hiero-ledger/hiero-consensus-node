@@ -145,6 +145,11 @@ public interface HintsLibrary {
             @NonNull Map<Integer, Bytes> partialSignatures);
 
     /**
+     * Clears any native hinTS library caches.
+     */
+    default void resetCache() {}
+
+    /**
      * Checks an aggregate signature on a message verifies under a hinTS verification key, where
      * this is only true if the aggregate signature has weight exceeding the specified threshold
      * of total weight stipulated in the verification key.

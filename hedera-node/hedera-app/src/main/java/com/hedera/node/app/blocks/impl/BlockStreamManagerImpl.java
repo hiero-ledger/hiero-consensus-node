@@ -459,6 +459,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             resetSubtrees();
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
+            blockHashSigner.onBlockStarted(blockNumber);
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var platformState = state.getReadableStates(PlatformStateService.NAME)
                         .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)

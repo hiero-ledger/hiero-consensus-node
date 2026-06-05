@@ -261,7 +261,7 @@ Pending catalogs:
 - Decisions:
   - [ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md) — blocking
     `onSealConsensusRound` to hand off freeze-block signatures from Execution to consensus.
-  - [ADR-005](../../decisions/ADR-005-coordinated-network-wide-upgrade.md) — why upgrades use a
+  - [ADR-006](../../decisions/ADR-006-coordinated-network-wide-upgrade.md) — why upgrades use a
     coordinated network-wide freeze rather than rolling upgrades.
 - Scenarios — [TBD: SCN-NNN — freeze-time anomalies (failed save,
   missed freeze round, post-freeze branching, re-freeze on the same

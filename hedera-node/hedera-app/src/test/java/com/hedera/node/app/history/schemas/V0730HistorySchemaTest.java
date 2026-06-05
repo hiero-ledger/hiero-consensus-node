@@ -112,6 +112,20 @@ class V0730HistorySchemaTest {
     }
 
     @Test
+    void migrateSkipsWriteWhenHashUnchanged() {
+        // Hash already in state equals the configured hash: the guard must NOT re-put it. A no-op
+        // put of the same value is captured by the boundary state-change listener as a spurious
+        // change, which diverges numPrecedingStateChangesItems on replay (SELF_ISS).
+        givenNonGenesisMigrate(new ProtoBytes(Bytes.fromHex(HASH_HEX)), HASH_HEX);
+
+        subject.restart(ctx);
+
+        verify(singletonState, never()).put(ProtoBytes.DEFAULT);
+        verify(singletonState, never())
+                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+    }
+
+    @Test
     void migrateInitializesHistorySingletonsOnEnabledNonGenesisRestart() {
         givenNonGenesisMigrate(null, "");
         given(tssConfig.historyEnabled()).willReturn(true);

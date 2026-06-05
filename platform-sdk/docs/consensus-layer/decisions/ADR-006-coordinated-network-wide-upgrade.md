@@ -1,5 +1,5 @@
 ---
-id: ADR-005
+id: ADR-006
 title: Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
 topics: [freeze-and-upgrade]
 related:
@@ -14,7 +14,7 @@ deciders: []   # foundational design decision; individual authors not recorded �
 curated_by: Kelly Greco (@poulok)
 ---
 
-# ADR-005 — Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
+# ADR-006 — Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
 
 ## Context
 
