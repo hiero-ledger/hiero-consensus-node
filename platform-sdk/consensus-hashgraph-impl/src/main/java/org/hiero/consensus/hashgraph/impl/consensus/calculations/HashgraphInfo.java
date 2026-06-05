@@ -89,13 +89,14 @@ public class HashgraphInfo {
      * the minimum birth round that counts as non-ancient, during the time when these two infos
      * correspond to the pending round
      *
-      * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
+     * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
      * @param roundInfoPrev info about the pending round regarding the previous round
      * @return the minimum birth round that counts as non-ancient
      */
-    public static long  minNonAncientRound(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
-        return Math.max(roundInfoPrev.prevMinNonAncientRound,
-                        roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
+    public static long minNonAncientRound(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
+        return Math.max(
+                roundInfoPrev.prevMinNonAncientRound,
+                roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
     }
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
@@ -332,7 +333,7 @@ public class HashgraphInfo {
                 int firstMark = h.currMark + 1;
 
                 // function minNonAncientRound ------------------------------------------------------------------------
-                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r,rp);
+                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
 
                 for (EventInfo e : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
                     h.currMark++;

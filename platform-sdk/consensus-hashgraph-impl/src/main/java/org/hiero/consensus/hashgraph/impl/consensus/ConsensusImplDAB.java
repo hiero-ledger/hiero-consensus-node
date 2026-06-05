@@ -420,7 +420,7 @@ public class ConsensusImplDAB implements Consensus {
         logJudgeErrors(judges, decidedRoundNumber);
 
         final List<PlatformEvent> consensusEvents = Arrays.stream(results.consensusEvents())
-                .map(this::copyConsensusDataFromEventInfoToEvent)
+                .map(this::finalizeConsensusData)
                 .toList();
 
         // all rounds before this round are now decided, and appropriate events marked consensus
@@ -449,10 +449,11 @@ public class ConsensusImplDAB implements Consensus {
                         .build())
                 .toList();
 
-        final long oldestNonAncientRound = RoundCalculationUtils.getOldestNonAncientRound(
-                roundInfo.targetNumRoundsNonAncient(), decidedRoundNumber);
-        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(oldestNonAncientRound, getFameDecidedBelow())
-                .mapToObj(this::getMinimumJudgeIndicator)
+        // Extract the minimum judge info objects for all non-ancient rounds for the snapshot.
+        // In the future, only the minimum judge info for the lastest consensus round needs to be stored
+        // in state. This is cleanup to do later.
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(nonAncientThreshold, roundInfo.pendingRound())
+                .mapToObj(this::getMinimumJudgeInfo)
                 .filter(Objects::nonNull)
                 .toList();
 
@@ -477,8 +478,15 @@ public class ConsensusImplDAB implements Consensus {
                 time.now());
     }
 
+    /**
+     * This method calculates the final consensus time of the event represented by the given eventInfo and returns the
+     * PlatformEvent with the consensus data populated.
+     *
+     * @param eventInfo the eventInfo for an event that just reached consensus
+     * @return the finalized PlatformEvent for the given eventInfo
+     */
     @NonNull
-    private PlatformEvent copyConsensusDataFromEventInfoToEvent(@NonNull final EventInfo eventInfo) {
+    private PlatformEvent finalizeConsensusData(@NonNull final EventInfo eventInfo) {
         final EventImpl e = memosEventMap.get(eventInfo);
         if (e == null) {
             throw new IllegalStateException("Could not find event in memos map for consensus event");
@@ -513,7 +521,7 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     @Nullable
-    private MinimumJudgeInfo getMinimumJudgeIndicator(final long round) {
+    private MinimumJudgeInfo getMinimumJudgeInfo(final long round) {
         final MinimumJudgeInfo minimumJudgeInfo = minimumJudgeStorage.get(round);
         if (minimumJudgeInfo == null) {
             logger.error(
@@ -527,6 +535,11 @@ public class ConsensusImplDAB implements Consensus {
         return minimumJudgeInfo;
     }
 
+    /**
+     * Updates the roundInfo data structures when a new round has reached consensus.
+     *
+     * @param updateResults the results for a round that just reached consensus
+     */
     private void updateRoundInfo(@NonNull final UpdateResults updateResults) {
         // When fully dynamic address book is enabled, we will have a map from round to rosterLookup or from round to
         // roster (and we will create the rosterLookup as needed).
