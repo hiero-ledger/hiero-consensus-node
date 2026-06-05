@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -516,4 +517,11 @@ public interface HandleContext {
      * @return the gas price in tiny cents
      */
     long getGasPriceInTinycents();
+
+    /**
+     * Returns the simple fees schedule.
+     * @return the simple fees schedule
+     */
+    @NonNull
+    FeeSchedule simpleFeesSchedule();
 }
