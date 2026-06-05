@@ -55,8 +55,8 @@ DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.4}"
 UPGRADE_TAG="${UPGRADE_TAG:-}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
-WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
-WRAPS_TARBALL_CACHE_PATH="${WRAPS_TARBALL_CACHE_PATH:-${HOME}/.solo/cache/wraps-v1.0.0.tar.gz}"
+# The CN downloads + extracts the WRAPS proving-key archive itself from this URL during the
+# upgrade (tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true).
 WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
@@ -86,7 +86,7 @@ NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 # --- Block Node config -----------------------------------------------------------------
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.34.0-rc1}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.35.0}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -123,8 +123,6 @@ MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 APP_PROPS_076_GENERATED_FILE="${WORK_DIR}/application-076-public-wraps.properties"
 MIRROR_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
-# Filled in by ensure_wraps_artifacts_downloaded; reported in the end-of-run summary.
-WRAPS_DOWNLOAD_REPORT=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -176,57 +174,6 @@ wait_for_haproxy_ready() {
     log "Waiting for haproxy-${node} rollout to become ready"
     kubectl -n "${SOLO_NAMESPACE}" rollout status "deployment/haproxy-${node}" --timeout="${timeout_secs}s"
   done
-}
-
-# Cache the WRAPS tarball alongside the extracted dir so subsequent runs do not re-download.
-# The CN itself downloads the tarball from WRAPS_ARTIFACTS_DOWNLOAD_URL (the public mirror)
-# via tss.wrapsProvingKeyDownloadEnabled=true; we still need the local extraction to count the
-# expected artifact files in verify_wraps_on_consensus_nodes.
-ensure_wraps_artifacts_downloaded() {
-  local file_count="" tmp_dir="" extract_dir="" extracted_root=""
-  local extracted_dirs="" extracted_entries=""
-  local dl_start="" dl_end="" dl_secs=""
-
-  if [[ -d "${WRAPS_KEY_PATH}" ]]; then
-    file_count="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-    if [[ "${file_count}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" && -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-      log "Using cached WRAPS artifacts from ${WRAPS_KEY_PATH}"
-      WRAPS_DOWNLOAD_REPORT="reused on-host cache (no download); artifacts already present at ${WRAPS_KEY_PATH}"
-      return 0
-    fi
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_TARBALL_CACHE_PATH}")"
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    log "Downloading WRAPS artifacts from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
-    dl_start="$(date +%s)"
-    curl -fL "${WRAPS_ARTIFACTS_DOWNLOAD_URL}" -o "${WRAPS_TARBALL_CACHE_PATH}.partial"
-    dl_end="$(date +%s)"
-    mv "${WRAPS_TARBALL_CACHE_PATH}.partial" "${WRAPS_TARBALL_CACHE_PATH}"
-    dl_secs=$((dl_end - dl_start))
-    log "Downloaded WRAPS artifacts in ${dl_secs}s from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
-    WRAPS_DOWNLOAD_REPORT="downloaded in ${dl_secs}s from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
-  else
-    WRAPS_DOWNLOAD_REPORT="reused cached tarball ${WRAPS_TARBALL_CACHE_PATH} (no download)"
-  fi
-
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps-extract.XXXXXX")"
-  extract_dir="${tmp_dir}/extract"
-  mkdir -p "${extract_dir}"
-  tar -xzf "${WRAPS_TARBALL_CACHE_PATH}" -C "${extract_dir}"
-
-  extracted_root="${extract_dir}"
-  extracted_dirs="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  extracted_entries="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
-  if [[ "${extracted_dirs}" == "1" && "${extracted_entries}" == "1" ]]; then
-    extracted_root="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
-  rm -rf "${WRAPS_KEY_PATH}"
-  mkdir -p "${WRAPS_KEY_PATH}"
-  find "${extracted_root}" -maxdepth 1 -type f -exec cp '{}' "${WRAPS_KEY_PATH}/" ';'
-  rm -rf "${tmp_dir}"
 }
 
 configured_wraps_artifacts_container_dir() {
@@ -481,13 +428,9 @@ verify_wraps_on_consensus_nodes() {
   local nodes=()
 
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-  [[ "${expected_wraps}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" ]] || {
-    echo "Expected at least ${WRAPS_REQUIRED_FILE_COUNT} WRAPS artifacts in ${WRAPS_KEY_PATH}, found ${expected_wraps}" >&2
-    return 1
-  }
+  expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting ${expected_wraps} extracted files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  log "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -503,7 +446,7 @@ verify_wraps_on_consensus_nodes() {
       fi
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps}" == "${expected_wraps}" ]]; then
+      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -540,6 +483,41 @@ verify_wraps_on_consensus_nodes() {
   done
 
   echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
+}
+
+# Report, per consensus node, how long the CN itself spent downloading + extracting + verifying
+# the WRAPS proving-key archive from tss.wrapsProvingKeyDownloadUrl. Parsed from hgcaa.log:
+#   start: "WrapsProvingKeyVerification - ... Initiating download"
+#   end:   "WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key"
+# Duration is computed in pure awk (ms-of-day delta) so it works on both GNU and BSD date hosts.
+report_wraps_download_times() {
+  local node pod start_line end_line dur
+  local nodes=()
+  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
+
+  log "WRAPS proving-key self-download times (per consensus node, from hgcaa.log):"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    start_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - .*Initiating download' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    end_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    if [[ -z "${start_line}" ]]; then
+      echo "  ${pod}: no self-download observed (proving key already present, or not started)"
+      continue
+    fi
+    if [[ -z "${end_line}" ]]; then
+      echo "  ${pod}: download started but completion not yet logged"
+      continue
+    fi
+    # Each hgcaa.log line begins with 'YYYY-MM-DD HH:MM:SS.mmm'; split on space/colon/dot and
+    # take the wall-clock-of-day delta in milliseconds (guarding a midnight rollover).
+    dur="$(awk -v a="${start_line}" -v b="${end_line}" '
+      function ms(t,   x){ split(t, x, /[ :.]/); return ((x[2]*3600)+(x[3]*60)+x[4])*1000 + x[5] }
+      BEGIN { d = ms(b) - ms(a); if (d < 0) d += 86400000; printf "%.3f", d/1000 }')"
+    echo "  ${pod}: ${dur}s"
+  done
 }
 
 run_command_with_timeout() {
@@ -983,7 +961,6 @@ deploy_mirror_and_explorer() {
 # 0.75 baseline first and then upgrade in place — to the local 0.76 build by default, or to a
 # published Solo tag when UPGRADE_TAG is set.
 upgrade_to_local_076() {
-  ensure_wraps_artifacts_downloaded
   generate_076_application_properties_with_public_wraps_url
   inject_wraps_env_into_statefulsets
 
@@ -1019,6 +996,8 @@ upgrade_to_local_076() {
 
   log "--- 0.76 check 3/3: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
+
+  report_wraps_download_times
 }
 
 log "Validating prerequisites"
@@ -1026,7 +1005,6 @@ require_cmd kind
 require_cmd kubectl
 require_cmd solo
 require_cmd curl
-require_cmd tar
 require_cmd unzip
 require_cmd node
 require_cmd npm
@@ -1080,4 +1058,3 @@ verify_block_node_has_blocks 180
 log "PASS: 0.75 (${DEPLOY_RELEASE_TAG}) -> 0.76 (TSS enabled, mock signatures) upgrade completed cleanly"
 log "PASS: Block Node verified the mock-sig (RSA WRB) blocks across the 0.75 -> 0.76 upgrade"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
-log "WRAPS proving key artifact (host fetch from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}): ${WRAPS_DOWNLOAD_REPORT:-unknown}"
