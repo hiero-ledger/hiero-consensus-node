@@ -196,8 +196,8 @@ The consensus layer leaves quiescence when a new command supersedes
   Once an ordinary event can again be created, `breakQuiescenceEventCreated`
   is reset, re-arming the QB exception for the next period.
 
-In current code the QB is built on a **single self-parent only** (no
-other-parent), the simplest event that still propagates the transactions.
+The QB is built on a **single self-parent only**, with no other-parent —
+the simplest event that still propagates the waiting transactions.
 
 On exit, platform status returns to normal via the grace period in
 [`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`:
@@ -208,22 +208,6 @@ the ordinary `ACTIVE` → `CHECKING` test resumes (drop to `CHECKING` if no
 self event has reached consensus within `activeStatusDelay`). A node that
 has just broken quiescence therefore typically stays `ACTIVE`, and only
 slips to `CHECKING` if its events are not reaching consensus.
-
-> **Specified, not yet implemented (HIP):** HIP-1238 §Breaking
-> quiescence says a quiescence-breaker (QB) "can have any other-parent,
-> even if it does not advance
->
->> consensus" — i.e. the QB is permitted to break the tipset's
->> other-parent rules. Current code does not build that broader form; the
->> QB has no other-parent at all (self-parent only). The two agree that a
->> QB sidesteps the tipset advancement requirement; they differ on whether
->> a non-advancing other-parent is attached.
-
-[TBD: question for engineer — HIP-1238 specifies a QB that may carry any
-other-parent; `TipsetEventCreator#createQuiescenceBreakEvent` builds an
-event on the self-parent only. Is the self-parent-only form the intended
-final design, or is the implementation expected to grow toward the spec's
-any-other-parent form?]
 
 ## Rationale
 
@@ -321,13 +305,9 @@ Pending catalogs:
 
 ## Future state
 
-> **Specified, not yet implemented (HIP).** Two parts of HIP-1238 are not
+> **Specified, not yet implemented (HIP).** One part of HIP-1238 is not
 > matched by current code:
 >
-> - **Quiescence-breaker other-parent form.** The HIP permits a
->   quiescence-breaker to carry any other-parent even when it does not
->   advance consensus; current code builds it on the self-parent only.
->   See [Exit](#exit).
 > - **Quiescence-reflecting status.** The HIP requires a node to report a
 >   status reflecting quiescence; current code keeps `PlatformStatus` at
 >   `ACTIVE` and exposes quiescence only through internal signals. See
