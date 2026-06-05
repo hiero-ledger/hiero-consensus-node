@@ -69,61 +69,34 @@ public class HashgraphInfo {
     private boolean roundDecided;
 
     // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
-
     /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
-
-    public long getPendingRound() {
-        return pendingRound;
-    }
-
-    public int getNumNodes() {
-        return numNodes;
-    }
-
-    public long[] getNodeIDs() {
-        return nodeIDs;
-    }
-
-    public HashMap<Long, Integer> getNodeIdToIndex() {
-        return nodeIdToIndex;
-    }
-
-    public long getTotalStake() {
-        return totalStake;
-    }
-
-    public long getMinNonAncientRound() {
-        return minNonAncientRound;
-    }
-
-    public int getVoteD() {
-        return voteD;
-    }
-
-    public ArrayList<EventInfo> getParents() {
-        return parents;
-    }
-
-    public EventInfo getSelfParent() {
-        return selfParent;
-    }
-
-    public int getParentsMaxSize() {
-        return parentsMaxSize;
-    }
-
-    public boolean isNodesChanged() {
-        return nodesChanged;
-    }
-
-    public int getCurrMark() {
-        return currMark;
-    }
-
-    public boolean isRoundDecided() {
-        return roundDecided;
-    }
+    public long getPendingRound() {return pendingRound;}
+    public int getNumNodes() {return numNodes;}
+    public long[] getNodeIDs() {return nodeIDs;}
+    public HashMap<Long, Integer> getNodeIdToIndex() {return nodeIdToIndex;}
+    public long getTotalStake() {return totalStake;}
+    public long getMinNonAncientRound() {return minNonAncientRound;}
+    public int getVoteD() {return voteD;}
+    public ArrayList<EventInfo> getParents() {return parents;}
+    public EventInfo getSelfParent() {return selfParent;}
+    public int getParentsMaxSize() {return parentsMaxSize;}
+    public boolean isNodesChanged() {return nodesChanged;}
+    public int getCurrMark() {return currMark;}
+    public boolean isRoundDecided() {return roundDecided;}
     */
+
+    /**
+     * the minimum birth round that counts as non-ancient, during the time when these two infos
+     * correspond to the pending round
+     *
+      * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
+     * @param roundInfoPrev info about the pending round regarding the previous round
+     * @return the minimum birth round that counts as non-ancient
+     */
+    public static long  minNonAncientRound(RoundInfo roundInfo, RoundInfoPrev roundInfoPrev) {
+        return Math.max(roundInfoPrev.prevMinNonAncientRound,
+                        roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
+    }
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
     public record RoundInfo(
@@ -165,7 +138,7 @@ public class HashgraphInfo {
         private final long birthRound;
         private boolean[] ancestorJudge;
         private boolean prevJudgeDesc;
-        private long gen;
+        private long gen; // also called dGen
         private EventInfo[] lastSee;
         private EventInfo[] stronglySeeP;
         private EventInfo firstSelfWitnessS;
@@ -232,99 +205,30 @@ public class HashgraphInfo {
         }
 
         // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
-
         /* //for the moment, I'll comment these out, to ensure our integration doesn't accidentally rely on them
-        public HashgraphInfo getHashgraph() {
-            return hashgraph;
-        }
-
-        public long getCreatorNodeID() {
-            return creatorNodeID;
-        }
-
-        public Instant getTimeCreated() {
-            return timeCreated;
-        }
-
-        public EventInfo[] getParentsSigned() {
-            return parentsSigned;
-        }
-
-        public int getCreator() {
-            return creator;
-        }
-
-        public long getBirthRound() {
-            return birthRound;
-        }
-
-        public boolean[] getAncestorJudge() {
-            return ancestorJudge;
-        }
-
-        public boolean getPrevJudgeDesc() {
-            return prevJudgeDesc;
-        }
-
-        public long getGen() { // this is the dGen
-            return gen;
-        }
-
-        public EventInfo[] getLastSee() {
-            return lastSee;
-        }
-
-        public EventInfo[] getStronglySeeP() {
-            return stronglySeeP;
-        }
-
-        public EventInfo getFirstSelfWitnessS() {
-            return firstSelfWitnessS;
-        }
-
-        public long getVotingRound() {
-            return votingRound;
-        }
-
-        public EventInfo getFirstWitnessS() {
-            return firstWitnessS;
-        }
-
-        public EventInfo[] getStronglySeeS1() {
-            return stronglySeeS1;
-        }
-
-        public EventInfo[] getVoteE() {
-            return voteE;
-        }
-
-        public boolean[] getVoteB() {
-            return voteB;
-        }
-
-        public boolean getPrevJudge() {
-            return prevJudge;
-        }
-
-        public long getMaxJudgeRound() {
-            return maxJudgeRound;
-        }
-
-        public long getSearchMark() {
-            return searchMark;
-        }
-
-        public int getSearchCount() {
-            return searchCount;
-        }
-
-        public int getSearchParent() {
-            return searchParent;
-        }
-
-        public EventInfo getSearchChild() {
-            return searchChild;
-        }
+        public HashgraphInfo getHashgraph() {return hashgraph;}
+        public long getCreatorNodeID() {return creatorNodeID;}
+        public Instant getTimeCreated() {return timeCreated;}
+        public EventInfo[] getParentsSigned() {return parentsSigned;}
+        public int getCreator() {return creator;}
+        public long getBirthRound() {return birthRound;}
+        public boolean[] getAncestorJudge() {return ancestorJudge;}
+        public boolean getPrevJudgeDesc() {return prevJudgeDesc;}
+        public long getGen() { return gen;}
+        public EventInfo[] getLastSee() {return lastSee;}
+        public EventInfo[] getStronglySeeP() {return stronglySeeP;}
+        public EventInfo getFirstSelfWitnessS() {return firstSelfWitnessS;}
+        public long getVotingRound() {return votingRound;}
+        public EventInfo getFirstWitnessS() {return firstWitnessS;}
+        public EventInfo[] getStronglySeeS1() {return stronglySeeS1;}
+        public EventInfo[] getVoteE() {return voteE;}
+        public boolean[] getVoteB() {return voteB;}
+        public boolean getPrevJudge() {return prevJudge;}
+        public long getMaxJudgeRound() {return maxJudgeRound;}
+        public long getSearchMark() {return searchMark;}
+        public int getSearchCount() {return searchCount;}
+        public int getSearchParent() {return searchParent;}
+        public EventInfo getSearchChild() {return searchChild;}
         */
 
         /**
@@ -426,7 +330,10 @@ public class HashgraphInfo {
                 int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
                 // mark used while searching from the first judge (later judges' marks are greater)
                 int firstMark = h.currMark + 1;
-                // calculate h.minNonAncientRound /**/
+
+                // function minNonAncientRound ------------------------------------------------------------------------
+                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r,rp);
+
                 for (EventInfo e : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
                     h.currMark++;
                     e.searchChild = null; // backtracking up from this e means the search is done
@@ -497,17 +404,13 @@ public class HashgraphInfo {
                     judge.prevJudge = true;
                 }
 
-                // function totalStake
+                // function totalStake -----------------------------------------------------------------------------
                 h.totalStake = 0;
                 for (long s : r.stake) {
                     h.totalStake += s;
                 }
 
-                // function minNonAncientRound
-                h.minNonAncientRound =
-                        Math.max(rp.prevMinNonAncientRound, rp.prevMinJudgeBirthRound - r.targetNumRoundsNonAncient);
-
-                // function voteD
+                // function voteD  -----------------------------------------------------------------------------
                 {
                     long t = 0;
                     for (EventInfo judge : rp.prevJudges) {
@@ -544,7 +447,7 @@ public class HashgraphInfo {
                 x.voteB = new boolean[h.numNodes];
             }
 
-            // function parents
+            // function parents  -----------------------------------------------------------------------------
             // put in the h.parents array only those parents that are non-ancient descendents of judges in the prev
             // round
             if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
@@ -562,7 +465,7 @@ public class HashgraphInfo {
             h.selfParent =
                     (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
-            // function prevJudgeDesc
+            // function prevJudgeDesc -----------------------------------------------------------------------------
             // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
             x.maxJudgeRound = x.prevJudge ? (r.pendingRound - 1) : 1;
             for (EventInfo parent : h.parents) {
@@ -570,7 +473,8 @@ public class HashgraphInfo {
             }
             x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); // use alg in comments in paper, not the equation
 
-            // function ancestorJudge (for each y that is the index of the judge in prevJudge(r))
+            // function ancestorJudge  -----------------------------------------------------------------------------
+            // (for each y that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {
                 x.ancestorJudge[i] = (x == rp.prevJudges[i]);
                 for (EventInfo parent : x.parentsSigned) {
@@ -581,7 +485,7 @@ public class HashgraphInfo {
                 }
             }
 
-            // function gen
+            // function gen -----------------------------------------------------------------------------
             {
                 long t = 0;
                 for (EventInfo parent : h.parents) {
@@ -590,7 +494,7 @@ public class HashgraphInfo {
                 x.gen = t + 1;
             }
 
-            // function parentRound
+            // function parentRound -----------------------------------------------------------------------------
             if (h.parents.isEmpty()) {
                 parentRound = r.pendingRound - 1;
             } else {
@@ -600,7 +504,7 @@ public class HashgraphInfo {
                 }
             }
 
-            // function lastSee
+            // function lastSee -----------------------------------------------------------------------------
             for (int m = 0; m < h.numNodes; m++) {
                 if (m == x.creator) {
                     x.lastSee[m] = x;
@@ -639,53 +543,53 @@ public class HashgraphInfo {
                 }
             }
 
-            // function seeThru
+            // function seeThru -----------------------------------------------------------------------------
 
-            // function stronglySeeP
+            // function stronglySeeP -----------------------------------------------------------------------------
 
-            // function votingRound
+            // function votingRound -----------------------------------------------------------------------------
 
-            // function firstSelfWitnessS
+            // function firstSelfWitnessS -----------------------------------------------------------------------------
 
-            // function firstWitnessS
+            // function firstWitnessS -----------------------------------------------------------------------------
 
-            // function stronglySeeS1
+            // function stronglySeeS1 -----------------------------------------------------------------------------
 
-            // function witness
+            // function witness -----------------------------------------------------------------------------
 
-            // function firstVote
+            // function firstVote -----------------------------------------------------------------------------
 
-            // function stakeAgrees
+            // function stakeAgrees -----------------------------------------------------------------------------
 
-            // function topVote
+            // function topVote -----------------------------------------------------------------------------
 
-            // function vote
+            // function vote -----------------------------------------------------------------------------
 
-            // function roundDecided
+            // function roundDecided -----------------------------------------------------------------------------
 
             if (!h.roundDecided) {
                 return null;
             }
             consensusEvents = new ArrayList<>();
 
-            // function roundJudges
+            // function roundJudges -----------------------------------------------------------------------------
             roundJudges = new ArrayList<>();
 
-            // function receivedEvents
+            // function receivedEvents -----------------------------------------------------------------------------
 
-            // function isReceived
+            // function isReceived -----------------------------------------------------------------------------
 
-            // function reachedCon
+            // function reachedCon -----------------------------------------------------------------------------
 
-            // function timeCon
+            // function timeCon -----------------------------------------------------------------------------
 
-            // function before
+            // function before -----------------------------------------------------------------------------
 
-            // function isConsensus
+            // function isConsensus -----------------------------------------------------------------------------
 
-            // function consensusOrder
+            // function consensusOrder -----------------------------------------------------------------------------
 
-            // function consensusTimestamp
+            // function consensusTimestamp -----------------------------------------------------------------------------
 
             // the round reached consensus, so prepare to move on by setting the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
