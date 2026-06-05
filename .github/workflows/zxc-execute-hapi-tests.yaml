@@ -1159,7 +1159,7 @@ jobs:
             ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}
-            "${{ needs.hapi-tests-crypto-and-misc-serial.outputs.failure-mode || 'none' }}"
+            ${{ needs.hapi-tests-crypto-and-misc-serial.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             hapi-tests-misc
             hapi-tests-misc-records-crypto-and-serial
