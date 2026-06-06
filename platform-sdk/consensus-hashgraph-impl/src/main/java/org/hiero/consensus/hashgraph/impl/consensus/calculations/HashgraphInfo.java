@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.function.Consumer;
 
 /**
  * This package contains a single file that does all the consensus calculations for the Hashgraph consensus algorithm.
@@ -69,6 +70,7 @@ public final class HashgraphInfo {
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
     private boolean roundDecided;
+    private long supermajorityThreshold; // stake more than this is a supermajority
 
     // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
     /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
@@ -82,9 +84,10 @@ public final class HashgraphInfo {
     public ArrayList<EventInfo> getParents() {return parents;}
     public EventInfo getSelfParent() {return selfParent;}
     public int getParentsMaxSize() {return parentsMaxSize;}
-    public boolean isNodesChanged() {return nodesChanged;}
+    public boolean getNodesChanged() {return nodesChanged;}
     public int getCurrMark() {return currMark;}
-    public boolean isRoundDecided() {return roundDecided;}
+    public boolean getRoundDecided() {return roundDecided;}
+    public long getSupermajorityThreshold() {return supermajorityThreshold;}
     */
 
     /**
@@ -102,10 +105,45 @@ public final class HashgraphInfo {
                 roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
     }
 
-    /** true iff n is a supermajority of the total stake */
-    private boolean supermajority(long n) {
-        // function supermajority --------------------------------------------------------------------------------
-        return n > 2 * totalStake / 3;
+    /**
+     * Apply the given lambda to each event in the hashgraph that is an ancestor of all
+     * the given judges (or of at least one judge, if judgeCons1 is true)
+     */
+    private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, @NonNull Consumer<EventInfo> lambda) {
+        // events reach consensus when they are an ancestor of this many judges
+        int targetCount = judgeCon1 ? 1 : judges.length;
+        // mark used while searching from the first judge (later judges' marks are greater)
+        int firstMark = currMark + 1;
+
+        for (EventInfo judge : judges) { // depth-first search starting from each judge
+            EventInfo e = judge;
+            currMark++;
+            e.searchChild = null; // backtracking up from this e means the search is done
+            do { // depth-first search starting from this judge
+                // e is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
+                e.searchCount = (e.searchMark < firstMark) ? 1 : e.searchCount + 1;
+                e.searchMark = currMark;
+                e.searchParent = -1; // descend through the first parent first (index 0)
+                if (e.searchCount == targetCount) {
+                    lambda.accept(e);
+                }
+                EventInfo eNew = null;
+                // while eNew is bad (null / ancient / marked), search until a good one is found or done
+                while (e != null
+                        && (eNew == null
+                        || eNew.birthRound < minNonAncientRound
+                        || eNew.searchMark == currMark)) {
+                    while (e != null && e.searchParent >= e.parentsSigned.length - 1) {
+                        e = e.searchChild; // backtrack up until an event is found with an unexplored parent
+                    }
+                    if (e != null) {
+                        e.searchParent++;
+                    }
+                    eNew = (e == null) ? null : e.parentsSigned[e.searchParent];
+                }
+                e = eNew; // move to the new event that was good
+            } while (e != null); // once we backtrack to null, the search from this judge is done
+        }
     }
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
@@ -318,66 +356,40 @@ public final class HashgraphInfo {
             long parentRound;
             ArrayList<EventInfo> roundJudges;
             ArrayList<EventInfo> consensusEvents;
+            EventInfo[] roundJudgesArray;
+            EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
 
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
             }
             if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
-                throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound");
+                throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound ("
+                                              + roundInfo.pendingRound + " != " + roundInfoPrev.pendingRound + ")");
             }
-            if (roundInfo.pendingRound != h.pendingRound
-                    && roundInfo.pendingRound != h.pendingRound + 1
+            if (r.pendingRound != h.pendingRound
+                    && r.pendingRound != h.pendingRound + 1
                     && h.pendingRound != 0) {
-                throw new IllegalArgumentException(
-                        "roundInfo.pendingRound didn't match the last call, nor increment by 1");
+                throw new IllegalArgumentException("roundInfo.pendingRound should be " + h.pendingRound
+                                + " or " + (h.pendingRound + 1) + ", not " + roundInfo.pendingRound);
             }
 
-            // If this is the first time update has ever been called on an event for this hashgraph, and round > 1,
-            // then set isConsensus for all the ancestors of the previous round's judges, according to judgeCons1 for it
-            if (h.pendingRound == 0 && roundInfo.pendingRound > 1) {
-                // events reach consensus when they are an ancestor of this many judges
-                int targetCount = roundInfoPrev.prevJudgeCon1 ? 1 : roundInfoPrev.prevJudges.length;
-                // mark used while searching from the first judge (later judges' marks are greater)
-                int firstMark = h.currMark + 1;
-
-                // function minNonAncientRound -------------------------------------------------------------------
-                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
-
-                for (EventInfo e : roundInfoPrev.prevJudges) { // depth-first search starting from each judge
-                    h.currMark++;
-                    e.searchChild = null; // backtracking up from this e means the search is done
-                    do { // depth-first search starting from this judge
-                        // e is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
-                        e.searchCount = (e.searchMark < firstMark) ? 1 : e.searchCount + 1;
-                        e.searchMark = h.currMark;
-                        e.searchParent = -1; // descend through the first parent first (index 0)
-                        if (e.searchCount == targetCount) {
-                            e.isConsensus = true; // SUCCESS: found an event that is an ancestor of enough judges
-                        }
-                        EventInfo eNew = null;
-                        // while eNew is bad (null / ancient / marked), search until a good one is found or done
-                        while (e != null
-                                && (eNew == null
-                                        || eNew.birthRound < h.minNonAncientRound
-                                        || eNew.searchMark == h.currMark)) {
-                            while (e != null && e.searchParent >= e.parentsSigned.length - 1) {
-                                e = e.searchChild; // backtrack up until an event is found with an unexplored parent
-                            }
-                            if (e != null) {
-                                e.searchParent++;
-                            }
-                            eNew = (e == null) ? null : e.parentsSigned[e.searchParent];
-                        }
-                        e = eNew; // move to the new event that was good
-                    } while (e != null); // once we backtrack to null, the search from this judge is done
+            // If this is the first time update has ever been called on an event for this hashgraph.
+            if (h.pendingRound == 0) {
+                h.pendingRound = r.pendingRound;
+                if (r.pendingRound > 1) { //set isConsensus for all events that reached consensus before this round
+                    h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, (e -> e.isConsensus = true));
                 }
+
             }
 
-            // if this is a new round (or the first round called on this hashgraph), calculate all HashgraphInfo fields
+            // if this is a new round (or the first called on this hashgraph), calculate all HashgraphInfo fields
             if (h.pendingRound != r.pendingRound) {
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
+
+                // function minNonAncientRound -------------------------------------------------------------------
+                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
 
                 // set h.nodesChanged to true if the node array changed this round (or it's the first time called).
                 if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
@@ -390,6 +402,7 @@ public final class HashgraphInfo {
                         }
                     }
                 }
+
                 // if it did change, then update the nodeIdToIndex to map from nodeID to index
                 if (h.nodesChanged) {
                     h.nodeIDs = r.nodes;
@@ -420,14 +433,17 @@ public final class HashgraphInfo {
                     h.totalStake += s;
                 }
 
+                // function supermajority ------------------------------------------------------------------------
+                h.supermajorityThreshold = 2 * h.totalStake / 3;
+
                 // function voteD  -------------------------------------------------------------------------------
                 {
-                    long t = 0;
+                    long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
-                        t += r.stake[judge.creator];
+                        totalStake += r.stake[judge.creator];
                     }
-                    h.voteD =
-                            (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1) || !h.supermajority(t)) ? 2 : 1;
+                    h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1)
+                                    || (totalStake <= h.supermajorityThreshold)) ? 2 : 1;
                 }
             }
 
@@ -579,10 +595,11 @@ public final class HashgraphInfo {
             if (!h.roundDecided) {
                 return null;
             }
-            consensusEvents = new ArrayList<>();
 
             // function roundJudges ------------------------------------------------------------------------------
             roundJudges = new ArrayList<>();
+            // TODO fill in roundJudges
+            roundJudgesArray = roundJudges.toArray(new EventInfo[0]);
 
             // function receivedEvents ---------------------------------------------------------------------------
 
@@ -595,6 +612,12 @@ public final class HashgraphInfo {
             // function before -----------------------------------------------------------------------------------
 
             // function isConsensus ------------------------------------------------------------------------------
+            consensusEvents = new ArrayList<>();
+            h.graphSearch(roundJudgesArray, r.judgeCon1, (e -> {
+                e.isConsensus = true;
+                consensusEvents.add(e);
+            }));
+            consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
             // function consensusOrder ---------------------------------------------------------------------------
 
@@ -607,17 +630,18 @@ public final class HashgraphInfo {
             for (EventInfo judge : roundJudges) {
                 judge.prevJudge = true;
             }
+
             minJudgeBirthRound = 0;
             for (EventInfo judge : roundJudges) {
                 minJudgeBirthRound = Math.max(minJudgeBirthRound, judge.birthRound);
             }
 
             return new UpdateResults(
-                    consensusEvents.toArray(new EventInfo[0]), // consensusEvents
+                    consensusEventsArray, // consensusEvents
                     new RoundInfoPrev(
                             h.pendingRound + 1, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
-                            roundJudges.toArray(new EventInfo[0]), // prevJudges
+                            roundJudgesArray, // prevJudges
                             false, // prevJudgesCopied /**/
                             h.minNonAncientRound, // prevMinNonAncientRound
                             rp.prevNumCons + consensusEvents.size(), // prevNumCons
