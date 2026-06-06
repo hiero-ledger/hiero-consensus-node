@@ -110,13 +110,6 @@ if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
   # apply and "solo-deployment"/"solo-cluster" would leak in (wrong deployment on the shared cluster).
   export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
   export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
-  # Multi-tenant cluster: pods must tolerate + select the owner/network-id node pool, else they stay
-  # Pending (every node is tainted solo.hashgraph.io/owner=...). Override REMOTE_NETWORK_OWNER if
-  # this namespace is not on the adhoc-single-day-test pool; network-id defaults to the namespace's
-  # trailing number (e.g. solo-sdlt-n6 -> 6).
-  REMOTE_NETWORK_OWNER="${REMOTE_NETWORK_OWNER:-adhoc-single-day-test}"
-  REMOTE_NETWORK_ID="${REMOTE_NETWORK_ID:-$(grep -oE '[0-9]+$' <<< "${SOLO_NAMESPACE}" || true)}"
-  REMOTE_NETWORK_ID="${REMOTE_NETWORK_ID:-0}"
 elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
   KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
   CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
@@ -1388,15 +1381,11 @@ deploy_args=(
   --release-tag "${INITIAL_RELEASE_TAG}"
 )
 if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-  # Shared multi-tenant cluster: render the scheduling/storage overrides and deploy without PVCs
-  # (emptyDir is fine for a single run; the cluster has no default StorageClass for consensus PVCs).
+  # Shared multi-tenant cluster: pass the scheduling (tolerations) + MinIO storage overrides and
+  # deploy without PVCs (emptyDir is fine for a single run; no default StorageClass for consensus).
   deploy_pvcs="false"
-  remote_values_rendered="${WORK_DIR}/remote-network-values.yaml"
-  mkdir -p "${WORK_DIR}"
-  sed -e "s/%NETWORK_OWNER%/${REMOTE_NETWORK_OWNER}/g" -e "s/%NETWORK_ID%/${REMOTE_NETWORK_ID}/g" \
-    "${REMOTE_NETWORK_VALUES_TEMPLATE}" > "${remote_values_rendered}"
-  deploy_args+=(--values-file "${remote_values_rendered}")
-  log "Remote deploy: owner=${REMOTE_NETWORK_OWNER}, network-id=${REMOTE_NETWORK_ID}, --pvcs=false, values=${remote_values_rendered}"
+  deploy_args+=(--values-file "${REMOTE_NETWORK_VALUES_TEMPLATE}")
+  log "Remote deploy: --pvcs=false, values=${REMOTE_NETWORK_VALUES_TEMPLATE}"
 fi
 deploy_args+=(--pvcs "${deploy_pvcs}")
 "${deploy_args[@]}"

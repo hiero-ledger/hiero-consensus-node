@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Solo network-deploy value overrides for the REMOTE multi-tenant cluster (e.g. solo-sdlt-n6).
-# solo-wrb-jumpstart.sh substitutes %NETWORK_OWNER% / %NETWORK_ID% at runtime (REMOTE_NETWORK_OWNER /
-# REMOTE_NETWORK_ID). Two cluster facts this addresses, both observed as Pending pods otherwise:
-#   1. Every node carries an untolerated taint solo.hashgraph.io/{role,owner,network-id} -> we add
-#      Exists tolerations (schedule regardless of value) plus a nodeSelector to pin to our pool.
-#   2. There is no default StorageClass and MinIO defaults to a non-existent "standard" class -> we
-#      pin MinIO to "local-path". Consensus nodes run with --pvcs false (emptyDir) on remote, so they
-#      need no StorageClass for a single short jumpstart run.
+#
+# Scheduling: every worker node carries a taint solo.hashgraph.io/{role,owner,network-id}. We add
+# Exists tolerations so our pods are allowed onto any of them. We deliberately do NOT set a
+# nodeSelector: unlike the CITR perf controller, this jumpstart runs no node allocation/labeling
+# step, so no node carries matching owner/network-id *labels* — a nodeSelector would leave every pod
+# Pending ("didn't match Pod's node affinity/selector"). Tolerations alone let the scheduler place
+# pods on any tolerated worker with capacity.
+#
+# Storage: the cluster has no default StorageClass and MinIO defaults to a non-existent "standard"
+# class, so we pin MinIO to "local-path". Consensus nodes deploy with --pvcs false (emptyDir), so
+# they need no StorageClass for a single short jumpstart run.
 #
 # Resources are right-sized for a lightweight records-mode jumpstart (NOT the 256Gi perf profile).
 
@@ -22,9 +26,6 @@ defaults:
         memory: 16Gi
 
 deployment:
-  nodeSelector:
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
   tolerations: &soloTolerations
     - key: "solo.hashgraph.io/role"
       operator: "Exists"
@@ -37,15 +38,9 @@ deployment:
       effect: "NoSchedule"
 
 haproxyDeployment:
-  nodeSelector:
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
   tolerations: *soloTolerations
 
 envoyDeployment:
-  nodeSelector:
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
   tolerations: *soloTolerations
 
 minio-server:
@@ -56,7 +51,4 @@ minio-server:
         volumesPerServer: 1
         size: 50Gi
         storageClassName: local-path
-        nodeSelector:
-          solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-          solo.hashgraph.io/network-id: "%NETWORK_ID%"
         tolerations: *soloTolerations
