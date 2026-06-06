@@ -105,16 +105,18 @@ CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
 if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
   : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
   CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
-  export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
-  export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-${SOLO_NAMESPACE}-test}"
+  # Force the CITR remote conventions. Do NOT use ${VAR:-default} here: the workflow sets
+  # SOLO_DEPLOYMENT and SOLO_CLUSTER_SETUP_NAMESPACE at env level, so a :- default would never
+  # apply and "solo-deployment"/"solo-cluster" would leak in (wrong deployment on the shared cluster).
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
+  export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
 elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
   KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
   CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
-  export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
-  # Dedicated deployment name so this scenario never collides with other Solo deployments
-  # (e.g. the shared "solo-deployment" used by the e2e cutover work). The kind cluster is reset
-  # each run, so the pre-create delete below removes this deployment from local config cleanly.
-  export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-wrb-jumpstart}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
+  # Dedicated deployment name so this scenario never collides with other Solo deployments (e.g. the
+  # shared "solo-deployment" the workflow sets at env level). Forced for the same leak reason.
+  export SOLO_DEPLOYMENT="wrb-jumpstart"
 else
   echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
   exit 1
@@ -1341,6 +1343,12 @@ if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
   # redeploying the fresh records-mode network this jumpstart run needs.
   log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
   solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force --quiet-mode >/dev/null 2>&1 || true
+  # network destroy removes the deployment's solo-remote-config ConfigMap, which the subsequent key
+  # generation and network deploy must read. Re-establish the deployment config + cluster attachment
+  # so a valid remote config exists before we continue.
+  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
+  solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+  solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
   # The remote cluster is already set up (MinIO via the minio-operator, monitoring, etc.). Only run
   # cluster-ref setup if the cluster-setup release is missing, skip MinIO when the operator is
   # present, and never (re)install the prometheus stack on the shared cluster.
