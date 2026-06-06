@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Solo network-deploy value overrides for the REMOTE multi-tenant cluster (e.g. solo-sdlt-n6).
+# solo-wrb-jumpstart.sh substitutes %NETWORK_OWNER% / %NETWORK_ID% at runtime (REMOTE_NETWORK_OWNER /
+# REMOTE_NETWORK_ID). Two cluster facts this addresses, both observed as Pending pods otherwise:
+#   1. Every node carries an untolerated taint solo.hashgraph.io/{role,owner,network-id} -> we add
+#      Exists tolerations (schedule regardless of value) plus a nodeSelector to pin to our pool.
+#   2. There is no default StorageClass and MinIO defaults to a non-existent "standard" class -> we
+#      pin MinIO to "local-path". Consensus nodes run with --pvcs false (emptyDir) on remote, so they
+#      need no StorageClass for a single short jumpstart run.
+#
+# Resources are right-sized for a lightweight records-mode jumpstart (NOT the 256Gi perf profile).
+
+defaults:
+  root:
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+
+deployment:
+  nodeSelector:
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations: &soloTolerations
+    - key: "solo.hashgraph.io/role"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+haproxyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations: *soloTolerations
+
+envoyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations: *soloTolerations
+
+minio-server:
+  tenant:
+    pools:
+      - servers: 1
+        name: pool-1
+        volumesPerServer: 1
+        size: 50Gi
+        storageClassName: local-path
+        nodeSelector:
+          solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+          solo.hashgraph.io/network-id: "%NETWORK_ID%"
+        tolerations: *soloTolerations

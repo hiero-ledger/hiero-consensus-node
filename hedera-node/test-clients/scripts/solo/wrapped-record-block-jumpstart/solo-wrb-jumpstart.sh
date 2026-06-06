@@ -110,6 +110,13 @@ if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
   # apply and "solo-deployment"/"solo-cluster" would leak in (wrong deployment on the shared cluster).
   export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
   export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
+  # Multi-tenant cluster: pods must tolerate + select the owner/network-id node pool, else they stay
+  # Pending (every node is tainted solo.hashgraph.io/owner=...). Override REMOTE_NETWORK_OWNER if
+  # this namespace is not on the adhoc-single-day-test pool; network-id defaults to the namespace's
+  # trailing number (e.g. solo-sdlt-n6 -> 6).
+  REMOTE_NETWORK_OWNER="${REMOTE_NETWORK_OWNER:-adhoc-single-day-test}"
+  REMOTE_NETWORK_ID="${REMOTE_NETWORK_ID:-$(grep -oE '[0-9]+$' <<< "${SOLO_NAMESPACE}" || true)}"
+  REMOTE_NETWORK_ID="${REMOTE_NETWORK_ID:-0}"
 elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
   KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
   CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
@@ -146,6 +153,8 @@ SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
 BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+# Remote-only Helm value overrides: scheduling tolerations/nodeSelector + MinIO storage class.
+REMOTE_NETWORK_VALUES_TEMPLATE="${REMOTE_NETWORK_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/network-values.yaml}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
@@ -1367,15 +1376,30 @@ fi
 
 log "Deploying consensus network with release tag ${INITIAL_RELEASE_TAG}"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-solo consensus network deploy \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -i "${NODE_ALIASES}" \
-  --application-properties "${DEPLOY_APP_PROPS_FILE}" \
-  --log4j2-xml "${LOG4J2_XML_PATH}" \
-  --service-monitor true \
-  --pod-log true \
-  --pvcs true \
+deploy_pvcs="true"
+deploy_args=(
+  solo consensus network deploy
+  --deployment "${SOLO_DEPLOYMENT}"
+  -i "${NODE_ALIASES}"
+  --application-properties "${DEPLOY_APP_PROPS_FILE}"
+  --log4j2-xml "${LOG4J2_XML_PATH}"
+  --service-monitor true
+  --pod-log true
   --release-tag "${INITIAL_RELEASE_TAG}"
+)
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  # Shared multi-tenant cluster: render the scheduling/storage overrides and deploy without PVCs
+  # (emptyDir is fine for a single run; the cluster has no default StorageClass for consensus PVCs).
+  deploy_pvcs="false"
+  remote_values_rendered="${WORK_DIR}/remote-network-values.yaml"
+  mkdir -p "${WORK_DIR}"
+  sed -e "s/%NETWORK_OWNER%/${REMOTE_NETWORK_OWNER}/g" -e "s/%NETWORK_ID%/${REMOTE_NETWORK_ID}/g" \
+    "${REMOTE_NETWORK_VALUES_TEMPLATE}" > "${remote_values_rendered}"
+  deploy_args+=(--values-file "${remote_values_rendered}")
+  log "Remote deploy: owner=${REMOTE_NETWORK_OWNER}, network-id=${REMOTE_NETWORK_ID}, --pvcs=false, values=${remote_values_rendered}"
+fi
+deploy_args+=(--pvcs "${deploy_pvcs}")
+"${deploy_args[@]}"
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 wait_for_consensus_pods_ready 600
