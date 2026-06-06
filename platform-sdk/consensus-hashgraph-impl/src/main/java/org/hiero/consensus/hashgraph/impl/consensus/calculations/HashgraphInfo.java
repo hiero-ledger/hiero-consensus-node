@@ -21,8 +21,8 @@ import java.util.function.Consumer;
  *   information about a round that is needed for the consensus calculations.
  * </ul>
  * There are constructors and getters, but no setters. Other than that, there are only 3 public methods:
- * {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()}, which gives the minimum birth round
- * that is not ancient,
+ * the static method {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()},
+ * which gives the minimum birth round that is not ancient,
  * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
  * For arrays passed to the constructors, the caller must never change any array elements.
@@ -72,7 +72,7 @@ public final class HashgraphInfo {
     private boolean roundDecided;
     private long supermajorityThreshold; // stake more than this is a supermajority
 
-    // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
+    // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
     /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
     public long getPendingRound() {return pendingRound;}
     public int getNumNodes() {return numNodes;}
@@ -106,43 +106,48 @@ public final class HashgraphInfo {
     }
 
     /**
-     * Apply the given lambda to each event in the hashgraph that is an ancestor of all
-     * the given judges (or of at least one judge, if judgeCons1 is true)
+     * Set isConsensus to true for each event in the hashgraph where it is false, and where the event is an ancestor
+     * of all the given judges (or of at least one judge, if judgeCons1 is true). Add them to consensusEvents
+     * (if consensusEvents is not null).
      */
-    private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, @NonNull Consumer<EventInfo> lambda) {
-        // events reach consensus when they are an ancestor of this many judges
-        int targetCount = judgeCon1 ? 1 : judges.length;
+    private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
         // mark used while searching from the first judge (later judges' marks are greater)
         int firstMark = currMark + 1;
-
+        // events reach consensus when they are an ancestor of this many judges
+        int targetCount = judgeCon1 ? 1 : judges.length;
         for (EventInfo judge : judges) { // depth-first search starting from each judge
-            EventInfo e = judge;
+            EventInfo x = judge, nextX;
+            if (x.isConsensus) {continue;}
             currMark++;
-            e.searchChild = null; // backtracking up from this e means the search is done
-            do { // depth-first search starting from this judge
-                // e is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
-                e.searchCount = (e.searchMark < firstMark) ? 1 : e.searchCount + 1;
-                e.searchMark = currMark;
-                e.searchParent = -1; // descend through the first parent first (index 0)
-                if (e.searchCount == targetCount) {
-                    lambda.accept(e);
-                }
-                EventInfo eNew = null;
-                // while eNew is bad (null / ancient / marked), search until a good one is found or done
-                while (e != null
-                        && (eNew == null
-                        || eNew.birthRound < minNonAncientRound
-                        || eNew.searchMark == currMark)) {
-                    while (e != null && e.searchParent >= e.parentsSigned.length - 1) {
-                        e = e.searchChild; // backtrack up until an event is found with an unexplored parent
+            x.searchChild = null; // backtracking up from this judge means the search is done
+            while (x != null) { // depth-first search starting from this judge
+                // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
+                x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
+                x.searchMark = currMark;
+                x.searchParent = -1; // descend through the first parent first (index 0)
+                if (x.searchCount == targetCount) {
+                    x.isConsensus = true;
+                    if (consensusEvents != null) {
+                        consensusEvents.add(x);
                     }
-                    if (e != null) {
-                        e.searchParent++;
-                    }
-                    eNew = (e == null) ? null : e.parentsSigned[e.searchParent];
                 }
-                e = eNew; // move to the new event that was good
-            } while (e != null); // once we backtrack to null, the search from this judge is done
+                nextX = null;
+                // while nextX is bad (null / ancient / marked / isConsensus), search until a good one is found or done
+                while (x != null
+                        && (nextX == null
+                        || nextX.birthRound < minNonAncientRound
+                        || nextX.searchMark == currMark
+                        || nextX.isConsensus)) {
+                    while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
+                        x = x.searchChild; // backtrack up until an event is found with an unexplored parent
+                    }
+                    if (x != null) {
+                        x.searchParent++;
+                    }
+                    nextX = (x == null) ? null : x.parentsSigned[x.searchParent];
+                }
+                x = nextX; // move to the new event that was good (or null if done searching from this judge)
+            }
         }
     }
 
@@ -209,7 +214,7 @@ public final class HashgraphInfo {
          * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
          * in the array, it must be in the first position. It is ok if the parents array is missing some or all of the
          * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
-         * then it is ok to pass in null, or an array of all nulls, or an empty array.
+         * then it is ok to pass in an array of all nulls, or an empty array.
          *
          * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
          * @param creator     the nodeID of the creator of this event
@@ -221,12 +226,13 @@ public final class HashgraphInfo {
                 long creator,
                 @NonNull Instant timeCreated,
                 long birthRound,
-                EventInfo[] parents) {
+                @NonNull EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
             this.timeCreated = timeCreated;
             this.birthRound = birthRound;
-            this.parentsSigned = (parents != null) ? parents : new EventInfo[0];
+            this.parentsSigned = parents;
+            this.isConsensus = false;
         }
 
         /**
@@ -250,7 +256,7 @@ public final class HashgraphInfo {
             return consensusTimestamp;
         }
 
-        // the following getters are just for debugging, monitoring, etc. Normal code should not rely on them.
+        // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
         /* //for the moment, I'll comment these out, to ensure our integration doesn't accidentally rely on them
         public HashgraphInfo getHashgraph() {return hashgraph;}
         public long getCreatorNodeID() {return creatorNodeID;}
@@ -377,10 +383,7 @@ public final class HashgraphInfo {
             // If this is the first time update has ever been called on an event for this hashgraph.
             if (h.pendingRound == 0) {
                 h.pendingRound = r.pendingRound;
-                if (r.pendingRound > 1) { //set isConsensus for all events that reached consensus before this round
-                    h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, (e -> e.isConsensus = true));
-                }
-
+                h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
             }
 
             // if this is a new round (or the first called on this hashgraph), calculate all HashgraphInfo fields
@@ -613,10 +616,7 @@ public final class HashgraphInfo {
 
             // function isConsensus ------------------------------------------------------------------------------
             consensusEvents = new ArrayList<>();
-            h.graphSearch(roundJudgesArray, r.judgeCon1, (e -> {
-                e.isConsensus = true;
-                consensusEvents.add(e);
-            }));
+            h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
             consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
             // function consensusOrder ---------------------------------------------------------------------------
