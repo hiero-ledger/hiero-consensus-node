@@ -287,7 +287,8 @@ public final class HashgraphInfo {
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
          * but only after it is ancient. It also sets to null the reference to the hashgraph, so after being cleared,
          * any future call to update will return null. This must be called eventually on every event, to allow the
-         * garbage collector to free memory.
+         * garbage collector to free memory. A cleared object shouldn't be reused, because many scalar fields are not
+         * reset here.
          * <p>
          * As an optimization, this also clears all references to all arrays and objects, not just to
          * {@link EventInfo EventInfo} objects.
