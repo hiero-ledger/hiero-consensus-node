@@ -234,6 +234,9 @@ cleanup() {
   if [[ -n "${EXPLORER_PORT_FORWARD_PID}" ]]; then
     kill "${EXPLORER_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   fi
+  if [[ -n "${REMOTE_TOLERATION_PATCHER_PID:-}" ]]; then
+    kill "${REMOTE_TOLERATION_PATCHER_PID}" >/dev/null 2>&1 || true
+  fi
   if [[ "${KEEP_NETWORK}" != "true" && ${exit_code} -eq 0 ]]; then
     log "KEEP_NETWORK=false, destroying Solo resources (and the kind cluster when CLUSTER_TARGET=kind)"
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
@@ -247,6 +250,43 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+# Remote multi-tenant cluster only: solo's mirror-node and shared-resources (postgres/redis)
+# sub-charts do not tolerate this cluster's solo.hashgraph.io/owner node taint, and solo exposes no
+# values knob for the shared-resources tolerations. While the mirror/explorer deploy steps run, this
+# background loop patches the namespace's NON-consensus workloads (skipping network-node/haproxy/
+# envoy/minio so the already-running network is never restarted) to tolerate all taints, so their
+# Pending pods can schedule. Idempotent after the first patch; stopped by stop_* and the cleanup trap.
+REMOTE_TOLERATION_PATCHER_PID=""
+start_remote_toleration_patcher() {
+  [[ "${CLUSTER_TARGET}" == "remote" ]] || return 0
+  (
+    set +e
+    deadline=$(( $(date +%s) + 1800 ))
+    while [[ "$(date +%s)" -lt "${deadline}" ]]; do
+      for res in statefulset deployment; do
+        kubectl -n "${SOLO_NAMESPACE}" get "${res}" \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | while IFS= read -r name; do
+          [[ -n "${name}" ]] || continue
+          case "${name}" in
+            network-node*|haproxy*|envoy*|minio*) continue ;;
+          esac
+          kubectl -n "${SOLO_NAMESPACE}" patch "${res}" "${name}" --type merge \
+            -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 || true
+        done
+      done
+      sleep 5
+    done
+  ) &
+  REMOTE_TOLERATION_PATCHER_PID=$!
+  log "Started remote toleration patcher (pid ${REMOTE_TOLERATION_PATCHER_PID}) for non-consensus workloads in ${SOLO_NAMESPACE}"
+}
+stop_remote_toleration_patcher() {
+  [[ -n "${REMOTE_TOLERATION_PATCHER_PID:-}" ]] || return 0
+  kill "${REMOTE_TOLERATION_PATCHER_PID}" >/dev/null 2>&1 || true
+  wait "${REMOTE_TOLERATION_PATCHER_PID}" 2>/dev/null || true
+  REMOTE_TOLERATION_PATCHER_PID=""
+}
 
 require_cmd() {
   local cmd="$1"
@@ -1349,16 +1389,6 @@ if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
     -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' >/dev/null 2>&1 \
     && log "Marked StorageClass local-path as cluster default" \
     || log "Warning: could not mark local-path as default StorageClass (mirror PVCs may stay Pending)"
-  # Every worker node is tainted solo.hashgraph.io/owner=...; solo's mirror-node and shared-resources
-  # (postgres/redis) sub-charts carry no toleration for it and expose no values knob for one. Set a
-  # namespace-level default toleration (honored by the PodTolerationRestriction admission plugin) so
-  # every pod created in this namespace inherits it - consensus, shared-resources, mirror, explorer.
-  # Requires the plugin to be enabled on the cluster; harmless (ignored) otherwise.
-  kubectl annotate namespace "${SOLO_NAMESPACE}" --overwrite \
-    'scheduler.alpha.kubernetes.io/defaultTolerations=[{"operator":"Exists","key":"solo.hashgraph.io/owner","effect":"NoSchedule"},{"operator":"Exists","key":"solo.hashgraph.io/role","effect":"NoSchedule"},{"operator":"Exists","key":"solo.hashgraph.io/network-id","effect":"NoSchedule"}]' \
-    >/dev/null 2>&1 \
-    && log "Applied namespace default tolerations to ${SOLO_NAMESPACE}" \
-    || log "Warning: could not set namespace default tolerations on ${SOLO_NAMESPACE} (continuing)"
   # Shared remote cluster: remove any pre-existing consensus network in this namespace before
   # redeploying the fresh records-mode network this jumpstart run needs.
   log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
@@ -1412,9 +1442,13 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 
+# On remote, keep non-consensus pods (shared-resources postgres/redis, mirror, explorer) tolerating
+# the node taint while these deploy steps run; no-op on kind.
+start_remote_toleration_patcher
 configure_mirror_rest_endpoint
 
 ensure_explorer_node
+stop_remote_toleration_patcher
 
 log "Waiting 30 seconds before offline wrap tooling"
 sleep 30
