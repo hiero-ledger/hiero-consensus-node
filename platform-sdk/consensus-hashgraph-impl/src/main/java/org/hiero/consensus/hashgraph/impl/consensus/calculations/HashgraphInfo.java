@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.function.Consumer;
 
@@ -25,8 +26,11 @@ import java.util.function.Consumer;
  * which gives the minimum birth round that is not ancient,
  * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
- * For arrays passed to the constructors, the caller must never change any array elements.
- * This file implements the equations from the tech report Swirlds-TR-2026-01.
+ * This file implements the equations from the tech report Swirlds-TR-2026-01. Search this file for "/-" to
+ * find all of the equations that are implemented from that paper.
+ * <p>
+ * WARNING: For arrays passed to the constructors, the caller must never change any array elements. The arrays must
+ * be treated as immutable objects.
  * <p>
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
@@ -99,7 +103,6 @@ public final class HashgraphInfo {
      * @return the minimum birth round that counts as non-ancient
      */
     public static long minNonAncientRound(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
-        // function minNonAncientRound ---------------------------------------------------------------------------
         return Math.max(
                 roundInfoPrev.prevMinNonAncientRound,
                 roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
@@ -387,29 +390,16 @@ public final class HashgraphInfo {
                 h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
             }
 
-            // if this is a new round (or the first called on this hashgraph), calculate all HashgraphInfo fields
+            // if this is a new round (or the first called on this hashgraph), calculate the HashgraphInfo fields
             if (h.pendingRound != r.pendingRound) {
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
 
-                // function minNonAncientRound -------------------------------------------------------------------
-                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
-
-                // set h.nodesChanged to true if the node array changed this round (or it's the first time called).
-                if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
+                // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
+                h.nodesChanged = false;
+                if (!Arrays.equals(h.nodeIDs, r.nodes)) {
+                    h.nodeIDs = r.nodes; //no defensive copy: we require the caller to never change arrays in r/rp/h/x
                     h.nodesChanged = true;
-                } else {
-                    for (int i = 0; i < h.numNodes; i++) {
-                        if (h.nodeIDs[i] != r.nodes[i]) {
-                            h.nodesChanged = true;
-                            break;
-                        }
-                    }
-                }
-
-                // if it did change, then update the nodeIdToIndex to map from nodeID to index
-                if (h.nodesChanged) {
-                    h.nodeIDs = r.nodes;
                     if (h.nodeIdToIndex == null) {
                         h.nodeIdToIndex = new HashMap<>();
                     } else {
@@ -420,10 +410,15 @@ public final class HashgraphInfo {
                     }
                 }
 
-                // if this is the first time this event has updated, or if this round has a changed address book,
-                // then recalculate the index for the creator
+                // function minNonAncientRound /------------------------------------------------------------------
+                h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
+
+                // if this is the first time this event has been updated, or if this round has a changed address book,
+                // then recalculate the index for the creator.
+                // The index is -1 if the creator is not in this round's address book.
                 if (x.lastSee == null || h.nodesChanged) {
-                    x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
+                    Integer index = h.nodeIdToIndex.get(x.creatorNodeID);
+                    x.creator = (index == null) ? -1 : index;
                 }
 
                 // set isPrevJudge to true for the judges in the previous round
@@ -431,16 +426,16 @@ public final class HashgraphInfo {
                     judge.prevJudge = true;
                 }
 
-                // function totalStake ---------------------------------------------------------------------------
+                // function totalStake /--------------------------------------------------------------------------
                 h.totalStake = 0;
                 for (long s : r.stake) {
                     h.totalStake += s;
                 }
 
-                // function supermajority ------------------------------------------------------------------------
+                // function supermajority /-----------------------------------------------------------------------
                 h.supermajorityThreshold = 2 * h.totalStake / 3;
 
-                // function voteD  -------------------------------------------------------------------------------
+                // function voteD  /------------------------------------------------------------------------------
                 {
                     long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
@@ -449,12 +444,6 @@ public final class HashgraphInfo {
                     h.voteD = (rp.prevJudgesCopied || (rp.prevJudgeCon1 && !r.judgeCon1)
                                     || (totalStake <= h.supermajorityThreshold)) ? 2 : 1;
                 }
-            }
-
-            // if this is a round where the address book changed, or if this is the first time this event has
-            // ever been updated, then recalculate the creator index
-            if (h.nodesChanged || x.lastSee == null) {
-                x.creator = h.nodeIdToIndex.get(x.creatorNodeID);
             }
 
             // instantiate fields if they are null, or the array is the wrong size.
@@ -477,7 +466,7 @@ public final class HashgraphInfo {
                 x.voteB = new boolean[h.numNodes];
             }
 
-            // function parents  ---------------------------------------------------------------------------------
+            // function parents  /--------------------------------------------------------------------------------
             // put in the h.parents array only parents that are non-ancient descendents of judges in the prev round
             if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
                 // shrink to recover after branching
@@ -494,7 +483,7 @@ public final class HashgraphInfo {
             h.selfParent =
                     (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
 
-            // function prevJudgeDesc ----------------------------------------------------------------------------
+            // function prevJudgeDesc /---------------------------------------------------------------------------
             // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
             x.maxJudgeRound = x.prevJudge ? (r.pendingRound - 1) : 1;
             for (EventInfo parent : h.parents) {
@@ -502,7 +491,7 @@ public final class HashgraphInfo {
             }
             x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); // use alg in paper comments, not equations
 
-            // function ancestorJudge  ---------------------------------------------------------------------------
+            // function ancestorJudge  /--------------------------------------------------------------------------
             // (for each y that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {
                 x.ancestorJudge[i] = (x == rp.prevJudges[i]);
@@ -514,7 +503,7 @@ public final class HashgraphInfo {
                 }
             }
 
-            // function gen --------------------------------------------------------------------------------------
+            // function gen /-------------------------------------------------------------------------------------
             {
                 long t = 0;
                 for (EventInfo parent : h.parents) {
@@ -523,7 +512,7 @@ public final class HashgraphInfo {
                 x.gen = t + 1;
             }
 
-            // function parentRound ------------------------------------------------------------------------------
+            // function parentRound /-----------------------------------------------------------------------------
             if (h.parents.isEmpty()) {
                 parentRound = r.pendingRound - 1;
             } else {
@@ -533,7 +522,7 @@ public final class HashgraphInfo {
                 }
             }
 
-            // function lastSee ----------------------------------------------------------------------------------
+            // function lastSee /---------------------------------------------------------------------------------
             for (int m = 0; m < h.numNodes; m++) {
                 if (m == x.creator) {
                     x.lastSee[m] = x;
@@ -572,57 +561,57 @@ public final class HashgraphInfo {
                 }
             }
 
-            // function seeThru ----------------------------------------------------------------------------------
+            // function seeThru /---------------------------------------------------------------------------------
 
-            // function stronglySeeP -----------------------------------------------------------------------------
+            // function stronglySeeP /----------------------------------------------------------------------------
 
-            // function votingRound ------------------------------------------------------------------------------
+            // function votingRound /-----------------------------------------------------------------------------
 
-            // function firstSelfWitnessS ------------------------------------------------------------------------
+            // function firstSelfWitnessS /-----------------------------------------------------------------------
 
-            // function firstWitnessS ----------------------------------------------------------------------------
+            // function firstWitnessS /---------------------------------------------------------------------------
 
-            // function stronglySeeS1 ----------------------------------------------------------------------------
+            // function stronglySeeS1 /---------------------------------------------------------------------------
 
-            // function witness ----------------------------------------------------------------------------------
+            // function witness /---------------------------------------------------------------------------------
 
-            // function firstVote --------------------------------------------------------------------------------
+            // function firstVote /-------------------------------------------------------------------------------
 
-            // function stakeAgrees ------------------------------------------------------------------------------
+            // function stakeAgrees /-----------------------------------------------------------------------------
 
-            // function topVote ----------------------------------------------------------------------------------
+            // function topVote /---------------------------------------------------------------------------------
 
-            // function vote -------------------------------------------------------------------------------------
+            // function vote /------------------------------------------------------------------------------------
 
-            // function roundDecided -----------------------------------------------------------------------------
+            // function roundDecided /----------------------------------------------------------------------------
 
             if (!h.roundDecided) {
                 return null;
             }
 
-            // function roundJudges ------------------------------------------------------------------------------
+            // function roundJudges /-----------------------------------------------------------------------------
             roundJudges = new ArrayList<>();
             // TODO fill in roundJudges
             roundJudgesArray = roundJudges.toArray(new EventInfo[0]);
 
-            // function receivedEvents ---------------------------------------------------------------------------
+            // function receivedEvents /--------------------------------------------------------------------------
 
-            // function isReceived -------------------------------------------------------------------------------
+            // function isReceived /------------------------------------------------------------------------------
 
-            // function reachedCon -------------------------------------------------------------------------------
+            // function reachedCon /------------------------------------------------------------------------------
 
-            // function timeCon ----------------------------------------------------------------------------------
+            // function timeCon /---------------------------------------------------------------------------------
 
-            // function before -----------------------------------------------------------------------------------
+            // function before /----------------------------------------------------------------------------------
 
-            // function isConsensus ------------------------------------------------------------------------------
+            // function isConsensus /-----------------------------------------------------------------------------
             consensusEvents = new ArrayList<>();
             h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
             consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
-            // function consensusOrder ---------------------------------------------------------------------------
+            // function consensusOrder /--------------------------------------------------------------------------
 
-            // function consensusTimestamp -----------------------------------------------------------------------
+            // function consensusTimestamp /----------------------------------------------------------------------
 
             // the round reached consensus, so set the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
@@ -643,7 +632,7 @@ public final class HashgraphInfo {
                             h.pendingRound + 1, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
                             roundJudgesArray, // prevJudges
-                            false, // prevJudgesCopied /**/
+                            false, // prevJudgesCopied // TODO fill this in
                             h.minNonAncientRound, // prevMinNonAncientRound
                             rp.prevNumCons + consensusEvents.size(), // prevNumCons
                             minJudgeBirthRound)); // prevMinJudgeBirthRound
