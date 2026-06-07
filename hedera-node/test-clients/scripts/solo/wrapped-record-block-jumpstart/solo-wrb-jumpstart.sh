@@ -254,9 +254,11 @@ trap cleanup EXIT
 # Remote multi-tenant cluster only: solo's mirror-node and shared-resources (postgres/redis)
 # sub-charts do not tolerate this cluster's solo.hashgraph.io/owner node taint, and solo exposes no
 # values knob for the shared-resources tolerations. While the mirror/explorer deploy steps run, this
-# background loop patches the namespace's NON-consensus workloads (skipping network-node/haproxy/
-# envoy/minio so the already-running network is never restarted) to tolerate all taints, so their
-# Pending pods can schedule. Idempotent after the first patch; stopped by stop_* and the cleanup trap.
+# background loop (a) patches the namespace's NON-consensus workloads - skipping network-node/haproxy/
+# envoy/minio so the live network is never restarted - to tolerate all taints, and (b) deletes their
+# already-Pending pods so the controllers recreate them from the patched template (a StatefulSet does
+# not recreate a Pending pod on a template change by itself). Converges once recreated pods carry the
+# toleration; stopped by stop_* and the cleanup trap.
 REMOTE_TOLERATION_PATCHER_PID=""
 start_remote_toleration_patcher() {
   [[ "${CLUSTER_TARGET}" == "remote" ]] || return 0
@@ -264,6 +266,7 @@ start_remote_toleration_patcher() {
     set +e
     deadline=$(( $(date +%s) + 1800 ))
     while [[ "$(date +%s)" -lt "${deadline}" ]]; do
+      # (a) ensure non-consensus workload templates tolerate the node taint
       for res in statefulset deployment; do
         kubectl -n "${SOLO_NAMESPACE}" get "${res}" \
           -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | while IFS= read -r name; do
@@ -275,7 +278,20 @@ start_remote_toleration_patcher() {
             -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 || true
         done
       done
-      sleep 5
+      # (b) recreate Pending pods that don't yet carry the toleration (i.e. were created from the
+      #     pre-patch template); the controller recreates them from the now-patched template
+      kubectl -n "${SOLO_NAMESPACE}" get pods --field-selector=status.phase=Pending \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | while IFS= read -r pod; do
+        [[ -n "${pod}" ]] || continue
+        case "${pod}" in
+          network-node*|haproxy*|envoy*|minio*) continue ;;
+        esac
+        if ! kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o json 2>/dev/null \
+            | jq -e '.spec.tolerations[]? | select(.operator=="Exists" and (.key==null))' >/dev/null 2>&1; then
+          kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false >/dev/null 2>&1 || true
+        fi
+      done
+      sleep 10
     done
   ) &
   REMOTE_TOLERATION_PATCHER_PID=$!
