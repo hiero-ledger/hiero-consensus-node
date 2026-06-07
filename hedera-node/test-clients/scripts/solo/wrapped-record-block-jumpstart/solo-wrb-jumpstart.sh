@@ -1349,6 +1349,16 @@ if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
     -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' >/dev/null 2>&1 \
     && log "Marked StorageClass local-path as cluster default" \
     || log "Warning: could not mark local-path as default StorageClass (mirror PVCs may stay Pending)"
+  # Every worker node is tainted solo.hashgraph.io/owner=...; solo's mirror-node and shared-resources
+  # (postgres/redis) sub-charts carry no toleration for it and expose no values knob for one. Set a
+  # namespace-level default toleration (honored by the PodTolerationRestriction admission plugin) so
+  # every pod created in this namespace inherits it - consensus, shared-resources, mirror, explorer.
+  # Requires the plugin to be enabled on the cluster; harmless (ignored) otherwise.
+  kubectl annotate namespace "${SOLO_NAMESPACE}" --overwrite \
+    'scheduler.alpha.kubernetes.io/defaultTolerations=[{"operator":"Exists","key":"solo.hashgraph.io/owner","effect":"NoSchedule"},{"operator":"Exists","key":"solo.hashgraph.io/role","effect":"NoSchedule"},{"operator":"Exists","key":"solo.hashgraph.io/network-id","effect":"NoSchedule"}]' \
+    >/dev/null 2>&1 \
+    && log "Applied namespace default tolerations to ${SOLO_NAMESPACE}" \
+    || log "Warning: could not set namespace default tolerations on ${SOLO_NAMESPACE} (continuing)"
   # Shared remote cluster: remove any pre-existing consensus network in this namespace before
   # redeploying the fresh records-mode network this jumpstart run needs.
   log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
