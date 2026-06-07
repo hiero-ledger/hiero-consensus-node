@@ -1341,6 +1341,14 @@ solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOY
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
 
 if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  # The cluster has the "local-path" StorageClass (MinIO uses it) but no *default* class, so the
+  # mirror-node sub-charts (postgres/redis) create PVCs with no class and stay Pending. Mark
+  # local-path default (idempotent; best-effort - needs cluster-scoped patch permission) so those
+  # PVCs bind, mirroring how CITR's cluster is expected to be configured.
+  kubectl patch storageclass local-path \
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}' >/dev/null 2>&1 \
+    && log "Marked StorageClass local-path as cluster default" \
+    || log "Warning: could not mark local-path as default StorageClass (mirror PVCs may stay Pending)"
   # Shared remote cluster: remove any pre-existing consensus network in this namespace before
   # redeploying the fresh records-mode network this jumpstart run needs.
   log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
