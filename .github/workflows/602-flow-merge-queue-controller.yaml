@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 210: [FLOW] Merge Queue Controller"
+name: "602: [FLOW] Merge Queue Controller"
 on:
   push:
     branches:
@@ -20,14 +20,6 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/802-extract-jdk-version.yaml
-    with:
-      ref: ${{ github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  extract-citr-vars:
-    name: Extract CITR Vars
-    uses: ./.github/workflows/855-extract-citr-vars.yaml
     with:
       ref: ${{ github.ref }}
     secrets:
@@ -57,12 +49,11 @@ jobs:
     name: MQ XTS
     needs:
       - extract-jdk-version
-      - extract-citr-vars
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
       branch-name: ${{ github.ref_name }}
-      solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
       solo-ge-0440: "true"
       helm-release-name: "mirror-1"
       custom-job-label: "Merge Queue XTS:"
@@ -95,12 +86,11 @@ jobs:
     name: MQPT
     needs:
       - extract-jdk-version
-      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}"
+      test-asset: "${{ vars.MQPT_CLUSTER }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
