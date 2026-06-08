@@ -65,12 +65,26 @@ Field discipline:
 
 ## Body
 
-Exactly three sections, in this order.
+Three required sections — `## Statement`, `## Why it holds now`, and
+`## Change risk` — in this order. An optional `## Context` may appear
+immediately after `## Statement`, and an optional `## Notes` may appear last.
 
 ### `## Statement`
 
-The property as it holds today, in prose, as a single declarative claim with
-scope and conditions explicit.
+The property as it holds today, as a **single declarative claim** with scope
+and conditions explicit. Keep it concise: one sentence is ideal, a few short
+sentences at most. It must not run to a lengthy paragraph or multiple
+paragraphs — supporting detail, mechanism, and motivation belong in
+`## Context` (below) or `## Why it holds now`, not here. A reader should be
+able to grasp the whole rule from this section alone.
+
+### `## Context` (optional)
+
+Background that helps a reader understand the statement but does not belong in
+the terse claim itself: the surrounding system behavior, why the property
+matters, definitions of terms, or the consequence of the property being
+violated. Appears immediately after `## Statement`. Omit the section when the
+statement stands on its own.
 
 ### `## Why it holds now`
 
@@ -118,6 +132,9 @@ curated_by: ...
 # RUL-NNN — Title
 
 ## Statement
+...
+
+## Context
 ...
 
 ## Why it holds now
