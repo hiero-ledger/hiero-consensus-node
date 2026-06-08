@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXCron: [CITR] Promote Build Candidate"
+name: "901: [CRON] CITR Promote Build"
 on:
   workflow_dispatch:
   schedule:

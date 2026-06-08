@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: Delete automation Latitude Namespaces"
+name: "902: [CRON] Auto Namespace Delete"
 permissions:
   contents: read
   id-token: write
