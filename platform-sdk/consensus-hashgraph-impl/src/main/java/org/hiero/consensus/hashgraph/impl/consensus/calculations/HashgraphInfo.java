@@ -68,7 +68,6 @@ public final class HashgraphInfo {
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>(); //used as scratchpad during update of an event
-    private EventInfo selfParent; //used as scratchpad during update of an event
     private int parentsMaxSize = 0; // largest parents has ever been (used to recover from massive branching)
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
@@ -80,12 +79,12 @@ public final class HashgraphInfo {
     public long getPendingRound() {return pendingRound;}
     public int getNumNodes() {return numNodes;}
     public long[] getNodeIDs() {return nodeIDs;}
+    public EventInfo[] getfirstVote() {return firstVote;}
     public HashMap<Long, Integer> getNodeIdToIndex() {return nodeIdToIndex;}
     public long getTotalStake() {return totalStake;}
     public long getMinNonAncientRound() {return minNonAncientRound;}
     public int getVoteD() {return voteD;}
     public ArrayList<EventInfo> getParents() {return parents;}
-    public EventInfo getSelfParent() {return selfParent;}
     public int getParentsMaxSize() {return parentsMaxSize;}
     public boolean getNodesChanged() {return nodesChanged;}
     public int getCurrMark() {return currMark;}
@@ -187,6 +186,8 @@ public final class HashgraphInfo {
         private final long creatorNodeID; // nodeID of this event's creator
         private final Instant timeCreated;
         private EventInfo[] parentsSigned;
+        private EventInfo selfParent; // self-parent or null if not a descendent of judges in the previous round
+        private final int coin;
         private int creator; // index into the nodes array of this event's creator
         private final long birthRound;
         private boolean[] ancestorJudge;
@@ -221,6 +222,8 @@ public final class HashgraphInfo {
          * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
          * @param creator     the nodeID of the creator of this event
          * @param timeCreated when this event was created, as claimed by its creator node
+         * @param birthRound  birth round of this event (which was the pending round at the moment it was created)
+         * @param coin        the coin flip results for this event (in the range 0 to numNodes, inclusive)
          * @param parents     array of parents, in the same order as in the signed event that is gossiped.
          */
         public EventInfo(
@@ -228,12 +231,14 @@ public final class HashgraphInfo {
                 long creator,
                 @NonNull Instant timeCreated,
                 long birthRound,
+                int coin,
                 @NonNull EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
             this.timeCreated = timeCreated;
             this.birthRound = birthRound;
             this.parentsSigned = parents;
+            this.coin = coin;
             this.isConsensus = false;
         }
 
@@ -264,6 +269,8 @@ public final class HashgraphInfo {
         public long getCreatorNodeID() {return creatorNodeID;}
         public Instant getTimeCreated() {return timeCreated;}
         public EventInfo[] getParentsSigned() {return parentsSigned;}
+        public EventInfo getSelfParent() {return selfParent;}
+        public int coin() {return coin;}
         public int getCreator() {return creator;}
         public long getBirthRound() {return birthRound;}
         public boolean[] getAncestorJudge() {return ancestorJudge;}
@@ -371,6 +378,7 @@ public final class HashgraphInfo {
             EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
             boolean witness;
+            boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
 
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
@@ -475,13 +483,13 @@ public final class HashgraphInfo {
                 h.parentsMaxSize = 0;
             }
             h.parents.clear();
-            for (int i = 0; i < parentsSigned.length; i++) {
-                if (parentsSigned[i] != null && parentsSigned[i].prevJudgeDesc) {
-                    h.parents.add(parentsSigned[i]);
+            for (EventInfo parent : parentsSigned) {
+                if (parent != null && parent.prevJudgeDesc) {
+                    h.parents.add(parent);
                 }
             }
             h.parentsMaxSize = Math.max(h.parentsMaxSize, parentsSigned.length);
-            h.selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != creator)
+            selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != creator)
                             ? null : h.parents.getFirst();
 
             // function prevJudgeDesc /---------------------------------------------------------------------------
@@ -563,7 +571,7 @@ public final class HashgraphInfo {
 
             // function stronglySeeP /----------------------------------------------------------------------------
             for (int m = 0; m < h.numNodes; m++) {
-                EventInfo y, z, p = h.selfParent;
+                EventInfo y, z, p = selfParent;
                 //y = seeThru(r,x,m,m)
                 if (creator == m) {
                     y = (p == null) ? null : p.firstSelfWitnessS;
@@ -605,8 +613,8 @@ public final class HashgraphInfo {
                     } else if ((r.pendingRound == p) && r.firstVotingRoundSee && (h.voteD == 1)) { //if q
                         long s = 0;
                         for (int m = 0; m < r.nodes.length; m++) {
-                            s += (((creator == m) && (h.selfParent != null)
-                                    && (h.selfParent.votingRound == p))
+                            s += (((creator == m) && (selfParent != null)
+                                    && (selfParent.votingRound == p))
                                     || ((creator != m) && (lastSee[m] != null)
                                     && (lastSee[m].votingRound == p)))
                                     ? r.stake[m] : 0;
@@ -624,7 +632,7 @@ public final class HashgraphInfo {
 
             // function firstSelfWitnessS /-----------------------------------------------------------------------
             {
-                EventInfo p = h.selfParent;
+                EventInfo p = selfParent;
                 if (p == null || votingRound > p.votingRound) {
                     firstSelfWitnessS = this;
                 } else {
@@ -654,25 +662,132 @@ public final class HashgraphInfo {
             }
 
             // function witness /---------------------------------------------------------------------------------
-            witness = (h.selfParent == null) || (votingRound > h.selfParent.votingRound);
-
-            // function firstVote /-------------------------------------------------------------------------------
+            witness = (selfParent == null) || (votingRound > selfParent.votingRound);
 
             // function stakeAgrees /-----------------------------------------------------------------------------
-
-            // function topVote /---------------------------------------------------------------------------------
+            {
+                int m=0, mp=0; // TODO remove
+                long stakeAgrees = 0;
+                if (stronglySeeS1[mp] != null) {
+                    EventInfo mpVote = stronglySeeS1[mp].voteE[m];
+                    for (int mpp = 0; mpp < h.numNodes; mpp++) {
+                        stakeAgrees += ((stronglySeeS1[mpp] != null)
+                                && (mpVote == stronglySeeS1[mpp].voteE[m]))
+                                ? r.stake[mpp] : 0;
+                    }
+                }
+            }
 
             // function vote /------------------------------------------------------------------------------------
+            // TODO finish vote
+            for (int m = 0; m < h.numNodes; m++) {
+                long i = h.pendingRound + h.voteD;
+                if (!witness || votingRound < i) {
+                    voteE[m] = null;
+                    voteB[m] = false;
+                    continue;
+                }
+                if (votingRound == i) {
+                    // function firstVote /-------------------------------------------------------------------------------
+                    EventInfo firstVote;
+                    if (h.voteD == 2) { // vote for any witness strongly seen by a witness that you strongly see.
+                        firstVote = null;
+                        for (int mp = 0; mp < h.numNodes; mp++) {
+                            EventInfo t = stronglySeeS1[mp];
+                            if (t != null) {
+                                EventInfo s = t.stronglySeeS1[m];
+                                if (s != null) {
+                                    firstVote = s;
+                                    break;
+                                }
+                            }
+                        }
+                    } else { // voteD = 1. Vote for any witness you can see. (Or the branch seen first, if branching)
+                        EventInfo z = lastSee[m];
+                        if (z == null) {
+                            firstVote = null;
+                        } else {
+                            EventInfo v = z.firstSelfWitnessS;
+                            if (v.votingRound == votingRound - 1) {
+                                EventInfo y = v.selfParent;
+                                if (y != null && y.votingRound == votingRound - 1) {
+                                    firstVote = y.firstSelfWitnessS;
+                                } else {
+                                    firstVote = null;
+                                }
+                            } else {
+                                firstVote = null;
+                            }
+                        }
+                    }
+                    voteE[m] = firstVote;
+                    voteB[m] = false;
+                    continue;
+                } // end of firstVote
+
+                // function topVote /---------------------------------------------------------------------------------
+                EventInfo v=null;
+                boolean s=false;
+                //TODO topVote
+                //end of topVote, continuing vote
+
+                boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
+                if (!q) { //if not a coin round, vote whatever vote had the majority collected
+                    voteE[m] = v;
+                    voteB[m] = s;
+                    continue;
+                }
+                if (s) { //if a coin round and collect a supermajority, vote that way, but don't decide
+                    voteE[m] = v;
+                    voteB[m] = false;
+                    continue;
+                }
+                int mp = coin;
+                if ((mp == h.numNodes) || (h.pendingRound != birthRound)) { // coin==h.numNodes means vote for null
+                    voteE[m] = null; // if the coin chose null then vote null. (Or if birth round isn't pending round)
+                    voteB[m] = false;
+                    continue;
+                }
+                EventInfo w = stronglySeeS1[mp];
+                if (w == null) {
+                    voteE[m] = null; // if the coin chose a voter that wasn't collected, then vote null
+                    voteB[m] = false;
+                    continue;
+                }
+                voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
+                voteB[m] = false;
+            }
 
             // function roundDecided /----------------------------------------------------------------------------
-
+            h.roundDecided = witness;
+            for (int m = 0; m < h.numNodes; m++) {
+                h.roundDecided = h.roundDecided && voteB[m];
+                if (!h.roundDecided) {
+                    break;
+                }
+            }
             if (!h.roundDecided) {
                 return null;
             }
 
             // function roundJudges /-----------------------------------------------------------------------------
             roundJudges = new ArrayList<>();
-            // TODO fill in roundJudges
+            long s = 0; //total stake of all the elected judges
+            for (int m = 0; m < h.numNodes; m++) {
+                if (voteE[m] != null) {
+                    roundJudges.add(voteE[m]);
+                    s += r.stake[voteE[m].creator];
+                }
+            }
+            prevJudgesCopied = (s <= h.supermajorityThreshold);
+            if (prevJudgesCopied) { // if not a supermajority, copy previous judges. This is VERY rare.
+                roundJudges.clear();
+                for (EventInfo judge : rp.prevJudges) {
+                    if (judge.creator != -1) { //add only the previous judges that are in the current address book
+                        roundJudges.add(judge);
+                    }
+                }
+            }
             roundJudgesArray = roundJudges.toArray(new EventInfo[0]);
 
             // function receivedEvents /--------------------------------------------------------------------------
@@ -713,7 +828,7 @@ public final class HashgraphInfo {
                             h.pendingRound + 1, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
                             roundJudgesArray, // prevJudges
-                            false, // prevJudgesCopied // TODO fill this in
+                            prevJudgesCopied, // prevJudgesCopied
                             h.minNonAncientRound, // prevMinNonAncientRound
                             rp.prevNumCons + consensusEvents.size(), // prevNumCons
                             minJudgeBirthRound)); // prevMinJudgeBirthRound

@@ -316,6 +316,7 @@ public class ConsensusImplDAB implements Consensus {
                     event.getCreatorId().id(),
                     event.getTimeCreated(),
                     event.getBirthRound(),
+                    0, // TODO copy the actual coin value from the original signed event to here
                     parentEventInfos);
             event.setEventInfo(eventInfo);
             recentEvents.add(event);
