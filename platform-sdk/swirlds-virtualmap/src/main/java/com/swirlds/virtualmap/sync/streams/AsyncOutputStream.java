@@ -8,6 +8,8 @@ import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -83,6 +85,24 @@ public class AsyncOutputStream {
     private long pollNanos = 0; // time draining the queue (poll), writer thread only
     private long socketWriteNanos = 0; // time in writeMessage + flush (the socket path), writer thread only
 
+    // Diagnostic: CPU time actually consumed by the writer thread. The thread is dedicated to run(),
+    // so getCurrentThreadCpuTime() read at exit == CPU spent writing. If writerCpuMs << socketWriteMs,
+    // the thread is blocked/descheduled inside write() (starved or back-pressured), NOT computing —
+    // which, given GcmBench showed 5.4 GB/s, is the expected outcome and exonerates the cipher.
+    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
+    private static final boolean CPU_TIME_OK = enableThreadCpuTime();
+
+    private static boolean enableThreadCpuTime() {
+        try {
+            if (THREAD_MX.isThreadCpuTimeSupported() && !THREAD_MX.isThreadCpuTimeEnabled()) {
+                THREAD_MX.setThreadCpuTimeEnabled(true);
+            }
+            return THREAD_MX.isCurrentThreadCpuTimeSupported() && THREAD_MX.isThreadCpuTimeEnabled();
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
     /**
      * Constructs a new instance using the given underlying {@link DataOutputStream} and
      * {@link StandardWorkGroup}.
@@ -153,14 +173,16 @@ public class AsyncOutputStream {
                 throw new MerkleSynchronizationException(e);
             }
             final long totalBytes = bytesWritten.sum();
+            final long writerCpuNanos = CPU_TIME_OK ? THREAD_MX.getCurrentThreadCpuTime() : -1L;
             logger.info(
                     RECONNECT.getMarker(),
-                    "AsyncOutputStream summary: bytesWritten={} writerBusyMs={} writerIdleMs={} pollMs={} socketWriteMs={}",
+                    "AsyncOutputStream summary: bytesWritten={} writerBusyMs={} writerIdleMs={} pollMs={} socketWriteMs={} writerCpuMs={}",
                     totalBytes,
                     TimeUnit.NANOSECONDS.toMillis(writerBusyNanos),
                     TimeUnit.NANOSECONDS.toMillis(writerIdleNanos),
                     TimeUnit.NANOSECONDS.toMillis(pollNanos),
-                    TimeUnit.NANOSECONDS.toMillis(socketWriteNanos));
+                    TimeUnit.NANOSECONDS.toMillis(socketWriteNanos),
+                    writerCpuNanos < 0 ? -1L : TimeUnit.NANOSECONDS.toMillis(writerCpuNanos));
         } catch (final Exception e) {
             workGroup.handleError(e);
         }
