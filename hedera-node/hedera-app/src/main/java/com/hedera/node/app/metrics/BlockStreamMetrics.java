@@ -3,6 +3,7 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.node.app.blocks.impl.streaming.CloseReason;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -46,8 +47,8 @@ public class BlockStreamMetrics {
     private RunningAverageMetric buffer_blockBytes;
     private RunningAverageMetric connSend_requestBytes;
     private RunningAverageMetric connSend_requestBlockItemCount;
-    private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
-            new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
+    private final Map<PublishStreamRequestBytes.RequestOneOfType, Counter> connSend_counters =
+            new EnumMap<>(PublishStreamRequestBytes.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
             new EnumMap<>(PublishStreamRequest.EndStream.Code.class);
 
@@ -637,7 +638,8 @@ public class BlockStreamMetrics {
     // Connection SEND metrics -----------------------------------------------------------------------------------------
 
     private void registerConnectionSendMetrics() {
-        for (final PublishStreamRequest.RequestOneOfType reqType : PublishStreamRequest.RequestOneOfType.values()) {
+        for (final PublishStreamRequestBytes.RequestOneOfType reqType :
+                PublishStreamRequestBytes.RequestOneOfType.values()) {
             final String reqTypeName = toCamelCase(reqType.protoName());
             switch (reqType) {
                 case UNSET -> {
@@ -713,7 +715,7 @@ public class BlockStreamMetrics {
      * Record that a request was sent to a block node.
      * @param requestType the type of request sent
      */
-    public void recordRequestSent(final PublishStreamRequest.RequestOneOfType requestType) {
+    public void recordRequestSent(final PublishStreamRequestBytes.RequestOneOfType requestType) {
         final Counter counter = connSend_counters.get(requestType);
         if (counter != null) {
             counter.increment();

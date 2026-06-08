@@ -25,6 +25,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -63,24 +64,37 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final Path recordsDir = workingDirFor(Long.parseLong(nodeToUpdate), null)
-                    .resolve("data")
-                    .resolve("recordStreams");
+            final Path dataDir =
+                    workingDirFor(Long.parseLong(nodeToUpdate), null).resolve("data");
+            final Path blocksDir = dataDir.resolve("blockStreams");
+            final Path recordsDir = dataDir.resolve("recordStreams");
 
             return hapiTest(
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
                     // account 6 is the node account of node 3
                     getAccountInfo("6").exposingIdTo(oldNodeAccountId::set),
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
-                    // create a transaction after the update so record files are generated
+                    // create a transaction after the update so stream files are generated
                     cryptoCreate("foo"),
-                    // assert record paths
+                    // The output dir stays on the old node account until a restart; assert against whichever
+                    // stream the node is producing for the current mode.
                     withOpContext((spec, log) -> {
-                        final var oldRecordPath =
-                                recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
-                        final var newRecordPath = recordsDir.resolve("record" + asAccountString(newAccountId.get()));
-                        assertTrue(oldRecordPath.toFile().exists());
-                        assertFalse(newRecordPath.toFile().exists());
+                        final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+                        if (streamMode != StreamMode.BLOCKS) {
+                            final var oldRecordPath =
+                                    recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
+                            final var newRecordPath =
+                                    recordsDir.resolve("record" + asAccountString(newAccountId.get()));
+                            assertTrue(oldRecordPath.toFile().exists());
+                            assertFalse(newRecordPath.toFile().exists());
+                        }
+                        if (streamMode != StreamMode.RECORDS) {
+                            final var oldBlockPath =
+                                    blocksDir.resolve("block-" + asAccountString(oldNodeAccountId.get()));
+                            final var newBlockPath = blocksDir.resolve("block-" + asAccountString(newAccountId.get()));
+                            assertTrue(oldBlockPath.toFile().exists());
+                            assertFalse(newBlockPath.toFile().exists());
+                        }
                     }));
         }
     }

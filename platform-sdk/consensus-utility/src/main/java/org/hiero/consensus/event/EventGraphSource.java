@@ -48,6 +48,11 @@ public interface EventGraphSource {
     boolean hasNext();
 
     /**
+     * Resets the graph source to its initial state, allowing event iteration to start over from the beginning.
+     */
+    void reset();
+
+    /**
      * Performs the given action for each remaining event from this source.
      *
      * @param action the action to perform on each event

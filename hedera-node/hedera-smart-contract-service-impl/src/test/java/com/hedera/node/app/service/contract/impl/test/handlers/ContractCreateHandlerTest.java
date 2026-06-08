@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CRE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
@@ -20,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,7 +53,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
 import java.util.Set;
@@ -66,6 +68,12 @@ import org.mockito.Mock;
 import org.mockito.Mock.Strictness;
 
 class ContractCreateHandlerTest extends ContractHandlerTestBase {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
 
     private final TransactionID transactionID = TransactionID.newBuilder()
             .accountID(payer)
@@ -146,7 +154,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
@@ -198,7 +206,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
@@ -223,6 +231,90 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(streamBuilder);
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndExposesSuccessInBlocksMode() {
+        final var account = mock(Account.class);
+        final var builder = Account.newBuilder();
+
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.contextTransactionProcessor()).willReturn(processor);
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
+        given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(context.body()).willReturn(contractCreateTransactionWithInsufficientGas());
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                SUCCESS_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.signerNonce(),
+                Bytes.EMPTY,
+                null);
+        given(processor.call()).willReturn(expectedOutcome);
+
+        given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(streamBuilder);
+        when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
+
+        given(context.storeFactory()).willReturn(storeFactory);
+        when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        when(accountStore.getContractById(CALLED_CONTRACT_ID)).thenReturn(account);
+        when(account.copyBuilder()).thenReturn(builder);
+        given(context.payer()).willReturn(payer);
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(hookDispatchStreamBuilder);
+        when(hookDispatchStreamBuilder.status()).thenReturn(SUCCESS);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(streamBuilder, never()).contractCreateResult(any());
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndThrowsFailureInBlocksMode() {
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
+        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                HALT_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                null,
+                null,
+                null);
+        given(processor.call()).willReturn(expectedOutcome);
+
+        given(streamBuilder.createdContractID(null)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(streamBuilder);
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+
+        verify(streamBuilder, never()).contractCreateResult(any());
     }
 
     @Test
