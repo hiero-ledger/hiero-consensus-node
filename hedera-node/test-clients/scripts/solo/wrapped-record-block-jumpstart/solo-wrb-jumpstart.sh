@@ -700,8 +700,19 @@ download_solo_record_streams_via_pod_mc() {
     subpath="${remote#*/"${MINIO_BUCKET}"/recordstreams/}"
     dest="${RECORD_STREAMS_DIR}/${subpath}"
     mkdir -p "$(dirname "${dest}")"
-    if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc \
-      "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" >"${dest}" 2>/dev/null; then
+    # In-pod `mc cat` over the remote cluster is occasionally flaky; retry a few times so a transient
+    # exec/network blip doesn't drop a record file (a missing file would corrupt the offline wrap).
+    dl_ok=0
+    for _dl_attempt in 1 2 3 4 5; do
+      if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c "${MINIO_CONTAINER}" -- sh -lc \
+        "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" >"${dest}" 2>/dev/null \
+        && [[ -s "${dest}" ]]; then
+        dl_ok=1
+        break
+      fi
+      sleep 1
+    done
+    if [[ "${dl_ok}" -eq 1 ]]; then
       ((found+=1))
       [[ "${dest}" == *.rcd_sig || "${dest}" == *.rcs_sig ]] && ((sig_found+=1))
     else

@@ -106,6 +106,11 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
+# Shared remote-cluster helpers (default StorageClass, deployment re-establish after destroy,
+# toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
+# shellcheck source=../remote-cluster-helpers.sh
+source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+
 export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-cutover-e2e-testing}"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
@@ -410,6 +415,10 @@ run_step() {
 
 cleanup() {
   local exit_code=$?
+
+  # Stop the remote toleration patcher first (no-op on kind / when never started), regardless of
+  # exit status or KEEP_NETWORK, so no background loop survives the script.
+  stop_remote_toleration_patcher
 
   # Always restore MinIO regardless of exit status / KEEP_NETWORK. Step 9's
   # disconnect helper sets MINIO_DISCONNECTED_OWNER_* when it scales MinIO to
@@ -3643,17 +3652,12 @@ if should_run_step 1; then
   run_step "Attaching cluster to deployment" \
     solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-    # Shared remote cluster: clear any prior network; only set up cluster prereqs if missing
-    # (skip MinIO when the operator is present; never install the prometheus stack here).
-    solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force --quiet-mode >/dev/null 2>&1 || true
-    if ! helm list --all-namespaces 2>/dev/null | grep -q "solo-cluster-setup"; then
-      minio_flag="--minio"
-      if kubectl get pods -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers 2>/dev/null | grep -q .; then
-        minio_flag="--no-minio"
-      fi
-      run_step "Installing Solo cluster prerequisites (${minio_flag})" \
-        solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --no-prometheus-stack "${minio_flag}"
-    fi
+    # Mark local-path default, tear down any prior network, re-establish the deployment config the
+    # destroy removes, and run cluster-ref setup only if missing (shared helper). Then start the
+    # toleration patcher so the mirror/block-node/shared-resources pods can schedule on the tainted
+    # nodes throughout the multi-step flow; cleanup() stops it.
+    remote_reset_and_prepare_deployment
+    start_remote_toleration_patcher
   elif [[ "${ENABLE_MONITORING}" == "true" ]]; then
     run_step "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
@@ -3679,8 +3683,17 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
+  # On remote, pass the scheduling/storage value overrides and deploy without PVCs (emptyDir); kind keeps PVCs.
+  cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}")
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    cutover_deploy+=(--pvcs false --values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+  else
+    cutover_deploy+=(--pvcs true)
+  fi
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
-    solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor "${service_monitor_flag}" --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
+    "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
     solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
   run_step "Starting consensus nodes" \

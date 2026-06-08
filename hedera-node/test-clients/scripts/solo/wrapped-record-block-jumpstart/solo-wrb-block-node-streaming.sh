@@ -99,6 +99,11 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
+# Shared remote-cluster helpers (default StorageClass, deployment re-establish after destroy,
+# toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
+# shellcheck source=../remote-cluster-helpers.sh
+source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+
 export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo}"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
@@ -191,6 +196,7 @@ cleanup() {
   set +e
   [[ -n "${CN_PORT_FORWARD_PID}" ]] && kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   [[ -n "${BLOCK_NODE_PORT_FORWARD_PID}" ]] && kill "${BLOCK_NODE_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  stop_remote_toleration_patcher
   if [[ "${KEEP_NETWORK}" != "true" && ${exit_code} -eq 0 ]]; then
     log "KEEP_NETWORK=false, destroying Solo resources (and the kind cluster when CLUSTER_TARGET=kind)"
     solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --id "${BLOCK_NODE_ID}" --quiet-mode --force >/dev/null 2>&1 || true
@@ -727,32 +733,33 @@ solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOY
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
 
 if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-  log "Remote target: destroying any pre-existing consensus network in ${SOLO_NAMESPACE}"
-  solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force --quiet-mode >/dev/null 2>&1 || true
-  if helm list --all-namespaces 2>/dev/null | grep -q "solo-cluster-setup"; then
-    log "cluster-setup release already present; skipping cluster-ref config setup"
-  else
-    minio_flag="--minio"
-    if kubectl get pods -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers 2>/dev/null | grep -q .; then
-      minio_flag="--no-minio"
-    fi
-    solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --no-prometheus-stack "${minio_flag}" || true
-  fi
+  # Mark local-path default, tear down any prior network, re-establish the deployment config the
+  # destroy removes, and run cluster-ref setup only if missing (shared helper).
+  remote_reset_and_prepare_deployment
 else
   solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
 fi
 
 log "Deploying consensus network with genesis block streaming properties"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-solo consensus network deploy \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -i "${NODE_ALIASES}" \
-  --application-properties "${TMP_GENESIS_APP_PROPS}" \
-  --log4j2-xml "${LOG4J2_XML_PATH}" \
-  --service-monitor true \
-  --pod-log true \
-  --pvcs true \
+# On remote, pass the scheduling/storage value overrides and deploy without PVCs (emptyDir); kind keeps PVCs.
+deploy_pvcs="true"
+deploy_args=(
+  solo consensus network deploy
+  --deployment "${SOLO_DEPLOYMENT}"
+  -i "${NODE_ALIASES}"
+  --application-properties "${TMP_GENESIS_APP_PROPS}"
+  --log4j2-xml "${LOG4J2_XML_PATH}"
+  --service-monitor true
+  --pod-log true
   --release-tag "${RELEASE_TAG}"
+)
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  deploy_pvcs="false"
+  deploy_args+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+fi
+deploy_args+=(--pvcs "${deploy_pvcs}")
+"${deploy_args[@]}"
 
 setup_args=(
   solo consensus node setup
@@ -772,11 +779,15 @@ if [[ "${USE_LOCAL_BUILD}" == "true" ]]; then
   verify_local_build_on_consensus_nodes
 fi
 
+# On remote, keep the block-node (and any shared-resources) pods tolerating the node taint while
+# they come up; no-op on kind.
+start_remote_toleration_patcher
 deploy_block_node_for_streaming
 restart_port_forwards
 
 log "Waiting for Block Node to persist streamed block data"
 wait_for_block_node_to_persist_block
+stop_remote_toleration_patcher
 log "Verifying required WRB RecordFileItem streaming; absence of WRB content is a test failure"
 assert_block_node_serves_wrb_record_file_block
 assert_consensus_block_node_logs_clean

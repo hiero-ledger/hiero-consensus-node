@@ -71,6 +71,14 @@ permissions:
   actions: read
   id-token: write # required for Teleport OIDC auth when cluster-target == remote-sdlt-n6
 
+# All remote-sdlt-n6 runs share the solo-sdlt-n6 namespace + solo-sdlt-n6-test deployment, so they
+# must run one-at-a-time: concurrent runs collide (Solo deployment lock contention, and one run's
+# "consensus network destroy" deletes another's solo-remote-config ConfigMap / network pods). Kind
+# runs are isolated (ephemeral cluster per run), so they get a unique group and may run in parallel.
+concurrency:
+  group: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
+  cancel-in-progress: false
+
 env:
   SOLO_CLUSTER_NAME: "solo"
   SOLO_NAMESPACE: "solo"
