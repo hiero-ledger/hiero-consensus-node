@@ -35,6 +35,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.orphan.StaleParentSet;
+import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -168,10 +170,13 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
+        final boolean allowUnsigned =
+                configuration.getConfigData(PcesConfig.class).allowUnsignedPcesEvents();
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter, allowUnsigned);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+        final OrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(metrics, intakeEventCounter, StaleParentSet.loadForReplay());
         orphanBufferWiring.bind(orphanBuffer);
     }
 

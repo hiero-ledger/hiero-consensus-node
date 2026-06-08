@@ -11,6 +11,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
@@ -66,6 +69,18 @@ public class BlockStreamRecoveryWorkflow {
     private final Path outputPath;
     private final String expectedRootHash;
     private final int roundsPerSecond;
+
+    // TEMP DIAGNOSTIC — remove after measuring. The round at/around which to dump the throttle snapshot.
+    // Set to the round whose header lives in block 104401562 (the first divergent block). To see the
+    // trajectory, the loop below also dumps the two preceding rounds.
+    private static final long DUMP_ROUND = 253743405; /* FILL IN: round of block 104401562 */
+
+    // State ID for CongestionThrottleService.THROTTLE_USAGE_SNAPSHOTS singleton.
+    private static final int THROTTLE_USAGE_SNAPSHOTS_STATE_ID =
+            SingletonType.CONGESTIONTHROTTLESERVICE_I_THROTTLE_USAGE_SNAPSHOTS.protoOrdinal();
+    // Signature of the last throttle snapshot we printed; null until the first print. Instance field so it
+    // resets per run. (applyBlocks is a single-threaded forEach, so no synchronization needed.)
+    private String lastPrintedThrottleSig = null;
 
     public BlockStreamRecoveryWorkflow(
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
@@ -212,6 +227,13 @@ public class BlockStreamRecoveryWorkflow {
                     }
                 }
 
+                // ---- TEMP DIAGNOSTIC: dump throttle snapshot at end of the just-completed round ----
+                final long justCompletedRound = currentRound.get() - 1;
+                if (justCompletedRound >= DUMP_ROUND - 2 && justCompletedRound <= DUMP_ROUND) {
+                    dumpThrottleSnapshotIfChanged(state, justCompletedRound);
+                }
+                // ---- END TEMP DIAGNOSTIC ----
+
                 if (item.hasStateChanges()) {
                     BinaryStateChangeApplier.applyStateChanges(
                             state, StateChanges.PROTOBUF.toBytes(item.stateChangesOrThrow()));
@@ -259,6 +281,47 @@ public class BlockStreamRecoveryWorkflow {
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
             throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
                     .formatted(expectedRootHash, rootHash));
+        }
+    }
+    // TEMP DIAGNOSTIC — remove after measuring. Prints only when the throttle content differs from the
+    // last printed line, so the output is the sequence of DISTINCT throttle states with the round each
+    // first appeared at. That makes the round where GAS 'used' first moves obvious.
+    private void dumpThrottleSnapshotIfChanged(final VirtualMapState state, final long round) {
+        try {
+            final Bytes raw = ((BinaryState) state).getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
+            if (raw == null) {
+                final String sig = "absent";
+                if (!sig.equals(lastPrintedThrottleSig)) {
+                    lastPrintedThrottleSig = sig;
+                    System.out.printf("[THROTTLE-DUMP] round=%d  <singleton absent>%n", round);
+                }
+                return;
+            }
+            final ThrottleUsageSnapshots snap = ThrottleUsageSnapshots.PROTOBUF.parse(raw);
+            final ThrottleUsageSnapshot gas = snap.hasGasThrottle() ? snap.gasThrottleOrThrow() : null;
+            final ThrottleUsageSnapshot ops =
+                    snap.hasEvmOpsDurationThrottle() ? snap.evmOpsDurationThrottleOrThrow() : null;
+
+            final String gasUsed = gas == null ? "none" : Long.toString(gas.used());
+            final String gasTime = gas == null ? "none" : String.valueOf(gas.lastDecisionTime());
+            final String opsUsed = ops == null ? "none" : Long.toString(ops.used());
+            final String opsTime = ops == null ? "none" : String.valueOf(ops.lastDecisionTime());
+
+            // Content signature — deliberately EXCLUDES the round so identical throttle state across
+            // consecutive rounds collapses to a single printed line.
+            final String sig = "g=" + gasUsed + "@" + gasTime + "|o=" + opsUsed + "@" + opsTime;
+            if (!sig.equals(lastPrintedThrottleSig)) {
+                lastPrintedThrottleSig = sig;
+                System.out.printf(
+                        "[THROTTLE-DUMP] round=%d  GAS{used=%s, lastDecision=%s}  OPS{used=%s, lastDecision=%s}%n",
+                        round, gasUsed, gasTime, opsUsed, opsTime);
+            }
+        } catch (final Exception e) {
+            final String sig = "error:" + e.getMessage();
+            if (!sig.equals(lastPrintedThrottleSig)) {
+                lastPrintedThrottleSig = sig;
+                System.out.printf("[THROTTLE-DUMP] round=%d  <error: %s>%n", round, e.getMessage());
+            }
         }
     }
 
