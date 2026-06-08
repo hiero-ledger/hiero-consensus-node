@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: Collect Workflow Run Logs"
+name: "100: [USER] Collect Workflow Logs"
 on:
   workflow_dispatch:
     inputs:

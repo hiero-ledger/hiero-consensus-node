@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 050: [USER] Memory Profile Ctrl"
+name: "102: [USER] Memory Profile Ctrl"
 on:
   workflow_dispatch:
     inputs:

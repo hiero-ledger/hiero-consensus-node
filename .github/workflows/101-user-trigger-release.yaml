@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: [Release] Create New Release"
+name: "101: [USER] Trigger Release"
 on:
   workflow_dispatch:
     inputs:
