@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 100: [FLOW] Update Solo Version Variables"
+name: "006: [USER] Update Solo Vers Vars"
 on:
   workflow_dispatch:
     inputs:

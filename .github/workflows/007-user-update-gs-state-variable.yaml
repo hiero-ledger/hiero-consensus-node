@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: Update GS_STATE Variable"
+name: "007: [USER] Update GS State Var"
 on:
   workflow_dispatch:
     inputs:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: Node: Deploy Adhoc Release"
+name: "002: [USER] Deploy Adhoc Artifact"
 on:
   workflow_dispatch:
     inputs:
