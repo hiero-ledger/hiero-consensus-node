@@ -119,7 +119,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // If fees are turned off globally then return empty FeeResult
-        if (simpleFeeContext.configuration() != null) {
+        if (simpleFeeContext.feeContext() != null && simpleFeeContext.configuration() != null) {
             final var config = simpleFeeContext.configuration().getConfigData(FeesConfig.class);
             if (config != null && config.simpleFeesAreFree()) {
                 return new FeeResult();
