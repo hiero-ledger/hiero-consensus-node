@@ -646,8 +646,10 @@ public final class HashgraphInfo {
             }
 
             // function stronglySeeS1 /---------------------------------------------------------------------------
-            for (int m = 0; m < h.numNodes; m++) {
-                stronglySeeS1[m] = (firstWitnessS == null) ? null : stronglySeeP[m];
+            if (firstWitnessS == null) {
+                Arrays.fill(stronglySeeS1, null);
+            } else {
+                System.arraycopy(stronglySeeP, 0, stronglySeeS1, 0, h.numNodes);
             }
 
             // function witness /---------------------------------------------------------------------------------
