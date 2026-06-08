@@ -168,7 +168,7 @@ jobs:
 
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
-    if: false # disabled: only HAPI tests needed for this branch
+    if: ${{ inputs.enable-dependency-check == 'true' }}
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
@@ -243,7 +243,7 @@ jobs:
 
   mats-otter-tests:
     name: Otter Tests
-    if: false # disabled: only HAPI tests needed for this branch
+    if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -261,7 +261,7 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
-    if: false # disabled: only HAPI tests needed for this branch
+    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -278,7 +278,7 @@ jobs:
 
   mats-gradle-determinism:
     name: Gradle Determinism
-    if: false # disabled: only HAPI tests needed for this branch
+    if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -294,7 +294,7 @@ jobs:
 
   mats-docker-determinism:
     name: Docker Determinism
-    if: false # disabled: only HAPI tests needed for this branch
+    if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless
