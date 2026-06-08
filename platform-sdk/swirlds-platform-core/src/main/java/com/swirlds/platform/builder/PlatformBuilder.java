@@ -307,4 +307,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
     }
+
+    public ConsensusLayerBuildingBlocks getBuildingBlocks() {
+        return buildingBlocks;
+    }
 }

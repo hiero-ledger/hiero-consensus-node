@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * so the common (equal) case keeps the fast byte-level comparison and never parses the value.
  */
 public class DiffExporter {
+    static final int VIRTUAL_MAP_VALUE_PARSE_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB, adjust as needed
 
     private static final String STATE_1_DIFF_JSON = "state1-diff.json";
     private static final String STATE_2_DIFF_JSON = "state2-diff.json";
