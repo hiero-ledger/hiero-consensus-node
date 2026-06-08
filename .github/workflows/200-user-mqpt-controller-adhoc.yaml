@@ -1,17 +1,81 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [CITR] Merge Queue Performance Test Controller"
+name: "200: [USER] CITR MQPT Ctrl Adhoc"
 on:
   workflow_dispatch:
     inputs:
       test-asset:
         required: true
         default: "MQPT10"
-        description: "Test on given MQ Machine (MQPT10-12)"
+        description: "Merge Queue Performance Test machine (MQPT10,11,12)"
         type: choice
         options:
           - MQPT10
           - MQPT11
           - MQPT12
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
+      ref:
+        description: "The git ref (branch or tag) to checkout"
+        required: false
+        default: ""
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "60"
+          - "180"
+          - "330"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special MQPT settings. Newline is "\n"'
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
+
 defaults:
   run:
     shell: bash
@@ -27,25 +91,24 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/802-extract-jdk-version.yaml
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ inputs.ref || github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  run-merge-queue-performance-test:
+  run-merge-queue-test:
     name: MQ Performance Test
-    needs:
-      - extract-jdk-version
+    needs: extract-jdk-version
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
-      nlg-accounts: "20000000"
-      nlg-time: "60"
-      add-app-props: ""
-      add-settings: ""
-      run_NLGDparams: "-Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m"
-      delete-namespace: true
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      run_NLGDparams: "${{ inputs.run_NLGDparams }}"
+      add-settings: "${{ inputs.add-settings }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -55,6 +118,7 @@ jobs:
   get-commit-info:
     name: Get Commit Information
     runs-on: hl-cn-mqpt-lin-sm
+    if: ${{ inputs.disable-notifications != true }}
     outputs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
@@ -66,7 +130,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ github.ref }}"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
 
@@ -91,12 +155,11 @@ jobs:
     name: Report MQPT execution success
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - run-merge-queue-performance-test
+      - run-merge-queue-test
       - get-commit-info
-    if:
-      ${{ (needs.run-merge-queue-performance-test.outputs.result == 'success' &&
+    if: ${{ (needs.run-merge-queue-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      !cancelled() }}
+      inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -125,8 +188,8 @@ jobs:
           HEADER_TEXT: ":tada: MQPT - Merge Queue Performance Test (${{ github.ref }}) Passed"
           STATUS_TEXT: "*MQPT Job Succeeded. Test panel status below*"
           RUN_TEST_LABEL: "Run Merge Queue Performance Test"
-          RUN_TEST_RESULT: ${{ needs.run-merge-queue-performance-test.outputs.result }}
-          INFO_SECTION_TEXT: "*Workflow, Tag, and Commit Information*"
+          RUN_TEST_RESULT: ${{ needs.run-merge-queue-test.outputs.result }}
+          INFO_SECTION_TEXT: "*Workflow and Commit Information*"
           SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
@@ -145,14 +208,13 @@ jobs:
     name: Report MQPT execution failure
     runs-on: hl-cn-mqpt-lin-sm
     needs:
-      - run-merge-queue-performance-test
+      - run-merge-queue-test
       - get-commit-info
       - report-success
-    if:
-      ${{ (needs.run-merge-queue-performance-test.outputs.result != 'success' ||
+    if: ${{ (needs.run-merge-queue-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
-      !cancelled() && always() }}
+      inputs.disable-notifications != true && !cancelled() && always() }}
 
     steps:
       - name: Prepare Runner
@@ -188,26 +250,26 @@ jobs:
         with:
           path: run.log
 
-      - name: Set Service Name
-        id: set-service
+      - name: Set Create-Alert Flag
+        id: set-alert-flag
         run: |
-          ROOTLY_SERVICE="CITR SDLT"
+          CREATE_ALERT="false"
           if [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
-            ROOTLY_SERVICE="CI/CD Workflows"
+            CREATE_ALERT="true"
           fi
-          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title="The MQPT Job Failed"
-          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          summary="The Addoc MQPT Job Failed"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
           {
-            echo 'summary<<EOF'
+            echo 'details<<EOF'
             echo "------------------------------------"
             echo "Status of each job:"
-            echo "- Run Merge Queue Performance Test: ${{ needs.run-merge-queue-performance-test.outputs.result }}"
+            echo "- Run Merge Queue Performance Test: ${{ needs.run-merge-queue-test.outputs.result }}"
             echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
             echo "- Report Success: ${{ needs.report-success.result }}"
             echo "------------------------------------"
@@ -220,23 +282,21 @@ jobs:
       - name: Log Rootly Summary
         run: |
           echo "## Rootly Summary:"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
-        id: create-rootly-alert
+        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
         uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
-        continue-on-error: true # continue on error so we can get the incident reporting
+        continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
-          notification_target: ${{ steps.set-service.outputs.service }}
+          notification_target: "CI/CD Workflows"
           set_as_noise: "true"
-          alert_urgency: "High"
+          alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -255,10 +315,10 @@ jobs:
         env:
           HEADER_TEXT: ":grey_exclamation: MQPT - Merge Queue Performance Test (${{ github.ref }}) Failed"
           STATUS_TEXT: "*MQPT Job Resulted in failure. See status below.*"
-          RUN_TEST_LABEL: "Run Merge Queue Performance Test"
-          RUN_TEST_RESULT: ${{ needs.run-merge-queue-performance-test.outputs.result }}
+          RUN_TEST_LABEL: "Run MQPT Test"
+          RUN_TEST_RESULT: ${{ needs.run-merge-queue-test.outputs.result }}
           COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
-          INFO_SECTION_TEXT: "*Workflow, Tag, and Commit Information*"
+          INFO_SECTION_TEXT: "*Workflow and Commit Information*"
           SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}

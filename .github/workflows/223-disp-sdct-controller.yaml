@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [CITR] Single Day Canonical Test (SDCT)"
+name: "223: [DISP] CITR SDCT Controller"
 
 on:
   workflow_dispatch:
