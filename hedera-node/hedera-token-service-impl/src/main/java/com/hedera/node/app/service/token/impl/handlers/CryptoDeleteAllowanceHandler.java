@@ -85,6 +85,7 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
                 final var store = context.createStore(ReadableAccountStore.class);
                 final var ownerId = allowance.ownerOrThrow();
                 final var owner = store.getAccountById(ownerId);
+                validateTruePreCheck(owner != null, INVALID_ALLOWANCE_OWNER_ID);
                 final var approvedForAll = owner.approveForAllNftAllowances().stream()
                         .anyMatch(approveForAll -> approveForAll.tokenId().equals(allowance.tokenId())
                                 && approveForAll.spenderId().equals(context.payer()));

@@ -176,7 +176,7 @@ public abstract class Metric implements MetricInfo {
             return LabelValues.EMPTY;
         }
 
-        // Defensive copy to avoid external modifications; cheap for few elements as typical use case fo labels
+        // Defensive copy to avoid external modifications; cheap for few elements as typical use case for labels
         final String[] nv = namesAndValues.clone();
 
         // sort names and values according to dynamic labelNames order
@@ -214,6 +214,7 @@ public abstract class Metric implements MetricInfo {
 
     /**
      * Base builder class for constructing {@link Metric} instances.
+     * <b>Builders must never be reused.</b>
      *
      * @param <B> the concrete builder type to return for method chaining
      * @param <M> the concrete metric type to build
@@ -267,7 +268,7 @@ public abstract class Metric implements MetricInfo {
          *
          * @param unit the metric unit, may be {@code null}
          * @return the builder instance
-         * @throws IllegalArgumentException if the unit is not null and doesn't match regex {@value MetricUtils#UNIT_LABEL_NAME_REGEX}
+         * @throws IllegalArgumentException if the unit is not null and doesn't match regex {@value MetricUtils#NAME_UNIT_LABEL_REGEX}
          */
         @NonNull
         public final B setUnit(@Nullable String unit) {
@@ -301,7 +302,7 @@ public abstract class Metric implements MetricInfo {
          * @param labelNames the dynamic label names to add, must not be {@code null}
          * @return the builder instance
          * @throws NullPointerException if any label name is {@code null}
-         * @throws IllegalArgumentException if any label name doesn't match regex {@value MetricUtils#UNIT_LABEL_NAME_REGEX}
+         * @throws IllegalArgumentException if any label name doesn't match regex {@value MetricUtils#NAME_UNIT_LABEL_REGEX}
          */
         @NonNull
         public final B addDynamicLabelNames(@NonNull String... labelNames) {
@@ -322,7 +323,7 @@ public abstract class Metric implements MetricInfo {
          * @param labels the static labels to add, must not be {@code null}
          * @return the builder instance
          * @throws NullPointerException if label is {@code null}
-         * @throws IllegalArgumentException if label name doesn't match regex {@value MetricUtils#UNIT_LABEL_NAME_REGEX}
+         * @throws IllegalArgumentException if label name doesn't match regex {@value MetricUtils#NAME_UNIT_LABEL_REGEX}
          */
         @NonNull
         public final B addStaticLabels(@NonNull Label... labels) {

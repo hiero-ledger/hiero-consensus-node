@@ -13,8 +13,9 @@ import java.util.NoSuchElementException;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.io.extendable.ExtendableInputStream;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.io.counting.CounterType;
+import org.hiero.consensus.io.counting.CountingInputStream;
 
 /**
  * Iterates over objects in an object stream.
@@ -29,7 +30,7 @@ public class ObjectStreamIterator<T extends SelfSerializable> implements IOItera
     /**
      * Counts the bytes read from the stream.
      */
-    private final CountingStreamExtension byteCounter;
+    private final ByteCounter byteCounter;
 
     /**
      * Once we encounter the first IO exception, we want to report this exception any time somebody attempts to do
@@ -73,8 +74,9 @@ public class ObjectStreamIterator<T extends SelfSerializable> implements IOItera
      *                            incomplete.
      */
     public ObjectStreamIterator(final InputStream in, final boolean toleratePartialFile) throws IOException {
-        this.byteCounter = new CountingStreamExtension();
-        this.in = new SerializableDataInputStream(new ExtendableInputStream(in, byteCounter));
+        final CountingInputStream meteredStream = new CountingInputStream(in, CounterType.THREAD_SAFE);
+        this.byteCounter = meteredStream.byteCounter();
+        this.in = new SerializableDataInputStream(meteredStream);
         this.toleratePartialFile = toleratePartialFile;
 
         try {

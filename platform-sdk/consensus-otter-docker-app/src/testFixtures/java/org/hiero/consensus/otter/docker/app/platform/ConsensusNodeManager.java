@@ -13,8 +13,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -35,7 +33,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -45,10 +46,12 @@ import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterStateUtils;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -102,7 +105,9 @@ public class ConsensusNodeManager {
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
+        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
@@ -111,7 +116,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         otterApp = new OtterApp(platformConfig, version);
 
@@ -130,11 +135,14 @@ public class ConsensusNodeManager {
         }
 
         // Set active the roster
-        final ReadablePlatformStateStore store =
+        final ReadablePlatformStateStore platformStateStore =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
+        OtterStateUtils.commitState(state);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
@@ -149,7 +157,8 @@ public class ConsensusNodeManager {
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionCallback);
+                .withExecutionLayer(executionCallback)
+                .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();

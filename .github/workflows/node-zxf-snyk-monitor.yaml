@@ -12,37 +12,37 @@ permissions:
   security-events: write
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   snyk:
     name: Snyk Monitor
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-snyk-check-lin
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: 25
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
-        with:
-          gradle-version: wrapper
+          checkout: "true"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          setup-gradle: "true"
+          setup-node: "true"
+          node-version: "20"
 
       - name: Compile
         run: ./gradlew assemble
-
-      - name: Setup NodeJS
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 20
 
       - name: Setup Snyk
         env:

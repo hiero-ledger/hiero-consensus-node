@@ -101,6 +101,8 @@ enum Extra {
   RECORDS=21;
   STATE_BYTES=22;       // For state-persisting operations (file uploads)
   PROCESSING_BYTES=23;  // For node/network processing fees
+  CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES=24;
+  CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES=25;
 }
 
 /**

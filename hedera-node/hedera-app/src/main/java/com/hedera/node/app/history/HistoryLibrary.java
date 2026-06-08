@@ -6,6 +6,7 @@ import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.SchnorrKeys;
+import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -21,9 +22,10 @@ import java.util.stream.IntStream;
  */
 public interface HistoryLibrary {
     /**
-     * The empty public key to use when a node fails to publish its proof key within the grace period.
+     * The sentinel public key to use when a node fails to publish its proof key within the grace period.
+     * The corresponding private key is intentionally unavailable, so this key must never be used for signing.
      */
-    Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
+    Bytes MISSING_SCHNORR_KEY = Bytes.wrap(WRAPSLibraryBridge.getInstance().provideSentinelPublicKey());
 
     /**
      * An address book for use in the history library.
@@ -51,8 +53,8 @@ public interface HistoryLibrary {
                 @NonNull final SortedMap<Long, Long> weights, @NonNull final SortedMap<Long, byte[]> publicKeys) {
             requireNonNull(weights);
             requireNonNull(publicKeys);
-            final var emptyPublicKey = EMPTY_PUBLIC_KEY.toByteArray();
-            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, emptyPublicKey));
+            final var missingKey = MISSING_SCHNORR_KEY.toByteArray();
+            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, missingKey));
         }
 
         /**
@@ -277,4 +279,13 @@ public interface HistoryLibrary {
      * Returns whether the library is ready to be used.
      */
     boolean wrapsProverReady();
+
+    /**
+     * Verifies whether a compressed proof establishes the given metadata in the chain of trust of the given ledger id.
+     * @param compressedProof the compressed proof
+     * @param ledgerId the ledger id
+     * @param metadata the metadata
+     * @return if the proof is valid
+     */
+    boolean verifyCompressedProof(@NonNull byte[] compressedProof, @NonNull byte[] ledgerId, @NonNull byte[] metadata);
 }

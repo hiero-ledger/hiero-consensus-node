@@ -4,7 +4,11 @@ package org.hiero.sloth.fixtures.app.services.benchmark;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.utility.InstantUtils;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.FloatFormats;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -12,7 +16,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.InstantUtils;
+import org.hiero.consensus.metrics.statistics.AverageAndMax;
 import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.sloth.fixtures.app.SlothService;
 import org.hiero.sloth.fixtures.app.state.BenchmarkServiceStateSpecification;
@@ -26,6 +33,7 @@ import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
  * between when the transaction was submitted (timestamp embedded in the transaction)
  * and when it reached the handle method.
  */
+@SuppressWarnings("unused")
 public class BenchmarkService implements SlothService {
 
     private static final Logger log = LogManager.getLogger(BenchmarkService.class);
@@ -38,6 +46,12 @@ public class BenchmarkService implements SlothService {
      * Log prefix used for benchmark measurements.
      */
     private static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
+
+    /** The ID of this node */
+    private NodeId selfId;
+
+    /** The metric used to track the latency */
+    private AverageAndMax latencyMetric;
 
     /**
      * {@inheritDoc}
@@ -57,6 +71,22 @@ public class BenchmarkService implements SlothService {
         return STATE_SPECIFICATION;
     }
 
+    @Override
+    public void initialize(
+            @NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final VirtualMapState state) {
+        this.selfId = selfId;
+        this.latencyMetric = new AverageAndMax(
+                metrics,
+                "app",
+                "slothLatency",
+                "the latency of sloth transaction in microseconds",
+                FloatFormats.FORMAT_16_2);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -69,6 +99,11 @@ public class BenchmarkService implements SlothService {
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
 
         if (!transaction.hasBenchmarkTransaction()) {
+            return;
+        }
+
+        if (!event.getCreatorId().equals(selfId)) {
+            // Only log transactions created by this node because the timestamp was based on the local clock
             return;
         }
 
@@ -89,5 +124,9 @@ public class BenchmarkService implements SlothService {
                 latencyMicros,
                 InstantUtils.instantToMicros(submissionTime),
                 InstantUtils.instantToMicros(handleTime));
+
+        if (latencyMetric != null) {
+            latencyMetric.update(latencyMicros);
+        }
     }
 }

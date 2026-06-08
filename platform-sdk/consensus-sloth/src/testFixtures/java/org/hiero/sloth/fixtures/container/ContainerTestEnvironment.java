@@ -5,7 +5,6 @@ import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 import static org.hiero.sloth.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
 
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,11 +13,11 @@ import java.time.Duration;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import org.hiero.base.file.FileUtils;
 import org.hiero.sloth.fixtures.Capability;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.RegularTimeManager;
 
 /**
@@ -41,7 +40,6 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final Path rootOutputDirectory;
     private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager(GRANULARITY);
-    private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
      * Constructor with default values for using random node-ids and default directory for container logs.
@@ -74,8 +72,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(
-                timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds, gcLoggingEnabled, jvmArgs);
+        network = new ContainerNetwork(timeManager, rootOutputDirectory, useRandomNodeIds, gcLoggingEnabled, jvmArgs);
     }
 
     /**
@@ -105,15 +102,6 @@ public class ContainerTestEnvironment implements TestEnvironment {
     @NonNull
     public TimeManager timeManager() {
         return timeManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public TransactionGenerator transactionGenerator() {
-        return transactionGenerator;
     }
 
     /**

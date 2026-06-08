@@ -48,7 +48,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -1280,7 +1279,7 @@ public class CryptoApproveAllowanceSuite {
                         .via(BASE_APPROVE_TXN)
                         .blankMemo(),
                 validateFees(BASE_APPROVE_TXN, 0.05, CRYPTO_APPROVE_ALLOWANCE_FEE),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.050392, 0.01),
+                validateFees(BASE_APPROVE_TXN, 0.050392, CRYPTO_APPROVE_ALLOWANCE_FEE),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)

@@ -101,6 +101,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -166,23 +167,24 @@ import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.UntilLogContainsOp;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AssertingBiConsumer;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedBlockItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartConfigOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -548,6 +550,22 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns an operation that polls the selected nodes' block node comms logs until they contain
+     * the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep polling
+     * @return the operation that polls until the target logs contain the given text
+     */
+    public static UntilLogContainsOp awaitBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration timeout) {
+        return new UntilLogContainsOp(selector, BLOCK_NODE_COMMS_LOG, text, null, () -> new SpecOperation[0])
+                .lasting(timeout)
+                .pollingEvery(Duration.ofSeconds(1));
+    }
+
+    /**
      * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
      * application logs contain the given text, or the timeout elapses.
      *
@@ -798,10 +816,6 @@ public class UtilVerbs {
         return new ContextualActionOp(action);
     }
 
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
-    }
-
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
         return new WaitForStatusOp(selector, timeout, ACTIVE);
     }
@@ -930,9 +944,10 @@ public class UtilVerbs {
         return new BuildUpgradeZipOp(path);
     }
 
-    public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
-            @NonNull final AtomicReference<byte[]> contentsRef) {
-        return new BuildDynamicJumpstartFileOp(contentsRef);
+    public static BuildDynamicJumpstartConfigOp buildDynamicJumpstartConfig(
+            @NonNull final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartConfigOp(jumpstartConfigRef, envOverrides);
     }
 
     public static GetWrappedRecordHashesOp getWrappedRecordHashes(
@@ -944,17 +959,17 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param jumpstartConfig            the jumpstart config properties
      * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
-            @NonNull final byte[] jumpstartContents,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     /**
@@ -968,6 +983,19 @@ public class UtilVerbs {
     public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
             @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
         return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
+    }
+
+    /**
+     * Asserts the wrapped record hashes file contains a contiguous run of block numbers
+     * ending exactly at {@code expectedLastBlockNum}, confirming that disk writes remained
+     * enabled alongside live hash wrapping.
+     *
+     * @param entries              entries read from the node's wrapped record hashes file
+     * @param expectedLastBlockNum the expected block number of the file's last entry
+     */
+    public static VerifyWrappedHashesCoverageOp verifyWrappedHashesCoverage(
+            @NonNull final List<WrappedRecordFileBlockHashes> entries, @NonNull final String expectedLastBlockNum) {
+        return new VerifyWrappedHashesCoverageOp(entries, expectedLastBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -1632,86 +1660,39 @@ public class UtilVerbs {
                 }));
     }
 
-    /* Stream validation. */
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
-                .withBackgroundTraffic();
+    /* ── Stream-mode-aware validation ──
+     * These verbs dynamically route to the record or block stream based on the active streamMode.
+     * Accepts both RecordStreamAssertion and BlockStreamAssertion via the common StreamAssertion type.
+     * Prefer these over the record-specific or block-specific variants below. */
+
+    public static EventualStreamAssertion streamMustIncludeNoFailuresFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, true);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
+    public static EventualStreamAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, false);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
-                .withBackgroundTraffic();
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, null, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and that background traffic is running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    public static EventualStreamAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and if the background traffic should be running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @param needsBackgroundTraffic whether background traffic should be running
-     * @return the operation that asserts a passing record stream
-     */
-    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
-            @NonNull final Duration timeout,
-            final boolean needsBackgroundTraffic) {
-        requireNonNull(assertion);
-        requireNonNull(timeout);
-        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
-        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include no failures from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts no block stream problems
-     */
-    public static EventualBlockStreamAssertion blockStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(assertion);
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts a passing block stream
-     */
-    public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+    public static EventualStreamAssertion streamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePassWithReplay(assertion, timeout);
     }
 
     public static RunnableOp verify(@NonNull final Runnable runnable) {
@@ -1762,6 +1743,18 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
+    }
+
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
             @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
@@ -1775,6 +1768,21 @@ public class UtilVerbs {
         requireNonNull(validator);
         requireNonNull(test);
         return spec -> new SelectedItemsAssertion(n, spec, test, validator);
+    }
+
+    /**
+     * Block-stream analog of {@link #selectedItems}. Translates each incoming {@link
+     * com.hedera.hapi.block.stream.Block} back to {@link RecordStreamItem}s so the existing
+     * predicate and {@link VisibleItemsValidator} APIs can be reused under
+     * {@code streamMode=BLOCKS} without re-implementing per-test selection logic.
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> selectedBlockItems(
+            @NonNull final VisibleItemsValidator validator,
+            final int n,
+            @NonNull final BiPredicate<HapiSpec, RecordStreamItem> test) {
+        requireNonNull(validator);
+        requireNonNull(test);
+        return spec -> new SelectedBlockItemsAssertion(n, spec, test, validator);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleNonSyntheticItems(

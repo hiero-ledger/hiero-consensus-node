@@ -9,8 +9,8 @@ import static com.swirlds.platform.test.fixtures.ExceptionAssertions.assertExcep
 
 import com.swirlds.platform.crypto.KeyLoadingException;
 import java.util.List;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;

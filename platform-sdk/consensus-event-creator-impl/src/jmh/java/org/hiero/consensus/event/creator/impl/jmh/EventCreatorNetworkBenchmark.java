@@ -4,8 +4,6 @@ package org.hiero.consensus.event.creator.impl.jmh;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -17,14 +15,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.SigningFactory;
-import org.hiero.consensus.crypto.SigningImplementation;
+import org.hiero.base.crypto.SigningFactory;
+import org.hiero.base.crypto.SigningImplementation;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -108,11 +107,8 @@ public class EventCreatorNetworkBenchmark {
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final Metrics metrics = platformContext.getMetrics();
-        final Time time = platformContext.getTime();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
 
         // Create an event creator for each node
         for (final RosterEntry entry : roster.rosterEntries()) {

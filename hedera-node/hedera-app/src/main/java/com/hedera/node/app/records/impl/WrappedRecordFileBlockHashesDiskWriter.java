@@ -130,7 +130,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
                             final var newlyLoggedGaps = index.addAndGetNewGaps(entry.blockNumber());
                             for (final var gap : newlyLoggedGaps) {
-                                logger.warn(
+                                logger.info(
                                         "Wrapped record hashes file has a gap: missing record blocks {}..{} (observed range {}..{})",
                                         gap.startInclusive(),
                                         gap.endInclusive(),
@@ -145,6 +145,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                         executor)
                 .exceptionally(ex -> {
                     // Swallow to keep the chain alive; errors are logged in-task.
+                    logger.info(
+                            "Error in wrapped record-file block hashes append task; skipping. Error: {}",
+                            ex.getMessage());
                     return null;
                 }));
     }
@@ -177,9 +180,10 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
             // The file contents are an append-only sequence of occurrences of the `entries` field,
             // which is a valid protobuf encoding of the container message.
+            // parseStrict shorthand omitted: we also need to validate max length, requiring the multi-arg overload.
             final var log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
                     com.hedera.pbj.runtime.io.buffer.Bytes.wrap(allBytes).toReadableSequentialData(),
-                    false,
+                    true,
                     false,
                     512,
                     allBytes.length);
@@ -209,7 +213,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         if (index.highestBlock() >= 0) {
             final var initGaps = index.addAndGetNewGaps(index.highestBlock());
             for (final var gap : initGaps) {
-                logger.warn(
+                logger.info(
                         "Wrapped record hashes file has a gap: missing record blocks {}..{} (observed range {}..{})",
                         gap.startInclusive(),
                         gap.endInclusive(),

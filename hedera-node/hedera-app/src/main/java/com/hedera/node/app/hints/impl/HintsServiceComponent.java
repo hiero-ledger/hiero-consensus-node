@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 @Singleton
@@ -26,7 +27,9 @@ public interface HintsServiceComponent {
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
                 @BindsInstance Duration blockPeriod,
-                @BindsInstance OnHintsFinished onHintsFinished);
+                @BindsInstance OnHintsFinished onHintsFinished,
+                @BindsInstance RsaContext rsaContext,
+                @BindsInstance @Named(HintsModule.RSA_SIGNINGS) ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
     }
 
     HintsHandlers handlers();
@@ -37,7 +40,8 @@ public interface HintsServiceComponent {
 
     HintsControllers controllers();
 
-    ConcurrentMap<Bytes, HintsContext.Signing> signings();
+    @Named(HintsModule.HINTS_SIGNINGS)
+    ConcurrentMap<Bytes, BlockHashSigning> signings();
 
     @Deprecated
     Supplier<Configuration> configSupplier();

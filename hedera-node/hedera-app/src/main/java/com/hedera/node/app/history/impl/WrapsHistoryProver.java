@@ -8,7 +8,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
@@ -58,6 +58,7 @@ import org.apache.logging.log4j.Logger;
 public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
     public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
+    public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -77,6 +78,13 @@ public class WrapsHistoryProver implements HistoryProver {
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
             new EnumMap<>(WrapsPhase.class);
     private final Map<Long, Bytes> explicitHistoryProofHashes = new HashMap<>();
+
+    /**
+     * If non-null, the phase whose last publish returned a WRAPS-not-ready noop;
+     * cleared at the next publishIfNeeded so the publish is retried.
+     */
+    @Nullable
+    private volatile WrapsPhase phaseNeedingWrapsReadinessRetry;
 
     /**
      * If not null, the WRAPS message being signed for the current construction.
@@ -251,11 +259,17 @@ public class WrapsHistoryProver implements HistoryProver {
                     + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
-                targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
-                        .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
-                        .toByteArray());
-                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
-                targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
+                // Avoid caching a partial derived state if one of these computations throws.
+                final var computedTargetAddressBook =
+                        AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                                .toByteArray());
+                final var computedWrapsMessage =
+                        historyLibrary.computeWrapsMessage(computedTargetAddressBook, targetMetadata.toByteArray());
+                final var computedTargetAddressBookHash = historyLibrary.hashAddressBook(computedTargetAddressBook);
+                targetAddressBook = computedTargetAddressBook;
+                wrapsMessage = computedWrapsMessage;
+                targetAddressBookHash = computedTargetAddressBookHash;
             }
             final var effectivePhase = construction.hasTargetProof() ? POST_AGGREGATION : state.phase();
             publishIfNeeded(
@@ -292,8 +306,12 @@ public class WrapsHistoryProver implements HistoryProver {
 
     @Override
     public void observeProofVote(
-            final long nodeId, @NonNull final HistoryProofVote vote, final boolean proofFinalized) {
+            final long nodeId,
+            @NonNull final HistoryProofVote vote,
+            final boolean proofFinalized,
+            @NonNull final ProofVoteCategory proofVoteCategory) {
         requireNonNull(vote);
+        requireNonNull(proofVoteCategory);
         if (proofFinalized) {
             log.info("Observed finalized proof via node{}; skipping vote", nodeId);
             tryCompleteVoteDecision(VoteDecision.skip());
@@ -309,13 +327,25 @@ public class WrapsHistoryProver implements HistoryProver {
         // Explicit vote case
         if (vote.hasProof()) {
             final var proof = vote.proofOrElse(HistoryProof.DEFAULT);
-            // Always store a hash – useful if we haven't finished our own proof yet.
-            final var hash = hashOf(proof);
-            explicitHistoryProofHashes.put(nodeId, hash);
-            // If we already have our proof, see if it matches.
-            if (historyProof != null && selfProofHashOrThrow().equals(hash)) {
-                log.info("Observed matching explicit proof from node{}; voting congruent instead", nodeId);
-                tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+            switch (proofVoteCategory) {
+                case NOT_RECURSIVE -> {
+                    // Always store a hash – useful if we haven't finished our own proof yet
+                    final var hash = hashOf(proof);
+                    explicitHistoryProofHashes.put(nodeId, hash);
+                    // If we already have our proof, see if it matches; save a few bytes by using congruent vote
+                    if (historyProof != null && selfProofHashOrThrow().equals(hash)) {
+                        log.info("Observed matching explicit proof from node{}; voting congruent instead", nodeId);
+                        tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+                    }
+                }
+                case VALID_RECURSIVE -> {
+                    // This is the big win, avoiding an explicit vote for the megabyte-scale WRAPS proof
+                    log.info("Observed valid explicit recursive proof from node{}; voting congruent instead", nodeId);
+                    tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+                }
+                case INVALID_RECURSIVE -> {
+                    // No-op, an invalid proof obviously has no use for us
+                }
             }
         }
     }
@@ -355,6 +385,11 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore) {
+        if (MISSING_SCHNORR_KEY.equals(proofKeys.getOrDefault(publication.nodeId(), MISSING_SCHNORR_KEY))) {
+            // If a node did not publish its Schnorr key in time to make it into the source roster,
+            // we ignore any WRAPS message it publishes later after coming online
+            return false;
+        }
         final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
         log.info(
                 "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
@@ -392,17 +427,43 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
+        final boolean isWrapsReadinessRetry = phase == phaseNeedingWrapsReadinessRetry;
+        if (isWrapsReadinessRetry) {
+            consumerOf(phase).accept(null);
+            phaseNeedingWrapsReadinessRetry = null;
+        }
+        // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading.
+        final boolean needsWrapsForOutput =
+                phase == POST_AGGREGATION || (phase == AGGREGATE && sourceProof != null && tssConfig.wrapsEnabled());
+        if (needsWrapsForOutput && !historyLibrary.wrapsProverReady()) {
+            if (isWrapsReadinessRetry) {
+                log.debug(
+                        "Deferring {} output for construction #{}: WRAPS library is not ready", phase, constructionId);
+            } else {
+                log.info(
+                        "Deferring {} output for construction #{}: WRAPS library is not ready (will retry each consensus round until ready)",
+                        phase,
+                        constructionId);
+            }
+            phaseNeedingWrapsReadinessRetry = phase;
+            return;
+        }
         if (futureOf(phase) == null
                 && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
-            if (phase == POST_AGGREGATION) {
+            if (isWrapsReadinessRetry) {
+                log.debug(
+                        "Re-attempting publication of {} output on construction #{} after a WRAPS-not-ready noop",
+                        phase,
+                        constructionId);
+            } else if (phase == POST_AGGREGATION) {
                 log.info("Considering publication of vote for genesis WRAPS proof on construction #{}", constructionId);
             } else {
                 log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
             }
-            final var sourceBook = AddressBook.from(
-                    weights.sourceNodeWeights(),
-                    nodeId -> proofKeys.getOrDefault(nodeId, EMPTY_PUBLIC_KEY).toByteArray());
+            final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                    .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                    .toByteArray());
             final var targetBook = requireNonNull(targetAddressBook);
             final var targetBookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);
@@ -467,11 +528,22 @@ public class WrapsHistoryProver implements HistoryProver {
                                                         .build();
                                                 scheduleVoteWithJitter(constructionId, tssConfig, proof);
                                             }
-                                            case NoopOutput noopOutput ->
-                                                log.info(
-                                                        "Skipping publication of {} output: {}",
-                                                        phase,
-                                                        noopOutput.reason());
+                                            case NoopOutput noopOutput -> {
+                                                if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())) {
+                                                    // Flag instead of clearing voteFuture inline; the outer accept()
+                                                    // hasn't returned yet.
+                                                    log.debug(
+                                                            "Deferring {} output: {} (will retry next round)",
+                                                            phase,
+                                                            noopOutput.reason());
+                                                    phaseNeedingWrapsReadinessRetry = phase;
+                                                } else {
+                                                    log.info(
+                                                            "Skipping publication of {} output: {}",
+                                                            phase,
+                                                            noopOutput.reason());
+                                                }
+                                            }
                                         }
                                     },
                                     executor)
@@ -603,13 +675,17 @@ public class WrapsHistoryProver implements HistoryProver {
                         yield null;
                     }
                     case AGGREGATE -> {
+                        final var signers = phaseMessages.get(R1).keySet();
                         final var signature = historyLibrary.runAggregationPhase(
                                 message,
                                 rawMessagesFor(R1),
                                 rawMessagesFor(R2),
                                 rawMessagesFor(R3),
                                 sourceBook,
-                                phaseMessages.get(R1).keySet());
+                                signers);
+                        if (signature == null) {
+                            yield new NoopOutput("WRAPS aggregation returned null for nodes " + signers);
+                        }
                         // Sans source proof, we are at genesis and need an aggregate signature proof right away
                         if (sourceProof == null || !tssConfig.wrapsEnabled()) {
                             final var isValid = historyLibrary.verifyAggregateSignature(
@@ -619,15 +695,13 @@ public class WrapsHistoryProver implements HistoryProver {
                                     sourceBook.weights(),
                                     signature);
                             if (!isValid) {
-                                throw new IllegalStateException("Invalid aggregate signature using nodes "
-                                        + phaseMessages.get(R1).keySet());
+                                yield new NoopOutput("Invalid aggregate signature using nodes " + signers);
                             }
                             yield new AggregatePhaseOutput(
-                                    signature,
-                                    phaseMessages.get(R1).keySet().stream().toList());
+                                    signature, signers.stream().toList());
                         } else {
                             if (!historyLibrary.wrapsProverReady()) {
-                                yield new NoopOutput("WRAPS library is not ready");
+                                yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                             }
                             final var isValid = historyLibrary.verifyAggregateSignature(
                                     message,
@@ -635,9 +709,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                     sourceBook.publicKeys(),
                                     sourceBook.weights(),
                                     signature);
-                            final var signers = phaseMessages.get(R1).keySet();
                             if (!isValid) {
-                                throw new IllegalStateException("Invalid aggregate signature using nodes " + signers);
+                                yield new NoopOutput("Invalid aggregate signature using nodes " + signers);
                             }
                             final long now = System.nanoTime();
                             log.info(
@@ -666,6 +739,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     signature,
                                     signers);
+                            if (proof == null) {
+                                yield new NoopOutput("Incremental WRAPS proof construction returned null");
+                            }
                             final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                             logElapsed(
                                     constructionCanceled
@@ -677,7 +753,7 @@ public class WrapsHistoryProver implements HistoryProver {
                     }
                     case POST_AGGREGATION -> {
                         if (!historyLibrary.wrapsProverReady()) {
-                            yield new NoopOutput("WRAPS library is not ready");
+                            yield new NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX);
                         }
                         final var signature = requireNonNull(aggregatedSignatureProof)
                                 .chainOfTrustProofOrThrow()
@@ -703,6 +779,9 @@ public class WrapsHistoryProver implements HistoryProver {
                                 signature,
                                 signers,
                                 targetBook);
+                        if (proof == null) {
+                            yield new NoopOutput("Genesis WRAPS proof construction returned null");
+                        }
                         final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                         logElapsed("constructing genesis WRAPS proof -> " + output, now);
                         yield output;

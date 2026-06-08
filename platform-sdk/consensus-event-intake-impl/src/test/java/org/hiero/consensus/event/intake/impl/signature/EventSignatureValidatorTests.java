@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;

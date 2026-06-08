@@ -155,7 +155,7 @@ public class OtterTestExtension
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
-                return "OtterTest";
+                return context.getRequiredTestMethod().getName();
             }
 
             @Override

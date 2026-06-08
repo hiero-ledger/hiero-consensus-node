@@ -17,9 +17,9 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
@@ -51,7 +51,7 @@ import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hedera.services.stream.proto.RecordStreamItem;
@@ -333,7 +333,8 @@ public final class BlockNodeRewardsTests {
      * Runs a complete block node reward test scenario using the provided context.
      */
     private static Stream<DynamicTest> blockNodeRewardScenario(@NonNull final TestContext ctx) {
-        final List<SpecOperation> ops = new ArrayList<>(setupNodesDecliningRewards(ctx));
+        final List<SpecOperation> ops = new ArrayList<>();
+        ops.addAll(setupNodesDecliningRewards(ctx));
 
         ops.add(overriding(NODES_MIN_PER_PERIOD_NODE_REWARD_USD, String.valueOf(ctx.minPerPeriodNodeRewardUsd)));
 
@@ -359,10 +360,15 @@ public final class BlockNodeRewardsTests {
         ops.add(getAccountBalance(NODE_REWARD).exposingBalanceTo(ctx.nodeRewardBalance()::set));
 
         ops.add(sleepForBlockPeriod());
-        // This is considered as one transaction submitted, so one round
-        ops.add(EmbeddedVerbs.handleAnyRepeatableQueryPayment());
+        // Force a block boundary with a real transaction so the current block closes.
+        // This ensures the subsequent state mutation is not overwritten by onCloseBlock,
+        // which rebuilds NodeRewards entirely from NodeRewardManager's in-memory fields.
+        ops.add(cryptoCreate("forceBlockBoundary").payingWith(GENESIS));
 
-        // configures node activity info based on the configured test context
+        // Set node activity state: active nodes get 0 missed rounds, inactive get 100/100.
+        // With activeRoundsPercent=10 (default), active nodes pass (0 ≤ 90) and inactive
+        // nodes fail (100 > 90). A few extra rounds from subsequent blocks won't flip the
+        // classification because the initial bias is strong (100 base rounds).
         ops.add(forceNodeActivity(ctx));
 
         // Capture consensus time and register the record-stream listener AFTER the forced
@@ -416,7 +422,9 @@ public final class BlockNodeRewardsTests {
         return cleanupOps;
     }
 
-    /** Configures node activity levels based on the test context. */
+    /**
+     * Configures node activity levels based on the test context.
+     */
     private static MutateSingletonOp<NodeRewards> forceNodeActivity(@NonNull final TestContext ctx) {
         return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (final NodeRewards nodeRewards) -> {
             final List<NodeActivity> activities = LongStream.range(0, ctx.numConsensusNodes())
@@ -462,8 +470,8 @@ public final class BlockNodeRewardsTests {
     }
 
     /** Configures a record stream listener to capture and validate reward transfers. */
-    private static EventualRecordStreamAssertion setupRecordStreamListener(@NonNull final TestContext ctx) {
-        return recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+    private static AbstractEventualStreamAssertion setupRecordStreamListener(@NonNull final TestContext ctx) {
+        return streamMustIncludePassWithoutBackgroundTrafficFrom(
                 selectedItems(nodeRewardValidator(ctx), 1, filterRewardDebitTransaction(ctx)), Duration.ofSeconds(1));
     }
 

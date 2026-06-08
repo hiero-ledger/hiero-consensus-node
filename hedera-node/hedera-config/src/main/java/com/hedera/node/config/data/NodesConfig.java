@@ -27,6 +27,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param adjustNodeFees Whether node fees can be reduced by the average node fees already collected during that period
  * @param activeRoundsPercent A percentage value relating to active nodes
  * @param registeredNodesEnabled Whether registered node operations are enabled
+ * @param maxRegisteredServiceEndpoint The maximum number of registered service endpoints a registered node may have
  * @param maxRegisteredFqdnSize The maximum FQDN size for registered service endpoints
  * @param maxAssociatedRegisteredNodes The maximum number of associated registered nodes a consensus node may reference
  * @param maxGeneralServiceDescriptionUtf8Bytes The maximum number of UTF-8 bytes for a general service endpoint description

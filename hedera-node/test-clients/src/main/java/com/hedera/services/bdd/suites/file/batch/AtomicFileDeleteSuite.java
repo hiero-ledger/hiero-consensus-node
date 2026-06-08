@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -50,7 +49,6 @@ class AtomicFileDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> getDeletedFileInfo() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR),

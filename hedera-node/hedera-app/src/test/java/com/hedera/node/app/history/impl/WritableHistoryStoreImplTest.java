@@ -137,6 +137,16 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
+    void expectedWrapsProvingKeyHashIsNullUntilSet() {
+        assertNull(subject.getWrapsProvingKeyHash());
+
+        final var hash = Bytes.wrap("proving-key-hash");
+        subject.setWrapsProvingKeyHash(hash);
+
+        assertEquals(hash, subject.getWrapsProvingKeyHash());
+    }
+
+    @Test
     void refusesToGetOrCreateForHandoff() {
         given(activeRosters.phase()).willReturn(HANDOFF);
 
@@ -361,6 +371,23 @@ class WritableHistoryStoreImplTest {
                 state.getWritableStates(HistoryService.NAME)
                         .get(PROOF_KEY_SETS_STATE_ID)
                         .size());
+    }
+
+    @Test
+    void clearProofVotesRemovesPersistedVotesForGivenNodesOnly() {
+        // finishProof purges a construction's persisted votes on completion so a node rebuilding its
+        // controller during a WRAPS conversion does not reload now-superseded votes (which would
+        // make it skip the conversion vote as already counted and diverge ACTIVE_PROOF_CONSTRUCTION).
+        subject.addProofVote(0L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(1L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(0L, 456L, DEFAULT_VOTE);
+        assertEquals(2, subject.getVotes(123L, Set.of(0L, 1L)).size());
+
+        subject.clearProofVotes(123L, Set.of(0L, 1L));
+
+        assertEquals(0, subject.getVotes(123L, Set.of(0L, 1L)).size());
+        // Votes for a different construction are untouched.
+        assertEquals(1, subject.getVotes(456L, Set.of(0L)).size());
     }
 
     private void givenARosterLookup() {

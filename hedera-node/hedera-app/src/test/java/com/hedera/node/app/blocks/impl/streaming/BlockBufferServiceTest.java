@@ -6,9 +6,7 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateR
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -66,7 +64,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -81,24 +78,21 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle execSvcHandle;
     private static final VarHandle blockBufferHandle;
     private static final VarHandle backPressureFutureRefHandle;
-    private static final VarHandle lastPruningResultHandle;
+    private static final VarHandle lastPruningResultRefHandle;
     private static final VarHandle isStartedHandle;
     private static final MethodHandle checkBufferHandle;
     private static final MethodHandle persistBufferHandle;
 
     static {
         try {
-            final Lookup lookup = MethodHandles.lookup();
-            blockBufferHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
-            execSvcHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
-            backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
-            lastPruningResultHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "lastPruningResult", PruneResult.class);
-            isStartedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
+            final Lookup lookup = MethodHandles.privateLookupIn(BlockBufferService.class, MethodHandles.lookup());
+            blockBufferHandle = lookup.findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
+            execSvcHandle = lookup.findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
+            backPressureFutureRefHandle = lookup.findVarHandle(
+                    BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
+            lastPruningResultRefHandle =
+                    lookup.findVarHandle(BlockBufferService.class, "lastPruningResultRef", AtomicReference.class);
+            isStartedHandle = lookup.findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
 
             final Method checkBufferMethod = BlockBufferService.class.getDeclaredMethod("checkBuffer");
             checkBufferMethod.setAccessible(true);
@@ -126,9 +120,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Mock
     private BlockBufferConfig blockBufferConfig;
-
-    @Mock
-    private BlockNodeConnectionManager connectionManager;
 
     @Mock
     private BlockStreamMetrics blockStreamMetrics;
@@ -174,19 +165,12 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         // then
-        assertAll(
-                () -> assertThat(blockBufferService.getLastBlockNumberProduced())
-                        .isNotNull(),
-                () -> assertThat(blockBufferService.getLastBlockNumberProduced())
-                        .isEqualTo(TEST_BLOCK_NUMBER),
-                () -> assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER))
-                        .isNotNull(),
-                () -> assertThat(blockBufferService
-                                .getBlockState(TEST_BLOCK_NUMBER)
-                                .blockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER),
-                () -> assertThat(blockBufferService.getEarliestAvailableBlockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER));
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(TEST_BLOCK_NUMBER);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(TEST_BLOCK_NUMBER);
+
+        final BlockState block = blockBufferService.getBlockState(TEST_BLOCK_NUMBER);
+        assertThat(block).isNotNull();
+        assertThat(block.blockNumber()).isEqualTo(TEST_BLOCK_NUMBER);
 
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -220,7 +204,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // given
         // expiry period set to zero in order for completed state to be cleared
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
-        blockBufferService.getBlockState(TEST_BLOCK_NUMBER).closeBlock();
+        final BlockState block = blockBufferService.getBlockState(TEST_BLOCK_NUMBER);
+        assertThat(block).isNotNull();
+
+        block.closeBlock();
 
         // when
         blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
@@ -242,24 +229,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
 
-        // then
-        assertAll(
-                () -> assertThat(blockBufferService.getLastBlockNumberProduced())
-                        .isEqualTo(TEST_BLOCK_NUMBER2),
-                () -> assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER))
-                        .isNotNull(),
-                () -> assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER2))
-                        .isNotNull(),
-                () -> assertThat(blockBufferService
-                                .getBlockState(TEST_BLOCK_NUMBER)
-                                .blockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER),
-                () -> assertThat(blockBufferService
-                                .getBlockState(TEST_BLOCK_NUMBER2)
-                                .blockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER2),
-                () -> assertThat(blockBufferService.getEarliestAvailableBlockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER));
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(TEST_BLOCK_NUMBER);
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(TEST_BLOCK_NUMBER2);
+        final BlockState block1 = blockBufferService.getBlockState(TEST_BLOCK_NUMBER);
+        assertThat(block1).isNotNull();
+        assertThat(block1.blockNumber()).isEqualTo(TEST_BLOCK_NUMBER);
+
+        final BlockState block2 = blockBufferService.getBlockState(TEST_BLOCK_NUMBER2);
+        assertThat(block2).isNotNull();
+        assertThat(block2.blockNumber()).isEqualTo(TEST_BLOCK_NUMBER2);
 
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER);
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER2);
@@ -294,22 +272,105 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
-        blockBufferService.getBlockState(TEST_BLOCK_NUMBER).closeBlock();
-        blockBufferService.getBlockState(TEST_BLOCK_NUMBER2).closeBlock();
+        final BlockState block1 = blockBufferService.getBlockState(TEST_BLOCK_NUMBER);
+        final BlockState block2 = blockBufferService.getBlockState(TEST_BLOCK_NUMBER2);
+
+        assertThat(block1).isNotNull();
+        assertThat(block2).isNotNull();
+
+        block1.closeBlock();
+        block2.closeBlock();
 
         // when
         blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
 
         // then
-        assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
         assertThat(blockBufferService.isAcked(TEST_BLOCK_NUMBER)).isTrue();
-        assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER2)).isNotNull();
         assertThat(blockBufferService.isAcked(TEST_BLOCK_NUMBER2)).isFalse();
 
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER);
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER2);
         verify(blockStreamMetrics, times(2)).recordBlockOpened();
         verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesImmediatelyWhenNoBlocksProduced() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(-1L);
+
+        // then
+        assertThat(future).isCompleted();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesImmediatelyWhenBlockAlreadyAcked() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+        reset(blockStreamMetrics);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER);
+
+        // then
+        assertThat(future).isCompleted();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesWhenBlockIsAcked() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
+        reset(blockStreamMetrics);
+
+        // when
+        final var future = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER2);
+
+        // then
+        assertThat(future).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+        assertThat(future).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER2);
+        assertThat(future).isCompleted();
+
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER);
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER2);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void acknowledgedThroughFutureCompletesWhenAckJumpsPastBlock() {
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
+        reset(blockStreamMetrics);
+
+        // when
+        final var firstBlockFuture = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER);
+        final var secondBlockFuture = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER2);
+
+        // then
+        assertThat(firstBlockFuture).isNotCompleted();
+        assertThat(secondBlockFuture).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER2 + 1);
+
+        assertThat(firstBlockFuture).isCompleted();
+        assertThat(secondBlockFuture).isCompleted();
+
+        verify(blockStreamMetrics).recordLatestBlockAcked(TEST_BLOCK_NUMBER2 + 1);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -424,7 +485,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // prune the buffer, nothing should be removed since nothing is acked and we are not yet saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+
+        PruneResult lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(80.0); // the buffer is 80% saturated
         verify(blockStreamMetrics).recordLatestBlockOpened(1L);
         verify(blockStreamMetrics).recordLatestBlockOpened(2L);
@@ -448,7 +513,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(5L);
         checkBufferHandle.invoke(blockBufferService);
         // the buffer is now marked as saturated because multiple blocks have not been acked yet and they are expired
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isTrue();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isTrue();
 
         verify(blockStreamMetrics).recordLatestBlockOpened(5L);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -470,7 +537,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(6L);
         blockBufferService.closeBlock(6L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isTrue();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isTrue();
         verify(blockStreamMetrics).recordBufferSaturation(120.0); // the buffer is 120% saturated
         verify(blockStreamMetrics).recordLatestBlockOpened(6L);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -496,7 +565,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // now that multiple blocks are acked, run pruning again and verify we are no longer saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(60.0); // the buffer is 60% saturated
         verify(blockStreamMetrics).recordLatestBlockAcked(3L);
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(1);
@@ -513,7 +584,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // ack up to block 6, run pruning, and verify the buffer is not saturated
         blockBufferService.setLatestAcknowledgedBlock(6L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(0.0); // the buffer is 0% saturated
         verify(blockStreamMetrics).recordLatestBlockAcked(6L);
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
@@ -532,7 +605,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(7L);
         blockBufferService.closeBlock(7L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordLatestBlockOpened(7L);
         verify(blockStreamMetrics).recordBlockOpened();
         verify(blockStreamMetrics).recordBlockClosed();
@@ -555,7 +630,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    @Disabled("TBD if this is a valid scenario any more")
     void testFutureBlockAcked() throws Throwable {
         /*
          * There is a scenario where a block node (BN) may have a later block than what the active consensus node (CN)
@@ -567,6 +641,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BOTH")
                 .withValue("blockStream.buffer.maxBlocks", 1)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
@@ -607,21 +682,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(5L);
         blockBufferService.closeBlock(6L);
 
-        // wait for the period to create 5 blocks, with a little padding
-        Thread.sleep(Duration.ofSeconds(1).plusMillis(250));
-
-        // Add another block to trigger the prune, then verify the state... there should only be blocks 6 and 7 buffered
+        // Add another block to trigger the prune, then verify the state... there should only be block 7 buffered
         blockBufferService.openBlock(7L);
 
         checkBufferHandle.invoke(blockBufferService);
 
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
-        assertThat(buffer).hasSize(2);
-        assertThat(buffer.get(6L)).isNotNull();
+        assertThat(buffer).hasSize(1);
         assertThat(buffer.get(7L)).isNotNull();
 
         // verify the earliest block in the buffer is 6 after pruning the acked ones
-        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(6L);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(7L);
     }
 
     @Test
@@ -765,7 +836,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         verifyNoMoreInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
@@ -794,7 +864,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult initialPruningResult = lastPruningResult(blockBufferService);
+        final PruneResult initialPruningResult =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(initialPruningResult).isNotNull();
         assertThat(initialPruningResult.isSaturated).isTrue();
         assertThat(initialPruningResult.numBlocksPruned).isZero();
         assertThat(initialPruningResult.numBlocksPendingAck).isEqualTo(10);
@@ -831,7 +903,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).isEmpty();
 
         verifyNoInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
@@ -852,7 +923,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).isEmpty();
 
         verifyNoInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
@@ -866,7 +936,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(10L);
 
         verifyNoInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
@@ -880,7 +949,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.setLatestAcknowledgedBlock(10L);
 
         verifyNoInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
@@ -905,12 +973,23 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(doneLatch.await(1, TimeUnit.SECONDS)).isTrue();
 
         verifyNoInteractions(blockStreamMetrics);
-        verifyNoInteractions(connectionManager);
     }
 
     @Test
     void testCheckBuffer_fromBelowActionStageToSaturated() throws Throwable {
         setupState(2, false);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(20.0D);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
 
         // 2 blocks are unacked, add 8 more to fill the buffer
         for (int i = 3; i <= 10; ++i) {
@@ -918,12 +997,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             blockBufferService.closeBlock(i);
         }
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
+
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -933,16 +1015,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFutureRef).doesNotHaveNullValue();
         assertThat(backPressureFutureRef.get()).isNotCompleted();
 
-        verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics, times(8)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(8)).recordBlockOpened();
         verify(blockStreamMetrics, times(8)).recordBlockClosed();
         verify(blockStreamMetrics, atLeastOnce()).recordBackPressureActive();
         verify(blockStreamMetrics, atLeastOnce()).recordBufferSaturation(100.0D);
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -952,6 +1034,18 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromBelowActionStageToActionStage() throws Throwable {
         setupState(2, false);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(20.0D);
+
         // 2 blocks are unacked, add 5 more to trigger the action stage
         for (int i = 3; i <= 7; ++i) {
             blockBufferService.openBlock(i);
@@ -959,29 +1053,33 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             verify(blockStreamMetrics).recordLatestBlockOpened(i);
         }
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
+        assertThat(pruneResult.saturationPercent).isEqualTo(70.0D);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(70.0D);
 
         // back pressure should NOT be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
                 backpressureCompletableFutureRef(blockBufferService);
         assertThat(backPressureFutureRef).hasNullValue();
 
-        verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics, times(5)).recordBlockOpened();
         verify(blockStreamMetrics, times(5)).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(pruneResult.saturationPercent);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBackPressureActionStage();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(7L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -991,20 +1089,35 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromBelowActionStageToBelowActionStage() throws Throwable {
         setupState(2, false);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(20.0D);
+
         // 2 blocks are unacked, add 2 more to stay below the action stage
         for (int i = 3; i <= 4; ++i) {
             blockBufferService.openBlock(i);
             blockBufferService.closeBlock(i);
         }
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(4);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(40.0D);
 
         // back pressure should NOT be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1015,12 +1128,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockOpened(4L);
         verify(blockStreamMetrics, times(2)).recordBlockOpened();
         verify(blockStreamMetrics, times(2)).recordBlockClosed();
-        verify(blockStreamMetrics).recordBufferSaturation(40.0D);
-        verify(blockStreamMetrics).recordBackPressureDisabled();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(4L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics, times(2)).recordBackPressureDisabled();
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -1030,6 +1142,18 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromActionStageToSaturated() throws Throwable {
         setupState(7, true);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(70.0D);
+
         // 7 blocks are unacked, add 3 more to fill the buffer
         blockBufferService.openBlock(8);
         blockBufferService.closeBlock(8);
@@ -1038,14 +1162,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(10);
         blockBufferService.closeBlock(10);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
 
         // back pressure should be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1053,18 +1180,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFutureRef).doesNotHaveNullValue();
         assertThat(backPressureFutureRef.get()).isNotCompleted();
 
-        verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics).recordLatestBlockOpened(8L);
         verify(blockStreamMetrics).recordLatestBlockOpened(9L);
         verify(blockStreamMetrics).recordLatestBlockOpened(10L);
         verify(blockStreamMetrics, times(3)).recordBlockOpened();
         verify(blockStreamMetrics, times(3)).recordBlockClosed();
-        verify(blockStreamMetrics).recordBufferSaturation(100.0D);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
         verify(blockStreamMetrics).recordBackPressureActive();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -1074,34 +1200,48 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromActionStageToActionStage() throws Throwable {
         setupState(7, true);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(70.0D);
+
         // 7 blocks are unacked, add 1 more but don't fill the buffer
         blockBufferService.openBlock(8);
         blockBufferService.closeBlock(8);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(8);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(80.0D);
 
         // back pressure should NOT be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
                 backpressureCompletableFutureRef(blockBufferService);
         assertThat(backPressureFutureRef).hasNullValue();
 
-        verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics).recordLatestBlockOpened(8L);
         verify(blockStreamMetrics).recordBlockOpened();
         verify(blockStreamMetrics).recordBlockClosed();
         verify(blockStreamMetrics).recordBufferSaturation(80.0D);
-        verify(blockStreamMetrics).recordBackPressureActionStage();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(8L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics, times(2)).recordBackPressureActionStage();
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -1111,18 +1251,32 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromActionStageToBelowActionStage() throws Throwable {
         setupState(7, true);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isFalse();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(70.0D);
+
         // 7 blocks are unacked, ack up to block 5 so we will fall below the action stage
         blockBufferService.setLatestAcknowledgedBlock(5L);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
-        System.out.println(pruneResult);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(20.0D);
 
         // back pressure should NOT be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1130,12 +1284,12 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFutureRef).hasNullValue();
 
         verify(blockStreamMetrics).recordLatestBlockAcked(5L);
-        verify(blockStreamMetrics).recordBufferSaturation(20.0D);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics).recordBackPressureActionStage();
         verify(blockStreamMetrics).recordBackPressureDisabled();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(7L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1143,14 +1297,29 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromSaturatedToSaturated() throws Throwable {
         setupState(10, true);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isTrue();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
 
         // back pressure should be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1158,12 +1327,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFutureRef).doesNotHaveNullValue();
         assertThat(backPressureFutureRef.get()).isNotCompleted();
 
-        verify(connectionManager).selectNewBlockNodeForStreaming(true);
-        verify(blockStreamMetrics).recordBufferSaturation(100.0D);
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(100.0D);
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(10L);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1171,17 +1338,32 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromSaturatedToActionStage() throws Throwable {
         setupState(10, true);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isTrue();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
+
         // ack block 4 to be between the action stage and being saturated
         blockBufferService.setLatestAcknowledgedBlock(4);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(6);
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(60.0D);
 
         // back pressure should be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1192,12 +1374,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFuture.get()).isTrue(); // back pressure is not enabled
 
         verify(blockStreamMetrics).recordLatestBlockAcked(4L);
-        verify(blockStreamMetrics).recordBufferSaturation(60.0D);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
         verify(blockStreamMetrics).recordBackPressureActionStage();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1205,17 +1386,32 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCheckBuffer_fromSaturatedToBelowActionStage() throws Throwable {
         setupState(10, true);
 
+        checkBufferHandle.invoke(blockBufferService);
+
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
+        assertThat(pruneResult.isSaturated).isTrue();
+        assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
+
+        BlockBufferStatus bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isTrue();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
+
         // ack block 10 to allow the buffer to fall below the action stage
         blockBufferService.setLatestAcknowledgedBlock(10);
 
-        // sleep for a couple seconds so we are beyond the "action grace period"
-        Thread.sleep(2_500);
-
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isZero();
+
+        bufferStatus = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus).isNotNull();
+        assertThat(bufferStatus.isActionStage()).isFalse();
+        assertThat(bufferStatus.saturationPercent()).isEqualTo(0.0D);
 
         // back pressure should be enabled
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
@@ -1226,40 +1422,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFuture.get()).isTrue(); // back pressure is not enabled
 
         verify(blockStreamMetrics).recordLatestBlockAcked(10L);
-        verify(blockStreamMetrics).recordBufferSaturation(0.0D);
+        verify(blockStreamMetrics, times(2)).recordBufferSaturation(anyDouble());
         verify(blockStreamMetrics).recordBackPressureDisabled();
-        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
-    }
-
-    @Test
-    void testCheckBuffer_switchBlockNodeIfPermitted() throws Throwable {
-        setupState(10, true);
-
-        /*
-        During the setup phase, a reconnect attempt would have been triggered. If we check/prune the buffer again
-        immediately, another attempt will be made, but because we are still within the grace period it actually won't
-        be triggered. If we wait until we are out of the grace period (2 seconds), checking the buffer again should
-        trigger the reconnect.
-         */
-
-        checkBufferHandle.invoke(blockBufferService);
-
-        verify(connectionManager, times(0)).selectNewBlockNodeForStreaming(anyBoolean());
-
-        Thread.sleep(2_500);
-
-        checkBufferHandle.invoke(blockBufferService);
-
-        verify(blockStreamMetrics, times(2)).recordBufferSaturation(100.0D);
-        verify(connectionManager, times(1)).selectNewBlockNodeForStreaming(true);
-        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
-        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(1L);
-        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(10L);
-        verifyNoMoreInteractions(connectionManager);
+        verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1272,7 +1439,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.maxBlocks", 10)
-                .withValue("blockStream.buffer.isPruningEnabled", false)
                 .withValue("blockStream.buffer.recoveryThreshold", 70.0)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
@@ -1289,9 +1455,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult1 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult1 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult1).isNotNull();
         assertThat(pruneResult1.isSaturated).isTrue();
         assertThat(pruneResult1.saturationPercent).isEqualTo(100.0);
+
+        final BlockBufferStatus bufferStatus1 = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus1).isNotNull();
+        assertThat(bufferStatus1.isActionStage()).isTrue();
+        assertThat(bufferStatus1.saturationPercent()).isEqualTo(100.0D);
 
         verify(blockStreamMetrics, times(10)).recordBlockOpened();
         verify(blockStreamMetrics, times(10)).recordBlockClosed();
@@ -1315,9 +1488,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult2 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult2 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult2).isNotNull();
         assertThat(pruneResult2.isSaturated).isFalse();
         assertThat(pruneResult2.saturationPercent).isEqualTo(80.0);
+
+        final BlockBufferStatus bufferStatus2 = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus2).isNotNull();
+        assertThat(bufferStatus2.isActionStage()).isTrue();
+        assertThat(bufferStatus2.saturationPercent()).isEqualTo(80.0D);
 
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef2 =
                 backpressureCompletableFutureRef(blockBufferService);
@@ -1338,9 +1518,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult3 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult3 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult3).isNotNull();
         assertThat(pruneResult3.isSaturated).isFalse();
         assertThat(pruneResult3.saturationPercent).isEqualTo(70.0);
+
+        final BlockBufferStatus bufferStatus3 = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus3).isNotNull();
+        assertThat(bufferStatus3.isActionStage()).isTrue();
+        assertThat(bufferStatus3.saturationPercent()).isEqualTo(70.0D);
 
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef3 =
                 backpressureCompletableFutureRef(blockBufferService);
@@ -1361,9 +1548,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult4 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult4 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult4).isNotNull();
         assertThat(pruneResult4.isSaturated).isFalse();
         assertThat(pruneResult4.saturationPercent).isEqualTo(0.0);
+
+        final BlockBufferStatus bufferStatus4 = blockBufferService.latestBufferStatus();
+        assertThat(bufferStatus4).isNotNull();
+        assertThat(bufferStatus4.isActionStage()).isFalse();
+        assertThat(bufferStatus4.saturationPercent()).isEqualTo(0.0D);
 
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef4 =
                 backpressureCompletableFutureRef(blockBufferService);
@@ -1403,7 +1597,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
 
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
         blockBufferService.start();
 
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
@@ -1445,7 +1638,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testShutdown() throws Throwable {
-        setupState(10, true, true);
+        setupState(10, true);
 
         blockBufferService.shutdown();
 
@@ -1471,7 +1664,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testBufferRestart() throws Throwable {
-        setupState(10, true, true);
+        setupState(10, true);
 
         // shutdown the service
         blockBufferService.shutdown();
@@ -1571,7 +1764,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
 
         // close block 4
-        blockBufferService.getBlockState(BLOCK_4).closeBlock();
+        final BlockState block4 = blockBufferService.getBlockState(BLOCK_4);
+        assertThat(block4).isNotNull();
+        block4.closeBlock();
 
         // add another block with new rounds
         final long BLOCK_5 = 5L;
@@ -1649,7 +1844,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // Create service but don't start it
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
         // Note: not calling initBufferService which would set isStarted to true
 
         // Try to persist - should do nothing since not started
@@ -1662,14 +1856,314 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    // Utilities
+    @Test
+    void testConcurrentPersistDoesNotLoseBlocks() throws Throwable {
+        // Validates that concurrent persistBufferImpl() calls (periodic + freeze) don't lose blocks.
+        // Without the persistLock, each call creates a separate directory and one's cleanupOldFiles
+        // can delete the other's output, causing block data loss on restore.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 100)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-    void setupState(final int numBlockUnacked, final boolean reconnectExpected) throws Throwable {
-        setupState(numBlockUnacked, reconnectExpected, false);
+        Files.createDirectories(testDirFile.toPath());
+
+        blockBufferService = initBufferService(configProvider);
+
+        // Create 10 blocks
+        for (long blockNum = 1; blockNum <= 10; blockNum++) {
+            final long b = blockNum;
+            blockBufferService.openBlock(b);
+            final List<BlockItem> items = generateBlockItems(10, b, Set.of());
+            items.forEach(item -> blockBufferService.addItem(b, item));
+            blockBufferService.closeBlock(b);
+        }
+
+        // Run two concurrent persists (simulating periodic + freeze persist racing)
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final Thread t1 = new Thread(() -> {
+            try {
+                startLatch.await();
+                persistBufferHandle.invoke(blockBufferService);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        });
+        final Thread t2 = new Thread(() -> {
+            try {
+                startLatch.await();
+                persistBufferHandle.invoke(blockBufferService);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        t1.start();
+        t2.start();
+        startLatch.countDown();
+        t1.join(10_000);
+        t2.join(10_000);
+
+        // Verify: exactly one directory with all 10 blocks
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            final List<Path> subDirs = stream.toList();
+            assertThat(subDirs).hasSize(1);
+            final Path subDir = subDirs.getFirst();
+
+            try (final Stream<Path> subStream = Files.list(subDir)) {
+                final Set<String> actualFileNames =
+                        subStream.map(Path::toFile).map(File::getName).collect(Collectors.toSet());
+                final Set<String> expectedFileNames = new HashSet<>();
+                for (long b = 1; b <= 10; b++) {
+                    expectedFileNames.add("block-" + b + ".bin");
+                }
+                assertThat(actualFileNames).isEqualTo(expectedFileNames);
+            }
+        }
     }
 
-    void setupState(final int numBlockUnacked, final boolean reconnectExpected, final boolean realStart)
-            throws Throwable {
+    @Test
+    void testMinAckedBlocksToBuffer_aggressivePruneWhenAllAcked() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 10L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(10L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 10 - 3 + 1 = 8; acked blocks strictly below 8 are pruned, leaving blocks 8..10,
+        // i.e. exactly `minAckedBlocksToBuffer` of the most recent acked blocks.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(8L, 9L, 10L);
+
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        // pruning acked blocks does not affect numBlocksPendingAck, saturation stays at 0
+        assertThat(result.numBlocksPendingAck).isZero();
+        assertThat(result.saturationPercent).isZero();
+        assertThat(result.isSaturated).isFalse();
+        assertThat(result.numBlocksPruned).isEqualTo(7);
+
+        verify(blockStreamMetrics, times(10)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(10)).recordBlockOpened();
+        verify(blockStreamMetrics, times(10)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(10L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(7);
+        verify(blockStreamMetrics).recordBufferOldestBlock(8L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_softLimitOverriddenByMaxBlocks() throws Throwable {
+        // maxBlocks=5, minAcked=10. The soft floor wants to keep 10 acked blocks, but the buffer is
+        // dominated by unacked blocks and over the hard ceiling. Acked blocks within the soft floor
+        // must be evicted to make room.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 5)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        // produce 7 closed blocks and ack the first 3; total buffer size 7 > maxBlocks 5
+        for (long b = 1L; b <= 7L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(3L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 3 - 10 + 1 = -6; the soft floor is inert for positive block numbers, so only the
+        // hard ceiling drives pruning. Blocks 1 and 2 are evicted to bring size back to maxBlocks=5
+        // even though the soft floor (10) wanted to keep them. End state: [3, 4, 5, 6, 7].
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(3L, 4L, 5L, 6L, 7L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(2);
+        assertThat(result.numBlocksPendingAck).isEqualTo(4);
+
+        verify(blockStreamMetrics, times(7)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(7)).recordBlockOpened();
+        verify(blockStreamMetrics, times(7)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(3L);
+        verify(blockStreamMetrics).recordBufferSaturation(80.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(2);
+        verify(blockStreamMetrics).recordBufferOldestBlock(3L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(7L);
+        verify(blockStreamMetrics).recordBackPressureActionStage();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_zeroRetainsNoAckedBlocks() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // ack blocks 1..4, leave 5 unacked
+        blockBufferService.setLatestAcknowledgedBlock(4L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 4 - 0 + 1 = 5; all acked blocks (1..4) are strictly below 5 and pruned, leaving
+        // zero acked blocks. Only the unacked block 5 remains.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(5L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(4);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(4L);
+        verify(blockStreamMetrics).recordBufferSaturation(5.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(4);
+        verify(blockStreamMetrics).recordBufferOldestBlock(5L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_noPruningWhenNoAcksReceived() throws Throwable {
+        // With no acks received yet, the soft-limit branch must be inert (and the threshold
+        // subtraction must not underflow). Pruning should do nothing while the buffer is below the
+        // hard ceiling.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 10)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 4L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // intentionally never call setLatestAcknowledgedBlock
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        assertThat(buffer).hasSize(4);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isZero();
+
+        verify(blockStreamMetrics, times(4)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(4)).recordBlockOpened();
+        verify(blockStreamMetrics, times(4)).recordBlockClosed();
+        verify(blockStreamMetrics).recordBufferSaturation(40.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_backpressureDisabledIgnoresSoftLimit() throws Throwable {
+        // Backpressure is disabled when streamMode is not BLOCKS. In that mode pruning falls back to
+        // the hard ceiling and the soft retention floor must not kick in. Use FILE_AND_GRPC writerMode
+        // so the buffer still accepts blocks via the GRPC path.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockStream.streamMode", "BOTH")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 2)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(5L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // all 5 blocks retained because size <= maxBlocks; the soft limit must be ignored when
+        // backpressure is disabled
+        assertThat(buffer).hasSize(5);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(5L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    // Utilities
+
+    void setupState(final int numBlockUnacked, final boolean realStart) throws Throwable {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
@@ -1695,7 +2189,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         final boolean expectedSaturated = numBlockUnacked == 10; // ideal max size is 10
 
-        final PruneResult initialPruningResult = lastPruningResult(blockBufferService);
+        final PruneResult initialPruningResult =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(initialPruningResult).isNotNull();
         assertThat(initialPruningResult.isSaturated).isEqualTo(expectedSaturated);
         assertThat(initialPruningResult.numBlocksPruned).isZero();
         assertThat(initialPruningResult.numBlocksPendingAck).isEqualTo(numBlockUnacked);
@@ -1710,13 +2206,12 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             assertThat(backPressureFutureRef).hasNullValue();
         }
 
-        verify(connectionManager, times(reconnectExpected ? 1 : 0)).selectNewBlockNodeForStreaming(true);
-        verifyNoMoreInteractions(connectionManager); // no other calls should be made
-        reset(connectionManager, blockStreamMetrics);
+        reset(blockStreamMetrics);
     }
 
-    private PruneResult lastPruningResult(final BlockBufferService bufferService) {
-        return (PruneResult) lastPruningResultHandle.getVolatile(bufferService);
+    @SuppressWarnings("unchecked")
+    private AtomicReference<PruneResult> lastPruningResultRef(final BlockBufferService bufferService) {
+        return (AtomicReference<PruneResult>) lastPruningResultRefHandle.get(bufferService);
     }
 
     @SuppressWarnings("unchecked")
@@ -1760,7 +2255,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     private BlockBufferService initBufferService(final ConfigProvider configProvider, final boolean realStart) {
         final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
-        svc.setBlockNodeConnectionManager(connectionManager);
 
         if (realStart) {
             svc.start();

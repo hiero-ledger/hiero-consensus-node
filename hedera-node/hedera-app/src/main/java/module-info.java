@@ -38,6 +38,7 @@ module com.hedera.node.app {
     requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
+    requires transitive java.net.http;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -56,6 +57,7 @@ module com.hedera.node.app {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
@@ -130,6 +132,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.grpc.impl.netty;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
+    exports com.hedera.node.app.records.handlers;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.history.schemas;

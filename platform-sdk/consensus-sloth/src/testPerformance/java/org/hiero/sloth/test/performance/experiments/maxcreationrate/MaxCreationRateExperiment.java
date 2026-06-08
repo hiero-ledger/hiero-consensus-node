@@ -10,7 +10,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -33,7 +32,7 @@ public class MaxCreationRateExperiment {
     @Order(1)
     void maxCreationRate50(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=50 ===");
-        runBenchmark(env, "maxCreationRate50", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "maxCreationRate50", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 50);
         });
     }
@@ -45,7 +44,7 @@ public class MaxCreationRateExperiment {
     @Order(2)
     void maxCreationRate100(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=100 ===");
-        runBenchmark(env, "maxCreationRate100", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "maxCreationRate100", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 100);
         });
     }
@@ -57,7 +56,7 @@ public class MaxCreationRateExperiment {
     @Order(2)
     void maxCreationRateUnbounded(@NonNull final TestEnvironment env) {
         log.info("=== MaxCreationRate Experiment: maxCreationRate=Unbounded ===");
-        runBenchmark(env, "maxCreationRateUnbounded", BenchmarkParameters.defaults(), network -> {
+        runBenchmark(env, "maxCreationRateUnbounded", (network, _) -> {
             network.withConfigValue("event.creation.maxCreationRate", 0);
         });
     }

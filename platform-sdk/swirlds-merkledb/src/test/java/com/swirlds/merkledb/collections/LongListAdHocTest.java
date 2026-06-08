@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -21,29 +22,32 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@link AbstractLongListTest}, but still warrant individual coverage for bug fixes or
  * concurrency concerns.
  */
-class LongListAdHocTest {
+class LongListAdHocTest extends AbstractFileManagerAwareTest {
 
     @ParameterizedTest
     @MethodSource("provideLongLists")
     void test4089(final AbstractLongList<?> list) {
-        list.updateValidRange(0, list.capacity() - 1);
-        // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
-        final long maxLongs = list.capacity();
-        final int defaultValue = -1;
-        final AtomicBoolean done = new AtomicBoolean();
+        try (list) {
+            list.updateValidRange(0, list.capacity() - 1);
+            // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
+            final long maxLongs = list.capacity();
+            final int defaultValue = -1;
+            final AtomicBoolean done = new AtomicBoolean();
 
-        IntStream.range(0, 2).parallel().forEach(thread -> {
-            if (thread == 0) {
-                // Getter
-                while (!done.get()) {
-                    assertEquals(defaultValue, list.get(maxLongs - 2, defaultValue), "Value should be whats expected.");
+            IntStream.range(0, 2).parallel().forEach(thread -> {
+                if (thread == 0) {
+                    // Getter
+                    while (!done.get()) {
+                        assertEquals(
+                                defaultValue, list.get(maxLongs - 2, defaultValue), "Value should be whats expected.");
+                    }
+                } else {
+                    // Putter
+                    list.put(maxLongs - 1, 1);
+                    done.set(true);
                 }
-            } else {
-                // Putter
-                list.put(maxLongs - 1, 1);
-                done.set(true);
-            }
-        });
+            });
+        }
     }
 
     static Stream<LongList> provideLongLists() {
@@ -51,15 +55,16 @@ class LongListAdHocTest {
         final int capacity = longsPerChunk * 4096;
         return Stream.of(
                 new LongListHeap(longsPerChunk, capacity, 0),
-                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4));
+                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4),
+                new LongListSegment(longsPerChunk, capacity, longsPerChunk / 4));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860
     @Test
     void testReallocateThreadLocalBufferWhenMemoryChunkSizeChanges() throws IOException {
         // Create two long lists with different memory chunk sizes
-        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION);
-        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION);
+        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
+        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
 
         // Populate both long lists with sample data and validate
         populateList(largeMemoryChunkList);

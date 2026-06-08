@@ -6,6 +6,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePer
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
@@ -42,6 +43,7 @@ public class PlatformStateService implements SlothService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final VirtualMapState state) {
         log.info(STARTUP.getMarker(), "PlatformStateService initialized");
     }
