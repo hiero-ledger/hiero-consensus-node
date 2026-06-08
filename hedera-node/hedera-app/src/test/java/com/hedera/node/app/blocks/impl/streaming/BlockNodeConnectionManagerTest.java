@@ -1497,6 +1497,52 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testUpdateConnectionIfNeeded_recordsZeroIpWhenNoBlockNodeConnectable() throws Throwable {
+        // an active connection is streaming to a configured block node (192.168.1.1 -> 3232235777)
+        final BlockNodeConfiguration nodeConfig = newBlockNodeConfig("localhost", 1234, 1);
+        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final StreamingConnectionStatistics activeConnStats = mock(StreamingConnectionStatistics.class);
+        when(activeConnStats.lastHeartbeatMillis())
+                .thenReturn(Instant.now().plusSeconds(2).toEpochMilli());
+        when(activeConnection.connectionStatistics()).thenReturn(activeConnStats);
+        when(activeConnection.configuration()).thenReturn(nodeConfig);
+        when(activeConnection.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(90));
+        when(activeConnection.ipV4AddressAsInt()).thenReturn(3232235777L);
+        activeConnectionRef().set(activeConnection);
+        // the block node stays in configuration, but it cannot be connected to (e.g. unreachable / in cool-down)
+        final BlockNode node = mock(BlockNode.class);
+        lenient().when(node.configuration()).thenReturn(nodeConfig);
+        when(node.isStreamingCandidate()).thenReturn(false);
+        blockNodes().put(nodeConfig.streamingEndpoint(), node);
+        // the block node configuration is unchanged - the node is simply unreachable
+        final VersionedBlockNodeConfigurationSet configSet =
+                new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig));
+        activeConfigRef().set(configSet);
+        when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
+        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+
+        // tick 1: the connection is still active and healthy, so the gauge reports its IP address
+        invoke_updateConnectionIfNeeded();
+        verify(metrics).recordActiveConnectionIp(3232235777L);
+
+        // the active connection is lost (e.g. the block node became unreachable); production clears the active ref
+        connectionManager.notifyConnectionClosed(activeConnection);
+        assertThat(activeConnectionRef()).hasNullValue();
+
+        // tick 2: a reconnection is attempted, but no block node is connectable, so no replacement connection is
+        // established and the gauge transitions to 0 instead of retaining the old IP
+        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
+                mockConstruction(BlockNodeStreamingConnection.class)) {
+            invoke_updateConnectionIfNeeded();
+            assertThat(mockConnection.constructed()).isEmpty();
+        }
+
+        verify(node, atLeastOnce()).isStreamingCandidate();
+        assertThat(activeConnectionRef()).hasNullValue();
+        verify(metrics).recordActiveConnectionIp(0L);
+    }
+
+    @Test
     void testUpdateConnectionIfNeeded_updatedConfigOnly() throws Throwable {
         // set active connection that is healthy
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig("localhost", 1234, 1);
