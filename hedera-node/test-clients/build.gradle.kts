@@ -63,9 +63,6 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
         logger.lifecycle(
             "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
         )
-        logger.lifecycle(
-            "Test client resource allocation: heap=$testMaxHeap, ActiveProcessorCount=$testProcessorCount (of $availableCpus available)"
-        )
 
         return listOf(
             // Scale heap and processor count to match available resources

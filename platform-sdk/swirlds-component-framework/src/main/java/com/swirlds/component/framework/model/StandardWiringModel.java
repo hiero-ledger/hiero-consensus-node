@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL_THREAD;
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.*;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.diagram.HyperlinkBuilder;
@@ -108,7 +107,8 @@ public class StandardWiringModel extends TraceableWiringModel {
         healthMonitorSchedulerBuilder.withHyperlink(HyperlinkBuilder.platformCoreHyperlink(HealthMonitor.class));
         if (builder.isHealthMonitorEnabled()) {
             healthMonitorSchedulerBuilder
-                    .withType(SEQUENTIAL_THREAD)
+                    //                    .withType(SEQUENTIAL_THREAD)
+                    .withType(SEQUENTIAL)
                     .withUnhandledTaskMetricEnabled(true)
                     .withUnhandledTaskCapacity(builder.getHealthMonitorCapacity());
         } else {
