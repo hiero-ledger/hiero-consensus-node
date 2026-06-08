@@ -9,7 +9,8 @@ module org.hiero.consensus.pces.impl {
             org.hiero.consensus.pcli,
             org.hiero.otter.fixtures,
             org.hiero.sloth.fixtures,
-            org.hiero.consensus.pces.impl.test.fixtures;
+            org.hiero.consensus.pces.impl.test.fixtures,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
