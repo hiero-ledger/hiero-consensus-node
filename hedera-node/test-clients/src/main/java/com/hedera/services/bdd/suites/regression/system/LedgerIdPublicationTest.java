@@ -2,12 +2,11 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,26 +14,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.HapiBlockNode;
-import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
+import com.hedera.services.bdd.GenesisSubProcessTest;
+import com.hedera.services.bdd.GenesisSubProcessTest.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Asserts {@code LedgerIdPublication} is externalized to the record stream when TSS is enabled at
  * genesis (#25643). Needs a real multi-node subprocess network; the ceremony can't complete embedded.
  */
-@Tag(BLOCK_NODE)
 public class LedgerIdPublicationTest {
     private static final int NETWORK_SIZE = 4;
 
     @HapiTest
-    @HapiBlockNode(
+    @GenesisSubProcessTest(
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -71,7 +68,7 @@ public class LedgerIdPublicationTest {
             })
     final Stream<DynamicTest> ledgerIdPublicationExternalizedInRecordStream() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                streamMustIncludePassFrom(
                         selectedItems(ledgerIdPublicationValidator(), 1, (spec, item) -> {
                             try {
                                 return extractTransactionBody(item.getTransaction())

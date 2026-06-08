@@ -149,7 +149,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
-        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE|GENESIS_SUBPROCESS",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
