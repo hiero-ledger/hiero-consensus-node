@@ -60,7 +60,9 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
+            // Write under the gitignored build directory (cleaned by `gradlew clean`) instead of
+            // the source tree, matching where the other block validators resolve their artifacts.
+            final Path outputDir = Path.of("build", "redacted-blocks", spec.getName());
             final var pcesData = EventHashBlockStreamValidator.readPcesDataFromSpec(spec);
             return new RedactingEventHashBlockStreamValidator(outputDir, pcesData);
         }

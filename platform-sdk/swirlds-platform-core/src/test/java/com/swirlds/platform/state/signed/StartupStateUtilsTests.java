@@ -17,7 +17,6 @@ import static org.mockito.Mockito.spy;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -41,6 +40,7 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -99,7 +99,7 @@ public class StartupStateUtilsTests {
     @NonNull
     private PlatformContext buildContext(final boolean deleteInvalidStateFiles, @NonNull final RecycleBin recycleBin) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, savedStateDir.toString())
+                .withValue(PathsConfig_.SAVED_STATE_DIR, savedStateDir.toString())
                 .withValue(StateConfig_.DELETE_INVALID_STATE_FILES, deleteInvalidStateFiles)
                 .getOrCreateConfig();
 

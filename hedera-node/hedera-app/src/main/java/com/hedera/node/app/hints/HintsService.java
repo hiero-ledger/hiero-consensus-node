@@ -113,6 +113,13 @@ public interface HintsService extends Service {
     SigningResult sign(@NonNull Bytes blockHash);
 
     /**
+     * Notifies the service that a new block has started.
+     *
+     * @param blockNumber the block number being started
+     */
+    void onBlockStarted(long blockNumber);
+
+    /**
      * Returns the TSS node-transaction submission helper.
      */
     @NonNull
