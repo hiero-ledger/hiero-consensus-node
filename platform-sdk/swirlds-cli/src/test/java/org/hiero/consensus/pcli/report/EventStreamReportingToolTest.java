@@ -15,17 +15,25 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.GenerateConsensus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundLowerBound;
 import org.hiero.consensus.pcli.recovery.internal.EventStreamTimestampLowerBound;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class EventStreamReportingToolTest {
+
+    @BeforeAll
+    static void setUp() throws ConstructableRegistryException {
+        ConstructableRegistration.registerAllConstructables();
+    }
 
     private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
             TestPlatformContextBuilder.create().build();
