@@ -179,6 +179,41 @@ class BlockNodeConfigurationTest {
     }
 
     @Test
+    void testRegisteredNodeIdRoundTrip() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .servicePort(8081)
+                .priority(1)
+                .messageSizeSoftLimitBytes(2_000)
+                .messageSizeHardLimitBytes(3_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .registeredNodeId(42L)
+                .build();
+
+        assertThat(config.hasRegisteredNodeId()).isTrue();
+        assertThat(config.registeredNodeId()).isEqualTo(42L);
+    }
+
+    @Test
+    void testRegisteredNodeIdDefaultsToSentinel() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .servicePort(8081)
+                .priority(1)
+                .messageSizeSoftLimitBytes(2_000)
+                .messageSizeHardLimitBytes(3_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .build();
+
+        assertThat(config.hasRegisteredNodeId()).isFalse();
+        assertThat(config.registeredNodeId()).isEqualTo(BlockNodeConfiguration.NO_REGISTERED_NODE_ID);
+    }
+
+    @Test
     void testBuilder() {
         final BlockNodeHelidonHttpConfiguration clientHttpConfig =
                 BlockNodeHelidonHttpConfiguration.newBuilder().build();

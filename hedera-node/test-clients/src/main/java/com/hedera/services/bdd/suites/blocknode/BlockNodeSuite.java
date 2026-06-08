@@ -2,15 +2,19 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.registeredNodeCreate;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -18,10 +22,15 @@ import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
@@ -331,6 +340,79 @@ public class BlockNodeSuite {
         // Use fewer blocks than the single-node test since 4 real block node containers
         // and 4 consensus nodes need more startup time, reducing the window for block production
         return validateHappyPath(5);
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(6)
+    final Stream<DynamicTest> registeredNodeIdResolvesBlockNodeEndpoint() {
+        final String registeredNodeName = "blockNodeRegistered";
+        final String adminKey = "registeredAdminKey";
+        final AtomicLong registeredNodeIdRef = new AtomicLong();
+        return hapiTest(
+                // wait for at least one block so the consensus node has published State to the resolver
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                newKeyNamed(adminKey),
+                // create a registered node that advertises the simulator's port for both PUBLISH and STATUS
+                sourcingContextual(spec -> registeredNodeCreate(registeredNodeName)
+                        .adminKey(adminKey)
+                        .serviceEndpoints(
+                                List.of(blockNodePublishStatusEndpoint("localhost", spec.getBlockNodePortById(0))))
+                        .hasKnownStatus(SUCCESS)),
+                // capture the registered node id and rewrite block-nodes.json to reference it by id only
+                doingContextual(spec -> {
+                    registeredNodeIdRef.set(spec.registry().getRegisteredNodeId(registeredNodeName));
+                    rewriteBlockNodesJson(
+                            spec.targetNetworkOrThrow()
+                                    .getRequiredNode(byNodeId(0))
+                                    .getExternalPath(DATA_CONFIG_DIR)
+                                    .resolve("block-nodes.json"),
+                            registeredNodeIdRef.get());
+                }),
+                // assert the consensus node selected the resolved endpoint for streaming
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0),
+                        String.format(
+                                "Selected new block node for streaming: localhost:%s", spec.getBlockNodePortById(0)),
+                        Duration.ofSeconds(60))),
+                // verify the resolution log includes the registered node id we just looked up
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0),
+                        String.format("registeredNodeId=%d", registeredNodeIdRef.get()),
+                        Duration.ofSeconds(60))),
+                waitUntilNextBlocks(3).withBackgroundTraffic(true));
+    }
+
+    private static RegisteredServiceEndpoint blockNodePublishStatusEndpoint(final String host, final int port) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .setDomainName(host)
+                .setPort(port)
+                .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .addEndpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH)
+                        .addEndpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .build())
+                .build();
+    }
+
+    private static void rewriteBlockNodesJson(final Path configPath, final long registeredNodeId) {
+        final String json = String.format("{\"nodes\":[{\"registeredNodeId\":%d,\"priority\":0}]}", registeredNodeId);
+        try {
+            Files.writeString(configPath, json);
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to rewrite block-nodes.json at " + configPath, e);
+        }
     }
 
     private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {

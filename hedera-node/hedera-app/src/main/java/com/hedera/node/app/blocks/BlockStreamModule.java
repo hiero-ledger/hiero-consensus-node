@@ -9,6 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
+import com.hedera.node.app.blocks.impl.streaming.config.StateBackedRegisteredNodeResolver;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
@@ -39,8 +40,12 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockNodeConfigService provideBlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
-        return new BlockNodeConfigService(configProvider);
+    static BlockNodeConfigService provideBlockNodeConfigService(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final StateBackedRegisteredNodeResolver registeredNodeResolver) {
+        final BlockNodeConfigService service = new BlockNodeConfigService(configProvider);
+        service.setRegisteredNodeResolver(registeredNodeResolver);
+        return service;
     }
 
     @Provides
@@ -123,19 +128,22 @@ public interface BlockStreamModule {
     static BlockStreamManager.Lifecycle provideBlockStreamManagerLifecycle(
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BoundaryStateChangeListener listener,
-            @NonNull final NodeFeeManager nodeFeeManager) {
+            @NonNull final NodeFeeManager nodeFeeManager,
+            @NonNull final StateBackedRegisteredNodeResolver registeredNodeResolver) {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
                 nodeFeeManager.onOpenBlock(state);
                 listener.resetCollectedNodeFees();
                 nodeRewardManager.onOpenBlock(state);
+                registeredNodeResolver.updateState(state);
             }
 
             @Override
             public void onCloseBlock(@NonNull final State state) {
                 nodeFeeManager.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
+                registeredNodeResolver.updateState(state);
             }
         };
     }

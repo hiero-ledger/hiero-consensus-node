@@ -3,7 +3,13 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.RegisteredNodeEndpointResolver;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -13,6 +19,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +34,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,6 +85,13 @@ public class BlockNodeConfigService {
      * Holder for the file watcher service to detect configuration file changes.
      */
     private final AtomicReference<WatchService> watchServiceRef = new AtomicReference<>();
+    /**
+     * Resolver used to look up {@link RegisteredNode} instances when a configuration entry references a
+     * {@code registeredNodeId}. Defaults to {@link RegisteredNodeEndpointResolver#NO_OP} so the service can be
+     * exercised without a running state (e.g. in unit tests of the loader itself).
+     */
+    private final AtomicReference<RegisteredNodeEndpointResolver> registeredNodeResolverRef =
+            new AtomicReference<>(RegisteredNodeEndpointResolver.NO_OP);
 
     /**
      * Creates a new configuration monitor service.
@@ -92,6 +108,16 @@ public class BlockNodeConfigService {
                 .blockNodeConnectionFileDir();
 
         this.configDirectory = FileUtils.getAbsolutePath(configDir);
+    }
+
+    /**
+     * Sets the {@link RegisteredNodeEndpointResolver} used to resolve {@code registeredNodeId} references in
+     * {@code block-nodes.json}. May be called multiple times; the latest resolver applies to subsequent reloads.
+     *
+     * @param resolver the resolver to use; pass {@link RegisteredNodeEndpointResolver#NO_OP} to disable resolution
+     */
+    public void setRegisteredNodeResolver(@NonNull final RegisteredNodeEndpointResolver resolver) {
+        registeredNodeResolverRef.set(requireNonNull(resolver, "resolver must not be null"));
     }
 
     /**
@@ -204,14 +230,19 @@ public class BlockNodeConfigService {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .defaultMessageHardLimitBytes();
+        final RegisteredNodeEndpointResolver resolver = registeredNodeResolverRef.get();
 
         final Map<String, AtomicInteger> hostCounters = new HashMap<>();
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
-                nodeConfigs.add(BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes));
+                final BlockNodeConfiguration cfg = buildConfiguration(nodeConfig, defaultHardLimitBytes, resolver);
+                if (cfg == null) {
+                    // resolution failed in a way that already logged; skip silently
+                    continue;
+                }
+                nodeConfigs.add(cfg);
                 hostCounters
-                        .computeIfAbsent(
-                                nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())
+                        .computeIfAbsent(cfg.address() + ":" + cfg.streamingPort(), _ -> new AtomicInteger())
                         .incrementAndGet();
             } catch (final RuntimeException e) {
                 logger.warn(
@@ -259,6 +290,146 @@ public class BlockNodeConfigService {
 
             logger.info("{}", sb);
         }
+    }
+
+    /**
+     * Builds a {@link BlockNodeConfiguration} from a parsed entry, applying registered-node-id resolution when
+     * applicable.
+     *
+     * <p>Returns {@code null} if the entry references a {@code registeredNodeId} that cannot be resolved and the
+     * entry does not carry enough explicit values to stand on its own; the caller treats this as a skip.
+     */
+    private @Nullable BlockNodeConfiguration buildConfiguration(
+            @NonNull final BlockNodeConfig nodeConfig,
+            final long defaultHardLimitBytes,
+            @NonNull final RegisteredNodeEndpointResolver resolver) {
+        final Long registeredId = nodeConfig.registeredNodeId();
+        if (registeredId == null) {
+            return BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes);
+        }
+
+        final long registeredNodeId = registeredId;
+        final String explicitAddress = nodeConfig.address() == null ? "" : nodeConfig.address();
+        final int explicitStreamingPort = nodeConfig.streamingPort();
+        final Integer explicitServicePort = nodeConfig.servicePort();
+
+        final RegisteredNode registeredNode = resolver.isStateAvailable() ? resolver.resolve(registeredNodeId) : null;
+        final boolean stateConsulted = resolver.isStateAvailable();
+
+        String resolvedAddress = null;
+        Integer resolvedStreamingPort = null;
+        Integer resolvedServicePort = null;
+        if (registeredNode != null) {
+            final Optional<RegisteredServiceEndpoint> publishEp = pickEndpoint(registeredNode, BlockNodeApi.PUBLISH);
+            final Optional<RegisteredServiceEndpoint> statusEp = pickEndpoint(registeredNode, BlockNodeApi.STATUS);
+            resolvedStreamingPort =
+                    publishEp.map(RegisteredServiceEndpoint::port).orElse(null);
+            resolvedServicePort = statusEp.map(RegisteredServiceEndpoint::port).orElse(null);
+            resolvedAddress = publishEp
+                    .map(BlockNodeConfigService::endpointHost)
+                    .orElseGet(() ->
+                            statusEp.map(BlockNodeConfigService::endpointHost).orElse(null));
+        } else if (stateConsulted) {
+            logger.info(
+                    "Block node configuration references registered node id {} which is not in state; "
+                            + "falling back to any explicit address/port values",
+                    registeredNodeId);
+        } else {
+            logger.info(
+                    "Block node configuration references registered node id {} but state is not yet available; "
+                            + "using explicit address/port values for this load",
+                    registeredNodeId);
+        }
+
+        final String finalAddress = !explicitAddress.isBlank() ? explicitAddress : resolvedAddress;
+        final int finalStreamingPort = explicitStreamingPort > 0
+                ? explicitStreamingPort
+                : (resolvedStreamingPort != null ? resolvedStreamingPort : -1);
+        final int finalServicePort = explicitServicePort != null
+                ? explicitServicePort
+                : (resolvedServicePort != null ? resolvedServicePort : -1);
+
+        if (finalAddress == null || finalAddress.isBlank() || finalStreamingPort <= 0) {
+            logger.info(
+                    "Skipping block node configuration for registered node id {}: no usable address or streaming port "
+                            + "(explicit address='{}', explicit streamingPort={}, resolved address='{}', resolved streamingPort={})",
+                    registeredNodeId,
+                    explicitAddress,
+                    explicitStreamingPort,
+                    resolvedAddress,
+                    resolvedStreamingPort);
+            return null;
+        }
+
+        // log differences between explicit values and what the registered node advertised
+        if (resolvedAddress != null && !explicitAddress.isBlank() && !explicitAddress.equals(resolvedAddress)) {
+            logger.info(
+                    "Registered node id {} advertises address '{}' but block-nodes.json explicitly sets '{}'; "
+                            + "using the explicit value",
+                    registeredNodeId,
+                    resolvedAddress,
+                    explicitAddress);
+        }
+        if (resolvedStreamingPort != null
+                && explicitStreamingPort > 0
+                && resolvedStreamingPort != explicitStreamingPort) {
+            logger.info(
+                    "Registered node id {} advertises streaming port {} but block-nodes.json explicitly sets {}; "
+                            + "using the explicit value",
+                    registeredNodeId,
+                    resolvedStreamingPort,
+                    explicitStreamingPort);
+        }
+        if (resolvedServicePort != null
+                && explicitServicePort != null
+                && !resolvedServicePort.equals(explicitServicePort)) {
+            logger.info(
+                    "Registered node id {} advertises service port {} but block-nodes.json explicitly sets {}; "
+                            + "using the explicit value",
+                    registeredNodeId,
+                    resolvedServicePort,
+                    explicitServicePort);
+        }
+
+        final long softLimit =
+                nodeConfig.messageSizeSoftLimitBytesOrElse(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES);
+        final long hardLimit = nodeConfig.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes);
+
+        return BlockNodeConfiguration.newBuilder()
+                .address(finalAddress)
+                .streamingPort(finalStreamingPort)
+                .servicePort(finalServicePort)
+                .priority(nodeConfig.priority())
+                .messageSizeSoftLimitBytes(softLimit)
+                .messageSizeHardLimitBytes(hardLimit)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(nodeConfig.clientGrpcConfig()))
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(nodeConfig.clientHttpConfig()))
+                .registeredNodeId(registeredNodeId)
+                .build();
+    }
+
+    private static @NonNull Optional<RegisteredServiceEndpoint> pickEndpoint(
+            @NonNull final RegisteredNode node, @NonNull final BlockNodeApi api) {
+        return node.serviceEndpoint().stream()
+                .filter(ep ->
+                        ep.hasBlockNode() && ep.blockNodeOrThrow().endpointApi().contains(api))
+                .findFirst();
+    }
+
+    private static @Nullable String endpointHost(@NonNull final RegisteredServiceEndpoint endpoint) {
+        if (endpoint.hasDomainName()) {
+            final String domain = endpoint.domainName();
+            return (domain == null || domain.isBlank()) ? null : domain;
+        }
+        if (endpoint.hasIpAddress()) {
+            final byte[] ip = endpoint.ipAddress().toByteArray();
+            try {
+                return InetAddress.getByAddress(ip).getHostAddress();
+            } catch (final UnknownHostException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

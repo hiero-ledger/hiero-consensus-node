@@ -99,6 +99,25 @@ message BlockNodeConfig {
      * Valid port range is 1 to 65535.
      */
     google.protobuf.Int32Value service_port = 8;
+
+    /**
+     * Optional registered node identifier.<br/>
+     * If present, the consensus node SHALL attempt to look up the corresponding
+     * {@code RegisteredNode} in network state. When a matching registered node
+     * is found, its published block-node endpoints SHALL be used to populate
+     * the streaming endpoint (from a service endpoint advertising the
+     * {@code PUBLISH} API) and the service endpoint (from a service endpoint
+     * advertising the {@code STATUS} API).
+     * <p>
+     * Any explicit {@code address}, {@code streaming_port}, or
+     * {@code service_port} value present in this configuration SHALL take
+     * precedence over the values resolved from the registered node.
+     * <p>
+     * If the registered node cannot be found in state, an informational log
+     * entry SHALL be written and the entry SHALL be skipped unless explicit
+     * {@code address} and {@code streaming_port} values were also provided.
+     */
+    google.protobuf.UInt64Value registered_node_id = 9;
 }
 
 /**

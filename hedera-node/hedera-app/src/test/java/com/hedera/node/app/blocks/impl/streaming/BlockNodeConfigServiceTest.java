@@ -14,7 +14,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint.BlockNodeEndpoint;
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.RegisteredNodeEndpointResolver;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -833,10 +838,212 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    // Registered node id resolution =========
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_resolvesEndpoints() throws Throwable {
+        final RegisteredNode registered = registeredNodeWithEndpoints("blocknode.example.com", 9100, 9200);
+        configService.setRegisteredNodeResolver(staticResolver(7L, registered));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "registeredNodeId": 7, "priority": 1 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.address()).isEqualTo("blocknode.example.com");
+        assertThat(nodeConfig.streamingPort()).isEqualTo(9100);
+        assertThat(nodeConfig.servicePort()).isEqualTo(9200);
+        assertThat(nodeConfig.hasRegisteredNodeId()).isTrue();
+        assertThat(nodeConfig.registeredNodeId()).isEqualTo(7L);
+    }
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_explicitOverridesResolved() throws Throwable {
+        final RegisteredNode registered = registeredNodeWithEndpoints("resolved.example.com", 9100, 9200);
+        configService.setRegisteredNodeResolver(staticResolver(7L, registered));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "registeredNodeId": 7,
+                            "address": "explicit.example.com",
+                            "streamingPort": 1111,
+                            "servicePort": 2222,
+                            "priority": 1
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.address()).isEqualTo("explicit.example.com");
+        assertThat(nodeConfig.streamingPort()).isEqualTo(1111);
+        assertThat(nodeConfig.servicePort()).isEqualTo(2222);
+        assertThat(nodeConfig.registeredNodeId()).isEqualTo(7L);
+    }
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_notInState_skipsWhenNoExplicitEndpoints() throws Throwable {
+        configService.setRegisteredNodeResolver(staticResolver(7L, null));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "registeredNodeId": 7, "priority": 1 },
+                        { "address": "localhost", "streamingPort": 9999, "priority": 2 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        // The unresolved entry is skipped; the explicit entry survives.
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().streamingPort()).isEqualTo(9999);
+    }
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_notInState_keepsExplicitEndpoints() throws Throwable {
+        configService.setRegisteredNodeResolver(staticResolver(7L, null));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "registeredNodeId": 7,
+                            "address": "explicit.example.com",
+                            "streamingPort": 5555,
+                            "priority": 1
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.address()).isEqualTo("explicit.example.com");
+        assertThat(nodeConfig.streamingPort()).isEqualTo(5555);
+        assertThat(nodeConfig.servicePort()).isEqualTo(5555);
+        assertThat(nodeConfig.registeredNodeId()).isEqualTo(7L);
+    }
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_stateNotAvailable_keepsExplicitEndpoints() throws Throwable {
+        // resolver explicitly reports state-not-available
+        configService.setRegisteredNodeResolver(new RegisteredNodeEndpointResolver() {
+            @Override
+            public boolean isStateAvailable() {
+                return false;
+            }
+
+            @Override
+            public RegisteredNode resolve(final long id) {
+                throw new AssertionError("should not be called when state is not available");
+            }
+        });
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "registeredNodeId": 7,
+                            "address": "explicit.example.com",
+                            "streamingPort": 5555,
+                            "priority": 1
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        assertThat(config.configs().getFirst().address()).isEqualTo("explicit.example.com");
+    }
+
+    @Test
+    void testLoadConfiguration_registeredNodeId_resolvedHasNoMatchingApi() throws Throwable {
+        // registered node only advertises STATUS, not PUBLISH; no explicit streaming port -> skip
+        final RegisteredNode statusOnly = RegisteredNode.newBuilder()
+                .registeredNodeId(7L)
+                .serviceEndpoint(blockNodeEndpoint("status.example.com", 9200, BlockNodeApi.STATUS))
+                .build();
+        configService.setRegisteredNodeResolver(staticResolver(7L, statusOnly));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "registeredNodeId": 7, "priority": 1 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNull();
+    }
+
     // Utilities =========
 
     void invoke_loadConfiguration() throws Throwable {
         loadConfigurationHandle.invoke(configService);
+    }
+
+    private static RegisteredNodeEndpointResolver staticResolver(final long expectedId, final RegisteredNode result) {
+        return new RegisteredNodeEndpointResolver() {
+            @Override
+            public boolean isStateAvailable() {
+                return true;
+            }
+
+            @Override
+            public RegisteredNode resolve(final long registeredNodeId) {
+                return registeredNodeId == expectedId ? result : null;
+            }
+        };
+    }
+
+    private static RegisteredNode registeredNodeWithEndpoints(
+            final String host, final int publishPort, final int statusPort) {
+        return RegisteredNode.newBuilder()
+                .registeredNodeId(7L)
+                .serviceEndpoint(
+                        blockNodeEndpoint(host, publishPort, BlockNodeApi.PUBLISH),
+                        blockNodeEndpoint(host, statusPort, BlockNodeApi.STATUS))
+                .build();
+    }
+
+    private static RegisteredServiceEndpoint blockNodeEndpoint(
+            final String host, final int port, final BlockNodeApi api) {
+        return RegisteredServiceEndpoint.newBuilder()
+                .domainName(host)
+                .port(port)
+                .blockNode(BlockNodeEndpoint.newBuilder().endpointApi(api).build())
+                .build();
     }
 
     void writeConfig(final String config) throws IOException {

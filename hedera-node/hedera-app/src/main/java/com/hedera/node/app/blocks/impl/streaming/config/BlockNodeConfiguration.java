@@ -16,6 +16,10 @@ public class BlockNodeConfiguration {
      */
     public static final long DEFAULT_MESSAGE_SOFT_LIMIT_BYTES = 2L * 1024 * 1024; // 2 MB
     /**
+     * Sentinel value indicating no registered node id is associated with this configuration.
+     */
+    public static final long NO_REGISTERED_NODE_ID = -1L;
+    /**
      * The streaming endpoint associated with this block node.
      */
     private final BlockNodeEndpoint streamingEndpoint;
@@ -23,6 +27,11 @@ public class BlockNodeConfiguration {
      * The service endpoint associated with this block node.
      */
     private final BlockNodeEndpoint serviceEndpoint;
+    /**
+     * The optional registered node id used to resolve this configuration, or
+     * {@link #NO_REGISTERED_NODE_ID} if the entry did not specify one.
+     */
+    private final long registeredNodeId;
     /**
      * Priority of the block node.
      */
@@ -54,6 +63,7 @@ public class BlockNodeConfiguration {
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
+        registeredNodeId = builder.registeredNodeId;
 
         if (builder.address.isBlank()) {
             throw new IllegalArgumentException("Address must not be empty");
@@ -103,6 +113,21 @@ public class BlockNodeConfiguration {
         return priority;
     }
 
+    /**
+     * @return the registered node id this configuration was resolved from, or
+     *         {@link #NO_REGISTERED_NODE_ID} if no registered node id was specified
+     */
+    public long registeredNodeId() {
+        return registeredNodeId;
+    }
+
+    /**
+     * @return true if this configuration was resolved from a registered node id
+     */
+    public boolean hasRegisteredNodeId() {
+        return registeredNodeId != NO_REGISTERED_NODE_ID;
+    }
+
     public long messageSizeSoftLimitBytes() {
         return messageSizeSoftLimitBytes;
     }
@@ -128,6 +153,7 @@ public class BlockNodeConfiguration {
         return priority == that.priority
                 && messageSizeSoftLimitBytes == that.messageSizeSoftLimitBytes
                 && messageSizeHardLimitBytes == that.messageSizeHardLimitBytes
+                && registeredNodeId == that.registeredNodeId
                 && Objects.equals(streamingEndpoint, that.streamingEndpoint)
                 && Objects.equals(serviceEndpoint, that.serviceEndpoint)
                 && Objects.equals(clientHttpConfig, that.clientHttpConfig)
@@ -143,7 +169,8 @@ public class BlockNodeConfiguration {
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
                 clientHttpConfig,
-                clientGrpcConfig);
+                clientGrpcConfig,
+                registeredNodeId);
     }
 
     @Override
@@ -155,7 +182,8 @@ public class BlockNodeConfiguration {
                 + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
                 + messageSizeHardLimitBytes + ", clientHttpConfig="
                 + clientHttpConfig + ", clientGrpcConfig="
-                + clientGrpcConfig + '}';
+                + clientGrpcConfig + ", registeredNodeId="
+                + registeredNodeId + '}';
     }
 
     public static @NonNull BlockNodeConfiguration from(
@@ -187,6 +215,7 @@ public class BlockNodeConfiguration {
         private int priority;
         private long messageSizeSoftLimitBytes;
         private long messageSizeHardLimitBytes;
+        private long registeredNodeId = NO_REGISTERED_NODE_ID;
         private BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
         private BlockNodeHelidonHttpConfiguration clientHttpConfig;
 
@@ -231,6 +260,11 @@ public class BlockNodeConfiguration {
 
         public @NonNull Builder clientGrpcConfig(@NonNull final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
             this.clientGrpcConfig = clientGrpcConfig;
+            return this;
+        }
+
+        public @NonNull Builder registeredNodeId(final long registeredNodeId) {
+            this.registeredNodeId = registeredNodeId;
             return this;
         }
 
