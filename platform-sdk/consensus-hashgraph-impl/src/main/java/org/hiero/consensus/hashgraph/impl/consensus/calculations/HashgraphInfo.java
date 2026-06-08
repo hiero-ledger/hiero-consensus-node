@@ -370,6 +370,7 @@ public final class HashgraphInfo {
             EventInfo[] roundJudgesArray;
             EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
+            boolean witness;
 
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
@@ -653,6 +654,7 @@ public final class HashgraphInfo {
             }
 
             // function witness /---------------------------------------------------------------------------------
+            witness = (h.selfParent == null) || (votingRound > h.selfParent.votingRound);
 
             // function firstVote /-------------------------------------------------------------------------------
 
