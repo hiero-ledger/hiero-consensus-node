@@ -208,8 +208,10 @@ class HintsServiceImplTest {
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
-        given(context.newSigning(eq(blockHash), any(Runnable.class))).willReturn(signing);
+        given(signing.constructionId()).willReturn(123L);
+        given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
+        given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
+                .willReturn(signing);
 
         final var returned = subject.sign(blockHash);
 
@@ -217,8 +219,8 @@ class HintsServiceImplTest {
         assertSame(submissionFuture, returned.submissionFuture());
         assertSame(signing, signings.get(blockHash));
         final var onCompletion = ArgumentCaptor.forClass(Runnable.class);
-        verify(context).newSigning(eq(blockHash), onCompletion.capture());
-        verify(submissions).submitPartialSignature(blockHash);
+        verify(context).newSigningForActiveConstruction(eq(blockHash), onCompletion.capture());
+        verify(submissions).submitPartialSignature(123L, blockHash);
 
         onCompletion.getValue().run();
 
@@ -235,14 +237,15 @@ class HintsServiceImplTest {
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
-        given(submissions.submitPartialSignature(blockHash)).willReturn(submissionFuture);
+        given(signing.constructionId()).willReturn(123L);
+        given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
 
         final var returned = subject.sign(blockHash);
 
         assertSame(signing, returned.signing());
         assertSame(submissionFuture, returned.submissionFuture());
-        verify(context, never()).newSigning(any(), any(Runnable.class));
-        verify(submissions).submitPartialSignature(blockHash);
+        verify(context, never()).newSigningForActiveConstruction(any(), any(Runnable.class));
+        verify(submissions).submitPartialSignature(123L, blockHash);
     }
 
     @Test

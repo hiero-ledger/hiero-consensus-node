@@ -52,9 +52,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
@@ -220,8 +220,7 @@ public class ContractCallSuite {
         final var firstCreation = "firstCreation";
         final var secondCreation = "secondCreation";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
-                        sidecarIdValidator(createContract, firstCreation, secondCreation)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, firstCreation, secondCreation)),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
@@ -251,7 +250,7 @@ public class ContractCallSuite {
         final var altbn128Call = "altbn128Call";
         final var htsCall = "htsCall";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 tokenCreate("someToken").exposingAddressTo(someTokenAddress::set),
@@ -280,7 +279,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTransaction = "callTransaction";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 contractCall(contract, "testCallFoo", randomHeadlongAddress(), BigInteger.valueOf(500_000L))
@@ -1820,7 +1819,7 @@ public class ContractCallSuite {
         final var ACC = "acc";
         final var RECEIVER_KEY = "receiverKey";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
                 newKeyNamed(RECEIVER_KEY),
                 cryptoCreate(ACC)
                         .balance(5 * ONE_HUNDRED_HBARS)
@@ -2365,7 +2364,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 contractCall(
@@ -2384,7 +2383,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).gas(400_000L).via(createContract),
                 contractCall(contract, "callRequested", nonExtantEvmAddress, new byte[0], BigInteger.valueOf(88_888L))

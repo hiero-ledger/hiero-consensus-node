@@ -33,7 +33,8 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -77,8 +78,9 @@ class SignedStateTests {
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = VirtualMapStateTestUtils.createTestState(fileSystemManager);
         TestingAppStateInitializer.initConsensusModuleStates(real);
-        RosterStateUtils.setActiveRoster(
-                real, RandomRosterBuilder.create(random).build(), 0L);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(real.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(RandomRosterBuilder.create(random).build(), 0L);
         final VirtualMapState state = spy(real);
         final VirtualMap realRoot = state.getRoot();
         final VirtualMap rootSpy = spy(realRoot);
