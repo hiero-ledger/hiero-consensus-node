@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 802: [CALL] Extract JDK Version"
+name: "854: [CALL] Extract JDK Version"
 
 on:
   workflow_call:
@@ -7,7 +7,7 @@ on:
       ref:
         description: "The git ref to read gradle/toolchain-versions.properties from (branch, tag, or commit SHA)."
         type: string
-        default: ""
+        default: "main"
     secrets:
       github-token:
         required: true

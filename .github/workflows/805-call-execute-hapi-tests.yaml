@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute HAPI Tests"
+name: "805: [CALL] Exec HAPI Tests"
 on:
   workflow_call:
     inputs:
@@ -1127,47 +1127,59 @@ jobs:
     if: ${{ always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        env:
-          INPUT_JOB_STATUSES: >-
-            ${{ needs.hapi-tests-misc.result }}
-            ${{ needs.hapi-tests-misc-records-crypto-and-serial.result }}
-            ${{ needs.hapi-tests-token-and-time-consuming.result }}
-            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result }}
-            ${{ needs.hapi-tests-atomic-batch.result }}
-            ${{ needs.hapi-tests-smart-contracts-and-iss.result }}
-            ${{ needs.hapi-tests-restart.result }}
-            ${{ needs.hapi-tests-bn-comms.result }}
-            ${{ needs.hapi-tests-state-throttling.result }}
-            ${{ needs.hapi-tests-crypto-and-misc-serial.result }}
-          INPUT_JOB_FAILURE_MODES: >-
-            ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}
-            ${{ needs.hapi-tests-crypto-and-misc-serial.outputs.failure-mode || 'none' }}
-          INPUT_JOB_NAMES: >-
-            hapi-tests-misc
-            hapi-tests-misc-records-crypto-and-serial
-            hapi-tests-token-and-time-consuming
-            hapi-tests-simple-fees-and-nd-reconnect
-            hapi-tests-atomic-batch
-            hapi-tests-smart-contracts-and-iss
-            hapi-tests-restart
-            hapi-tests-bn-comms
-            hapi-tests-state-throttling
-        run: bash .github/workflows/support/scripts/set-failure-mode.sh
+        run: |
+          job_statuses=(
+            "${{ needs.hapi-tests-misc.result || 'skipped' }}"
+            "${{ needs.hapi-tests-misc-records-crypto-and-serial.result || 'skipped' }}"
+            "${{ needs.hapi-tests-token-and-time-consuming.result || 'skipped' }}"
+            "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.result || 'skipped' }}"
+            "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
+            "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
+            "${{ needs.hapi-tests-restart.result || 'skipped' }}"
+            "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
+            "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
+            "${{ needs.hapi-tests-crypto-and-misc-serial.result || 'skipped' }}"
+          )
+
+          # Must be kept in the same order as job_statuses above so the loop below
+          # can index into both arrays consistently.
+          job_failure_modes=(
+            "${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-token-and-time-consuming.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-simple-fees-and-nd-reconnect.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-smart-contracts-and-iss.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-crypto-and-misc-serial.outputs.failure-mode || 'none' }}"
+          )
+
+          failure_mode="none"
+
+          for i in "${!job_statuses[@]}"; do
+            status="${job_statuses[$i]}"
+            mode="${job_failure_modes[$i]}"
+            if [[ "${status}" == "failure" ]]; then
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
+              elif [[ "${mode}" == "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            elif [[ "${status}" == "cancelled" ]]; then
+              # A cancelled job signals an infrastructure/runner issue, not a test bug.
+              # Default to workflow so report-status routes to the environment channel.
+              if [[ "${failure_mode}" != "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            fi
+          done
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: TCK Regression"
+name: "819: [CALL] TCK Regression"
 on:
   workflow_call:
     inputs:
@@ -35,10 +35,6 @@ on:
       slack-detailed-report-webhook:
         description: "Slack Webhook URL for TCK Monitoring."
         required: true
-    outputs:
-      failure-mode:
-        description: "Failure Mode"
-        value: ${{ jobs.tck-regression.outputs.failure-mode }}
 
 defaults:
   run:
@@ -64,8 +60,6 @@ jobs:
   tck-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-sdk-tck-lin-lg
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -167,7 +161,6 @@ jobs:
 
       # Start the TCK client
       - name: Start tck-client
-        id: run-tck-tests
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
@@ -230,15 +223,6 @@ jobs:
           echo ${{ steps.start-sdk-server.outputs.pid }}
           kill -9 ${{ steps.start-sdk-server.outputs.pid }}
 
-      - name: Set Failure Mode Output
-        id: set-failure-mode
-        if: ${{ always() }}
-        working-directory: ${{ github.workspace }}
-        env:
-          INPUT_TEST_OUTCOMES: ${{ steps.run-tck-tests.outcome }}
-          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
-        run: bash .github/workflows/support/scripts/set-failure-mode.sh
-
   report-tck-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-sdk-tck-lin-sm
@@ -247,7 +231,7 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Dependency Module Check"
+name: "Deprecated: ZXC: Dependency Module Check"
 on:
   workflow_call:
     inputs:

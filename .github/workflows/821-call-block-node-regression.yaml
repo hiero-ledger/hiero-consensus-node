@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Block Node Regression"
+name: "821: [CALL] Block Node Regression"
 on:
   workflow_call:
     inputs:
@@ -31,10 +31,6 @@ on:
       slack-detailed-report-webhook:
         description: "Slack Webhook URL for Detailed Test Reporting."
         required: true
-    outputs:
-      failure-mode:
-        description: "Failure Mode"
-        value: ${{ jobs.block-node-regression.outputs.failure-mode }}
 
 defaults:
   run:
@@ -60,8 +56,6 @@ jobs:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -352,7 +346,6 @@ jobs:
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
-        id: run-block-node-tests
         timeout-minutes: 30
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
@@ -436,15 +429,6 @@ jobs:
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
-      - name: Set Failure Mode Output
-        id: set-failure-mode
-        if: ${{ always() }}
-        working-directory: ${{ github.workspace }}
-        env:
-          INPUT_TEST_OUTCOMES: ${{ steps.run-block-node-tests.outcome }}
-          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
-        run: bash .github/workflows/support/scripts/set-failure-mode.sh
-
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-bn-regression-lin-sm
@@ -452,7 +436,7 @@ jobs:
     if: ${{ always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
