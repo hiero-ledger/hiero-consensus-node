@@ -15,7 +15,7 @@ val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
 val hederaCryptography = "3.8.1"
 val helidon = "4.4.1"
-val jackson = "2.21.1"
+val jackson = "2.21.3"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.3"
 val mockito = "5.23.0"
@@ -113,7 +113,7 @@ dependencies.constraints {
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
-    api("org.yaml:snakeyaml:2.5") { because("org.yaml.snakeyaml") }
+    api("org.yaml:snakeyaml:2.6") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {

@@ -1781,12 +1781,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // Two block boundaries crossed => two writer instances
         assertEquals(2, handedOutWriters.size(), "expected one writer per WRB block boundary");
 
-        // Each writer must have received: openBlock -> writePbjItem(header) -> writePbjItem(recordFile),
+        // Each writer must have received: openBlock -> writePbjItemAndBytes(header) ->
+        // writePbjItemAndBytes(recordFile),
         // and must NOT have been closed (block proof / footer is produced by a follow-up).
         for (final var w : handedOutWriters) {
             final var ordered = inOrder(w);
             ordered.verify(w).openBlock(anyLong());
-            ordered.verify(w, times(2)).writePbjItem(any());
+            ordered.verify(w, times(2)).writePbjItemAndBytes(any(), any());
             ordered.verifyNoMoreInteractions();
             verify(w, never()).closeCompleteBlock();
             verify(w, never()).flushPendingBlock(any(PendingProof.class));
@@ -1795,7 +1796,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // The two items written to each writer must be a BlockHeader followed by a RecordFile
         for (final var w : handedOutWriters) {
             final var captor = ArgumentCaptor.forClass(BlockItem.class);
-            verify(w, times(2)).writePbjItem(captor.capture());
+            verify(w, times(2)).writePbjItemAndBytes(captor.capture(), any());
             final var items = captor.getAllValues();
             assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
             assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
@@ -1928,8 +1929,18 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertDoesNotThrow(() -> noOpenWrbWritersFuture.get(1, TimeUnit.SECONDS));
 
         final var captor = ArgumentCaptor.forClass(BlockItem.class);
-        verify(writer, times(4)).writePbjItem(captor.capture());
+        final var bytesCaptor = ArgumentCaptor.forClass(Bytes.class);
+        verify(writer, times(4)).writePbjItemAndBytes(captor.capture(), bytesCaptor.capture());
         final var items = captor.getAllValues();
+        // Each WRB item must be forwarded with serialized bytes that exactly match the item: the buffer stores these
+        // bytes but derives the item type from the item, so any mismatch would corrupt what is streamed and persisted.
+        final var forwardedBytes = bytesCaptor.getAllValues();
+        for (int i = 0; i < items.size(); i++) {
+            assertEquals(
+                    BlockItem.PROTOBUF.toBytes(items.get(i)),
+                    forwardedBytes.get(i),
+                    "forwarded bytes must equal the serialized item at index " + i);
+        }
         assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
         assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
         final var footer = items.get(2).blockFooterOrThrow();
@@ -1998,7 +2009,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var writer = handedOutWriters.getFirst();
         signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));
 
-        verify(writer, timeout(1_000).times(3)).writePbjItem(any());
+        verify(writer, timeout(1_000).times(3)).writePbjItemAndBytes(any(), any());
         verify(writer, never()).closeCompleteBlock();
 
         mgr.close();
