@@ -144,7 +144,8 @@ public final class ConfigUtils {
         if (!TMP_DIR.isEmpty()) {
             configurationBuilder.withSource(new SimpleConfigSource()
                     .withValue("paths.tmpDir", TMP_DIR)
-                    .withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
+                    .withValue("temporaryFiles.temporaryFilePath", TMP_DIR)
+                    .withValue("paths.savedStateDir", TMP_DIR));
         }
         configuration = configurationBuilder.build();
     }
