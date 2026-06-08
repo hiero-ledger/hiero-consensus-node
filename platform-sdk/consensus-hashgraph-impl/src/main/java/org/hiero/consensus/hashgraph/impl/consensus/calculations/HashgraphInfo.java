@@ -21,16 +21,16 @@ import java.util.function.Consumer;
  *   <li> {@link RoundInfo RoundInfo}, and {@link RoundInfoPrev RoundInfoPrev} together have all the
  *   information about a round that is needed for the consensus calculations.
  * </ul>
+ * WARNING: For arrays passed to the constructors, the caller must never change any array elements. The arrays must
+ * be treated as immutable objects.
+ * <p>
  * There are constructors and getters, but no setters. Other than that, there are only 3 public methods:
  * the static method {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()},
  * which gives the minimum birth round that is not ancient,
  * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
  * This file implements the equations from the tech report Swirlds-TR-2026-01. Search this file for "/-" to
- * find all of the equations that are implemented from that paper.
- * <p>
- * WARNING: For arrays passed to the constructors, the caller must never change any array elements. The arrays must
- * be treated as immutable objects.
+ * find all the equations from that paper that are implemented.
  * <p>
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
@@ -467,7 +467,7 @@ public final class HashgraphInfo {
             }
 
             // function parents  /--------------------------------------------------------------------------------
-            // put in the h.parents array only parents that are non-ancient descendents of judges in the prev round
+            // put in the h.parents list only parents that are non-ancient descendents of judges in the prev round
             if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
                 // shrink to recover after branching
                 h.parents = new ArrayList<>(h.numNodes);
@@ -480,8 +480,8 @@ public final class HashgraphInfo {
                 }
             }
             h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
-            h.selfParent =
-                    (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator) ? null : h.parents.getFirst();
+            h.selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator)
+                            ? null : h.parents.getFirst();
 
             // function prevJudgeDesc /---------------------------------------------------------------------------
             // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
@@ -562,8 +562,64 @@ public final class HashgraphInfo {
             }
 
             // function seeThru /---------------------------------------------------------------------------------
+            {   //function y=seeThru(r,x,m,m) where m is passed twice
+                int m = 7;/**/
+                EventInfo ans;
 
+                EventInfo y, z, p = h.selfParent;
+                if (x.creator == m) {
+                    ans = (p == null) ? null : p.firstSelfWitnessS;
+                } else {
+                    y = x.lastSee[m];
+                    z = (y == null) ? null : y.lastSee[m];
+                    ans = (z == null) ? null : z.firstSelfWitnessS;
+                }
+            }
+            {   //function y=seeThru(r,x,m,mp)
+                int m = 7;/**/
+                int mp = 5;/**/
+                EventInfo seeThrummp;
+
+                EventInfo y, z, p = h.selfParent;
+                if (m == mp && x.creator == mp) {
+                    seeThrummp = (p == null) ? null : p.firstSelfWitnessS;
+                } else {
+                    y = x.lastSee[m];
+                    z = (y == null) ? null : y.lastSee[m];
+                    seeThrummp = (z == null) ? null : z.firstSelfWitnessS;
+                }
+            }
             // function stronglySeeP /----------------------------------------------------------------------------
+            for (int m = 0; m < h.numNodes; m++) {
+                EventInfo y, z, p = h.selfParent;
+                //y = seeThru(r,x,m,m)
+                if (x.creator == m) {
+                    y = (p == null) ? null : p.firstSelfWitnessS;
+                } else {
+                    y = x.lastSee[m];
+                    z = (y == null) ? null : y.lastSee[m];
+                    y = (z == null) ? null : z.firstSelfWitnessS;
+                }
+                if (y == null || y.votingRound != parentRound) {
+                    stronglySeeP[m] = null;
+                } else {
+                    long s = 0;
+                    for (int mp = 0; mp < h.numNodes; mp++) {
+                        EventInfo yp;
+                        // function seeThru /---------------------------------------------------------------------
+                        //yp = seeThru(r,x,m,mp)
+                        if (m == mp && x.creator == m) {
+                            yp = (p == null) ? null : p.firstSelfWitnessS;
+                        } else {
+                            yp = x.lastSee[mp];
+                            z = (y == null) ? null : y.lastSee[m];
+                            yp = (z == null) ? null : z.firstSelfWitnessS;
+                        }
+                        s += (yp == null) ? 0 : r.stake[mp];
+                    }
+                    stronglySeeP[m] = (s >= h.supermajorityThreshold) ? y : null;
+                }
+            }
 
             // function votingRound /-----------------------------------------------------------------------------
 
