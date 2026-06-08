@@ -302,11 +302,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
         try {
             final var jcmd = new ProcessBuilder(
-                            jcmdPath,
-                            Long.toString(pid),
-                            "JFR.stop",
-                            "name=hapitest",
-                            "filename=" + jfrFile)
+                            jcmdPath, Long.toString(pid), "JFR.stop", "name=hapitest", "filename=" + jfrFile)
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                     .start();
