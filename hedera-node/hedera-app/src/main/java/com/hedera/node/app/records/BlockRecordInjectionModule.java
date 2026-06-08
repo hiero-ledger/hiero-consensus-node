@@ -7,6 +7,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
@@ -15,11 +16,13 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThread
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.State;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -77,7 +80,9 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final BlockHashSigner blockHashSigner,
-            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier) {
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
+            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
@@ -92,7 +97,26 @@ public abstract class BlockRecordInjectionModule {
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
                 blockHashSigner,
-                initTrigger);
+                initTrigger,
+                blockLifecycle,
+                wrappedRecordBlockHashMigration.result());
+    }
+
+    @Provides
+    @Singleton
+    public static BlockRecordManager.Lifecycle provideBlockRecordManagerLifecycle(
+            @NonNull final NodeFeeManager nodeFeeManager) {
+        return new BlockRecordManager.Lifecycle() {
+            @Override
+            public void onOpenBlock(@NonNull final State state) {
+                nodeFeeManager.onOpenBlock(state);
+            }
+
+            @Override
+            public void onCloseBlock(@NonNull final State state) {
+                nodeFeeManager.onCloseBlock(state);
+            }
+        };
     }
 
     @Provides

@@ -360,6 +360,10 @@ public class HintsControllerImpl implements HintsController {
                                 ? finalCrsFuture.join().crs()
                                 : hintsStore.getCrsState().crs();
                         final var updatedCrs = library.updateCrs(previousCrs, generateEntropy());
+                        if (updatedCrs == null) {
+                            log.warn("Library returned null while updating CRS; skipping CRS publication");
+                            return;
+                        }
                         final var newCrs = decodeCrsUpdate(previousCrs.length(), updatedCrs);
                         submissions
                                 .submitCrsUpdate(newCrs.crs(), newCrs.proof())
@@ -742,6 +746,12 @@ public class HintsControllerImpl implements HintsController {
                                 aggregatedWeights,
                                 numParties);
                         final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                        if (output == null) {
+                            log.warn(
+                                    "Library returned null preprocessing output for construction #{}; skipping vote",
+                                    construction.constructionId());
+                            return;
+                        }
                         final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                 .verificationKey(Bytes.wrap(output.verificationKey()))
                                 .aggregationKey(Bytes.wrap(output.aggregationKey()))

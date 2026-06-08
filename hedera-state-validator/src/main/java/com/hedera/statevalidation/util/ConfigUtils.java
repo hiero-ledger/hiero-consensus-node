@@ -39,8 +39,6 @@ import com.hedera.node.config.types.KeyValuePair;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -104,9 +102,8 @@ public final class ConfigUtils {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(CryptoConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withConfigDataType(StateConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(ApiPermissionConfig.class)
                 .withConfigDataType(BootstrapConfig.class)

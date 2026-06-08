@@ -177,7 +177,9 @@ public class BlockNodeSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockNode.forcedSwitchRescheduleDelay",
-                            "30s"
+                            "30s",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(3)
@@ -229,13 +231,22 @@ public class BlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.maxBlocks", "60",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
-                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
-                            "blockNode.streamResetPeriod", "20s",
-                            "blockNode.streamResetPeriodJitter", "0s",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.buffer.maxBlocks",
+                            "60",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "true",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s",
+                            "blockNode.streamResetPeriod",
+                            "20s",
+                            "blockNode.streamResetPeriodJitter",
+                            "0s",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false"
                         })
             })
     @Order(4)
