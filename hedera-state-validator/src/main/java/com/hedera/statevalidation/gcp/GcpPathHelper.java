@@ -53,6 +53,7 @@ public final class GcpPathHelper {
 
     /** Default timeout (in seconds) for a recursive directory download. */
     private static final long DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS = 3600;
+    public static final int LS_TIMEOUT = 120;
 
     private GcpPathHelper() {}
 
@@ -451,7 +452,7 @@ public final class GcpPathHelper {
                     }
                 }
             }
-            final boolean finished = process.waitFor(120, TimeUnit.SECONDS);
+            final boolean finished = process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 return 0;
@@ -461,6 +462,58 @@ public final class GcpPathHelper {
         } catch (IOException | InterruptedException e) {
             log.debug("Failed to count remote objects for {}", gcpPath, e);
             return 0;
+        }
+    }
+
+    /**
+     * Lists the first object in a GCS directory.
+     *
+     * @return the full GCS URI of the first object, or {@code null} if the directory is empty
+     */
+    public static String listFirstFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        return listFile(gcpPath, billingProject, true);
+    }
+
+    /**
+     * Lists the last object in a GCS directory. This reads the entire listing (GCS returns
+     * lexicographic order; the zero-padded block filenames make that equivalent to numeric order).
+     *
+     * @return the full GCS URI of the last object, or {@code null} if the directory is empty
+     */
+    public static String listLastFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        return listFile(gcpPath, billingProject, false);
+    }
+
+    /**
+     * Lists either the first or last non-directory object in a GCS directory.
+     * When {@code first} is true, the process is killed as soon as the first match is found
+     * (avoids streaming the entire listing for large directories).
+     */
+    private static String listFile(
+            @NonNull final String gcpPath, @Nullable final String billingProject, final boolean first) {
+        try {
+            final List<String> cmd = buildLsCommand(gcpPath, billingProject);
+            final ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            final Process process = pb.start();
+            String result = null;
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty() && !line.endsWith("/")) {
+                        result = line.trim();
+                        if (first) {
+                            process.destroyForcibly();
+                            return result;
+                        }
+                    }
+                }
+            }
+            process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
+            return result;
+        } catch (IOException | InterruptedException e) {
+            log.debug("Failed to list {} file in {}", first ? "first" : "last", gcpPath, e);
+            return null;
         }
     }
 

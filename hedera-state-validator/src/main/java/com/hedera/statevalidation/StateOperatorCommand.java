@@ -27,7 +27,8 @@ import picocli.CommandLine.Parameters;
             SortedExportCommand.class,
             DiffCommand.class,
             CompactionCommand.class,
-            ApplyBlocksCommand.class
+            ApplyBlocksCommand.class,
+            BlocksToPcesCommand.class
         },
         description = "CLI tool with validation and introspection modes.")
 public class StateOperatorCommand implements Runnable {
@@ -37,10 +38,14 @@ public class StateOperatorCommand implements Runnable {
     /** Marker file written after a successful GCS download to distinguish complete from partial caches. */
     private static final String DOWNLOAD_COMPLETE_MARKER = ".download-complete";
 
+
     private static final String STATE_DIR_PROPERTY = "state.dir";
     private static final String TMP_DIR_PROPERTY = "tmp.dir";
 
-    @Parameters(index = "0", description = "State directory. Accepts a local path or a GCS URI (gs://...).")
+    @Parameters(
+            index = "0",
+            arity = "0..1",
+            description = "State directory. Accepts a local path or a GCS URI (gs://...).")
     private String stateDir;
 
     @Option(
