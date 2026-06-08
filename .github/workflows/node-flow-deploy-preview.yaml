@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      reset-enabled:
+        description: "Reset the network (instead of upgrade) on a major/minor version change"
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -65,6 +70,7 @@ jobs:
       version-policy: specified
       new-version: ${{ needs.prepare-deploy-preview.outputs.version }}
       dry-run-enabled: ${{ github.event.inputs.dry-run-enabled == 'true' }}
+      reset-enabled: ${{ github.event.inputs.reset-enabled == 'true' }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}

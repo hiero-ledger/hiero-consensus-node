@@ -17,6 +17,11 @@ on:
         type: boolean
         required: false
         default: false
+      reset-enabled:
+        description: "Reset the network (instead of upgrade) on a major/minor version change"
+        type: boolean
+        required: false
+        default: false
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -128,7 +133,7 @@ jobs:
         id: jenkins-preview-request
         env:
           PRE_JSON_REQUEST: ${{ toJSON(github.event) }}
-        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}"' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
+        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}" | .reset = ${{ inputs.reset-enabled }}' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
 
       - name: Notify Jenkins of Release (Preview Network)
         id: jenkins-preview

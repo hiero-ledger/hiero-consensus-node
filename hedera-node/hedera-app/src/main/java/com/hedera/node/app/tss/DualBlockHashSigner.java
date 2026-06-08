@@ -41,6 +41,11 @@ public class DualBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        succinctSignatureDelegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
     public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
         requireNonNull(request);

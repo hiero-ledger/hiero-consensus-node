@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.config;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -23,8 +21,7 @@ public final class ConfigUtils {
             .withConfigDataType(MerkleDbConfig.class)
             .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L))
             .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .withConfigDataType(StateConfig.class)
             .withConfigDataType(PathsConfig.class)
