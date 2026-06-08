@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Wrapped Record Block Jumpstart Scenario
-# 1) Deploy a solo consensus network on v0.73.0
+# 1) Deploy a solo consensus network on v0.74.0
 # 2) Wait 30s, then run offline wrapping from genesis records
 # 3) Build temp upgrade application.properties from 0.74 base + jumpstart values
-# 4) Upgrade to local build with temp properties
+# 4) Upgrade to a release tag, or to the local build when UPGRADE_TAG is empty, with temp properties
 # 5) Parse migration vote values from hgcaa.log and extract Block N
 # 6) Replay wrapping up to Block N and compare vote values to replay jumpstart.bin
+# 7) Wait BLOCKS_AFTER_JUMPSTART more blocks, capture the latest saved state, introspect its
+#    BlockInfo singleton, re-wrap up to BlockInfo.lastBlockNumber, and compare the WRB hashes
 
 set -euo pipefail
 set +m
@@ -17,13 +19,14 @@ usage() {
 Usage: solo-wrb-jumpstart.sh [--nodes 3|4]
 
 Environment:
-  INITIAL_RELEASE_TAG           Deploy release tag (default: v0.73.0)
-  UPGRADE_VERSION               Solo upgrade-version for network upgrade
-                                (explicit value uses tag-based upgrade)
-  LOCAL_BUILD_UPGRADE_TAG       Optional placeholder tag passed to Solo for local-build upgrades
-                                (default: v0.74.0-rc.1)
-  LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
-                                (used when UPGRADE_VERSION is not set; default: <repo>/hedera-node/data)
+  INITIAL_RELEASE_TAG           Deploy release tag (default: v0.74.0)
+  UPGRADE_TAG                   Consensus-node release tag to upgrade the network to. Leave empty
+                                (default) to upgrade to the LOCAL build from the checked-out branch;
+                                set a tag to skip the local build and upgrade to that release.
+  LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars, used when UPGRADE_TAG is
+                                empty (default: <repo>/hedera-node/data)
+  LOCAL_BUILD_UPGRADE_TAG       Placeholder upgrade-version Solo applies to a local-build upgrade
+                                (default: v0.75.0-rc.3)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
                                 (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
   BASE_074_APP_PROPS_FILE       Base 0.74 properties used to generate temp upgrade file
@@ -42,10 +45,25 @@ Environment:
   MINIO_BUCKET                  MinIO bucket name (default: solo-streams)
   MINIO_NAMESPACE               Namespace with MinIO service/pod (default: solo)
   MINIO_SERVICE_NAME            Optional override for MinIO service name
+  BLOCKS_AFTER_JUMPSTART        Number of additional blocks to wait for after migration
+                                before capturing a saved state (default: 100)
+  DEPLOY_EXPLORER               true|false - deploy the Hiero Explorer web UI for browsing
+                                blocks/transactions (default: true)
+  EXPLORER_LOCAL_PORT           Local port for the Explorer UI port-forward (default: 8080)
+  VERIFY_STATE_BLOCK_INFO       true|false (default: true) - after capturing a saved state,
+                                introspect its BlockInfo singleton with the hedera-state-validator
+                                CLI and compare the WRB hashes against an offline wrap up to
+                                BlockInfo.lastBlockNumber
+
+After the migration-vote comparison succeeds the script waits BLOCKS_AFTER_JUMPSTART
+more blocks, then extracts the latest signed-state directory from network-node1-0
+into \${WORK_DIR}/saved-state/<round>/. When VERIFY_STATE_BLOCK_INFO=true it then introspects
+the BlockInfo singleton from that state and verifies its WRB hashes against an offline wrap
+up to BlockInfo.lastBlockNumber.
 
 Examples:
   ./solo-wrb-jumpstart.sh
-  NODE_ALIASES=node1,node2,node3 UPGRADE_VERSION=0.74.0 ./solo-wrb-jumpstart.sh --nodes 3
+  NODE_ALIASES=node1,node2,node3 UPGRADE_TAG=v0.75.0-rc.3 ./solo-wrb-jumpstart.sh --nodes 3
 EOF
 }
 
@@ -76,10 +94,14 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
-export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo}"
+export SOLO_CLUSTER_NAME="wrb-jumpstart"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
-export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+# Dedicated deployment name so this scenario never collides with other Solo deployments
+# (e.g. the shared "solo-deployment" used by the e2e cutover work). Hard-coded like the
+# cluster name; the kind cluster is reset each run, so the pre-create delete below removes
+# this deployment from local config cleanly on re-runs.
+export SOLO_DEPLOYMENT="wrb-jumpstart"
 
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
@@ -92,21 +114,30 @@ else
 fi
 
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
-INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
-UPGRADE_VERSION="${UPGRADE_VERSION:-${UPGRADE_LOCAL_VERSION:-}}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.74.0-rc.1}"
+INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.74.0}"
+# Upgrade target:
+#   UPGRADE_TAG empty -> upgrade to the LOCAL build from the checked-out branch
+#                        (jars under LOCAL_BUILD_PATH; Solo labels it LOCAL_BUILD_UPGRADE_TAG)
+#   UPGRADE_TAG set   -> tag-based upgrade to that release, no local build
+UPGRADE_TAG="${UPGRADE_TAG:-}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.3}"
+USE_LOCAL_BUILD_FOR_UPGRADE="false"
+SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
 BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
-USE_LOCAL_BUILD_FOR_UPGRADE="false"
+BLOCKS_AFTER_JUMPSTART="${BLOCKS_AFTER_JUMPSTART:-100}"
+VERIFY_STATE_BLOCK_INFO="${VERIFY_STATE_BLOCK_INFO:-true}"
+DEPLOY_EXPLORER="${DEPLOY_EXPLORER:-true}"
 
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
 MIRROR_REST_SERVICE="${MIRROR_REST_SERVICE:-mirror-1-rest}"
+EXPLORER_LOCAL_PORT="${EXPLORER_LOCAL_PORT:-8080}"
 MIRROR_REST_URL="${MIRROR_REST_URL:-}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
@@ -118,6 +149,7 @@ WRAPPED_BLOCKS_DIR="${WRAPPED_BLOCKS_DIR:-${GENERATED_DIR}/wrappedBlocks}"
 
 WORK_DIR="${WORK_DIR:-${GENERATED_DIR}/work}"
 TMP_UPGRADE_APP_PROPS="${WORK_DIR}/application.properties"
+SAVED_STATE_DIR="${WORK_DIR}/saved-state"
 MIRROR_METADATA_SCRIPT="${SCRIPT_DIR}/js/generate-mirror-metadata.js"
 JUMPSTART_PARSE_SCRIPT="${SCRIPT_DIR}/js/parse-jumpstart-bin.js"
 BLOCK_TIMES_FILE="${WORK_DIR}/block_times.bin"
@@ -127,8 +159,12 @@ MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
 WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
 BLOCK_NODE_WRAP_LOG="${WORK_DIR}/block-node-wrap.log"
 MIGRATION_COMPARE_LOG="${WORK_DIR}/migration-compare.log"
+STATE_BLOCK_INFO_PARSE_SCRIPT="${SCRIPT_DIR}/js/parse-state-block-info.js"
+STATE_INTROSPECT_LOG="${WORK_DIR}/state-introspect.log"
+STATE_VERIFY_COMPARE_LOG="${WORK_DIR}/state-verify-compare.log"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
+EXPLORER_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-explorer.log"
 WRAP_DAYS_SRC_DIR="${WORK_DIR}/recordDays"
 WRAP_COMPRESSED_DAYS_DIR="${WORK_DIR}/compressedDays"
 ZSTD_WRAPPER_DIR="${WORK_DIR}/zstd-wrapper"
@@ -137,16 +173,26 @@ ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
 
 FIRST_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/initial"
 SECOND_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/migration-replay"
+THIRD_WRAP_DIR="${WRAPPED_BLOCKS_DIR}/state-verify"
 FIRST_JUMPSTART_BIN=""
 SECOND_JUMPSTART_BIN=""
+THIRD_JUMPSTART_BIN=""
 FIRST_WRAP_BLOCK_NUMBER=""
 MIGRATION_BLOCK_NUMBER=""
 MIGRATION_PREV_HASH=""
 MIGRATION_INTERMEDIATE_HASHES=""
 MIGRATION_LEAF_COUNT=""
+SAVED_STATE_REMOTE_DIR=""
+SAVED_STATE_ROUND=""
+STATE_BI_BLOCK_NUMBER=""
+STATE_BI_PREV_HASH=""
+STATE_BI_INTERMEDIATE_HASHES=""
+STATE_BI_LEAF_COUNT=""
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
+EXPLORER_PORT_FORWARD_PID=""
+EXPLORER_URL=""
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -155,10 +201,18 @@ log() {
 cleanup() {
   local exit_code=$?
   set +e
-  [[ -n "${CN_PORT_FORWARD_PID}" ]] && kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-  [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
+    kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${MIRROR_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${EXPLORER_PORT_FORWARD_PID}" ]]; then
+    kill "${EXPLORER_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
   if [[ "${KEEP_NETWORK}" != "true" && ${exit_code} -eq 0 ]]; then
     log "KEEP_NETWORK=false, destroying Solo resources and kind cluster"
+    solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
@@ -183,6 +237,35 @@ validate_local_build_path() {
   [[ -d "${build_path}/apps" ]] || { echo "Missing directory: ${build_path}/apps" >&2; return 1; }
   compgen -G "${build_path}/lib/*.jar" >/dev/null || { echo "No jar files found in ${build_path}/lib" >&2; return 1; }
   compgen -G "${build_path}/apps/*.jar" >/dev/null || { echo "No jar files found in ${build_path}/apps" >&2; return 1; }
+}
+
+local_build_implementation_version() {
+  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
+    | sed -n 's/^Implementation-Version: //p' | sed -n '1p' | tr -d '\r'
+}
+
+consensus_pod_implementation_version() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
+      | sed -n 's/^Implementation-Version: //p' | sed -n '1p'" | tr -d '\r'
+}
+
+verify_local_build_on_consensus_nodes() {
+  local expected node pod actual
+  local nodes=()
+  expected="$(local_build_implementation_version)"
+  [[ -n "${expected}" ]] || { echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2; return 1; }
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    actual="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${actual}" != "${expected}" ]]; then
+      echo "Local build was not applied on ${pod}: expected '${expected}', found '${actual:-unknown}'" >&2
+      return 1
+    fi
+  done
+  log "Verified local build Implementation-Version on all nodes: ${expected}"
 }
 
 ensure_zstd_command_for_block_node() {
@@ -272,13 +355,16 @@ kill_processes_on_local_port() {
   local pids=""
   if command -v lsof >/dev/null 2>&1; then
     pids="$(lsof -ti "tcp:${port}" 2>/dev/null || true)"
-    [[ -n "${pids}" ]] && kill ${pids} >/dev/null 2>&1 || true
+    if [[ -n "${pids}" ]]; then
+      kill "${pids}" >/dev/null 2>&1 || true
+    fi
   fi
 }
 
 cleanup_stale_port_forwards() {
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${MIRROR_REST_SERVICE} .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/hiero-explorer.* .*${EXPLORER_LOCAL_PORT}:" >/dev/null 2>&1 || true
 }
 
 wait_for_consensus_pods_ready() {
@@ -308,8 +394,12 @@ mirror_rest_service_exists() {
 }
 
 restart_post_upgrade_port_forwards() {
-  [[ -n "${CN_PORT_FORWARD_PID}" ]] && kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-  [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
+    kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${MIRROR_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
   CN_PORT_FORWARD_PID=""
   MIRROR_PORT_FORWARD_PID=""
   cleanup_stale_port_forwards
@@ -330,6 +420,9 @@ restart_post_upgrade_port_forwards() {
       echo "Mirror REST port-forward is not reachable on localhost:${MIRROR_REST_LOCAL_PORT}" >&2
       return 1
     }
+  fi
+  if [[ "${DEPLOY_EXPLORER}" == "true" ]] && explorer_service_exists; then
+    start_explorer_port_forward
   fi
 }
 
@@ -482,7 +575,7 @@ download_solo_record_streams_via_pod_mc() {
   mkdir -p "${RECORD_STREAMS_DIR}"
   while IFS= read -r remote; do
     [[ -n "${remote}" ]] || continue
-    subpath="${remote#*/${MINIO_BUCKET}/recordstreams/}"
+    subpath="${remote#*/"${MINIO_BUCKET}"/recordstreams/}"
     dest="${RECORD_STREAMS_DIR}/${subpath}"
     mkdir -p "$(dirname "${dest}")"
     if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
@@ -679,6 +772,7 @@ create_temp_upgrade_properties() {
     echo "blockStream.jumpstart.streamingHasherLeafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}"
     echo "blockStream.jumpstart.streamingHasherHashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
     echo "blockStream.jumpstart.streamingHasherSubtreeHashes=${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}"
+    echo "state.saveStatePeriod=30"
   } >> "${TMP_UPGRADE_APP_PROPS}"
   log "Created temp upgrade properties: ${TMP_UPGRADE_APP_PROPS}"
 }
@@ -738,33 +832,86 @@ parse_migration_vote_from_hgcaa() {
   log "Parsed migration vote values: block=${MIGRATION_BLOCK_NUMBER}, leafCount=${MIGRATION_LEAF_COUNT}"
 }
 
-local_build_implementation_version() {
-  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
-    | sed -n 's/^Implementation-Version: //p' | sed -n '1p' | tr -d '\r'
-}
-
-consensus_pod_implementation_version() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
-      | sed -n 's/^Implementation-Version: //p' | sed -n '1p'" | tr -d '\r'
-}
-
-verify_local_build_on_consensus_nodes() {
-  local expected node pod actual
-  local nodes=()
-  expected="$(local_build_implementation_version)"
-  [[ -n "${expected}" ]] || { echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2; return 1; }
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    actual="$(consensus_pod_implementation_version "${pod}" || true)"
-    if [[ "${actual}" != "${expected}" ]]; then
-      echo "Local build was not applied on ${pod}: expected '${expected}', found '${actual:-unknown}'" >&2
-      return 1
+wait_for_mirror_block_at_least() {
+  local target="$1"
+  local timeout_secs="${2:-600}"
+  local sleep_secs=2
+  local elapsed=0
+  local latest=""
+  while (( elapsed < timeout_secs )); do
+    latest="$(current_mirror_latest_block "${MIRROR_REST_URL}" 2>/dev/null || true)"
+    if [[ "${latest}" =~ ^[0-9]+$ ]] && (( latest >= target )); then
+      log "Mirror reports block ${latest} (>= ${target})"
+      return 0
     fi
+    sleep "${sleep_secs}"
+    elapsed=$((elapsed + sleep_secs))
   done
-  log "Verified local build Implementation-Version on all nodes: ${expected}"
+  echo "Mirror did not reach block ${target} within ${timeout_secs}s (last seen: ${latest:-none})" >&2
+  return 1
+}
+
+# Latest signed state on a consensus-node pod lives under:
+#   /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/<nodeId>/<swirld>/<round>/
+# Round numbers run far ahead of block numbers (e.g. round ~7500 while block ~260),
+# so we capture the most recent round directory rather than gating on a round that
+# matches a block number. The state-validator introspection step then reads BlockInfo
+# from the captured state to recover the actual block number/hash.
+resolve_latest_saved_state_on_pod() {
+  local pod="$1"
+  # shellcheck disable=SC2016  # $-expansions are intentional: they run in the remote pod shell, not locally
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc '
+    base="/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain"
+    [ -d "$base" ] || exit 0
+    for nodedir in "$base"/*/; do
+      [ -d "$nodedir" ] || continue
+      for swirlddir in "$nodedir"*/; do
+        [ -d "$swirlddir" ] || continue
+        r=$(ls -1 "$swirlddir" 2>/dev/null | grep -E "^[0-9]+$" | sort -n | tail -1)
+        if [ -n "$r" ]; then
+          printf "%s %s\n" "${swirlddir%/}" "$r"
+          exit 0
+        fi
+      done
+    done
+  ' | tr -d '\r'
+}
+
+wait_for_saved_state() {
+  local pod="network-node1-0"
+  local timeout_secs="${1:-300}"
+  local elapsed=0
+  local sleep_secs=5
+  local info=""
+  while (( elapsed < timeout_secs )); do
+    info="$(resolve_latest_saved_state_on_pod "${pod}")"
+    if [[ -n "${info}" ]]; then
+      SAVED_STATE_REMOTE_DIR="${info% *}"
+      SAVED_STATE_ROUND="${info##* }"
+      log "Detected latest saved state round ${SAVED_STATE_ROUND} on ${pod} (${SAVED_STATE_REMOTE_DIR}/${SAVED_STATE_ROUND})"
+      return 0
+    fi
+    sleep "${sleep_secs}"
+    elapsed=$((elapsed + sleep_secs))
+  done
+  echo "No saved state directory found on ${pod} within ${timeout_secs}s" >&2
+  return 1
+}
+
+copy_latest_saved_state_locally() {
+  local pod="network-node1-0"
+  [[ -n "${SAVED_STATE_REMOTE_DIR}" && -n "${SAVED_STATE_ROUND}" ]] || {
+    echo "Saved state location not resolved (dir='${SAVED_STATE_REMOTE_DIR}', round='${SAVED_STATE_ROUND}')" >&2
+    return 1
+  }
+  rm -rf "${SAVED_STATE_DIR}" >/dev/null 2>&1 || true
+  mkdir -p "${SAVED_STATE_DIR}"
+  log "Copying saved state round ${SAVED_STATE_ROUND} from ${pod}:${SAVED_STATE_REMOTE_DIR}/${SAVED_STATE_ROUND} to ${SAVED_STATE_DIR}/"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- \
+    sh -lc "cd '${SAVED_STATE_REMOTE_DIR}' && tar -cf - '${SAVED_STATE_ROUND}'" \
+    | tar -xf - -C "${SAVED_STATE_DIR}"
+  [[ -d "${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}" ]] || { echo "Saved state directory was not copied to ${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}" >&2; return 1; }
+  log "Saved state copied to: ${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}"
 }
 
 compare_replay_to_migration_vote() {
@@ -850,12 +997,123 @@ run_replay_wrap_to_migration_block() {
   load_jumpstart_env_from_bin "${SECOND_JUMPSTART_BIN}"
 }
 
+# Introspect the BlockInfo singleton (BlockRecordService:BLOCKS) from the captured saved state
+# using the hedera-state-validator CLI, and load the WRB values into STATE_BI_* vars.
+introspect_state_block_info() {
+  local state_dir="${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}"
+  local parser_out k v
+  [[ -d "${state_dir}" ]] || { echo "Captured saved-state directory not found: ${state_dir}" >&2; return 1; }
+  log "Introspecting BlockInfo singleton from saved state via hedera-state-validator (first run builds the module)"
+  # The validator logs to stdout via log4j, so capture everything and let the Node parser
+  # extract the singleton JSON object from the surrounding log noise.
+  if ! ( cd "${REPO_ROOT}" && ./gradlew :hedera-state-validator:run -q --console=plain \
+      --args="${state_dir} introspect -s BlockRecordService -k BLOCKS" ) >"${STATE_INTROSPECT_LOG}" 2>&1; then
+    sed -n '1,200p' "${STATE_INTROSPECT_LOG}" >&2 || true
+    echo "hedera-state-validator introspect failed for ${state_dir}" >&2
+    return 1
+  fi
+  if ! parser_out="$(node "${STATE_BLOCK_INFO_PARSE_SCRIPT}" "${STATE_INTROSPECT_LOG}" 2>&1)"; then
+    echo "Failed to parse BlockInfo introspection output:" >&2
+    echo "${parser_out}" >&2
+    return 1
+  fi
+  while IFS='=' read -r k v; do
+    case "${k}" in
+      STATE_BI_BLOCK_NUMBER) STATE_BI_BLOCK_NUMBER="${v}" ;;
+      STATE_BI_PREV_HASH) STATE_BI_PREV_HASH="${v}" ;;
+      STATE_BI_INTERMEDIATE_HASHES) STATE_BI_INTERMEDIATE_HASHES="${v}" ;;
+      STATE_BI_LEAF_COUNT) STATE_BI_LEAF_COUNT="${v}" ;;
+    esac
+  done <<< "${parser_out}"
+  STATE_BI_PREV_HASH="$(echo "${STATE_BI_PREV_HASH}" | tr '[:upper:]' '[:lower:]')"
+  STATE_BI_INTERMEDIATE_HASHES="$(normalize_hash_list "${STATE_BI_INTERMEDIATE_HASHES}")"
+  [[ "${STATE_BI_BLOCK_NUMBER}" =~ ^[0-9]+$ ]] || {
+    echo "Invalid BlockInfo lastBlockNumber from state: '${STATE_BI_BLOCK_NUMBER}'" >&2
+    return 1
+  }
+  log "State BlockInfo: lastBlockNumber=${STATE_BI_BLOCK_NUMBER}, leafCount=${STATE_BI_LEAF_COUNT}"
+}
+
+# Offline-wrap record streams from genesis up to the state's BlockInfo.lastBlockNumber and load
+# the resulting jumpstart values into JUMPSTART_* (overwrites the migration-replay values).
+run_state_verify_wrap() {
+  local mirror_base="$1"
+  local to_block="$2"
+  rm -rf "${RECORD_STREAMS_DIR}" "${THIRD_WRAP_DIR}" >/dev/null 2>&1 || true
+  mkdir -p "${RECORD_STREAMS_DIR}" "${THIRD_WRAP_DIR}"
+  download_solo_minio_record_streams_range 0 "${to_block}" "${mirror_base}"
+  generate_block_node_metadata_from_mirror "${to_block}"
+  prepare_wrap_day_archives_from_record_streams
+  THIRD_JUMPSTART_BIN="$(run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${THIRD_WRAP_DIR}")"
+  load_jumpstart_env_from_bin "${THIRD_JUMPSTART_BIN}"
+}
+
+# Compare the WRB values read from the saved-state BlockInfo singleton against the values produced
+# by the offline wrap up to the same block number. Returns non-zero on any mismatch.
+compare_state_block_info_to_wrap() {
+  local wrap_prev wrap_leaf wrap_hashes
+  local mismatch=0
+  wrap_prev="$(echo "${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" | tr '[:upper:]' '[:lower:]')"
+  wrap_leaf="${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}"
+  wrap_hashes="$(normalize_hash_list "${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}")"
+  {
+    echo "state.block=${STATE_BI_BLOCK_NUMBER}"
+    echo "state.prevHash=${STATE_BI_PREV_HASH}"
+    echo "state.intermediateHashes=${STATE_BI_INTERMEDIATE_HASHES}"
+    echo "state.leafCount=${STATE_BI_LEAF_COUNT}"
+    echo "wrap.block=${JUMPSTART_BLOCK_NUMBER}"
+    echo "wrap.prevHash=${wrap_prev}"
+    echo "wrap.intermediateHashes=${wrap_hashes}"
+    echo "wrap.leafCount=${wrap_leaf}"
+  } > "${STATE_VERIFY_COMPARE_LOG}"
+  log "--------------------------------------------------------------------"
+  log "Saved-State BlockInfo vs Offline Wrap Comparison"
+  log "  blockNumber:"
+  log "    state = ${STATE_BI_BLOCK_NUMBER}"
+  log "    wrap  = ${JUMPSTART_BLOCK_NUMBER}"
+  log "  previousWrappedRecordBlockRootHash:"
+  log "    state = ${STATE_BI_PREV_HASH}"
+  log "    wrap  = ${wrap_prev}"
+  log "  wrappedIntermediateBlockRootsLeafCount:"
+  log "    state = ${STATE_BI_LEAF_COUNT}"
+  log "    wrap  = ${wrap_leaf}"
+  log "  wrappedIntermediatePreviousBlockRootHashes:"
+  log "    state = [${STATE_BI_INTERMEDIATE_HASHES}]"
+  log "    wrap  = [${wrap_hashes}]"
+
+  if [[ "${STATE_BI_BLOCK_NUMBER}" != "${JUMPSTART_BLOCK_NUMBER}" ]]; then
+    mismatch=1
+    log "  mismatch: blockNumber differs"
+  fi
+  if [[ "${STATE_BI_PREV_HASH}" != "${wrap_prev}" ]]; then
+    mismatch=1
+    log "  mismatch: previousWrappedRecordBlockRootHash differs"
+  fi
+  if [[ "${STATE_BI_INTERMEDIATE_HASHES}" != "${wrap_hashes}" ]]; then
+    mismatch=1
+    log "  mismatch: wrappedIntermediatePreviousBlockRootHashes differ"
+  fi
+  if [[ "${STATE_BI_LEAF_COUNT}" != "${wrap_leaf}" ]]; then
+    mismatch=1
+    log "  mismatch: wrappedIntermediateBlockRootsLeafCount differs"
+  fi
+
+  if (( mismatch == 0 )); then
+    log "  result: MATCH"
+  else
+    log "  result: MISMATCH"
+  fi
+  log "--------------------------------------------------------------------"
+
+  (( mismatch == 0 ))
+}
+
 run_network_upgrade() {
   local upgrade_args=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION}"
+    --upgrade-version "${SOLO_UPGRADE_VERSION}"
     --application-properties "${TMP_UPGRADE_APP_PROPS}"
     --quiet-mode
     --force
@@ -881,6 +1139,66 @@ ensure_mirror_node() {
   return 1
 }
 
+explorer_service_info() {
+  # Prints "<service-name> <service-port>" for the deployed explorer, or nothing.
+  kubectl -n "${SOLO_NAMESPACE}" get svc -o json 2>/dev/null | jq -r '
+    .items[]
+    | select(.metadata.name | test("explorer"))
+    | select(.metadata.name | test("ingress"; "i") | not)
+    | "\(.metadata.name) \(.spec.ports[0].port)"
+  ' | sed -n '1p'
+}
+
+explorer_service_exists() {
+  [[ -n "$(explorer_service_info)" ]]
+}
+
+start_explorer_port_forward() {
+  local info name port
+  info="$(explorer_service_info)"
+  [[ -n "${info}" ]] || { log "Explorer service not found; skipping explorer port-forward"; return 0; }
+  name="${info%% *}"
+  port="${info##* }"
+  if [[ -n "${EXPLORER_PORT_FORWARD_PID}" ]]; then
+    kill "${EXPLORER_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  EXPLORER_PORT_FORWARD_PID=""
+  kill_processes_on_local_port "${EXPLORER_LOCAL_PORT}"
+  kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${name}" "${EXPLORER_LOCAL_PORT}:${port}" >"${EXPLORER_PORT_FORWARD_LOG}" 2>&1 &
+  EXPLORER_PORT_FORWARD_PID="$!"
+  if wait_for_tcp_open "127.0.0.1" "${EXPLORER_LOCAL_PORT}" 30 1; then
+    EXPLORER_URL="http://127.0.0.1:${EXPLORER_LOCAL_PORT}"
+    log "Explorer UI available at ${EXPLORER_URL}"
+  else
+    log "Explorer port-forward not reachable on localhost:${EXPLORER_LOCAL_PORT} (continuing)"
+  fi
+}
+
+# Deploy the Hiero Explorer web UI so blocks/transactions can be inspected from a
+# browser. Non-fatal: a failed explorer deploy/port-forward must not fail the test.
+ensure_explorer_node() {
+  [[ "${DEPLOY_EXPLORER}" == "true" ]] || { log "DEPLOY_EXPLORER!=true; skipping explorer deployment"; return 0; }
+  if explorer_service_exists; then
+    log "Explorer service already exists"
+  else
+    log "Deploying Hiero Explorer"
+    if ! solo explorer node add \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+      --enable-ingress \
+      --force-port-forward false \
+      --quiet-mode; then
+      log "Explorer deployment failed; continuing without explorer"
+      return 0
+    fi
+    for _ in $(seq 1 60); do
+      explorer_service_exists && break
+      sleep 5
+    done
+  fi
+  start_explorer_port_forward
+}
+
 configure_mirror_rest_endpoint() {
   if [[ -n "${MIRROR_REST_URL}" ]]; then
     MIRROR_REST_URL="${MIRROR_REST_URL%/}"
@@ -894,7 +1212,10 @@ configure_mirror_rest_endpoint() {
 
   restart_post_upgrade_port_forwards
   MIRROR_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
-  wait_for_http_ok "${MIRROR_REST_URL}/api/v1/network/nodes" 60 5 || {
+  # Gate on the blocks endpoint (what this script actually depends on). The
+  # /api/v1/network/nodes endpoint returns 404 on current mirror chart versions
+  # until an address book is ingested, so it is not a reliable readiness signal.
+  wait_for_http_ok "${MIRROR_REST_URL}/api/v1/blocks?limit=1" 60 5 || {
     echo "Mirror REST endpoint did not become healthy at ${MIRROR_REST_URL}" >&2
     return 1
   }
@@ -913,22 +1234,24 @@ validate_block_node_repo
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
 [[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
-if [[ -z "${UPGRADE_VERSION}" ]]; then
+if [[ -z "${UPGRADE_TAG}" ]]; then
+  # Local-build upgrade from the checked-out branch.
+  USE_LOCAL_BUILD_FOR_UPGRADE="true"
   validate_local_build_path "${LOCAL_BUILD_PATH}"
   local_build_version="$(local_build_implementation_version)"
   [[ -n "${local_build_version}" ]] || {
     echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
     exit 1
   }
-  USE_LOCAL_BUILD_FOR_UPGRADE="true"
   [[ -n "${LOCAL_BUILD_UPGRADE_TAG}" ]] || {
-    echo "LOCAL_BUILD_UPGRADE_TAG is empty; set LOCAL_BUILD_UPGRADE_TAG or UPGRADE_VERSION explicitly" >&2
+    echo "LOCAL_BUILD_UPGRADE_TAG is empty; set LOCAL_BUILD_UPGRADE_TAG or set UPGRADE_TAG to a release tag" >&2
     exit 1
   }
-  UPGRADE_VERSION="${LOCAL_BUILD_UPGRADE_TAG}"
-  log "Using placeholder upgrade-version ${UPGRADE_VERSION} for local build upgrade; local build Implementation-Version is ${local_build_version}"
+  SOLO_UPGRADE_VERSION="${LOCAL_BUILD_UPGRADE_TAG}"
+  log "UPGRADE_TAG empty: will upgrade to local build at ${LOCAL_BUILD_PATH} (Implementation-Version ${local_build_version}); Solo upgrade-version=${SOLO_UPGRADE_VERSION}"
 else
-  log "Using explicit upgrade-version override: ${UPGRADE_VERSION}"
+  SOLO_UPGRADE_VERSION="${UPGRADE_TAG}"
+  log "Will upgrade network to release tag ${UPGRADE_TAG}"
 fi
 
 log "Cleaning previous local artifacts"
@@ -965,6 +1288,8 @@ wait_for_haproxy_ready 600
 
 configure_mirror_rest_endpoint
 
+ensure_explorer_node
+
 log "Waiting 30 seconds before offline wrap tooling"
 sleep 30
 
@@ -973,9 +1298,9 @@ run_initial_offline_wrap_from_genesis "${MIRROR_REST_URL}"
 create_temp_upgrade_properties
 
 if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
-  log "Upgrading network to local build using temp application.properties"
+  log "Upgrading network to local build (${LOCAL_BUILD_PATH}) using temp application.properties"
 else
-  log "Upgrading network to release tag ${UPGRADE_VERSION} using temp application.properties"
+  log "Upgrading network to release tag ${UPGRADE_TAG} using temp application.properties"
 fi
 run_network_upgrade
 wait_for_consensus_pods_ready 600
@@ -983,8 +1308,6 @@ wait_for_haproxy_ready 600
 restart_post_upgrade_port_forwards
 if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
   verify_local_build_on_consensus_nodes
-else
-  log "Skipping local build verification because upgrade uses explicit tag ${UPGRADE_VERSION}"
 fi
 
 log "Parsing migration vote values from hgcaa logs"
@@ -999,8 +1322,42 @@ run_replay_wrap_to_migration_block "${MIRROR_REST_URL}" 0 "${MIGRATION_BLOCK_NUM
 compare_replay_to_migration_vote
 
 log "SUCCESS: migration vote values match offline replay jumpstart values"
+
+TARGET_BLOCK_AFTER_JUMPSTART=$((MIGRATION_BLOCK_NUMBER + BLOCKS_AFTER_JUMPSTART))
+log "Waiting for mirror to reach block ${TARGET_BLOCK_AFTER_JUMPSTART} (${BLOCKS_AFTER_JUMPSTART} blocks after migration block ${MIGRATION_BLOCK_NUMBER})"
+wait_for_mirror_block_at_least "${TARGET_BLOCK_AFTER_JUMPSTART}" 600
+
+log "Waiting for a saved state on network-node1-0"
+wait_for_saved_state 300
+
+log "Extracting latest saved state from network-node1-0"
+copy_latest_saved_state_locally
+
+if [[ "${VERIFY_STATE_BLOCK_INFO}" == "true" ]]; then
+  log "Verifying saved-state BlockInfo against an offline wrap"
+  introspect_state_block_info
+  log "Wrapping records 0..${STATE_BI_BLOCK_NUMBER} (state BlockInfo lastBlockNumber) for verification"
+  run_state_verify_wrap "${MIRROR_REST_URL}" "${STATE_BI_BLOCK_NUMBER}"
+  [[ "${JUMPSTART_BLOCK_NUMBER}" == "${STATE_BI_BLOCK_NUMBER}" ]] || {
+    echo "Verification wrap block (${JUMPSTART_BLOCK_NUMBER}) did not match state BlockInfo block (${STATE_BI_BLOCK_NUMBER})" >&2
+    exit 1
+  }
+  compare_state_block_info_to_wrap
+  log "SUCCESS: saved-state BlockInfo matches the offline wrap at block ${STATE_BI_BLOCK_NUMBER}"
+else
+  log "VERIFY_STATE_BLOCK_INFO=false; skipping saved-state BlockInfo verification"
+fi
+
 log "Generated artifacts root: ${GENERATED_DIR}"
 log "Temp upgrade properties: ${TMP_UPGRADE_APP_PROPS}"
 log "Initial jumpstart: ${FIRST_JUMPSTART_BIN}"
 log "Replay jumpstart: ${SECOND_JUMPSTART_BIN}"
 log "Comparison log: ${MIGRATION_COMPARE_LOG}"
+log "Saved state copy: ${SAVED_STATE_DIR}/${SAVED_STATE_ROUND}"
+if [[ -n "${EXPLORER_URL}" ]]; then
+  log "Explorer UI: ${EXPLORER_URL} (browse blocks and transactions)"
+fi
+if [[ "${VERIFY_STATE_BLOCK_INFO}" == "true" ]]; then
+  log "Saved-state verify wrap: ${THIRD_JUMPSTART_BIN}"
+  log "Saved-state verify compare log: ${STATE_VERIFY_COMPARE_LOG}"
+fi

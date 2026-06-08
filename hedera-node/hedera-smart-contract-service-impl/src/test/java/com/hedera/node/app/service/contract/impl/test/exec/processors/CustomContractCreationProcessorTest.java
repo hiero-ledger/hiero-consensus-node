@@ -47,6 +47,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomContractCreationProcessorTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
 
     @Mock
     private HEVM evm;
@@ -223,7 +226,7 @@ class CustomContractCreationProcessorTest {
     @Test
     void codeSuccessWithValidationFailedAddsInitcodeSidecarWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(123L).build();
-        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG);
+        setupCodeSuccessFrame(contractId, BOTH_MODE_CONFIG);
         given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
 
         subject.codeSuccess(frame, tracer);
@@ -234,12 +237,27 @@ class CustomContractCreationProcessorTest {
     @Test
     void codeSuccessElseBranchAddsRuntimeBytecodeWithInitcodeWhenInitcodePresent() {
         final var contractId = ContractID.newBuilder().contractNum(456L).build();
-        setupCodeSuccessFrame(contractId, DEFAULT_CONFIG);
+        setupCodeSuccessFrame(contractId, BOTH_MODE_CONFIG);
 
         subject.codeSuccess(frame, tracer);
 
         verify(streamBuilder).addContractBytecode(any(), any(Boolean.class));
         verify(streamBuilder).addInitcode(any());
+    }
+
+    @Test
+    void codeSuccessWithValidationFailedSkipsInitcodeSidecarInBlocksMode() {
+        final var contractId = ContractID.newBuilder().contractNum(789L).build();
+        final var blocksConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+
+        setupCodeSuccessFrame(contractId, blocksConfig);
+        given(frame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
+
+        subject.codeSuccess(frame, tracer);
+
+        verify(streamBuilder, never()).addContractBytecode(any(), any(Boolean.class));
     }
 
     @Test

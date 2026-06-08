@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -78,13 +79,9 @@ public class LearnerPullVirtualTreeReceiveTask {
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final byte[] responseBytes = in.readAnticipatedMessage();
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (responseBytes == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                    break;
                 }
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));

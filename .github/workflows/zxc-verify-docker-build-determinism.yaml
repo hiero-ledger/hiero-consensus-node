@@ -64,6 +64,12 @@ jobs:
       name: ${{ steps.baseline.outputs.name }}
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
 
+    services:
+      registry:
+        image: registry@sha256:8a7c1aae9db5028cbc1cfe83e5969d270a50e8bc0b72eef3cc5657542ec383c9 # v3.1.0
+        ports:
+          - 5000:5000
+
     steps:
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -87,7 +93,7 @@ jobs:
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Retrieve Commit Hash
         id: commit
@@ -132,10 +138,6 @@ jobs:
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
-
-      - name: Setup Local Docker Registry
-        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Show Docker Version
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
@@ -233,6 +235,13 @@ jobs:
           - hl-cn-docker-determinism-lin-d12-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+
+    services:
+      registry:
+        image: registry@sha256:8a7c1aae9db5028cbc1cfe83e5969d270a50e8bc0b72eef3cc5657542ec383c9 # v3.1.0
+        ports:
+          - 5000:5000
+
     steps:
       - name: Standardize Git Line Endings
         run: |
@@ -295,7 +304,7 @@ jobs:
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         env:
           CLOUDSDK_PYTHON: ${{ format('{0}{1}', env.pythonLocation, runner.os == 'Windows' && '\python.exe' || '/bin/python3') }}
 
@@ -341,9 +350,6 @@ jobs:
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
-
-      - name: Setup Local Docker Registry
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Show Docker Version
         run: docker version
@@ -440,7 +446,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
