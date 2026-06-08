@@ -234,7 +234,8 @@ See [architecture/topics/freeze-and-upgrade.md](architecture/topics/freeze-and-u
 ### Future event
 
 An event whose *Birth round* exceeds the *Pending consensus round*; held in the future-event
-buffer (`FutureEventBuffer`) until the window advances, rather than added to the hashgraph.
+buffer (`FutureEventBuffer`) until the window advances, rather than added to the hashgraph
+or the event creator.
 See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### Future round
@@ -294,10 +295,6 @@ jointly fix the *Consensus round* (and thus consensus order) of every event that
 ancestor of all of them. The paper terms these "unique famous witnesses."
 See [concepts/judges.md](concepts/judges.md).
 
-### Lagging behind
-
-The older name for *Falling behind*. See *Falling behind*.
-
 ### lastSee
 
 `lastSee(x, m)` — the most recent event by creator *m* that is an ancestor of *x*, or null if
@@ -312,7 +309,7 @@ See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
 ### Min judge birth round
 
-The smallest *Birth round* among a decided *Voting round*'s *Judges*; stored per round as
+The smallest *Birth round* among a *Consensus round*'s *Judges*; stored per round as
 `MinimumJudgeInfo`, it anchors the *Ancient threshold* and *Expired threshold*.
 See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
