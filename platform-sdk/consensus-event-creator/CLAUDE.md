@@ -1,0 +1,22 @@
+# Consensus Layer Knowledge Base
+
+`consensus-event-creator` is part of the **consensus layer**. When working here, consult the
+consensus-layer knowledge base at [`../docs/consensus-layer/`](../docs/consensus-layer/) —
+it documents the current implementation as canonical, anchored to specific files,
+classes, and methods.
+
+**Most relevant to this module:**
+
+- [`architecture/topics/event-creator.md`](../docs/consensus-layer/architecture/topics/event-creator.md) — other-parent selection, event-creation cadence, filling events with transactions pulled from the execution layer.
+- [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — how the creator pulls transactions via `getTransactionsForEvent` and reports health.
+- [`concepts/birth-round.md`](../docs/consensus-layer/concepts/birth-round.md), [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md).
+
+**Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
+Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
+[`concepts/`](../docs/consensus-layer/concepts/); rationale in
+[`decisions/`](../docs/consensus-layer/decisions/); properties to preserve in
+[`invariants/`](../docs/consensus-layer/invariants/) and
+[`rules/`](../docs/consensus-layer/rules/); tunable parameters in
+[`tunables.md`](../docs/consensus-layer/tunables.md); known incidents and diagnostics in
+[`scenarios/`](../docs/consensus-layer/scenarios/) and
+[`heuristics/`](../docs/consensus-layer/heuristics/).

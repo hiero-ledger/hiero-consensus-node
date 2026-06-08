@@ -12,13 +12,11 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * <p>
@@ -28,13 +26,22 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>
  * A background thread continuously reads messages from the underlying {@link DataInputStream}
  * and enqueues them as raw {@code byte[]} arrays. Consumers retrieve messages via
- * {@link #readAnticipatedMessage()} (non-blocking) or {@link #readAnticipatedMessageSync()}
- * (blocking with timeout). Callers are responsible for parsing the raw bytes into domain objects.
+ * {@link #readOrWait(YieldStrategy)}, which blocks (with the caller-chosen yield strategy)
+ * until a message is available or the stream is permanently done. There is no timeout for readers,
+ * because this class intended to be used with socket input stream, which should have a timeout.
  * </p>
  *
  * <p>
- * This object is not thread safe. Only one thread should attempt to read messages at any point
- * in time.
+ * This object is thread safe. Multiple consumers may call {@link #readOrWait(YieldStrategy)} in parallel.
+ * </p>
+ *
+ * <p>
+ * Lifecycle is tracked by {@link Status}: {@link Status#NOT_STARTED} → {@link Status#RUNNING} (set by a successful
+ * {@link #start()}) → {@link Status#DONE} (set by the background thread when it exits — normal EOF marker, I/O error,
+ * or interrupt). Shutdown is driven by either an {@link IOException} (EOF marker, socket timeout, etc.) on the stream
+ * or by an interrupt delivered through {@link StandardWorkGroup} (e.g. {@code handleError} → {@code shutdownNow}). An
+ * I/O error is reported through the work group rather than the status, so {@link Status#DONE} does not distinguish
+ * clean shutdown from a failure — callers that care should consult {@link StandardWorkGroup#hasExceptions()}.
  * </p>
  */
 public class AsyncInputStream {
@@ -43,52 +50,85 @@ public class AsyncInputStream {
 
     private static final String THREAD_NAME = "async-input-stream";
 
+    // maximum message size in bytes - 8mb
+    static final int MAX_MESSAGE_SIZE = 8 * 1024 * 1024;
+
+    /** Lifecycle states of the background reader thread. Transitions are monotonic. */
+    public enum Status {
+        /** {@link #start()} has not been called yet. */
+        NOT_STARTED,
+        /** The background reader thread is running and may be enqueuing messages. */
+        RUNNING,
+        /** The background reader thread has exited (clean EOF, I/O error, or interrupt). */
+        DONE
+    }
+
     private final DataInputStream inputStream;
 
     private final Queue<byte[]> inputQueue = new ConcurrentLinkedQueue<>();
 
-    // Checking queue size on every received message may be expensive. Instead, track the
-    // size manually using an atomic
+    // Tracking queue size with an atomic avoids the O(n) walk that
+    // ConcurrentLinkedQueue.size() performs on every enqueue.
     private final AtomicInteger inputQueueSize = new AtomicInteger(0);
 
-    private final Duration pollTimeout;
-
-    /**
-     * Becomes 0 when the input thread is finished.
-     */
-    private final CountDownLatch finishedLatch;
-
-    private final AtomicBoolean alive = new AtomicBoolean(true);
+    // Single writer per transition: start() sets RUNNING atomically; the background
+    // thread sets DONE on exit.
+    private final AtomicReference<Status> status = new AtomicReference<>(Status.NOT_STARTED);
 
     private final StandardWorkGroup workGroup;
 
-    private final int sharedQueueSizeThreshold;
+    private final int queueSizeThreshold;
+
+    private final long timeoutNanos;
 
     /**
      * Create a new async input stream.
      *
-     * @param inputStream the base stream to read from
-     * @param workGroup the work group that is managing this stream's thread
-     * @param reconnectConfig the configuration to use
+     * @param inputStream           the base stream to read from
+     * @param workGroup             the work group that is managing this stream's thread
+     * @param queueSizeThreshold    max size of the queue for reader thread backpressure
+     * @param timeout               maximum time {@link #readOrWait(YieldStrategy)} will wait when the buffer is full;
+     *                              must be non-null and positive
      */
     public AsyncInputStream(
             @NonNull final DataInputStream inputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final ReconnectConfig reconnectConfig) {
-        Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");
-
+            final int queueSizeThreshold,
+            @NonNull final Duration timeout) {
         this.inputStream = Objects.requireNonNull(inputStream, "inputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.finishedLatch = new CountDownLatch(1);
-        this.pollTimeout = reconnectConfig.asyncStreamTimeout();
-        this.sharedQueueSizeThreshold = reconnectConfig.asyncStreamBufferSize();
+        Objects.requireNonNull(timeout, "timeout must not be null");
+
+        if (queueSizeThreshold <= 0) {
+            throw new IllegalArgumentException("queueSizeThreshold must be greater than 0");
+        }
+        if (!timeout.isPositive()) {
+            throw new IllegalArgumentException("timeout must be positive");
+        }
+
+        this.queueSizeThreshold = queueSizeThreshold;
+        this.timeoutNanos = timeout.toNanos();
     }
 
     /**
      * Start the background thread that reads from the input stream and populates the internal queue.
+     * This method can be called only once.
+     *
+     * @throws IllegalStateException if background thread is already started or terminated
+     * @throws MerkleSynchronizationException if background thread cannot be submitted for execution
      */
     public void start() {
-        workGroup.execute(THREAD_NAME, this::run);
+        if (!status.compareAndSet(Status.NOT_STARTED, Status.RUNNING)) {
+            throw new IllegalStateException("Stream status has already been set: " + status.get());
+        }
+
+        try {
+            workGroup.execute(THREAD_NAME, this::run);
+        } catch (Exception e) {
+            status.set(Status.DONE);
+            workGroup.handleError(e); // terminate other tasks that already running
+            throw new MerkleSynchronizationException("Background reading thread cannot be submitted for execution", e);
+        }
     }
 
     /**
@@ -96,20 +136,25 @@ public class AsyncInputStream {
      * enqueues them. A negative length value serves as a termination marker.
      */
     private void run() {
-        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
+        logger.debug(RECONNECT.getMarker(), "Background reader thread started");
+
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 final int len = inputStream.readInt();
                 if (len < 0) {
                     logger.info(RECONNECT.getMarker(), "Async input stream is done");
-                    alive.set(false);
-                    break;
+                    return;
+                } else if (len > MAX_MESSAGE_SIZE) {
+                    throw new MerkleSynchronizationException(
+                            "Message size exceeds maximum size of " + MAX_MESSAGE_SIZE);
                 }
+
                 final byte[] messageBytes = new byte[len];
                 inputStream.readFully(messageBytes, 0, len);
                 inputQueue.add(messageBytes);
-                if (inputQueueSize.incrementAndGet() > sharedQueueSizeThreshold) {
-                    while (inputQueueSize.get() > sharedQueueSizeThreshold
+
+                if (inputQueueSize.incrementAndGet() >= queueSizeThreshold) {
+                    while (inputQueueSize.get() >= queueSizeThreshold
                             && !Thread.currentThread().isInterrupted()) {
                         Thread.onSpinWait();
                     }
@@ -119,94 +164,66 @@ public class AsyncInputStream {
             logger.warn(RECONNECT.getMarker(), "Async input stream failed due to I/O error", e);
             workGroup.handleError(e);
         } finally {
-            finishedLatch.countDown();
+            status.set(Status.DONE);
+            logger.debug(RECONNECT.getMarker(), "Background reader thread stopped");
         }
-        logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " done");
     }
 
     /**
-     * Returns {@code true} if the background reader thread has not yet encountered the termination
-     * marker or an error.
-     *
-     * @return whether the stream is still alive
+     * @return current lifecycle status of the background reader thread. Visible for tests.
      */
-    public boolean isAlive() {
-        return alive.get();
+    Status getStatus() {
+        return status.get();
     }
 
     /**
-     * Read the next raw message bytes from the queue (non-blocking).
+     * @return current input queue size
+     */
+    int getQueueSize() {
+        return inputQueueSize.get();
+    }
+
+    /**
+     * Non-blocking poll of the internal queue.
      *
-     * @return the message bytes, or {@code null} if no message is available
+     * @return the next message bytes, or {@code null} if the queue is empty
      */
     @Nullable
-    public byte[] readAnticipatedMessage() {
-        final byte[] itemBytes = inputQueue.poll();
-        if (itemBytes != null) {
+    private byte[] readOrNull() {
+        final byte[] msg = inputQueue.poll();
+        if (msg != null) {
             inputQueueSize.decrementAndGet();
         }
-        return itemBytes;
+        return msg;
     }
 
     /**
-     * Read the next raw message bytes from the queue, blocking until one is available or the
-     * configured stream timeout expires.
+     * Read the next raw message bytes from the queue, waiting with the given yield strategy until
+     * a message is available, the background reader has finished and drained, or the calling
+     * thread is interrupted.
      *
-     * @return the message bytes, or {@code null} if the stream is no longer alive
-     * @throws MerkleSynchronizationException if the operation times out
+     * @param yield how the calling thread should wait between polls
+     * @return the next message bytes, or {@code null} if the caller was interrupted or the stream is permanently done and no messages available in the queue
+     * @throws MerkleSynchronizationException if timeout on waiting for the message when buffer is empty
      */
     @Nullable
-    public byte[] readAnticipatedMessageSync() {
-        return readAnticipatedMessageSync(pollTimeout);
-    }
-
-    /**
-     * Read the next raw message bytes from the queue, blocking until one is available or the
-     * given timeout expires.
-     *
-     * @param timeout the maximum time to wait for a message
-     * @return the message bytes, or {@code null} if the stream is no longer alive
-     * @throws MerkleSynchronizationException if the operation times out or is interrupted
-     */
-    @Nullable
-    public byte[] readAnticipatedMessageSync(@NonNull final Duration timeout) {
-        byte[] message = readAnticipatedMessage();
-        if (message != null) {
-            return message;
-        }
-        final long start = System.currentTimeMillis();
-        final Thread currentThread = Thread.currentThread();
-        while (true) {
-            message = readAnticipatedMessage();
-            if (message != null) {
-                return message;
+    public byte[] readOrWait(@NonNull final YieldStrategy yield) {
+        final long start = System.nanoTime();
+        while (!Thread.currentThread().isInterrupted()) {
+            final byte[] msg = readOrNull();
+            if (msg != null) {
+                return msg;
             }
-            if (!isAlive()) {
-                return null;
+            if (status.get() != Status.RUNNING) {
+                // Drain race: the producer may have enqueued one final message
+                // between our last poll and the background reader transitioning to done as it exits.
+                return readOrNull();
             }
-            final long now = System.currentTimeMillis();
-            if (currentThread.isInterrupted() || (now - start > timeout.toMillis())) {
-                break;
+            yield.yield();
+            if (System.nanoTime() - start > timeoutNanos) {
+                throw new MerkleSynchronizationException("Timed out waiting for message from the input stream");
             }
         }
-        if (currentThread.isInterrupted()) {
-            throw new MerkleSynchronizationException("Interrupted while waiting for data");
-        } else {
-            throw new MerkleSynchronizationException("Timed out waiting for data");
-        }
-    }
-
-    /**
-     * Signals the background reader to stop and waits for it to finish. This method should be
-     * called when the consumer decides to stop reading from the stream, for example after
-     * encountering an exception.
-     */
-    public void abort() {
-        alive.set(false);
-        try {
-            finishedLatch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        return null;
     }
 }

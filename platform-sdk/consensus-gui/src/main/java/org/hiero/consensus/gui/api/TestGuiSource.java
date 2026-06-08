@@ -59,7 +59,7 @@ public class TestGuiSource {
 
             @Override
             public void reset() {
-                throw new UnsupportedOperationException();
+                eventSource.reset();
             }
         };
     }
