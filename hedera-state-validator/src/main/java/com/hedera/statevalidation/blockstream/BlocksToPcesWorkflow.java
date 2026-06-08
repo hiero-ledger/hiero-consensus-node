@@ -319,6 +319,7 @@ public final class BlocksToPcesWorkflow {
         if (readError.get() != null) {
             throw new IOException("Block read/submit failed", readError.get());
         }
+
         return eventCount.get();
     }
 
