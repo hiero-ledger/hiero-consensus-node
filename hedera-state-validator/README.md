@@ -3,6 +3,20 @@
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
 compact state files, and apply block streams to advance state.
 
+### GCP Support
+
+All commands accept a GCS URI (`gs://...`) as the state directory, eliminating the need to manually download state files. When a GCS path is provided, the tool downloads the state to a local cache directory using the `gcloud storage` CLI.
+
+**Prerequisites:** The `gcloud` CLI must be installed and authenticated with access to the target bucket. See [Google Cloud SDK installation](https://cloud.google.com/sdk/docs/install).
+
+**Caching:** Downloaded state files are cached in a deterministic directory (`./state-validator-cache-<round>/`) in the current working directory. Subsequent runs with the same state path reuse the cached copy without re-downloading.
+
+### Global Options
+
+These options apply to all subcommands:
+
+- `--cleanup-temp` - Delete cached directories created for GCP downloads after execution. Default = `false` (cache is preserved for reuse).
+
 ## Validate
 
 [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) ensures state integrity and validates that Hedera nodes can start from existing state snapshots.
@@ -19,7 +33,7 @@ java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 - `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
   - [`all`](/src/main/java/com/hedera/statevalidation/validator/Validator.java) - Runs all validators.
   - [`internal`](/src/main/java/com/hedera/statevalidation/validator/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
@@ -421,7 +435,8 @@ The [DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) cla
 ```shell
 java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
   --out=<output-directory> \
-  [--service-name=<service-name> --state-key=<state-key>]
+  [--service-name=<service-name> --state-key=<state-key>] \
+  [--ignore-field=<path> ...]
 ```
 
 ### Parameters
@@ -434,6 +449,33 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `--out` (or `-o`) - Directory where the resulting json files are written (required).
 - `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
 - `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+- `--ignore-field` (or `-i`) - Value field path(s) to ignore when comparing entries. Entries that differ only in the ignored fields are treated as identical and suppressed from the diff output. The option is repeatable; a comma-separated list is also accepted. Paths use dotted notation with an explicit array wildcard `[*]`:
+  - `expirationSecond` - a top-level field
+  - `accountId.accountNum` - a nested object field
+  - `transfers[*].amount` - a field on every element of an array
+  - `tokens[*]` - all elements of an array
+    Only value fields are supported; key fields are never masked. Paths that do not match a given value are silently ignored, so one set of ignore paths can be applied across heterogeneous state values.
+
+### Example
+
+Diff two states, ignoring expected differences in account expiration and stake metadata:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond \
+  --ignore-field=stakeAtStartOfLastRewardedPeriod
+```
+
+Or equivalently with comma separation:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond,stakeAtStartOfLastRewardedPeriod
+```
 
 ### Notes
 
@@ -441,6 +483,75 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `state1-diff.json` contains entries that were either deleted in the second state or modified (showing the old value).
 - `state2-diff.json` contains entries that were either added in the second state or modified (showing the new value).
 - Service name and state key should both be either omitted or specified.
+- When `--ignore-field` is used, the fast byte-level comparison is still performed first. Parsing and field masking only runs on entries whose raw bytes already differ, so there is no performance impact on identical entries.
+
+## Sorted Diff
+
+[SortedDiffCommand](src/main/java/com/hedera/statevalidation/SortedDiffCommand.java) compares two states and produces sorted diff output grouped by service and state key — the same layout as `sorted-export`, but containing only the entries that differ.
+
+### Usage
+
+1. Download the state files for both rounds.
+2. Run the following command to execute the sorted diff:
+
+```shell
+java -jar [-DmaxObjPerFile=<number>] ./validator-<version>.jar {path-to-state1} sorted-diff {path-to-state2} \
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>]
+```
+
+### Parameters
+
+- `{path-to-state1}` - Location of the first state files (required).
+- `{path-to-state2}` - Location of the second state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the resulting diff files are written (required). Must exist before invocation.
+- `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
+- `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+
+### Output Structure
+
+The command creates two subdirectories under the output directory:
+
+```
+<out>/
+  state1/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+  state2/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+```
+
+- `state1/` contains entries that were either deleted in the second state or modified (showing the old value).
+- `state2/` contains entries that were either added in the second state or modified (showing the new value).
+
+Each file uses the same `{"k":..., "v":...}` JSON-lines format as `sorted-export`, sorted by key bytes. Files under `state1/` and `state2/` are directly comparable file by file (e.g. `diff state1/TokenService_ACCOUNTS_1.json state2/TokenService_ACCOUNTS_1.json`).
+
+### Examples
+
+Diff all states between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result
+```
+
+Diff only accounts between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result \
+  --service-name=TokenService --state-key=ACCOUNTS
+```
+
+### Notes
+
+- Service name and state key should both be either omitted or specified.
+- The data is sorted by the **byte representation of the key** (same ordering and caveats as `sorted-export`).
+- The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
 
 ## Compact
 
@@ -484,8 +595,104 @@ java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-s
 - `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
 - `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
 - `--rate` (or `-r`) - Maximum rounds to apply per second (integer, ≥ 1). Controls CPU/IO load independently of state size. For example, `10` means at most 10 rounds/s. Default = unlimited (apply as fast as possible).
+- `--billing-project` (or `-bp`) - GCP billing project for requester-pays buckets. Applies to block stream downloads only.
+- `--download-threads` (or `-dt`) - Number of parallel workers for downloading block files from GCP. Default = `32`.
+
+### GCS Block Stream Download
+
+When `--block-stream-dir` is a GCS path, the tool performs the following steps:
+
+1. **Left boundary**: Reads `BlockStreamInfo.blockNumber` from the loaded state to determine the first block file to download.
+2. **Right boundary**: Uses a scatter-gather binary search over the GCS block files — probes individual `.blk.gz` files, parses `RoundHeader` items, and narrows the range until the block containing the target round is found.
+3. **Download**: Downloads the resolved block range in parallel using batched `gcloud storage cp` invocations.
+4. **Validation**: Verifies all expected files are present and non-empty, with up to 3 retry passes for any missing files.
+   Downloaded block files are cached in a deterministic directory (`./state-validator-blocks-<source-round>-to-<target-round>/`). Subsequent runs with the same state and target round reuse the cached files without re-downloading.
 
 ### Notes:
 
 - The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
 - The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
+- When using GCS paths, progress is reported to stdout: state download percentage, block range probing status, and block file download percentage.
+
+## Replaying a PCES Stream (`replay-pces`)
+
+[ReplayPcesCommand](src/main/java/com/hedera/statevalidation/ReplayPcesCommand.java)
+loads a saved state snapshot, replays a PCES stream on top of it through the consensus
+node's **real** production replay mechanism, and writes the resulting state to disk.
+
+This command builds and starts a genuine `SwirldsPlatform` — the same one `ServicesMain`
+constructs — and drives the body of `SwirldsPlatform.start()` minus gossip. The production
+`PcesModule.replayPcesEvents` path is exercised: events flow through the full
+intake → orphan buffer → hashgraph → consensus → transaction handling → block production
+pipeline before gossip starts. This is the same mechanism used for PCES disaster recovery
+(documented in `ADR-003-remove-pces-recovery-method`).
+
+Combined with `blocks-to-pces`, this enables end-to-end block stream equivalence validation:
+reconstruct PCES from a production block stream, replay it on the matching state, and compare
+the resulting state and block hashes against the originals.
+
+### Prerequisites
+
+- A saved state snapshot from the round the PCES stream was generated against
+  (`--origin-round` in `blocks-to-pces`).
+- PCES files produced by `blocks-to-pces` for that origin round.
+- The state round must match the PCES stream origin, or the platform will discard the files.
+- The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
+  or the earliest events will be stuck in the orphan buffer and consensus will not advance.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar replay-pces \
+  --state-dir <path-to-state-round> \
+  --pces-dir <path-to-pces-files> \
+  [--out <output-dir>] \
+  [--self-id <id>] \
+```
+
+#### Example
+
+```shell
+java -jar ./validator-<version>.jar replay-pces \
+  --state-dir ./211155071 \
+  --pces-dir ./out/pces-211155071-211422945 \
+  --out ./replay-out \
+  --self-id 0
+```
+
+### Options
+
+- `--state-dir` (or `-s`) — Directory containing the saved state snapshot to load (required).
+  Must point to the round directory directly (e.g. `./211155071/`, the directory that contains
+  `stateMetadata.txt`).
+- `--pces-dir` (or `-p`) — Directory containing the PCES files to replay (required). The
+  output of `blocks-to-pces`. Accepts either a flat directory of `.pces` files or the
+  node-id-subdirectory layout produced by `blocks-to-pces` — the command locates the files
+  automatically and stages them into the database directory the platform scans at startup.
+- `--out` (or `-o`) — Output directory for the resulting state snapshot. The platform writes
+  the snapshot to `<savedStateDir>/<appName>/<swirldName>/<selfId>/<round>/`; this option
+  sets `savedStateDir`. Default = `./replay-out`.
+- `--self-id` (or `-id`) — Node id to run as. Must match the node id the PCES files were
+  generated for (default 0 in `blocks-to-pces`). Default = 0.
+- `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Used only
+  to name an output subdirectory; does not affect replay correctness. Default = `0.0.3`.
+- `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
+  real hinTS. No live TSS network required. Default = `true`.
+
+### Notes
+
+- The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
+  The reconstructed events from `blocks-to-pces` are unsigned; without this flag the intake
+  pipeline drops every event at signature validation and consensus never advances.
+- Replay uses ephemeral generated keys rather than on-disk PKCS12 keystores. Gossip is never
+  started, so real per-node keys are not needed.
+- The resulting block files will differ slightly in size from the original production blocks:
+  mock TSS proofs (Tier 1) are a different size than production hinTS signatures, and the
+  first block after a state-load boundary carries extra restart metadata. The transactions,
+  state changes, and consensus ordering are equivalent; the size delta is confined to the
+  block proof field.
+- The snapshot round in the output equals the round PCES advanced the state to. Compare the
+  `hashInfo.txt` from the output state against the original production state at that round to
+  verify equivalence.
+- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not
+  the same as the target round, the replay will fail.

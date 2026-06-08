@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -75,7 +74,9 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -216,7 +217,14 @@ public class ServicesMain {
             final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
+        final KeysAndCerts keysAndCerts;
+        logger.info("Generating ephemeral keys for node {} (hedera.generateEphemeralKeys=true)", selfId);
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generateKeysAndCerts(java.util.List.of(selfId))
+                    .get(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Failed to generate ephemeral keys", e);
+        }
 
         final String consensusEventStreamName = isGenesis
                 // If at genesis, base the event stream location on the genesis network metadata
