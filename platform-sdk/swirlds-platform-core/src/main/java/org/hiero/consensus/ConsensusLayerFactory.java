@@ -175,6 +175,10 @@ public class ConsensusLayerFactory {
     @Nullable
     private final GossipModule gossipModuleOverride;
 
+    private PlatformComponents platformComponents;
+    private SignedStateNexus latestImmutableStateNexus;
+    private ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks;
+
     /**
      * Creates a new factory with the inputs provided by the execution layer.
      *
@@ -232,7 +236,7 @@ public class ConsensusLayerFactory {
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
         final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = createPlatformMonitorWiring();
-        final SignedStateNexus latestImmutableStateNexus = createLatestImmutableStateNexus(initialState);
+        latestImmutableStateNexus = createLatestImmutableStateNexus(initialState);
         final TransactionHandlingModule transactionHandlingModule =
                 createTransactionHandlingModule(latestImmutableStateNexus, platformMonitorWiring);
 
@@ -252,7 +256,7 @@ public class ConsensusLayerFactory {
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
         final ComponentWiring<AppNotifier, Void> notifierWiring = createNotifierWiring(notificationEngine);
 
-        final PlatformComponents platformComponents = new PlatformComponents(
+        platformComponents = new PlatformComponents(
                 wiringModel,
                 eventCreatorModule,
                 eventIntakeModule,
@@ -273,30 +277,31 @@ public class ConsensusLayerFactory {
 
         doStaticSetup(configuration);
 
+        consensusLayerBuildingBlocks = new ConsensusLayerBuildingBlocks(
+                wiringModel,
+                configuration,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule,
+                stateModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                eventWindowManagerWiring,
+                notifierWiring,
+                platformMonitorWiring,
+                notificationEngine,
+                savedStateController,
+                platformComponents,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor,
+                intakeEventCounter);
         return new ConsensusLayerFactoryResult(
                 platformCoordinator,
-                new ConsensusLayerBuildingBlocks(
-                        wiringModel,
-                        configuration,
-                        eventCreatorModule,
-                        eventIntakeModule,
-                        pcesModule,
-                        hashgraphModule,
-                        gossipModule,
-                        issDetectionModule,
-                        transactionHandlingModule,
-                        stateModule,
-                        eventStreamWiring,
-                        runningEventHashOverrideWiring,
-                        eventWindowManagerWiring,
-                        notifierWiring,
-                        platformMonitorWiring,
-                        notificationEngine,
-                        savedStateController,
-                        platformComponents,
-                        reservedSignedStateResultPromise,
-                        fallenBehindMonitor,
-                        intakeEventCounter));
+                consensusLayerBuildingBlocks);
     }
 
     @NonNull
@@ -646,5 +651,13 @@ public class ConsensusLayerFactory {
 
         // Initialize JVMPauseDetectorThread, if enabled via settings
         startJVMPauseDetectorThread(configuration);
+    }
+
+    public PlatformComponents getPlatformComponents() {
+        return platformComponents;
+    }
+
+    public ConsensusLayerBuildingBlocks getConsensusLayerBuildingBlocks() {
+        return consensusLayerBuildingBlocks;
     }
 }
