@@ -39,7 +39,7 @@
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisFileAppender"/>
       </Logger>
-      <Root level="DEBUG">
+      <Root level="INFO">
           <AppenderRef ref="FileAppender"/>
           <AppenderRef ref="ConsoleMarkerAppender"/>
       </Root>

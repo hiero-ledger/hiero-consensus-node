@@ -82,6 +82,7 @@ public final class PlatformBuilder {
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
      */
     private boolean used;
+    private ConsensusLayerFactory factory;
 
     /**
      * Create a new platform builder.
@@ -298,7 +299,7 @@ public final class PlatformBuilder {
                 null,
                 null,
                 null);
-        final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+        factory = new ConsensusLayerFactory(inputs);
         final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
         final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
@@ -340,5 +341,9 @@ public final class PlatformBuilder {
         getMetricsProvider().start();
 
         return platform;
+    }
+
+    public ConsensusLayerFactory getConsensusLayerFactory() {
+        return factory;
     }
 }

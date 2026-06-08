@@ -95,15 +95,6 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
     }
 
     @Option(
-            names = {"-r", "--rate"},
-            defaultValue = "2147483647",
-            description = "Maximum rounds to apply per second. Controls CPU/IO load independently of state size. "
-                    + "For example, 10 means at most 10 rounds/s. Default = unlimited (apply as fast as possible)")
-    private void setRoundsPerSecond(final int roundsPerSecond) {
-        this.roundsPerSecond = roundsPerSecond;
-    }
-
-    @Option(
             names = {"-bp", "--billing-project"},
             description = "GCP billing project for requester-pays buckets. "
                     + "Applies to the block stream directory download.")
@@ -131,7 +122,7 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
             }
 
             // Step 3: Apply blocks using the (now local) block stream directory
-            applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash, roundsPerSecond);
+            applyBlocks(blockStreamDirectory, selfId, targetRound, outputPath, expectedHash);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
