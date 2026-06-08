@@ -7,11 +7,15 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.internal.BlockItemSetBytes;
+import com.hedera.hapi.block.internal.EndStreamBytes;
+import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats.HighLatencyResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockState.BufferedItem;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -35,9 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockEnd;
-import org.hiero.block.api.BlockItemSet;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
-import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -95,9 +96,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     /**
      * Publish gRPC client used to send messages to the block node.
      */
-    private BlockStreamPublishServiceClient client;
+    private BlockStreamPublishBytesClient client;
 
-    private final AtomicReference<Pipeline<? super PublishStreamRequest>> requestPipelineRef = new AtomicReference<>();
+    private final AtomicReference<GrpcCall<PublishStreamRequestBytes, PublishStreamResponse>> requestCallRef =
+            new AtomicReference<>();
     /**
      * Executor service used to perform asynchronous, blocking I/O operations.
      */
@@ -213,7 +215,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     @Override
     public synchronized void initialize() {
-        if (requestPipelineRef.get() != null) {
+        if (requestCallRef.get() != null) {
             logger.debug("{} Connection already initialized", this);
             return;
         }
@@ -225,8 +227,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final Future<?> future = blockingIoExecutor.submit(() -> {
             client = clientFactory.createStreamingClient(
                     configuration(), timeoutDuration, connectionId().toString());
-            final Pipeline<? super PublishStreamRequest> pipeline = client.publishBlockStream(this);
-            requestPipelineRef.set(pipeline);
+            final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = client.publishBlockStream(this);
+            requestCallRef.set(call);
         });
 
         try {
@@ -251,7 +253,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
     @Override
     void onActiveStateTransition() {
-        if (requestPipelineRef.get() == null) {
+        if (requestCallRef.get() == null) {
             logger.warn(
                     "{} Connection transitioned to ACTIVE but the request pipeline has not been established; closing connection",
                     this);
@@ -608,12 +610,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      *
      * @param code the EndStream code to include in the EndStream message
      */
-    private void sendEndStream(final PublishStreamRequest.EndStream.Code code) {
+    private void sendEndStream(final EndStream.Code code) {
         final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
         final long highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
 
-        final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
-                .endStream(PublishStreamRequest.EndStream.newBuilder()
+        final PublishStreamRequestBytes endStream = PublishStreamRequestBytes.newBuilder()
+                .endStream(EndStreamBytes.newBuilder()
                         .endCode(code)
                         .earliestBlockNumber(earliestBlockNumber)
                         .latestBlockNumber(highestAckedBlockNumber))
@@ -697,9 +699,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     request.streamRequestType());
         }
 
-        final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
+        final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = requestCallRef.get();
 
-        if (!isActive() || pipeline == null) {
+        if (!isActive() || call == null) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                         "{} Tried to send a request but the connection is not active or initialized; ignoring request",
@@ -728,7 +730,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             connStats.recordRequestSendAttempt();
             future = blockingIoExecutor.submit(() -> {
                 startNanos.set(System.nanoTime());
-                pipeline.onNext(request.streamRequest());
+                call.sendRequest(request.streamRequest(), false);
                 endNanos.set(System.nanoTime());
                 sentTimestamp.set(Instant.now());
             });
@@ -912,15 +914,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     }
 
     private void closePipeline(final boolean callOnComplete) {
-        final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
+        final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = requestCallRef.get();
 
-        if (pipeline != null) {
+        if (call != null) {
             logger.debug("{} Closing request pipeline for block node", this);
             streamShutdownInProgress.set(true);
 
             try {
                 if (currentState() == ConnectionState.CLOSING && callOnComplete) {
-                    final Future<?> future = blockingIoExecutor.submit(pipeline::onComplete);
+                    final Future<?> future = blockingIoExecutor.submit(call::completeRequests);
                     try {
                         future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
                         logger.debug("{} Request pipeline successfully closed", this);
@@ -942,9 +944,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             } catch (final Exception e) {
                 logger.warn("{} Error while completing request pipeline", this, e);
             }
-            // Clear the pipeline reference to prevent further use
+            // Clear the call reference to prevent further use
             logger.debug("{} Request pipeline closed and cleared", this);
-            requestPipelineRef.compareAndSet(pipeline, null);
+            requestCallRef.compareAndSet(call, null);
         }
     }
 
@@ -1089,7 +1091,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private class ConnectionWorkerLoopTask implements Runnable {
 
-        private final List<BlockItem> pendingRequestItems = new ArrayList<>();
+        private final List<BufferedItem> pendingRequestItems = new ArrayList<>();
         private long pendingRequestBytes;
         private int itemIndex = 0;
         private boolean pendingRequestHasBlockProof = false;
@@ -1182,9 +1184,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 return true;
             }
 
-            BlockItem item;
+            BufferedItem item;
 
-            while ((item = block.blockItem(itemIndex)) != null) {
+            while ((item = block.bufferedItem(itemIndex)) != null) {
                 connStats.recordHeartbeat(System.currentTimeMillis());
 
                 if (itemIndex == 0) {
@@ -1200,7 +1202,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     }
                 }
 
-                final int itemSize = item.protobufSize() + requestItemPaddingBytes;
+                final int itemSize = item.size() + requestItemPaddingBytes;
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
                 if (itemSize > hardLimitBytes) {
@@ -1233,8 +1235,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     // add the new large item to its own request and try to send it
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
-                    pendingRequestHasBlockProof |= item.hasBlockProof();
-                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
+                    pendingRequestHasBlockProof |= item.isProof();
+                    pendingRequestHasBlockHeader |= item.isHeader();
                     ++itemIndex;
 
                     if (!trySendPendingRequest()) {
@@ -1250,8 +1252,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     // adding the item to the current pending item wouldn't exceed the soft limit so add it
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
-                    pendingRequestHasBlockProof |= item.hasBlockProof();
-                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
+                    pendingRequestHasBlockProof |= item.isProof();
+                    pendingRequestHasBlockHeader |= item.isHeader();
                     ++itemIndex;
                 }
             }
@@ -1305,7 +1307,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          * Sends the block end message to the block node in its own request.
          */
         private void sendBlockEnd() {
-            final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
+            final PublishStreamRequestBytes endOfBlock = PublishStreamRequestBytes.newBuilder()
                     .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                     .build();
             try {
@@ -1392,11 +1394,13 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             }
 
             connStats.recordHeartbeat(System.currentTimeMillis());
-            final BlockItemSet itemSet = BlockItemSet.newBuilder()
-                    .blockItems(List.copyOf(pendingRequestItems))
+            final BlockItemSetBytes itemSet = BlockItemSetBytes.newBuilder()
+                    .blockItems(pendingRequestItems.stream()
+                            .map(BufferedItem::serializedItem)
+                            .toList())
                     .build();
-            final PublishStreamRequest req =
-                    PublishStreamRequest.newBuilder().blockItems(itemSet).build();
+            final PublishStreamRequestBytes req =
+                    PublishStreamRequestBytes.newBuilder().blockItems(itemSet).build();
             final long reqBytes = req.protobufSize();
 
             // now that we are able to build the real request we can finally determine the true size of the request
@@ -1412,13 +1416,13 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         reqBytes,
                         pendingRequestItems.size());
                 // remove the last item from the pending item set and update state to reflect the removal of the item
-                final BlockItem item = pendingRequestItems.removeLast();
+                final BufferedItem item = pendingRequestItems.removeLast();
                 --itemIndex;
-                pendingRequestBytes -= (item.protobufSize() + requestItemPaddingBytes);
-                if (item.hasBlockProof()) {
+                pendingRequestBytes -= (item.size() + requestItemPaddingBytes);
+                if (item.isProof()) {
                     pendingRequestHasBlockProof = false;
                 }
-                if (item.hasBlockHeader()) {
+                if (item.isHeader()) {
                     pendingRequestHasBlockHeader = false;
                 }
                 return trySendPendingRequest();
@@ -1566,15 +1570,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     sealed interface StreamRequest permits EndStreamRequest, BlockRequest {
 
         /**
-         * @return the PublishStreamRequest to send
+         * @return the PublishStreamRequestBytes to send
          */
         @NonNull
-        PublishStreamRequest streamRequest();
+        PublishStreamRequestBytes streamRequest();
 
         /**
-         * @return the type of PublishStreamRequest
+         * @return the type of PublishStreamRequestBytes
          */
-        default PublishStreamRequest.RequestOneOfType streamRequestType() {
+        default PublishStreamRequestBytes.RequestOneOfType streamRequestType() {
             return streamRequest().request().kind();
         }
     }
@@ -1600,7 +1604,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      *
      * @param streamRequest the PublishStreamRequest to send
      */
-    record EndStreamRequest(@NonNull PublishStreamRequest streamRequest) implements StreamRequest {
+    record EndStreamRequest(@NonNull PublishStreamRequestBytes streamRequest) implements StreamRequest {
         EndStreamRequest {
             requireNonNull(streamRequest);
         }
@@ -1621,7 +1625,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param blockNumber the block number associated with the BlockEnd request
      * @param requestNumber the request number
      */
-    record BlockEndRequest(@NonNull PublishStreamRequest streamRequest, long blockNumber, int requestNumber)
+    record BlockEndRequest(@NonNull PublishStreamRequestBytes streamRequest, long blockNumber, int requestNumber)
             implements BlockRequest {
         BlockEndRequest {
             requireNonNull(streamRequest);
@@ -1638,7 +1642,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param hasBlockProof true if the request contains the block proof, else false
      */
     record BlockItemsStreamRequest(
-            @NonNull PublishStreamRequest streamRequest,
+            @NonNull PublishStreamRequestBytes streamRequest,
             long blockNumber,
             int requestNumber,
             int numItems,
