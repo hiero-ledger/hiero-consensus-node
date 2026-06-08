@@ -15,6 +15,8 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -211,7 +213,7 @@ public class ProcessUtils {
         // System.err/System.out (which it does for passing tests).
         final int availableCpus = Runtime.getRuntime().availableProcessors();
         try {
-            new java.io.FileOutputStream(java.io.FileDescriptor.err)
+            new FileOutputStream(FileDescriptor.err)
                     .write(String.format(
                                     "Node %d resource allocation: heap=%s, ActiveProcessorCount=%s (of %d available)%n",
                                     metadata.nodeId(),
@@ -219,7 +221,7 @@ public class ProcessUtils {
                                     perNodeProcessorCount == -1 ? "not set" : String.valueOf(perNodeProcessorCount),
                                     availableCpus)
                             .getBytes());
-        } catch (java.io.IOException ignored) {
+        } catch (IOException ignored) {
         }
 
         // Only activate JDWP if not in CI
@@ -230,11 +232,13 @@ public class ProcessUtils {
         }
         // Enable JFR to capture CPU scheduling delays, GC events, and thread activity
         // for diagnosing OS-level starvation spikes visible in JVMPauseDetector and HealthMonitor logs.
-        // disk=true writes chunks to repository= continuously; dumponexit=true finalizes on graceful exit.
+        // disk=true writes chunks to JFR's default temp location continuously; dumponexit=true finalizes on graceful
+        // exit.
         // For SIGKILL (non-interceptable), SubProcessNode.stopFuture() calls jcmd JFR.stop before kill.
-        final var outputDir = metadata.workingDirOrThrow().resolve(OUTPUT_DIR).toAbsolutePath();
-        final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
-        commandLine.add("-XX:FlightRecorderOptions=repository=" + outputDir);
+        final var jfrFile = metadata.workingDirOrThrow()
+                .resolve(OUTPUT_DIR)
+                .toAbsolutePath()
+                .resolve("jfr-node" + metadata.nodeId() + ".jfr");
         commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile
                 + ",settings=profile,disk=true,dumponexit=true,name=hapitest");
         commandLine.addAll(List.of(
