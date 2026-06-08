@@ -130,4 +130,6 @@ public interface ExecutorComponent {
     TransactionChecker transactionChecker();
 
     FeeManager feeManager();
+
+    ConfigProviderImpl configProvider();
 }

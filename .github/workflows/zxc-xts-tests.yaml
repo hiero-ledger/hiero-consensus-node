@@ -49,6 +49,14 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-migration-testing-panel:
+        type: string
+        description: "Run Migration Testing Panel"
+        default: "true"
+      enable-hapi-tests-blocks-suite:
+        type: string
+        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS (silent / non-promotion-gating)"
+        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -231,6 +239,43 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
+  # Mirrors the MATS HAPI matrix but forces blockStream.streamMode=BLOCKS. Excludes
+  # hapi-tests-misc-records-crypto-and-serial (records-mode by design); the non-records
+  # tasks from that group (Crypto / CryptoEmbedded / CryptoSerial / MiscSerial) are
+  # re-added separately via enable-hapi-tests-crypto-and-misc-serial. Excluded from set-failure-mode
+  # so failures stay silent while the BLOCKS transition stabilizes.
+  #
+  # MATS (zxc-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
+  # defaults to false there, so MATS behavior is unchanged.
+  xts-hapi-tests-blocks:
+    name: XTS HAPI Tests (BLOCKS)
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-tests-blocks-suite == 'true' }}
+    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      enable-hapi-tests-misc: "true"
+      enable-hapi-tests-misc-records-crypto-and-serial: "false"
+      enable-hapi-tests-token-and-time-consuming: "true"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "true"
+      enable-hapi-tests-atomic-batch: "true"
+      enable-hapi-tests-smart-contract-and-iss: "true"
+      enable-hapi-tests-restart: "true"
+      enable-hapi-tests-state-throttling: "true"
+      enable-hapi-tests-crypto-and-misc-serial: "true"
+      enable-network-log-capture: "true"
+      stream-mode-override: "BLOCKS"
+      writer-mode-override: "FILE"
+      wrapped-record-blocks-override: "false"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   xts-otter-tests:
     name: XTS Otter Tests
     needs:
@@ -360,6 +405,22 @@ jobs:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
+  migration-testing-panel:
+    name: Migration Testing Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/825-call-migration-testing.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Migration Testing"
+      solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
   set-failure-mode:
     name: Set Failure Mode
     runs-on: hl-cn-default-lin-sm
@@ -378,6 +439,7 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
+      - migration-testing-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
@@ -448,6 +510,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
             ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
             ${{ needs.block-node-regression-panel.result || 'skipped' }}
+            ${{ needs.migration-testing-panel.result || 'skipped' }}
           )
           panel_names=(
             "hedera-node-jrs-panel"
@@ -455,6 +518,7 @@ jobs:
             "mirror-node-regression-panel"
             "json-rpc-relay-regression-panel"
             "block-node-regression-panel"
+            "migration-testing-panel"
           )
 
           for job in "${!panel_statuses[@]}"; do
