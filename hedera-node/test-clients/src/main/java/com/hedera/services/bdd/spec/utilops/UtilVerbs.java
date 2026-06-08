@@ -1190,15 +1190,40 @@ public class UtilVerbs {
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
-     * Returns an operation that uses a {@link com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo} query
-     * against the {@code 0.0.2} account to look up the ledger id of the target network; and then passes the ledger
-     * id to the given callback.
+     * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
+     * <p>
+     * On a subprocess network with {@code tss.historyEnabled=true} the active ledger id changes once during the
+     * lifetime of the network: the configured {@code ledger.id} is replaced by the address-book hash externalized
+     * by the genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
+     * line. Because the proof runs asynchronously while the test framework is already issuing transactions, a
+     * spec that reads the ledger id naively can observe the old configured value once and the externalized value
+     * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To
+     * avoid that race this operation waits for the externalization log to appear before returning - driving rounds
+     * via small system transfers so the proof can finish even if the surrounding spec is otherwise quiescent. With
+     * history disabled (or on non-subprocess networks) the externalization log never appears and we fall back to
+     * a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        return sourcingContextual(spec -> {
+            final boolean waitForExternalization = spec.targetNetworkOrThrow() instanceof SubProcessNetwork
+                    && spec.startupProperties().getBoolean("tss.historyEnabled");
+            if (waitForExternalization) {
+                return exposeExternalizedLedgerIdFromHgcaaLogTo(
+                        NodeSelector.byNodeId(0),
+                        LEDGER_ID_TIMEOUT,
+                        Duration.ofSeconds(1),
+                        () -> new SpecOperation[] {
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, 1L))
+                                    .payingWith(GENESIS),
+                            sleepFor(250L)
+                        },
+                        ledgerIdConsumer);
+            }
+            return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        });
     }
 
     /**
