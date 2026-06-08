@@ -24,7 +24,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
       cluster-target:
-        description: "[All] Where to run the scenario. kind = ephemeral Kind cluster on the runner; remote-sdlt-n6 = pre-allocated remote cluster solo-sdlt-n6 (via Teleport). Remote is fully wired/validated for jumpstart-075."
+        description: "Where to run the scenario. kind = ephemeral Kind cluster on the runner (supported by every scenario). remote-sdlt-n6 = pre-allocated remote cluster solo-sdlt-n6 via Teleport, supported ONLY by the jumpstart-075 scenario; selecting it for any other scenario fails fast (see the Validate Inputs job)."
         required: true
         type: choice
         default: "kind"
@@ -71,12 +71,13 @@ permissions:
   actions: read
   id-token: write # required for Teleport OIDC auth when cluster-target == remote-sdlt-n6
 
-# All remote-sdlt-n6 runs share the solo-sdlt-n6 namespace + solo-sdlt-n6-test deployment, so they
-# must run one-at-a-time: concurrent runs collide (Solo deployment lock contention, and one run's
-# "consensus network destroy" deletes another's solo-remote-config ConfigMap / network pods). Kind
-# runs are isolated (ephemeral cluster per run), so they get a unique group and may run in parallel.
+# Remote is only offered for jumpstart-075 (enforced by the validate-inputs job). Those jumpstart-075
+# remote runs share the solo-sdlt-n6 namespace + solo-sdlt-n6-test deployment, so they must run
+# one-at-a-time: concurrent runs collide (Solo deployment lock contention, and one run's "consensus
+# network destroy" deletes another's solo-remote-config ConfigMap / network pods). Everything else
+# (all Kind runs) is isolated per run, so it gets a unique group (github.run_id) and may run in parallel.
 concurrency:
-  group: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
+  group: ${{ (inputs.scenario == 'jumpstart-075' && inputs.cluster-target == 'remote-sdlt-n6') && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -95,10 +96,27 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Gate the whole workflow: remote-sdlt-n6 is wired/validated ONLY for jumpstart-075. Reject it for
+  # any other scenario here (before any runner/Teleport work) so the selection can't silently fall
+  # back to Kind. Every scenario job "needs" this, so a rejection skips them with a clear message.
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: hl-cn-rpc-relay-lin-lg
+    steps:
+      - name: Reject remote-sdlt-n6 for non jumpstart-075 scenarios
+        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' && inputs.scenario != 'jumpstart-075' }}
+        run: |
+          echo "::error::cluster-target=remote-sdlt-n6 is only supported for the 'jumpstart-075' scenario. Scenario '${{ inputs.scenario }}' is Kind-only for now; re-run it with cluster-target=kind."
+          exit 1
+      - name: Inputs validated
+        run: |
+          echo "scenario=${{ inputs.scenario }}, cluster-target=${{ inputs.cluster-target }} — validated."
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
+      - validate-inputs
     if: ${{ inputs.scenario == 'jumpstart' || inputs.scenario == 'jumpstart-075' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
@@ -280,6 +298,7 @@ jobs:
     name: "Solo E2E Block Stream Cutover"
     needs:
       - extract-jdk-version
+      - validate-inputs
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 180
@@ -466,6 +485,7 @@ jobs:
     name: "Solo WRB Streaming to Block Node"
     needs:
       - extract-jdk-version
+      - validate-inputs
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
