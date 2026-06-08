@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
@@ -46,6 +47,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A state change listener that accumulates state changes that are only reported at a block boundary; either
@@ -53,6 +57,7 @@ import java.util.function.Supplier;
  * them in bulk. In the current system, these are the singleton and queue updates.
  */
 public class BoundaryStateChangeListener implements StateChangeListener {
+    private static final Logger log = LogManager.getLogger(BoundaryStateChangeListener.class);
 
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
@@ -107,7 +112,29 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      * Resets the state of the listener.
      */
     public void reset() {
+        if (!singletonUpdates.isEmpty()) {
+            log.info(
+                    "Forensic boundary singleton reset clearing {} pending updates in order [{}]",
+                    singletonUpdates.size(),
+                    pendingSingletonUpdateSummary());
+        }
         singletonUpdates.clear();
+    }
+
+    /**
+     * Returns the number of singleton updates waiting to be externalized at a block boundary.
+     */
+    public int pendingSingletonUpdateCount() {
+        return singletonUpdates.size();
+    }
+
+    /**
+     * Returns a compact summary of pending singleton updates in externalization order.
+     */
+    public String pendingSingletonUpdateSummary() {
+        return singletonUpdates.keySet().stream()
+                .map(BoundaryStateChangeListener::stateIdSummary)
+                .collect(Collectors.joining(" -> "));
     }
 
     /**
@@ -130,14 +157,48 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     @Override
     public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
         requireNonNull(value, "value must not be null");
+        final boolean wasAlreadyPending = singletonUpdates.containsKey(stateId);
+        final int position = positionOf(stateId);
+        final var singletonUpdate = new SingletonUpdateChange(singletonUpdateChangeValueFor(value));
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
-                .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                .singletonUpdate(singletonUpdate)
                 .build();
         singletonUpdates.put(stateId, stateChange);
+        log.info(
+                "Forensic boundary singleton {} state={} position={} pendingCount={} value={} kind={}",
+                wasAlreadyPending ? "overwrite" : "insert",
+                stateIdSummary(stateId),
+                position,
+                singletonUpdates.size(),
+                valueSummary(value),
+                singletonUpdate.newValue().kind());
         if (stateId == ENTITY_COUNTS_STATE_ID) {
             updateEntityCountsMetrics((EntityCounts) value);
         }
+    }
+
+    private int positionOf(final int stateId) {
+        int position = 1;
+        for (final var pendingStateId : singletonUpdates.keySet()) {
+            if (pendingStateId == stateId) {
+                return position;
+            }
+            position++;
+        }
+        return singletonUpdates.size() + 1;
+    }
+
+    private static String stateIdSummary(final int stateId) {
+        try {
+            return "%s(%d)".formatted(stateNameOf(stateId), stateId);
+        } catch (final IllegalArgumentException e) {
+            return "UNKNOWN_STATE(%d)".formatted(stateId);
+        }
+    }
+
+    private static String valueSummary(@NonNull final Object value) {
+        return "%s#%08x".formatted(value.getClass().getSimpleName(), value.hashCode());
     }
 
     private void updateEntityCountsMetrics(final EntityCounts entityCounts) {

@@ -313,12 +313,30 @@ public class NodeRewardManager {
                 .toList();
         final long newNodeFeesCollected =
                 requireNonNull(nodeRewardsState.get()).nodeFeesCollected() + nodeFeesCollected;
-        nodeRewardsState.put(NodeRewards.newBuilder()
+        final var previousRewards = requireNonNull(nodeRewardsState.get());
+        final var nextRewards = NodeRewards.newBuilder()
                 .nodeActivities(nodeActivities)
                 .numRoundsInStakingPeriod(roundsThisStakingPeriod)
                 .nodeFeesCollected(newNodeFeesCollected)
-                .build());
+                .build();
+        log.info(
+                "Forensic token singleton put TokenService.NODE_REWARDS via NodeRewardManager noOp={} "
+                        + "nodeFeesCollectedDelta={} before={} after={}",
+                Objects.equals(previousRewards, nextRewards),
+                nodeFeesCollected,
+                nodeRewardsSummary(previousRewards),
+                nodeRewardsSummary(nextRewards));
+        nodeRewardsState.put(nextRewards);
         ((CommittableWritableStates) writableTokenState).commit();
+    }
+
+    private static String nodeRewardsSummary(@NonNull final NodeRewards nodeRewards) {
+        return "activities=%d rounds=%d nodeFeesCollected=%d hashCode=%d"
+                .formatted(
+                        nodeRewards.nodeActivities().size(),
+                        nodeRewards.numRoundsInStakingPeriod(),
+                        nodeRewards.nodeFeesCollected(),
+                        nodeRewards.hashCode());
     }
 
     /**

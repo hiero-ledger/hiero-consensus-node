@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
@@ -183,13 +184,23 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         // If the previous scheme's party size was different than the new one, purge the hinTS keys;
         // this is likely optional, but seems like a better default behavior than leaving them in state
         maybePurgeHintsKeys(partySizeForRoster(toRoster), fromRoster);
+        logHintsConstructionPut(
+                "HintsService.ACTIVE_HINTS_CONSTRUCTION", activeConstruction.get(), upcomingConstruction);
         activeConstruction.put(upcomingConstruction);
+        logHintsConstructionPut(
+                "HintsService.NEXT_HINTS_CONSTRUCTION", nextConstruction.get(), HintsConstruction.DEFAULT);
         nextConstruction.put(HintsConstruction.DEFAULT);
         return true;
     }
 
     @Override
     public void setCrsState(@NonNull final CRSState crsState) {
+        final var previous = this.crsState.get();
+        log.info(
+                "Forensic TSS singleton put HintsService.CRS_STATE noOp={} before={} after={}",
+                Objects.equals(previous, crsState),
+                crsStateSummary(previous),
+                crsStateSummary(crsState));
         this.crsState.put(crsState);
     }
 
@@ -220,11 +231,15 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             final long constructionId, @NonNull final UnaryOperator<HintsConstruction.Builder> spec) {
         HintsConstruction construction;
         if (requireNonNull(construction = activeConstruction.get()).constructionId() == constructionId) {
-            activeConstruction.put(
-                    construction = spec.apply(construction.copyBuilder()).build());
+            final var updated = spec.apply(construction.copyBuilder()).build();
+            logHintsConstructionPut("HintsService.ACTIVE_HINTS_CONSTRUCTION", construction, updated);
+            activeConstruction.put(updated);
+            construction = updated;
         } else if (requireNonNull(construction = nextConstruction.get()).constructionId() == constructionId) {
-            nextConstruction.put(
-                    construction = spec.apply(construction.copyBuilder()).build());
+            final var updated = spec.apply(construction.copyBuilder()).build();
+            logHintsConstructionPut("HintsService.NEXT_HINTS_CONSTRUCTION", construction, updated);
+            nextConstruction.put(updated);
+            construction = updated;
         } else {
             throw new IllegalArgumentException("No construction with id " + constructionId);
         }
@@ -254,12 +269,14 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
         if (requireNonNull(activeConstruction.get()).equals(HintsConstruction.DEFAULT)) {
+            logHintsConstructionPut("HintsService.ACTIVE_HINTS_CONSTRUCTION", activeConstruction.get(), construction);
             activeConstruction.put(construction);
         } else {
             if (!requireNonNull(nextConstruction.get()).equals(HintsConstruction.DEFAULT)) {
                 // Before replacing the next construction, purge its votes
                 purgeVotes(requireNonNull(nextConstruction.get()), lookup);
             }
+            logHintsConstructionPut("HintsService.NEXT_HINTS_CONSTRUCTION", nextConstruction.get(), construction);
             nextConstruction.put(construction);
         }
         // Rotate any hint keys requested to be used in the next construction
@@ -279,6 +296,43 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             }
         }
         return construction;
+    }
+
+    private static void logHintsConstructionPut(
+            @NonNull final String stateName,
+            @Nullable final HintsConstruction previous,
+            @NonNull final HintsConstruction next) {
+        log.info(
+                "Forensic TSS singleton put {} noOp={} before={} after={}",
+                stateName,
+                Objects.equals(previous, next),
+                hintsConstructionSummary(previous),
+                hintsConstructionSummary(next));
+    }
+
+    private static String hintsConstructionSummary(@Nullable final HintsConstruction construction) {
+        if (construction == null) {
+            return "<null>";
+        }
+        return "id=%d hasScheme=%s hasPreprocessingStartTime=%s hashCode=%d"
+                .formatted(
+                        construction.constructionId(),
+                        construction.hasHintsScheme(),
+                        construction.hasPreprocessingStartTime(),
+                        construction.hashCode());
+    }
+
+    private static String crsStateSummary(@Nullable final CRSState crsState) {
+        if (crsState == null) {
+            return "<null>";
+        }
+        return "stage=%s hasNextNode=%s nextNode=%s hasContributionEndTime=%s hashCode=%d"
+                .formatted(
+                        crsState.stage(),
+                        crsState.hasNextContributingNodeId(),
+                        crsState.hasNextContributingNodeId() ? crsState.nextContributingNodeId() : "<none>",
+                        crsState.hasContributionEndTime(),
+                        crsState.hashCode());
     }
 
     /**

@@ -9,11 +9,15 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link ReadableNodeRewardsStoreImpl}.
  */
 public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
+    private static final Logger log = LogManager.getLogger(WritableNodeRewardsStoreImpl.class);
 
     /**
      * The underlying data storage class that holds node reward data for all nodes.
@@ -37,6 +41,7 @@ public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
      */
     public void put(@NonNull final NodeRewards nodeRewards) {
         requireNonNull(nodeRewards);
+        logNodeRewardsPut(nodeRewardsState.get(), nodeRewards);
         nodeRewardsState.put(nodeRewards);
     }
 
@@ -44,10 +49,29 @@ public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
      * Resets the node rewards state for a new payment period.
      */
     public void resetForNewStakingPeriod() {
-        nodeRewardsState.put(NodeRewards.newBuilder()
+        final var next = NodeRewards.newBuilder()
                 .numRoundsInStakingPeriod(0)
                 .nodeFeesCollected(0)
                 .nodeActivities(List.of())
-                .build());
+                .build();
+        logNodeRewardsPut(nodeRewardsState.get(), next);
+        nodeRewardsState.put(next);
+    }
+
+    private static void logNodeRewardsPut(@NonNull final NodeRewards previous, @NonNull final NodeRewards next) {
+        log.info(
+                "Forensic token singleton put TokenService.NODE_REWARDS noOp={} before={} after={}",
+                Objects.equals(previous, next),
+                nodeRewardsSummary(previous),
+                nodeRewardsSummary(next));
+    }
+
+    private static String nodeRewardsSummary(@NonNull final NodeRewards nodeRewards) {
+        return "activities=%d rounds=%d nodeFeesCollected=%d hashCode=%d"
+                .formatted(
+                        nodeRewards.nodeActivities().size(),
+                        nodeRewards.numRoundsInStakingPeriod(),
+                        nodeRewards.nodeFeesCollected(),
+                        nodeRewards.hashCode());
     }
 }

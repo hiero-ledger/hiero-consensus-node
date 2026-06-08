@@ -17,6 +17,7 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.clea
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
@@ -98,6 +99,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -638,6 +640,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
+            log.info(
+                    "Forensic block close beginning block={} round={} freezeRound={} lastUsedTime={} pendingWork={} "
+                            + "pendingBoundarySingletons={} order=[{}]",
+                    blockNumber,
+                    roundNum,
+                    freezeRoundNumber,
+                    lastUsedTime,
+                    pendingWork,
+                    boundaryStateChangeListener.pendingSingletonUpdateCount(),
+                    boundaryStateChangeListener.pendingSingletonUpdateSummary());
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled
             quiescenceController.finishHandlingInProgressBlock();
@@ -669,6 +681,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // object is stored)
             final var interimStateChanges = stateChangesHasher.intermediateHashingState();
             final var interimStateChangeLeaves = stateChangesHasher.leafCount();
+            log.info(
+                    "Forensic BSI preceding state changes block={} round={} leafCount={} rightmostCount={} "
+                            + "rightmostHashes=[{}]",
+                    blockNumber,
+                    roundNum,
+                    interimStateChangeLeaves,
+                    interimStateChanges.size(),
+                    hashListSummary(interimStateChanges));
             // Branch 8 final hash:
             final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
@@ -696,6 +716,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
             ((CommittableWritableStates) writableState).commit();
+            log.info(
+                    "Forensic BSI singleton put block={} round={} blockTimestamp={} lastUsedTime={} "
+                            + "numPrecedingStateChangesItems={} rightmostPrecedingStateChangesTreeHashes={} "
+                            + "blockStreamInfoHashCode={}",
+                    blockNumber,
+                    roundNum,
+                    blockTimestamp(),
+                    lastUsedTime,
+                    newBlockStreamInfo.numPrecedingStateChangesItems(),
+                    hashListSummary(newBlockStreamInfo.rightmostPrecedingStateChangesTreeHashes()),
+                    newBlockStreamInfo.hashCode());
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
@@ -873,6 +904,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
+        switch (item.item().kind()) {
+            case STATE_CHANGES -> logStateChangesItem("writeItem", item.stateChangesOrThrow());
+            default -> {
+                // No forensic state-change logging needed for other block item kinds.
+            }
+        }
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
@@ -1375,8 +1412,32 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
         final var stateChanges = new StateChanges(lastUsedTime, boundaryStateChangeListener.allStateChanges());
+        logStateChangesItem("boundaryFlush", stateChanges);
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
+    }
+
+    private static void logStateChangesItem(@NonNull final String source, @NonNull final StateChanges stateChanges) {
+        log.info(
+                "Forensic block stream stateChanges source={} consensusTimestamp={} count={} order=[{}]",
+                source,
+                stateChanges.consensusTimestampOrElse(Timestamp.DEFAULT),
+                stateChanges.stateChanges().size(),
+                stateChanges.stateChanges().stream()
+                        .map(change -> stateIdSummary(change.stateId()))
+                        .collect(Collectors.joining(" -> ")));
+    }
+
+    private static String hashListSummary(@NonNull final List<Bytes> hashes) {
+        return hashes.stream().map(Bytes::toHex).collect(Collectors.joining(","));
+    }
+
+    private static String stateIdSummary(final int stateId) {
+        try {
+            return "%s(%d)".formatted(stateNameOf(stateId), stateId);
+        } catch (final IllegalArgumentException e) {
+            return "UNKNOWN_STATE(%d)".formatted(stateId);
+        }
     }
 
     /**

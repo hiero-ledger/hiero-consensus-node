@@ -39,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -191,13 +192,17 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     @Override
     public void setLedgerId(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
-        ledgerId.put(new ProtoBytes(bytes));
+        final var next = new ProtoBytes(bytes);
+        logProtoBytesPut("HistoryService.LEDGER_ID", ledgerId.get(), next);
+        ledgerId.put(next);
     }
 
     @Override
     public void setWrapsProvingKeyHash(@NonNull final Bytes hash) {
         requireNonNull(hash);
-        wrapsProvingKeyHash.put(new ProtoBytes(hash));
+        final var next = new ProtoBytes(hash);
+        logProtoBytesPut("HistoryService.WRAPS_PROVING_KEY_HASH", wrapsProvingKeyHash.get(), next);
+        wrapsProvingKeyHash.put(next);
     }
 
     @Override
@@ -222,7 +227,11 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             final var upcomingConstruction = requireNonNull(nextConstruction.get());
             log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
             // And finally, make the next construction the active one
+            logHistoryConstructionPut(
+                    "HistoryService.ACTIVE_PROOF_CONSTRUCTION", activeConstruction.get(), upcomingConstruction);
             activeConstruction.put(upcomingConstruction);
+            logHistoryConstructionPut(
+                    "HistoryService.NEXT_PROOF_CONSTRUCTION", nextConstruction.get(), HistoryProofConstruction.DEFAULT);
             nextConstruction.put(HistoryProofConstruction.DEFAULT);
             return true;
         }
@@ -245,13 +254,17 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                             spec) {
         HistoryProofConstruction construction;
         if (requireNonNull(construction = activeConstruction.get()).constructionId() == constructionId) {
-            activeConstruction.put(
-                    construction =
-                            spec.apply(construction, construction.copyBuilder()).build());
+            final var updated =
+                    spec.apply(construction, construction.copyBuilder()).build();
+            logHistoryConstructionPut("HistoryService.ACTIVE_PROOF_CONSTRUCTION", construction, updated);
+            activeConstruction.put(updated);
+            construction = updated;
         } else if (requireNonNull(construction = nextConstruction.get()).constructionId() == constructionId) {
-            nextConstruction.put(
-                    construction =
-                            spec.apply(construction, construction.copyBuilder()).build());
+            final var updated =
+                    spec.apply(construction, construction.copyBuilder()).build();
+            logHistoryConstructionPut("HistoryService.NEXT_PROOF_CONSTRUCTION", construction, updated);
+            nextConstruction.put(updated);
+            construction = updated;
         } else {
             throw new IllegalArgumentException("No construction with id " + constructionId);
         }
@@ -280,6 +293,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
         if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+            logHistoryConstructionPut(
+                    "HistoryService.ACTIVE_PROOF_CONSTRUCTION", activeConstruction.get(), construction);
             activeConstruction.put(construction);
             logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {
@@ -289,6 +304,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
                 purgePublications(extantConstruction.constructionId(), sourceRoster);
             }
+            logHistoryConstructionPut("HistoryService.NEXT_PROOF_CONSTRUCTION", nextConstruction.get(), construction);
             nextConstruction.put(construction);
             logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
         }
@@ -308,6 +324,49 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             }
         });
         return construction;
+    }
+
+    private static void logProtoBytesPut(
+            @NonNull final String stateName, @Nullable final ProtoBytes previous, @NonNull final ProtoBytes next) {
+        log.info(
+                "Forensic TSS singleton put {} noOp={} before={} after={}",
+                stateName,
+                Objects.equals(previous, next),
+                protoBytesSummary(previous),
+                protoBytesSummary(next));
+    }
+
+    private static void logHistoryConstructionPut(
+            @NonNull final String stateName,
+            @Nullable final HistoryProofConstruction previous,
+            @NonNull final HistoryProofConstruction next) {
+        log.info(
+                "Forensic TSS singleton put {} noOp={} before={} after={}",
+                stateName,
+                Objects.equals(previous, next),
+                historyConstructionSummary(previous),
+                historyConstructionSummary(next));
+    }
+
+    private static String protoBytesSummary(@Nullable final ProtoBytes bytes) {
+        if (bytes == null) {
+            return "<null>";
+        }
+        return "length=%d hex=%s hashCode=%d"
+                .formatted(bytes.value().length(), bytes.value().toHex(), bytes.hashCode());
+    }
+
+    private static String historyConstructionSummary(@Nullable final HistoryProofConstruction construction) {
+        if (construction == null) {
+            return "<null>";
+        }
+        return "id=%d hasAssemblyStartTime=%s hasTargetProof=%s hasWrapsSigningState=%s hashCode=%d"
+                .formatted(
+                        construction.constructionId(),
+                        construction.hasAssemblyStartTime(),
+                        construction.hasTargetProof(),
+                        construction.hasWrapsSigningState(),
+                        construction.hashCode());
     }
 
     private enum InSlot {

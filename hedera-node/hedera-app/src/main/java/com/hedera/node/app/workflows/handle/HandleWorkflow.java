@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -109,6 +110,7 @@ import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -315,6 +317,12 @@ public class HandleWorkflow {
                 };
         if (isGenesis) {
             final var genesisEventTime = firstEvent.getConsensusTimestamp();
+            logger.info(
+                    "Forensic genesis setup about to run round={} genesisEventTime={} blockSignerReady={} pendingWork={}",
+                    round.getRoundNum(),
+                    genesisEventTime,
+                    blockHashSigner.isReady(),
+                    streamMode == RECORDS ? "<records>" : blockStreamManager.pendingWork());
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
             transactionsDispatched = true;
@@ -362,7 +370,22 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
+                logger.info(
+                        "Forensic TSS reconcile about to run round={} roundTimestamp={} blockSignerReady={} "
+                                + "pendingBoundarySingletons={} order=[{}]",
+                        round.getRoundNum(),
+                        round.getConsensusTimestamp(),
+                        blockHashSigner.isReady(),
+                        boundaryStateChangeListener.pendingSingletonUpdateCount(),
+                        boundaryStateChangeListener.pendingSingletonUpdateSummary());
                 reconcileTssState(state, round.getConsensusTimestamp());
+                logger.info(
+                        "Forensic TSS reconcile finished round={} blockSignerReady={} pendingBoundarySingletons={} "
+                                + "order=[{}]",
+                        round.getRoundNum(),
+                        blockHashSigner.isReady(),
+                        boundaryStateChangeListener.pendingSingletonUpdateCount(),
+                        boundaryStateChangeListener.pendingSingletonUpdateSummary());
                 resetTssReconcileFailureSuppression();
             } catch (Exception e) {
                 logTssReconcileFailure(e);
@@ -993,7 +1016,17 @@ public class HandleWorkflow {
             @Nullable final WritableStates entityIdWritableStates,
             @NonNull final Runnable action,
             final boolean includeSingletons) {
+        final var writableStateIds = stateIdsSummary(writableStates);
+        final var entityStateIds = entityIdWritableStates == null ? "<none>" : stateIdsSummary(entityIdWritableStates);
         if (streamMode != RECORDS) {
+            logger.info(
+                    "Forensic streaming action begin includeSingletons={} writableStates=[{}] "
+                            + "entityIdWritableStates=[{}] pendingBoundarySingletons={} order=[{}]",
+                    includeSingletons,
+                    writableStateIds,
+                    entityStateIds,
+                    boundaryStateChangeListener.pendingSingletonUpdateCount(),
+                    boundaryStateChangeListener.pendingSingletonUpdateSummary());
             immediateStateChangeListener.resetKvStateChanges(null);
             if (includeSingletons) {
                 boundaryStateChangeListener.reset();
@@ -1008,6 +1041,14 @@ public class HandleWorkflow {
         }
         if (streamMode != RECORDS) {
             final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
+            logger.info(
+                    "Forensic streaming action committed includeSingletons={} writableStates=[{}] "
+                            + "kvStateChanges={} pendingBoundarySingletons={} order=[{}]",
+                    includeSingletons,
+                    writableStateIds,
+                    kvStateChanges.size(),
+                    boundaryStateChangeListener.pendingSingletonUpdateCount(),
+                    boundaryStateChangeListener.pendingSingletonUpdateSummary());
             if (!kvStateChanges.isEmpty()) {
                 blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                         .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
@@ -1015,12 +1056,35 @@ public class HandleWorkflow {
             }
             if (includeSingletons) {
                 final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+                logger.info(
+                        "Forensic streaming singleton flush includeSingletons=true writableStates=[{}] "
+                                + "singletonStateChanges={} order=[{}]",
+                        writableStateIds,
+                        singletonChanges.size(),
+                        singletonChanges.stream()
+                                .map(change -> stateIdSummary(change.stateId()))
+                                .collect(Collectors.joining(" -> ")));
                 if (!singletonChanges.isEmpty()) {
                     blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                             .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
                             .build());
                 }
             }
+        }
+    }
+
+    private static String stateIdsSummary(@NonNull final WritableStates writableStates) {
+        return writableStates.stateIds().stream()
+                .sorted()
+                .map(HandleWorkflow::stateIdSummary)
+                .collect(Collectors.joining(","));
+    }
+
+    private static String stateIdSummary(final int stateId) {
+        try {
+            return "%s(%d)".formatted(stateNameOf(stateId), stateId);
+        } catch (final IllegalArgumentException e) {
+            return "UNKNOWN_STATE(%d)".formatted(stateId);
         }
     }
 

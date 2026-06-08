@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -134,6 +135,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -267,7 +269,13 @@ public class SystemTransactions {
             // Externalize the platform state singleton as it is with a little in-place write
             final var platformStateSingleton =
                     writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
-            platformStateSingleton.put(platformStateSingleton.get());
+            final var platformState = requireNonNull(platformStateSingleton.get());
+            log.info(
+                    "Forensic genesis singleton no-op put service={} state={} valueHashCode={}",
+                    PlatformStateService.NAME,
+                    stateIdSummary(PLATFORM_STATE_STATE_ID),
+                    platformState.hashCode());
+            platformStateSingleton.put(platformState);
         });
         final int networkSize = networkInfo.addressBook().size();
         for (final var r : servicesRegistry.registrations()) {
@@ -277,8 +285,19 @@ public class SystemTransactions {
             }
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
-            stateChangeStreaming.doStreamingChanges(
-                    writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
+            log.info(
+                    "Forensic genesis service setup begin service={} migrationOrder={} states=[{}]",
+                    service.getServiceName(),
+                    service.migrationOrder(),
+                    stateIdsSummary(writableStates));
+            stateChangeStreaming.doStreamingChanges(writableStates, null, () -> {
+                final var didSetup = service.doGenesisSetup(writableStates, config, networkSize);
+                log.info(
+                        "Forensic genesis service setup end service={} didSetup={} states=[{}]",
+                        service.getServiceName(),
+                        didSetup,
+                        stateIdsSummary(writableStates));
+            });
         }
         maybeWriteGenesisTssPrivateKeys(config);
 
@@ -600,6 +619,13 @@ public class SystemTransactions {
         requireNonNull(proofKeys);
         requireNonNull(targetNodeWeights);
         requireNonNull(historyProofVerificationKey);
+        log.info(
+                "Forensic ledger id externalization dispatch ledgerId={} proofNodeIds={} targetWeights={} "
+                        + "verificationKeyHashCode={}",
+                ledgerId.toHex(),
+                proofKeys.stream().map(ProofKey::nodeId).toList(),
+                targetNodeWeights,
+                historyProofVerificationKey.hashCode());
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
@@ -997,6 +1023,13 @@ public class SystemTransactions {
                     dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
             final var prevEntityNum = requireNonNull(controlledNum.get()).number();
             if (nextEntityNum != 0) {
+                log.info(
+                        "Forensic synthetic dispatch temporarily setting {} from {} to {} for body={} consensusNow={}",
+                        stateIdSummary(ENTITY_ID_STATE_ID),
+                        prevEntityNum,
+                        nextEntityNum - 1,
+                        body.data().kind(),
+                        now);
                 controlledNum.put(new EntityNumber(nextEntityNum - 1));
             }
 
@@ -1014,6 +1047,13 @@ public class SystemTransactions {
             }
 
             if (nextEntityNum != 0) {
+                log.info(
+                        "Forensic synthetic dispatch restoring {} to {} after status={} body={} consensusNow={}",
+                        stateIdSummary(ENTITY_ID_STATE_ID),
+                        prevEntityNum,
+                        dispatch.streamBuilder().status(),
+                        body.data().kind(),
+                        now);
                 controlledNum.put(new EntityNumber(prevEntityNum));
             }
 
@@ -1031,6 +1071,21 @@ public class SystemTransactions {
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+        }
+    }
+
+    private static String stateIdsSummary(@NonNull final WritableStates writableStates) {
+        return writableStates.stateIds().stream()
+                .sorted()
+                .map(SystemTransactions::stateIdSummary)
+                .collect(Collectors.joining(","));
+    }
+
+    private static String stateIdSummary(final int stateId) {
+        try {
+            return "%s(%d)".formatted(stateNameOf(stateId), stateId);
+        } catch (final IllegalArgumentException e) {
+            return "UNKNOWN_STATE(%d)".formatted(stateId);
         }
     }
 

@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -396,12 +397,26 @@ public class NodeFeeManager implements NodeFeeAccumulator {
                 .toList();
 
         // We don't update the lastNodeFeeDistributionTime because it is updated only once we distribute fees
-        nodePaymentsState.put(
-                currentPayments.copyBuilder().payments(updatedPayments).build());
+        final var nextPayments =
+                currentPayments.copyBuilder().payments(updatedPayments).build();
+        log.info(
+                "Forensic token singleton put TokenService.NODE_PAYMENTS via NodeFeeManager noOp={} before={} after={}",
+                Objects.equals(currentPayments, nextPayments),
+                nodePaymentsSummary(currentPayments),
+                nodePaymentsSummary(nextPayments));
+        nodePaymentsState.put(nextPayments);
         ((CommittableWritableStates) writableTokenState).commit();
         log.debug("Committed node payments state with {}", updatedPayments);
 
         // Clear the in-memory node fees map
         resetNodeFees();
+    }
+
+    private static String nodePaymentsSummary(@NonNull final NodePayments nodePayments) {
+        return "payments=%d lastDistributionTime=%s hashCode=%d"
+                .formatted(
+                        nodePayments.payments().size(),
+                        nodePayments.lastNodeFeeDistributionTime(),
+                        nodePayments.hashCode());
     }
 }

@@ -10,11 +10,15 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default writable implementation for node payments.
  */
 public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
+    private static final Logger log = LogManager.getLogger(WritableNodePaymentsStore.class);
 
     /**
      * The underlying data storage class that holds staking reward data for all nodes.
@@ -38,6 +42,7 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
      */
     public void put(@NonNull final NodePayments nodePayments) {
         requireNonNull(nodePayments);
+        logNodePaymentsPut(nodePaymentsState.get(), nodePayments);
         nodePaymentsState.put(nodePayments);
     }
 
@@ -45,9 +50,27 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
      * Resets the node rewards state for a new payment period.
      */
     public void resetForNewStakingPeriod(Timestamp lastNodeFeeDistributionTime) {
-        nodePaymentsState.put(NodePayments.newBuilder()
+        final var next = NodePayments.newBuilder()
                 .payments(List.of())
                 .lastNodeFeeDistributionTime(lastNodeFeeDistributionTime)
-                .build());
+                .build();
+        logNodePaymentsPut(nodePaymentsState.get(), next);
+        nodePaymentsState.put(next);
+    }
+
+    private static void logNodePaymentsPut(@NonNull final NodePayments previous, @NonNull final NodePayments next) {
+        log.info(
+                "Forensic token singleton put TokenService.NODE_PAYMENTS noOp={} before={} after={}",
+                Objects.equals(previous, next),
+                nodePaymentsSummary(previous),
+                nodePaymentsSummary(next));
+    }
+
+    private static String nodePaymentsSummary(@NonNull final NodePayments nodePayments) {
+        return "payments=%d lastDistributionTime=%s hashCode=%d"
+                .formatted(
+                        nodePayments.payments().size(),
+                        nodePayments.lastNodeFeeDistributionTime(),
+                        nodePayments.hashCode());
     }
 }
