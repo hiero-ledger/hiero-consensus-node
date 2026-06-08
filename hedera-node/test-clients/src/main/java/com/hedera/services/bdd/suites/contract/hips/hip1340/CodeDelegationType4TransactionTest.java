@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -13,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -21,6 +24,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -36,8 +41,11 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -212,29 +220,59 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
+    //TODO Glib: testSelfDelegation
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    final Stream<DynamicTest> testSelfDelegation() {
+        return hapiTest(withOpContext((spec, _) -> {
+                    createPayerAccountWithAlias(spec);
+                    createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
+                    final var publicKey =
+                            fromByteString(spec.registry().getKey(DELEGATING_ACCOUNT).getECDSASecp256K1());
+                    final var keyAddressBytes = recoverAddressFromPubKey(publicKey).toByteArray();
+                    Address keyAddress = asHeadlongAddress(keyAddressBytes);
+                    System.out.printf("!!!!!!!!!!!!!!!! keyAddress=%s keyAddressBytes=%s\n", keyAddress, Arrays.toString(keyAddressBytes));
+                    allRunFor(spec,
+                            overriding("contracts.codeDelegations.enabled", "true"),
+                            sourcing(() -> HapiEthereumCall.explicitlyTo(keyAddressBytes, 0L)
+                                    .signingWith(PAYER_KEY)
+                                    .type(EthTransactionType.EIP7702)
+                                    .addCodeDelegationWithSpecNonce(keyAddress, DELEGATING_ACCOUNT)
+                                    .gasLimit(1_000_000L)
+                                    .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION)
+                                    .via(DELEGATION_CALL)),
+                            getTxnRecord(DELEGATION_CALL)
+                                    .andAllChildRecords()
+                                    .logged()
+                    );
+                })
+        );
+    }
+
     @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSetToHollowAccountWithRevertingCall() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
-            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
+            allRunFor(spec,
+                    overriding("contracts.codeDelegations.enabled", "true"),
+                    sourcing(() -> ethereumCall(
                             REVERTING_CONTRACT, "revertWithRevertReason")
-                    .signingWith(PAYER_KEY)
-                    .payingWith(RELAYER)
-                    .type(EthTransactionType.EIP7702)
-                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
-                    .gasLimit(2_000_000L)
-                    .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                    .via(DELEGATION_SET)
-                    .exposingGasTo((_, gas) -> {
-                        final var expectedGas = 21_000L /* intrinsic gas base fee */
-                                + 64 /* payload cost */
-                                + 25_000L /* code delegation fee with new account creation */
-                                + 408 /*call costs in gas*/
-                                + 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
-                        assertEquals(expectedGas, gas);
-                    })));
+                            .signingWith(PAYER_KEY)
+                            .payingWith(RELAYER)
+                            .type(EthTransactionType.EIP7702)
+                            .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
+                            .gasLimit(2_000_000L)
+                            .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
+                            .via(DELEGATION_SET)
+                            .exposingGasTo((_, gas) -> {
+                                final var expectedGas = 21_000L /* intrinsic gas base fee */
+                                        + 64 /* payload cost */
+                                        + 25_000L /* code delegation fee with new account creation */
+                                        + 408 /*call costs in gas*/
+                                        + 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
+                                assertEquals(expectedGas, gas);
+                            })));
             allRunFor(
                     spec,
                     getAliasedAccountInfo(DELEGATING_ACCOUNT)
@@ -262,7 +300,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
-                            REVERTING_CONTRACT, "revertWithRevertReason")
+                    REVERTING_CONTRACT, "revertWithRevertReason")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .type(EthTransactionType.EIP7702)
@@ -278,7 +316,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                 + 3 * 25_000L /* code delegation fee with new account creation */
                                 + 408 /*call costs in gas*/
                                 + 3
-                                        * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
+                                * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                         assertEquals(expectedGas, gas);
                     })));
             allRunFor(
@@ -320,7 +358,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
             createPayerAccountWithAlias(spec);
             final var delegatingAccount = createEvmAccountWithKey(spec);
             allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
-                            REVERTING_CONTRACT, "revertWithRevertReason")
+                    REVERTING_CONTRACT, "revertWithRevertReason")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .type(EthTransactionType.EIP7702)
@@ -352,7 +390,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
-                            CONTRACT, "create")
+                    CONTRACT, "create")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .gasLimit(1_500_000L)
@@ -368,7 +406,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                 + 3 * 25_000L /* code delegation fee with new account creation */
                                 + 108_893L /*call costs in gas*/
                                 + 2
-                                        * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
+                                * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                         assertEquals(expectedGas, gas);
                     })));
             allRunFor(
