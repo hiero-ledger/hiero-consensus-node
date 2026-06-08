@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -39,7 +38,6 @@ import org.junit.jupiter.api.Tag;
  * Integration tests for simple fees congestion pricing.
  */
 @Tag(SIMPLE_FEES)
-@Tag(MATS)
 public class SimpleFeesCongestionPricingTest {
     private static final Logger log = LogManager.getLogger(SimpleFeesCongestionPricingTest.class);
 

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
@@ -24,31 +24,28 @@ public final class OtterStateUtils {
     /**
      * Creates an initialized {@code OtterAppState}.
      *
-     * @param configuration   the platform configuration instance to use when creating the new instance of state
-     * @param metrics         the platform metric instance to use when creating the new instance of state
      * @param roster          the initial roster stored in the state
      * @param version         the software version to set in the state
      * @param services        the services to initialize
      * @return state root
      */
     @NonNull
-    public static VirtualMapStateImpl createGenesisState(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
+    public static VirtualMapState initGenesisState(
+            @NonNull final VirtualMapState state,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
-        final VirtualMapStateImpl state = new VirtualMapStateImpl(configuration, metrics);
-
-        initOtterAppState(state, services);
+        initOtterAppStateStructure(state, services);
 
         // set up the state's default values for this service
         for (final OtterService service : services) {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
-        RosterStateUtils.setActiveRoster(state, roster, 0L);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(roster, 0L);
         commitState(state);
 
         return state;
@@ -59,10 +56,30 @@ public final class OtterStateUtils {
      *
      * @param virtualMapState the virtual map state containing the services to commit
      */
-    public static void commitState(@NonNull final VirtualMapStateImpl virtualMapState) {
-        virtualMapState.getServices().keySet().stream()
-                .map(virtualMapState::getWritableStates)
-                .map(writableStates -> (CommittableWritableStates) writableStates)
-                .forEach(CommittableWritableStates::commit);
+    public static void commitState(@NonNull final VirtualMapState virtualMapState) {
+        ((VirtualMapStateImpl) virtualMapState)
+                .getServices().keySet().stream()
+                        .map(virtualMapState::getWritableStates)
+                        .map(writableStates -> (CommittableWritableStates) writableStates)
+                        .forEach(CommittableWritableStates::commit);
+    }
+
+    /**
+     * Initialize the state structure for the OtterApp.
+     *
+     * @param state the state to initialize
+     * @param services the services to initialize
+     */
+    public static void initOtterAppStateStructure(
+            @NonNull final VirtualMapState state, @NonNull final List<OtterService> services) {
+        for (final OtterService service : services) {
+            final OtterServiceStateSpecification specification = service.stateSpecification();
+            for (final StateDefinition<?, ?> stateDefinition : specification.statesToCreate()) {
+                // the metadata associates the state definition with the service
+                final StateMetadata<?, ?> stateMetadata = new StateMetadata<>(service.name(), stateDefinition);
+                state.initializeState(stateMetadata);
+            }
+        }
+        commitState(state);
     }
 }

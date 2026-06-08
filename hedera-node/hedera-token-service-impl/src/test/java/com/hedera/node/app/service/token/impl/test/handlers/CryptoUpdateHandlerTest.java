@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
@@ -70,6 +71,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Map;
@@ -165,6 +167,18 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), ACCOUNT_ID_DOES_NOT_EXIST);
+    }
+
+    @Test
+    void cryptoUpdateWithDelegationAddressIsRejected() {
+        final var txn = new CryptoUpdateBuilder()
+                .withKey(key)
+                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .build();
+
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), NOT_SUPPORTED);
     }
 
     @Test
@@ -910,6 +924,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         private String memo;
         private Key opKey;
         private AccountID target = updateAccountId;
+        private Bytes delegationAddress;
 
         public CryptoUpdateBuilder() {}
 
@@ -958,6 +973,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
             if (opKey != null) {
                 builder.key(opKey);
+            }
+
+            if (delegationAddress != null) {
+                builder.delegationAddress(delegationAddress);
             }
 
             return TransactionBody.newBuilder()
@@ -1045,6 +1064,11 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         public CryptoUpdateBuilder withPayer(AccountID payer) {
             this.payer = payer;
+            return this;
+        }
+
+        public CryptoUpdateBuilder withDelegationAddress(Bytes delegationAddress) {
+            this.delegationAddress = delegationAddress;
             return this;
         }
     }

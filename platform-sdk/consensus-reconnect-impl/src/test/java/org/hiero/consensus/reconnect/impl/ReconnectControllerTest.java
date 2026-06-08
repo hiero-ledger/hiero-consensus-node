@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
+import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,7 +18,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -39,8 +38,10 @@ import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,7 +54,10 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -67,6 +71,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.stubbing.Answer;
 
 /**
@@ -95,9 +100,11 @@ class ReconnectControllerTest {
     private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
 
+    @TempDir
+    Path tempDir;
+
     @AfterAll
     static void tearDownClass() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
@@ -114,18 +121,21 @@ class ReconnectControllerTest {
 
         selfId = NodeId.of(0);
 
-        // Create platform context with reconnect enabled
+        // Create a configuration with reconnect enabled
         configuration = new TestConfigBuilder()
                 .withValue("reconnect.active", true)
                 .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
                 .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
                 .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
                 .getOrCreateConfig();
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir);
 
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                new NoOpMetrics(), new FakeTime(), configuration, fileSystemManager);
         // Create test states
         testSignedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
-                .setState(createTestState())
+                .setState(stateLifecycleManager.getMutableState())
                 .build();
         SignedStateFileReader.registerServiceStates(testSignedState);
         final SigSet sigSet = new SigSet();
@@ -135,7 +145,7 @@ class ReconnectControllerTest {
 
         testSignedState.setSigSet(sigSet);
 
-        testWorkingState = testSignedState.getState().copy();
+        testWorkingState = stateLifecycleManager.getMutableState();
         testReservedSignedState = testSignedState.reserve("test");
 
         // Mock Platform
@@ -154,10 +164,6 @@ class ReconnectControllerTest {
                 })
                 .when(reconnectCoordinator)
                 .pauseGossip();
-
-        // Mock SwirldStateManager
-        stateLifecycleManager = mock(StateLifecycleManager.class);
-        when(stateLifecycleManager.getMutableState()).thenReturn(testWorkingState);
 
         // Mock SavedStateController
         savedStateController = mock(SavedStateController.class);
@@ -180,6 +186,11 @@ class ReconnectControllerTest {
         if (testReservedSignedState != null && !testReservedSignedState.isClosed()) {
             testReservedSignedState.close();
         }
+        destroyStateLifecycleManager(stateLifecycleManager);
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        // Wait for MerkleDB's background threads to finish closing the database before JUnit deletes the per-test
+        // @TempDir. Otherwise the directory can still be in use, causing the deletion to fail intermittently in CI.
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     /**
@@ -771,7 +782,7 @@ class ReconnectControllerTest {
     @Test
     @DisplayName("Controller gracefully stops when interrupted during operations after stop()")
     void controllerGracefullyStopsWhenStopReconnectLoopIsCalledAndThreadIsInterrupted() {
-        final AtomicReference<?> systemExitCalled = new AtomicReference<>();
+        final AtomicReference<Boolean> systemExitCalled = new AtomicReference<>(false);
 
         final ReconnectController controller = createController();
 
@@ -788,12 +799,13 @@ class ReconnectControllerTest {
                 .waitForFinish(LONG_TIMEOUT);
 
         // Wait for system exit to be called
-        assertNull(
-                systemExitCalled.get(),
+        assertEventuallyTrue(
+                () -> !systemExitCalled.get(),
+                LONG_TIMEOUT,
                 "SystemExitUtils.exitSystem should not have been called on expected InterruptedException");
 
         // Verify the thread finished correctly
-        assertFalse(scenario.isControllerAlive());
+        assertEventuallyTrue(() -> !scenario.isControllerAlive(), LONG_TIMEOUT, "Controller should have been stopped");
     }
 
     private static void sleep(long millis) {

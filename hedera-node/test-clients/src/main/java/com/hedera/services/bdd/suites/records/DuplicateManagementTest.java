@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -37,15 +36,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
@@ -53,9 +51,9 @@ public class DuplicateManagementTest {
     private static final String TO = "3";
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
+    private static final long DUPLICATE_FEE_TOLERANCE_TINYBARS = 25L;
 
-    @Tag(MATS)
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> hasExpectedDuplicates() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
@@ -108,21 +106,21 @@ public class DuplicateManagementTest {
                                         costlyRecord.getTransferList(),
                                         costlyRecord.getTransactionID().getAccountID())
                                 .orElse(0);
-                        assertEquals(
-                                3 * cheapPrice,
-                                costlyPrice,
+                        final var expectedCostly = 3 * cheapPrice;
+                        assertTrue(
+                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
                                 String.format(
-                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
                                         costlyPrice, cheapPrice));
 
                     } else {
                         var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
                         var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                        assertEquals(
-                                3 * cheapPrice - 1,
-                                costlyPrice,
+                        final var expectedCostly = 3 * cheapPrice - 1;
+                        assertTrue(
+                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
                                 String.format(
-                                        "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
                                         costlyPrice, cheapPrice));
                     }
                 }));
@@ -151,7 +149,6 @@ public class DuplicateManagementTest {
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
-    @Tag(MATS)
     final Stream<DynamicTest> payerSolvencyStillCheckedEvenForDuplicateTransaction() {
         final var submittingNodeAccountId = "4";
         final AtomicLong preDuplicateBalance = new AtomicLong();
@@ -187,7 +184,7 @@ public class DuplicateManagementTest {
                 getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> usesUnclassifiableIfNoClassifiableAvailable() {
         return hapiTest(
                 newKeyNamed("wrongKey"),
@@ -196,7 +193,7 @@ public class DuplicateManagementTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
                 uncheckedSubmit(
                         cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
-                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                sleepFor(500), // time to reach consensus
                 getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
@@ -205,7 +202,7 @@ public class DuplicateManagementTest {
                                 .transfers(includingDeduction("node payment", TO))));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),

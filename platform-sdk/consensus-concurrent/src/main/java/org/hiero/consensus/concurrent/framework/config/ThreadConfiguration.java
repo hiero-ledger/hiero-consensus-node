@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.framework.config;
 
 import java.util.concurrent.ThreadFactory;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.framework.internal.AbstractThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**

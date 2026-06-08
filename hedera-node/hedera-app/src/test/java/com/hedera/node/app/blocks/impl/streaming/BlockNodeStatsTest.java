@@ -119,4 +119,63 @@ class BlockNodeStatsTest {
         assertThat(res.consecutiveHighLatencyEvents()).isGreaterThanOrEqualTo(0);
         assertThat(res.shouldSwitch()).isFalse();
     }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_firstMessageInNewWindow() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message in new window (queue is empty) should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue (simulating what happens after ignore check in real code)
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_afterIgnorePeriodExpires() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Message after 5 seconds (ignore period expired) - should NOT be ignored, starts new period
+        // Note: The queue still has the first timestamp so it's not a new window
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(6), ignorePeriod, timeFrame))
+                .isFalse();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_newWindowResetsIgnorePeriod() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period - should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+
+        // Third message in new window (after timeframe expires, queue empty due to pruning) - should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(35), ignorePeriod, timeFrame))
+                .isFalse();
+    }
 }

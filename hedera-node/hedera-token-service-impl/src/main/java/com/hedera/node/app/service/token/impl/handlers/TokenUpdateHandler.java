@@ -229,6 +229,9 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
 
     /**
      * Change the ownership of the NFTs from old treasury to new treasury.
+     * If you approve a spender for a treasury-owned NFT, this approval exists **independent of the exact treasury account**.
+     * That is, if Alice has approval to spend a treasury-owned serial #123 of non-fungible token type 0.0.N, she does not lose that approval just because the 0.0.N admin updates the token treasury.
+     * The approval lasts until it is explicitly removed using the active treasury key.
      * NOTE: This updates account's numOwnedNfts and tokenRelation's balance and puts to modifications on state.
      *
      * @param fromTreasuryRel old treasury relationship
@@ -258,8 +261,9 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         // Update the number of positive balances and number of owned NFTs for old and new treasuries
         final var newFromPositiveBalancesCount =
                 fromRelBalance > 0 ? fromTreasury.numberPositiveBalances() - 1 : fromTreasury.numberPositiveBalances();
-        final var newToPositiveBalancesCount =
-                toRelBalance > 0 ? toTreasury.numberPositiveBalances() + 1 : toTreasury.numberPositiveBalances();
+        final var newToPositiveBalancesCount = toRelBalance == 0 && fromRelBalance > 0
+                ? toTreasury.numberPositiveBalances() + 1
+                : toTreasury.numberPositiveBalances();
         accountStore.put(fromTreasuryCopy
                 .numberPositiveBalances(newFromPositiveBalancesCount)
                 .numberOwnedNfts(fromNftsOwned - fromRelBalance)

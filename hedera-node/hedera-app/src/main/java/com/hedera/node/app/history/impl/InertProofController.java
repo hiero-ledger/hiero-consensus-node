@@ -55,10 +55,12 @@ public class InertProofController implements ProofController {
             final long nodeId,
             @NonNull final HistoryProofVote vote,
             @NonNull final Instant now,
-            @NonNull final WritableHistoryStore historyStore) {
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(vote);
         requireNonNull(now);
         requireNonNull(historyStore);
+        requireNonNull(tssConfig);
         // No-op
     }
 

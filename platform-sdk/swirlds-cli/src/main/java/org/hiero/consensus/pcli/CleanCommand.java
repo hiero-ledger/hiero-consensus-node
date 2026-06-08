@@ -3,8 +3,6 @@ package org.hiero.consensus.pcli;
 
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -12,7 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.PathsConfig;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -62,8 +62,8 @@ public final class CleanCommand extends AbstractCommand {
         // saved states, PCES & recycle bin
         // (the latter two are saved in the saved state directory, so deleting the saved state directory will delete
         // them)
-        FileUtils.deleteDirectory(sdkPath.resolve(
-                configuration.getConfigData(StateCommonConfig.class).savedStateDirectory()));
+        FileUtils.deleteDirectory(
+                sdkPath.resolve(configuration.getConfigData(PathsConfig.class).savedStateDir()));
         // event streams
         FileUtils.deleteDirectory(
                 sdkPath.resolve(configuration.getConfigData(EventConfig.class).eventsLogDir()));

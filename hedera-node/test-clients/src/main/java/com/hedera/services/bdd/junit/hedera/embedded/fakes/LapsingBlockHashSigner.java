@@ -30,6 +30,10 @@ public class LapsingBlockHashSigner implements BlockHashSigner {
         this.delegate = new TssBlockHashSigner(hintsService, historyService, configProvider);
     }
 
+    public LapsingBlockHashSigner(@NonNull final BlockHashSigner delegate) {
+        this.delegate = requireNonNull(delegate);
+    }
+
     /**
      * When called, will start ignoring any requests for ledger signatures.
      */
@@ -50,7 +54,12 @@ public class LapsingBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public Attempt sign(@NonNull final Bytes blockHash) {
-        return ignoreRequests ? new Attempt(null, null, new CompletableFuture<>()) : delegate.sign(blockHash);
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
+    public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
+        return ignoreRequests ? new Attempt(null, null, new CompletableFuture<>()) : delegate.sign(blockHash, request);
     }
 }

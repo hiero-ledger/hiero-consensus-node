@@ -19,21 +19,24 @@ tasks.withType<JavaCompile>().configureEach {
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("jmh.core")
+    requires("org.hiero.base.utility")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.reconnect")
     requires("org.junit.jupiter.api")
 }
 
 testModuleInfo {
+    requires("com.swirlds.merkledb")
+    requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")

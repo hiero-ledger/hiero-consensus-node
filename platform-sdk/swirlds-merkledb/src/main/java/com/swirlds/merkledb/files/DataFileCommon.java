@@ -77,9 +77,9 @@ public final class DataFileCommon {
     public static final int PAGE_SIZE = 4096;
 
     // Data file protobuf fields
-    static final FieldDefinition FIELD_DATAFILE_METADATA =
+    public static final FieldDefinition FIELD_DATAFILE_METADATA =
             new FieldDefinition("metadata", FieldType.MESSAGE, false, false, false, 1);
-    static final FieldDefinition FIELD_DATAFILE_ITEMS =
+    public static final FieldDefinition FIELD_DATAFILE_ITEMS =
             new FieldDefinition("items", FieldType.MESSAGE, true, true, false, 11);
 
     private DataFileCommon() {
@@ -94,6 +94,8 @@ public final class DataFileCommon {
      * @param dataFileDir the files parent directory
      * @param index the file index
      * @param creationInstant the date and time the file was created
+     * @param compactionLevel the compaction level of the file
+     * @param extension the file extension to use, usually ".pbj"
      * @return path to file
      */
     static Path createDataFilePath(
@@ -101,10 +103,13 @@ public final class DataFileCommon {
             final Path dataFileDir,
             final int index,
             final Instant creationInstant,
+            final int compactionLevel,
             final String extension) {
         return dataFileDir.resolve(filePrefix
                 + "_"
                 + DATE_FORMAT.format(creationInstant)
+                + "_L"
+                + compactionLevel
                 + "_"
                 + ALIGNED_RIGHT.pad(Integer.toString(index), '_', PRINTED_INDEX_FIELD_WIDTH, false)
                 + extension);
@@ -251,7 +256,7 @@ public final class DataFileCommon {
     }
 
     /**
-     * Get total size fo a collection of files.
+     * Get total size for a collection of files.
      *
      * @param fileReaders collection of paths to files
      * @return total number of bytes take for all the files in fileReaders
@@ -301,17 +306,27 @@ public final class DataFileCommon {
         return (double) Math.round(d * ROUNDING_SCALE_FACTOR) / ROUNDING_SCALE_FACTOR;
     }
 
+    /**
+     * Log compact stats.
+     * @param storeName the name of the store
+     * @param tookMillis time taken to compact
+     * @param filesToMerge the files to merge
+     * @param filesToMergeSize the size of the files to merge
+     * @param mergedFiles the files that were merged
+     * @param targetCompactionLevel the target compaction level
+     * @param fileCollection the collection of data files
+     * @param totalCompactedBytes the total number of bytes compacted
+     */
     public static void logCompactStats(
             final String storeName,
             final double tookMillis,
             final Collection<? extends DataFileReader> filesToMerge,
             final long filesToMergeSize,
             final List<Path> mergedFiles,
-            int targetCompactionLevel,
-            final DataFileCollection fileCollection)
-            throws IOException {
+            final int targetCompactionLevel,
+            final DataFileCollection fileCollection,
+            final long totalCompactedBytes) {
         final long mergedFilesCount = mergedFiles.size();
-        final long mergedFilesSize = getSizeOfFilesByPath(mergedFiles);
         final double tookSeconds = tookMillis / 1000;
         String levelsCompacted = filesToMerge.stream()
                 .map(v -> v.getMetadata().getCompactionLevel())
@@ -336,23 +351,22 @@ public final class DataFileCommon {
                                 effectively read at {} effectively written at {},
                                 compactedFiles[{}] = {},
                                 filesToMerge[{}] = {}
-                                allFilesAfter[{}] = {}""",
+                                allFilesAfter[{}]""",
                 storeName,
                 filesToMerge.size(),
                 formatSizeBytes(filesToMergeSize),
                 levelsCompacted,
                 mergedFilesCount,
                 targetCompactionLevel,
-                formatSizeBytes(mergedFilesSize),
+                formatSizeBytes(totalCompactedBytes),
                 tookSeconds,
                 formatSizeBytes((long) (filesToMergeSize / tookSeconds)) + "/sec",
-                formatSizeBytes((long) (mergedFilesSize / tookSeconds)) + "/sec",
+                formatSizeBytes((long) (totalCompactedBytes / tookSeconds)) + "/sec",
                 mergedFilesCount,
                 Arrays.toString(mergedFiles.stream().map(Path::getFileName).toArray()),
                 fileToMergeIndexes.length,
                 Arrays.toString(fileToMergeIndexes),
-                allFileIndexes.length,
-                Arrays.toString(allFileIndexes));
+                allFileIndexes.length);
     }
 
     /**

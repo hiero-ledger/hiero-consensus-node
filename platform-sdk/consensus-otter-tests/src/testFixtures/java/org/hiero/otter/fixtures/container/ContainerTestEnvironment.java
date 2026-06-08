@@ -4,11 +4,10 @@ package org.hiero.otter.fixtures.container;
 import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
+import static org.hiero.otter.fixtures.util.EnvironmentUtils.prepareOutputDirectory;
 
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.EnumSet;
@@ -50,42 +49,42 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * Constructor with default values for using random node-ids and default directory for container logs.
      */
     public ContainerTestEnvironment() {
-        this(true, getDefaultOutputDirectory(ENV_NAME), true);
+        this(true, getDefaultOutputDirectory(ENV_NAME), true, false, List.of());
     }
 
     /**
-     * Constructor for the {@link ContainerTestEnvironment} class.
-     *
-     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
-     */
-    public ContainerTestEnvironment(final boolean useRandomNodeIds) {
-        this(useRandomNodeIds, getDefaultOutputDirectory(ENV_NAME), true);
-    }
-
-    /**
-     * Constructor for the {@link ContainerTestEnvironment} class with custom output directory.
+     * Constructor for the {@link ContainerTestEnvironment} class with full configuration.
      *
      * @param useRandomNodeIds    {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      * @param rootOutputDirectory the root directory where container logs will be written per test
      * @param proxyEnabled        {@code true} if the toxiproxy should be enabled; {@code false} otherwise
+     * @param gcLoggingEnabled    {@code true} if GC logging should be enabled for all node processes; {@code false} otherwise
+     * @param jvmArgs             additional JVM arguments to pass to all node processes
      */
     public ContainerTestEnvironment(
-            final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory, final boolean proxyEnabled) {
+            final boolean useRandomNodeIds,
+            @NonNull final Path rootOutputDirectory,
+            final boolean proxyEnabled,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         ContainerLogConfigBuilder.configure();
 
         this.rootOutputDirectory = rootOutputDirectory;
 
         try {
-            if (Files.exists(rootOutputDirectory)) {
-                FileUtils.deleteDirectory(rootOutputDirectory);
-            }
-            Files.createDirectories(rootOutputDirectory);
+            prepareOutputDirectory(rootOutputDirectory);
         } catch (final IOException ex) {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
         network = new ContainerNetwork(
-                timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds, proxyEnabled);
+                timeManager,
+                transactionGenerator,
+                rootOutputDirectory,
+                useRandomNodeIds,
+                proxyEnabled,
+                gcLoggingEnabled,
+                jvmArgs);
     }
 
     /**

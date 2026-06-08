@@ -8,7 +8,8 @@
 4. [Component Interaction](#component-interaction)
 5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
-7. [Error Handling](#error-handling)
+7. [gRPC Metadata Correlation IDs](#grpc-metadata-correlation-ids)
+8. [Error Handling](#error-handling)
    - [Consensus Node Behavior on EndOfStream Response Codes](#consensus-node-behavior-on-endofstream-response-codes)
    - [Consensus Node Behavior on BehindPublisher Response](#consensus-node-behavior-on-behindpublisher-response)
    - [EndOfStream Rate Limiting](#endofstream-rate-limiting)
@@ -26,7 +27,7 @@ It manages connection state, handles communication, and reports errors to the `B
 <dd>A connection instance managing communication and state with a block node.</dd>
 
 <dt>ConnectionState</dt>
-<dd>Represents current connection status: UNINITIALIZED, PENDING, ACTIVE, CLOSING, CLOSED.</dd>
+<dd>Represents current connection status: UNINITIALIZED, READY, ACTIVE, CLOSING, CLOSED.</dd>
 </dl>
 
 ## Component Responsibilities
@@ -55,8 +56,8 @@ created, but the underlying gRPC connection between the consensus node and the b
 the connection was created, optionally a specific block number to begin streaming with can be passed in. If one is not
 specified, then the connection will pick a block based on the state of the block buffer.
 
-The next transitional state is `PENDING`. When the underlying gRPC connection is established (by invoking
-`#createRequestPipeline`) the state will transition to `PENDING` indicating that the connection was successfully created.
+The next transitional state is `READY`. When the underlying gRPC connection is established (by invoking
+`#createRequestPipeline`) the state will transition to `READY` indicating that the connection was successfully created.
 No traffic is occurring over the connection in this state, merely this state indicates that the connection is _ready_ to
 start handling traffic.
 
@@ -119,18 +120,65 @@ the large item will be sent in its own request. The absolute maximum size a requ
 limit message size. If an item (or serialized request) exceeds this hard limit, then the consensus node cannot send
 the item/request to the block node.
 
-It is **strongly** recommended that the hard limit be set to `6292480`. This size is 6 MB + 1 KB. The
-largest block items currently supported are 6 MB, and the additional 1 KB is for overhead. If the hard limit is set to
-smaller than 6 MB and one of these large items are produced, then it cannot be sent to a block node.
+The default soft limit size is 2 MB. The default hard limit size is 125 MB. If an item is handled by the consensus node
+that exceeds the hard limit - whether the default or custom configuration - then the item will not be sent to the block
+node. This will effectively prevent the block from being sent and will halt sending additional blocks (we can't send the
+block so it will never get acknowledged.) If this happens, the connection to the block node will be closed after the
+consensus node sends an EndStream(ERROR) message. On the consensus node side, the connection will have a close reason of
+`INTERNAL_ERROR`.
 
-The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
+## gRPC Metadata Correlation IDs
+
+To support traceability between CN and BN logs, CN sends a correlation ID in gRPC metadata.
+
+- Header name: `hiero-correlation-id`
+- Applied on both streaming and service gRPC clients
+
+### Correlation ID format
+
+Connection-level IDs:
+
+- `N#-STR#` for block streaming connections
+- `N#-SVC#` for block node service/status connections
+
+Where:
+
+- `N#` is the consensus node **node ID** (`NodeInfo.nodeId()`)
+- `STR#` and `SVC#` are monotonically increasing connection sequence numbers per type
+
+Block request IDs (streaming requests only):
+
+- `N#-STR#-BLK#-REQ#`
+
+Where:
+
+- `BLK#` is the block number being sent
+- `REQ#` is the request number within that block
+
+### Logging format
+
+For block streaming request sends, logs include the full block request correlation ID in the connection context:
+
+`[N3-STR1-BLK0-REQ2/localhost:37753/ACTIVE] Sending request to block node (type=BLOCK_ITEMS)`
+
+For non-block-specific operations (e.g. service/status calls), logs use the connection-level ID:
+
+`[N3-SVC1/localhost:37753/ACTIVE] ...`
+
+### Notes
+
+- The metadata value is attached via PBJ `RequestOptions.metadata()`.
+- For service/status requests, metadata uses the connection-level ID (`N#-SVC#`) without `REQ#`.
+- For streaming block-item sends, logs carry `BLK#` and `REQ#` to make searching for a specific block/request straightforward.
 
 ### Graceful Connection Close
 
 When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
 aspects to this "graceful close":
 1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
-will be made to send an EndStream request to the block with the code `RESET`.
+will be made to send an EndStream request to the block with the code `RESET`. If a different EndStream code has already
+been sent or the block node sent the consensus node its own EndStream message, then this final EndStream(RESET) message
+will NOT be sent upon close.
 2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
 before closing the connection.
 
@@ -220,33 +268,15 @@ sequenceDiagram
     Connection-->>Manager: reportError(error)
 ```
 
-### Consensus Node Behavior on EndOfStream Response Codes
-
-| Code                 | Connect to Other Node | Retry Behavior      | Initial Retry Delay | Exponential Backoff | Restart at Block | Special Behaviour |
-|:---------------------|:----------------------|:--------------------|:--------------------|:--------------------|:-----------------|:------------------|
-| `SUCCESS`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `ERROR`              | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `PERSISTENCE_FAILED` | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `TIMEOUT`            | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `DUPLICATE_BLOCK`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `BAD_BLOCK_PROOF`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `INVALID_REQUEST`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `UNKNOWN`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-
-**Notes:**
-- **Exponential Backoff**: When enabled, delay starts at 1 second and doubles (2x multiplier) on each retry attempt with jitter applied (delay/2 + random(0, delay/2)) to spread out retry attempts. Max backoff is configurable via `maxBackoffDelay`.
-- **Connect to Other Node**: When "Yes (immediate)", the manager will immediately attempt to connect to the next available priority node while the failed node is rescheduled for retry.
-- **Restart at Block**: "Latest" means reconnection starts at the latest produced block; "blockNumber + 1" means reconnection continues from the block following the acknowledged block.
-
 ### Consensus Node Behavior on BehindPublisher Response
 
 The `BehindPublisher` response indicates that the block node is behind the publisher (consensus node) and needs earlier blocks. This is a separate response type from `EndOfStream`, and crucially **does not close the stream** when the consensus node can help.
 
-| Condition                            | Connection Behavior  | Stream Closed | Resume at Block | Special Behaviour                                                                             |
-|:-------------------------------------|:---------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
-| Block available in buffer            | Stay connected       | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
-| Block not available (too far behind) | Close and reschedule | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
-| Block not available (future block)   | Close and reschedule | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
+| Condition                            | Connection Behavior | Stream Closed | Resume at Block | Special Behaviour                                                                             |
+|:-------------------------------------|:--------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
+| Block available in buffer            | Stay connected      | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
+| Block not available (too far behind) | Close               | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
+| Block not available (future block)   | Close               | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
 
 **Key Behavioral Notes:**
 - If the consensus node has the requested block in its buffer, it simply updates the streaming block and continues on the same connection.
@@ -264,9 +294,6 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 
 <dt>blockNode.endOfStreamTimeFrame</dt>
 <dd>The duration of the sliding window in which EndOfStream responses are counted.</dd>
-
-<dt>blockNode.endOfStreamScheduleDelay</dt>
-<dd>The delay duration before attempting reconnection when the rate limit is exceeded.</dd>
 
 <dt>blockNode.connectionWorkerSleepDuration</dt>
 <dd>The amount of time the connection worker thread will sleep between attempts to send block items to the block node.</dd>
@@ -291,12 +318,10 @@ Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are pote
   - The timeout metric is incremented
   - A `RuntimeException` is thrown with the underlying `TimeoutException`
   - The connection remains in UNINITIALIZED state
-  - The connection manager's error handling will schedule a retry with exponential backoff
 - **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to the connection's dedicated executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
   - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
   - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
-  - The connection follows standard failure handling with exponential backoff retry
   - The connection manager will select a different block node for the next attempt if one is available
   - `TimeoutException` is caught and handled internally
 - **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to the same dedicated executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:

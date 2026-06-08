@@ -2,10 +2,12 @@
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPendingCreationMetadata;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasBytecodeSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
@@ -13,16 +15,17 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -37,7 +40,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * to the {@link HederaWorldUpdater#tryTransfer(Address, Address, long, boolean)}
  * dispatch method.
  */
-public class CustomContractCreationProcessor extends ContractCreationProcessor {
+public class CustomContractCreationProcessor extends PublicContractCreationProcessor {
     // By convention, the halt reason should be INSUFFICIENT_GAS when the contract already exists
     private static final Optional<ExceptionalHaltReason> COLLISION_HALT_REASON =
             Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS);
@@ -53,7 +56,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
      * @param initialContractNonce the initial contract nonce to use for the creation
      */
     public CustomContractCreationProcessor(
-            @NonNull final EVM evm,
+            @NonNull final HEVM evm,
             final boolean requireCodeDepositToSucceed,
             @NonNull final List<ContractValidationRule> contractValidationRules,
             final long initialContractNonce) {
@@ -121,20 +124,27 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
             final var initcode = pendingCreationMetadata.needsInitcodeExternalized()
                     ? tuweniToPbjBytes(frame.getCode().getBytes())
                     : null;
-            // (FUTURE) Remove this sidecar if/else after switching to block stream
-            if (validationRuleFailed) {
-                if (initcode != null) {
-                    final var sidecar =
-                            ContractBytecode.newBuilder().initcode(initcode).build();
-                    pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
+
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support addContractBytecode.
+            final var streamMode =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
+
+            if (streamMode != BLOCKS) {
+                if (validationRuleFailed) {
+                    if (initcode != null) {
+                        final var sidecar =
+                                ContractBytecode.newBuilder().initcode(initcode).build();
+                        pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
+                    }
+                } else {
+                    final var sidecar = ContractBytecode.newBuilder()
+                            .contractId(recipientId)
+                            .runtimeBytecode(bytecode);
+                    if (initcode != null) {
+                        sidecar.initcode(initcode);
+                    }
+                    pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar.build(), false);
                 }
-            } else {
-                final var sidecar =
-                        ContractBytecode.newBuilder().contractId(recipientId).runtimeBytecode(bytecode);
-                if (initcode != null) {
-                    sidecar.initcode(initcode);
-                }
-                pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar.build(), false);
             }
             // Below is a no-op for the RecordStreamBuilder
             if (!validationRuleFailed && initcode != null) {

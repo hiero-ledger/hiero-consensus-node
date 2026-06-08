@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -208,7 +207,6 @@ class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
 
         @HapiTest
         @DisplayName("to reach the limit of 10 custom fees")
-        @Tag(MATS)
         final Stream<DynamicTest> updateCustomFeesToReachTheLimit() {
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -602,7 +600,6 @@ class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName(
                 "fee schedule key and custom fee - should sign with admin_key, old fee schedule key and new fee schedule key")
-        @Tag(MATS)
         final Stream<DynamicTest> updateFeeScheduleKeyAndCustomFeeSignWithAdminAndTwoFeeScheduleKeys() {
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

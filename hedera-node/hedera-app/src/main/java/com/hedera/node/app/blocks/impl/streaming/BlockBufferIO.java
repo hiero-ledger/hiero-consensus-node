@@ -58,13 +58,16 @@ public class BlockBufferIO {
     }
 
     /**
-     * Write the specified blocks to disk.
+     * Write the specified blocks to disk. Synchronized to prevent concurrent writes from racing —
+     * each write creates a new directory and cleans up old ones, so concurrent writes can delete
+     * each other's output.
      *
      * @param blocks the blocks to write to disk
      * @param latestAcknowledgedBlockNumber the latest block number acknowledged
      * @throws IOException if there is an error writing the block data to disk
      */
-    public void write(final List<BlockState> blocks, final long latestAcknowledgedBlockNumber) throws IOException {
+    public synchronized void write(final List<BlockState> blocks, final long latestAcknowledgedBlockNumber)
+            throws IOException {
         new Writer(blocks, latestAcknowledgedBlockNumber).write();
     }
 
@@ -152,7 +155,7 @@ public class BlockBufferIO {
                             file.getAbsolutePath());
                     blocks.add(bufferedBlock);
                 } catch (final Exception e) {
-                    logger.error("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
+                    logger.error("Failed to read block file; ignoring block (file: {})", file.getAbsolutePath(), e);
                 }
             }
 

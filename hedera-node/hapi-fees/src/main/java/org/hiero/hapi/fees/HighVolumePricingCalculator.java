@@ -20,6 +20,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
@@ -144,7 +145,11 @@ public final class HighVolumePricingCalculator {
      */
     public static long interpolatePiecewiseLinear(
             @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
-        final List<PiecewiseLinearPoint> points = curve.points();
+        // Sort ascending so the bracketing-point search below works correctly regardless of the
+        // order in which points are defined in the fee schedule configuration.
+        final List<PiecewiseLinearPoint> points = curve.points().stream()
+                .sorted(Comparator.comparingInt(PiecewiseLinearPoint::utilizationBasisPoints))
+                .toList();
         // If there is only one point, return that point's multiplier
         if (points.size() == 1) {
             return normalizeMultiplier(points.getFirst().multiplier());

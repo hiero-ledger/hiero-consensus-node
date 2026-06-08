@@ -6,7 +6,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -32,17 +31,18 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedBlockItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
-import static com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
@@ -88,7 +88,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.security.KeyStoreException;
@@ -104,10 +103,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Order;
 
 /**
  * Asserts the synthetic file creations stipulated by HIP-993 match the file contents returned by the gRPC
@@ -115,6 +115,8 @@ import org.junit.jupiter.api.Tag;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
+// Run just before stream validation to avoid state pollution
+@Order(Integer.MAX_VALUE - 1)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
@@ -125,11 +127,11 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         nodeDetailsExportValidator(grpcCertHashes, gossipCertificates),
                         1,
                         sysFileUpdateTo("files.nodeDetails"))),
-                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
+                streamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
@@ -154,7 +156,7 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         addressBookExportValidator("files.addressBook", grpcCertHashes), 2, TxnUtils::isSysFileUpdate)),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
@@ -180,7 +182,7 @@ public class SystemFileExportsTest {
         final var upgradeFeeSchedules =
                 CurrentAndNextFeeSchedule.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.feeSchedules", upgradeFeeSchedules, SystemFileExportsTest::parseFeeSchedule),
                         3,
@@ -219,7 +221,7 @@ public class SystemFileExportsTest {
         final var upgradeThrottleDefs =
                 ThrottleDefinitions.parseFrom(SYS_FILE_SERDES.get(123L).toRawFile(throttlesJson, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.throttleDefinitions",
                                 upgradeThrottleDefs,
@@ -255,7 +257,7 @@ public class SystemFileExportsTest {
         final var upgradePropOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(121L).toRawFile(overrideProperties, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
                                 upgradePropOverrides,
@@ -288,7 +290,7 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateCanBeEmptyFile() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
                                 ServicesConfigurationList.getDefaultInstance(),
@@ -324,7 +326,7 @@ public class SystemFileExportsTest {
         final var upgradePermissionOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(122L).toRawFile(overridePermissions, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.hapiPermissions",
                                 upgradePermissionOverrides,
@@ -357,10 +359,9 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         nodeUpdatesValidator(),
                         // Our node admin key file will contain two override keys
                         2,
@@ -408,18 +409,19 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
-                eventuallyAssertingExplicitPassWithReplay(
-                        selectedItems(
+                getSystemFiles(preGenesisContents::set),
+                // Replay existing block files so we can still see synthetic file creations
+                // emitted at network startup, before this assertion subscribed.
+                streamMustIncludePassWithReplayFrom(
+                        selectedBlockItems(
                                 validatorFor(preGenesisContents),
                                 19,
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
-                getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number
                 withOpContext((spec, opLog) -> assertEquals(
@@ -628,7 +630,7 @@ public class SystemFileExportsTest {
         final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
 
         try {
-            final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
+            final var keysAndCerts = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
             return nodeIds.stream()
                     .collect(
                             toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));

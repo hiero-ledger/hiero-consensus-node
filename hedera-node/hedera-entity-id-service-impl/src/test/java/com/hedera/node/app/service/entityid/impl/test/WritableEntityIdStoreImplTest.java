@@ -5,10 +5,13 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -23,26 +26,39 @@ class WritableEntityIdStoreImplTest {
 
     private final AtomicReference<EntityNumber> nextEntityNumber = new AtomicReference<>();
     private final AtomicReference<EntityCounts> entityCounts = new AtomicReference<>();
+    private final AtomicReference<NodeId> nextHighestNodeId = new AtomicReference<>();
     private final WritableSingletonState<EntityNumber> entityIdState = new FunctionWritableSingletonState<>(
             ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, nextEntityNumber::get, nextEntityNumber::set);
     private final WritableSingletonState<EntityCounts> entityCountsState = new FunctionWritableSingletonState<>(
             ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, entityCounts::get, entityCounts::set);
+    private final WritableSingletonState<NodeId> highestNodeIdState = new FunctionWritableSingletonState<>(
+            HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, nextHighestNodeId::get, nextHighestNodeId::set);
     private WritableEntityIdStoreImpl subject;
 
     @BeforeEach
     void setup() {
         nextEntityNumber.set(EntityNumber.DEFAULT);
         entityCounts.set(EntityCounts.newBuilder().numAccounts(10L).build());
-        final var writableStates = new MapWritableStates(
-                Map.of(ENTITY_ID_STATE_ID, entityIdState, ENTITY_COUNTS_STATE_ID, entityCountsState));
+        final var writableStates = new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_ID,
+                entityIdState,
+                ENTITY_COUNTS_STATE_ID,
+                entityCountsState,
+                HIGHEST_NODE_ID_STATE_ID,
+                highestNodeIdState));
         subject = new WritableEntityIdStoreImpl(writableStates);
     }
 
     @Test
     void peeksAndIncrementsAsExpected() {
         assertEquals(1, subject.peekAtNextNumber());
-        subject.incrementAndGet();
+        subject.incrementEntityNumAndGet();
         assertEquals(2, subject.peekAtNextNumber());
+
+        // peeks and increments node ids (starts from 0)
+        assertEquals(0, subject.peekAtNextNodeId());
+        subject.incrementHighestNodeIdAndGet();
+        assertEquals(1, subject.peekAtNextNodeId());
     }
 
     @Test

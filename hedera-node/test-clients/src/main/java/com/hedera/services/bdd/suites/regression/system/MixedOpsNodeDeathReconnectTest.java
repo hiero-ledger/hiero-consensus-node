@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.TestTags.ND_RECONNECT;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -24,29 +25,29 @@ import org.junit.jupiter.api.Tag;
 @Tag(ND_RECONNECT)
 public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
 
+    /** Subprocess node id 2 — classic operator account 0.0.5 ({@code setNode("5")}). */
+    private static final long RECONNECT_NODE_ID = 2L;
+
     @HapiTest
     final Stream<DynamicTest> reconnectMixedOps() {
         return defaultHapiSpec("RestartMixedOps")
                 .given(
-                        // Validate we can initially submit transactions to node2
+                        // Validate we can initially submit transactions to 0.0.5 (node id 2)
                         cryptoCreate("nobody").setNode("5"),
                         // Run some mixed transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // Stop node 2
-                        FakeNmt.shutdownWithin("Carol", SHUTDOWN_TIMEOUT),
-                        logIt("Node 2 is supposedly down"),
+                        FakeNmt.shutdownWithin(byNodeId(RECONNECT_NODE_ID), SHUTDOWN_TIMEOUT),
+                        logIt("Node id " + RECONNECT_NODE_ID + " is supposedly down"),
                         sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()))
                 .when(
-                        // Submit operations when node 2 is down
+                        // Submit operations while that node is down
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // Restart node2
-                        FakeNmt.restartNode("Carol"),
-                        // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
-                        waitForActive("Carol", RESTART_TO_ACTIVE_TIMEOUT))
+                        FakeNmt.restartNode(byNodeId(RECONNECT_NODE_ID)),
+                        // ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
+                        waitForActive(byNodeId(RECONNECT_NODE_ID), RESTART_TO_ACTIVE_TIMEOUT))
                 .then(
                         // Run some more transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // And validate we can still submit transactions to node2
                         cryptoCreate("somebody").setNode("5"));
     }
 }

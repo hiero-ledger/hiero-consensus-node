@@ -47,6 +47,8 @@ import org.junit.jupiter.api.DynamicTest;
  *     <li>Accounts with {@link com.hedera.hapi.node.state.token.Account#receiverSigRequired()} true.</li>
  * </ol>
  */
+// tokens.airdrops.enabled and entities.unlimitedAutoAssociationsEnabled are true by default so it is safe to run this
+// concurrently
 @DisplayName("airdrops")
 @HapiTestLifecycle
 public class AirdropSigReqsTest {

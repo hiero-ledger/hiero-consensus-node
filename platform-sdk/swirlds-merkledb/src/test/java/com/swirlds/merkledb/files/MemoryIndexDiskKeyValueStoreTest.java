@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
@@ -32,7 +31,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 class MemoryIndexDiskKeyValueStoreTest {
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     Path testDirectory;
 
@@ -126,8 +124,8 @@ class MemoryIndexDiskKeyValueStoreTest {
             store.put(
                     i,
                     o -> {
-                        for (int k = 0; k < dataValue.length; k++) {
-                            o.writeLong(dataValue[k]);
+                        for (long l : dataValue) {
+                            o.writeLong(l);
                         }
                     },
                     dataValue.length * Long.BYTES);
@@ -156,40 +154,26 @@ class MemoryIndexDiskKeyValueStoreTest {
         future.get(10, TimeUnit.MINUTES);
         executorService.shutdown();
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     void createDataAndCheckImpl(final FilesTestType testType) throws Exception {
         // let's store hashes as easy test class
         final Path tempDir = testDirectory.resolve("DataFileTest");
-        final LongListOffHeap index = new LongListOffHeap(1024, 1_000_000, 256);
+        final LongListSegment index = new LongListSegment(1024, 1_000_000, 256);
         final AtomicLong timeSpent = new AtomicLong(0);
         final AtomicReference<Double> savedSpace = new AtomicReference<>(0.0);
         final String storeName = "MemoryIndexDiskKeyValueStoreTest";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MemoryIndexDiskKeyValueStore store =
                 new MemoryIndexDiskKeyValueStore(dbConfig, tempDir, storeName, null, null, index);
-        final DataFileCompactor dataFileCompactor =
-                new DataFileCompactor(
-                        dbConfig,
-                        storeName,
-                        store.fileCollection,
-                        index,
-                        (type, time) -> timeSpent.set(time),
-                        (type, space) -> savedSpace.set(space),
-                        null,
-                        null) {
-                    @Override
-                    int getMinNumberOfFilesToCompact() {
-                        return 1;
-                    }
-                };
+        final DataFileCompactor dataFileCompactor = new DataFileCompactor(
+                store.fileCollection,
+                index,
+                (type, time) -> timeSpent.set(time),
+                (type, space) -> savedSpace.set(space),
+                null,
+                null);
         // write some batches of data, then check all the contents, we should end up with 3 files
         writeBatch(testType, store, 0, 1000, 1000, 1234);
         checkRange(testType, store, 0, 1000, 1234);
@@ -204,7 +188,7 @@ class MemoryIndexDiskKeyValueStoreTest {
         }
         assertEquals(3, filesCount, "unexpected # of files #1");
         // compact all files
-        dataFileCompactor.compact();
+        dataFileCompactor.compactSingleLevel(store.fileCollection.getAllCompletedFiles(), 1);
         // check number of files after merge
         try (Stream<Path> list = Files.list(tempDir)) {
             filesCount = (int) list.count();
@@ -234,7 +218,7 @@ class MemoryIndexDiskKeyValueStoreTest {
                 }
             } else {
                 try {
-                    dataFileCompactor.compact();
+                    dataFileCompactor.compactSingleLevel(store.fileCollection.getAllCompletedFiles(), 1);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -296,7 +280,5 @@ class MemoryIndexDiskKeyValueStoreTest {
         // clean up and delete files
         store.close();
         index.close();
-        deleteDirectoryAndContents(tempDir);
-        deleteDirectoryAndContents(tempSnapshotDir);
     }
 }

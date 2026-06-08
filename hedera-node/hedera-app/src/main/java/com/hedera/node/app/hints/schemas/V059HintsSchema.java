@@ -39,9 +39,6 @@ public class V059HintsSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
 
-    private static final long MAX_HINTS = 1L << 10;
-    private static final long MAX_PREPROCESSING_VOTES = 1L << 10;
-
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
     public static final int HINTS_KEY_SETS_STATE_ID =
             StateKey.KeyOneOfType.HINTSSERVICE_I_HINTS_KEY_SETS.protoOrdinal();

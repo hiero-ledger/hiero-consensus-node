@@ -77,7 +77,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.exposeMaxSchedulable;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
@@ -96,6 +95,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -629,10 +629,8 @@ public class RepeatableHip423Tests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS},
             overrides = {
-                "consensus.handle.maxPrecedingRecords",
                 "consensus.handle.maxFollowingRecords",
                 "scheduling.consTimeSeparationNanos",
-                "scheduling.reservedSystemTxnNanos",
             })
     final Stream<DynamicTest> executionPurgesScheduleStateAsWhenRunningOutOfConsensusTimes() {
         final var lastSecond = new AtomicLong();
@@ -641,13 +639,13 @@ public class RepeatableHip423Tests {
         return hapiTest(
                 exposeSpecSecondTo(lastSecond::set),
                 cryptoCreate("luckyYou").balance(0L),
-                // From time T, the first transfer will be at T+3, the second at T+6, and the third at T+9;
-                // so for a T+12 attempt to run out of time, the separating nanos must be no more than 15
+                // The per-txn offset (txnOffsetNanos) is fixed at startup from reservedSystemTxnNanos(100)
+                // + maxPrecedingRecords(3) + 1 = 104. With maxFollowingRecords=1, lastUsableTime = T+325
+                // (consTimeSeparationNanos=430 minus 105). Executions land at T+104, T+208, T+312 — all
+                // within T+325 — but the fourth at T+416 is not, so only three execute in one user txn.
                 overridingAllOf(Map.of(
-                        "consensus.handle.maxPrecedingRecords", "2",
                         "consensus.handle.maxFollowingRecords", "1",
-                        "scheduling.consTimeSeparationNanos", "16",
-                        "scheduling.reservedSystemTxnNanos", "1")),
+                        "scheduling.consTimeSeparationNanos", "430")),
                 // Schedule the four transfers to lucky you
                 sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
                         .waitForExpiry()
@@ -735,9 +733,9 @@ public class RepeatableHip423Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> executionResultsAreStreamedAsExpected() {
         return hapiTest(
-                blockStreamMustIncludePassFrom(scheduledExecutionResult(
+                streamMustIncludePassFrom(scheduledExecutionResult(
                         "one", withStatus(com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS))),
-                blockStreamMustIncludePassFrom(scheduledExecutionResult("two", withStatus(INVALID_SIGNATURE))),
+                streamMustIncludePassFrom(scheduledExecutionResult("two", withStatus(INVALID_SIGNATURE))),
                 cryptoCreate("luckyYou").balance(0L),
                 cryptoCreate("cautiousYou").balance(0L).receiverSigRequired(true),
                 sourcing(
@@ -858,7 +856,7 @@ public class RepeatableHip423Tests {
         final AtomicReference<Bytes> originalFile121 = new AtomicReference<>();
         final var lastSecond = new AtomicLong();
         return hapiTest(
-                blockStreamMustIncludePassFrom(
+                streamMustIncludePassFrom(
                         scheduledExecutionResult("creation", withStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED))),
                 exposeSpecSecondTo(lastSecond::set),
                 getFileContents(APP_PROPERTIES).consumedBy(bytes -> originalFile121.set(Bytes.wrap(bytes))),
@@ -1823,7 +1821,7 @@ public class RepeatableHip423Tests {
     final Stream<DynamicTest> autoCreationHasExpectedNonceAssignments() {
         return hapiTest(
                 // The SavepointStack should still know the scheduled tx is top-level even preceded by auto-creation
-                blockStreamMustIncludePassFrom(scheduledNonceSequence("createTx", List.of(1, 0))),
+                streamMustIncludePassFrom(scheduledNonceSequence("createTx", List.of(1, 0))),
                 newKeyNamed("alias"),
                 cryptoCreate("sender").balance(THOUSAND_HBAR).via("creation"),
                 scheduleCreate("scheduledTx", cryptoTransfer(movingHbar(10L).between("sender", "alias")))
@@ -1842,7 +1840,7 @@ public class RepeatableHip423Tests {
     final Stream<DynamicTest> executeImmediateLinksParentConsTime() {
         return hapiTest(
                 // The SavepointStack should still know the scheduled tx is top-level even preceded by auto-creation
-                blockStreamMustIncludePassFrom(executeImmediateResults("createTx", (scheduling, triggered) -> {
+                streamMustIncludePassFrom(executeImmediateResults("createTx", (scheduling, triggered) -> {
                     final var schedulingConsTime = pbjTimestampToInstant(scheduling.consensusTimestampOrThrow());
                     assertEquals(2, triggered.size(), "Wrong number of triggered records");
                     // The first triggered record is the preceding auto-creation

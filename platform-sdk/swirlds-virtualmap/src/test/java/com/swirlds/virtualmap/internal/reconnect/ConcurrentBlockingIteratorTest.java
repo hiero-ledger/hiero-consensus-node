@@ -15,12 +15,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 public class ConcurrentBlockingIteratorTest {
-    private final ExecutorService threadPool = Executors.newCachedThreadPool();
+
+    private static final ExecutorService threadPool = Executors.newCachedThreadPool();
+
+    @AfterAll
+    static void afterAll() {
+        threadPool.shutdown();
+    }
 
     @Test
     @DisplayName("non-positive queue sizes throw")

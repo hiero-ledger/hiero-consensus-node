@@ -582,7 +582,7 @@ public final class IngestChecker {
         } else {
             keyVerification = verifier.verificationFor(account.alias());
         }
-        // This can happen if the signature map was missing a signature for the account account.
+        // This can happen if the signature map was missing a signature for the account.
         if (keyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }

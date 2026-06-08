@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.workflows.TransactionScenarioBuilder.scenario;
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -147,7 +149,9 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                         ENTITY_ID_STATE_ID,
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
                         ENTITY_COUNTS_STATE_ID,
-                        new AtomicReference<>(EntityCounts.DEFAULT)));
+                        new AtomicReference<>(EntityCounts.DEFAULT),
+                        HIGHEST_NODE_ID_STATE_ID,
+                        new AtomicReference<>(NodeId.DEFAULT)));
         storeFactory = new ReadableStoreFactoryImpl(fakeMerkleState);
 
         final var config = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
@@ -709,13 +713,13 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         }
 
         @Test
-        @DisplayName("Happy path for atomic batch transaction reusing previous verification results")
+        @DisplayName("Happy path for atomic batch transaction without reusing previous verification results")
         void happyPathWithoutReuseForAtomicBatch(@Mock SignatureVerificationFuture sigFuture) throws Exception {
             // Given a transaction that is perfectly good
             final var payerAccount = ALICE.accountID();
             final var payerKey = ALICE.keyInfo().publicKey();
-            final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch();
             final var innerTxInfo = scenario().withPayer(payerAccount).txInfo();
+            final var batchTxInfo = scenario().withPayer(payerAccount).txInfoForBatch(innerTxInfo);
             final var txBytes = asByteArray(batchTxInfo.signedTx());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));

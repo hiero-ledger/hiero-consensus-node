@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -33,11 +33,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_EXPIR
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class ScheduleLongTermExecutionTest {
@@ -47,6 +46,7 @@ public class ScheduleLongTermExecutionTest {
     private static final String SENDER_TXN = "senderTxn";
     private static final String FAILED_XFER = "failedXfer";
     private static final long ONE_MINUTE = 60;
+    private static final long TWO_MINUTES = 2 * ONE_MINUTE;
     private static final long ONE_MONTH = 2678400;
     private static final long TWO_MONTHS = 5356800;
 
@@ -105,13 +105,13 @@ public class ScheduleLongTermExecutionTest {
                 cryptoCreate("luckyYou").balance(0L).via("cryptoCreate"),
                 // Expiring the schedules relative to the cryptoCreate so the expiry time will be exactly the same
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE),
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES),
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE)
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES)
                         .hasKnownStatus(IDENTICAL_SCHEDULE_ALREADY_CREATED));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES)
     final Stream<DynamicTest> scheduleCreateIdenticalContractCall() {
         final var contract = "CallOperationsChecker";
         return hapiTest(
@@ -122,14 +122,13 @@ public class ScheduleLongTermExecutionTest {
                 contractCreate(contract),
 
                 // Expiring the schedules relative to the cryptoCreate so the expiry time will be exactly the same
-                scheduleCreate("payerOnly", contractCall(contract)).withRelativeExpiry("cryptoCreate", ONE_MINUTE),
+                scheduleCreate("payerOnly", contractCall(contract)).withRelativeExpiry("cryptoCreate", TWO_MINUTES),
                 scheduleCreate("payerOnly", contractCall(contract))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE)
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES)
                         .hasKnownStatus(IDENTICAL_SCHEDULE_ALREADY_CREATED));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduleNodeCreateWorks() throws Exception {
         final var nodeAccount = "nodeAccount";
         return hapiTest(

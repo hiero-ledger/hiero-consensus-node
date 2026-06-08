@@ -14,15 +14,13 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Check out code at the specified ref
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: refs/heads/main
+          checkout: "true"
+          checkout-ref: "refs/heads/main"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Gather commit info
         id: gather-commit-info
