@@ -141,8 +141,7 @@ public class BlockNodeConnectionManager {
     private static final long MASK_UPDATED_CONFIG = 1 << 1;
     private static final long MASK_BUFFER_ACTION_STAGE = 1 << 2;
     private static final long MASK_HIGHER_PRIORITY_CONNECTION = 1 << 3;
-    private static final long MASK_STALLED_CONNECTION = 1 << 4;
-    private static final long MASK_AUTO_RESET = 1 << 5;
+    private static final long MASK_AUTO_RESET = 1 << 4;
 
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
@@ -279,6 +278,15 @@ public class BlockNodeConnectionManager {
         }
 
         logger.info("Block node connection manager started");
+    }
+
+    /**
+     * Checks whether this node currently has an active streaming connection to a block node.
+     *
+     * @return true if this node is actively streaming to a block node
+     */
+    public boolean hasActiveStreamingConnection() {
+        return isConnectionManagerActive.get() && activeConnectionRef.get() != null;
     }
 
     /**
@@ -629,6 +637,14 @@ public class BlockNodeConnectionManager {
 
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
+
+        // Re-emit the active connection IP (0 when there is no active connection) so the gauge does not
+        // remain stale after the active connection closes (e.g. when all block node configuration is removed).
+        blockStreamMetrics.recordActiveConnectionIp(
+                activeConnection == null ? 0L : activeConnection.ipV4AddressAsInt());
+
+        checkActiveConnectionStalled(now, activeConnection);
+
         CloseReason closeReason = CloseReason.UNKNOWN;
         NodeSelectionCriteria criteria = new AnyCriteria();
         long changes = NO_CHANGES;
@@ -649,10 +665,6 @@ public class BlockNodeConnectionManager {
             criteria =
                     new MinimumPriorityCriteria(activeConnection.configuration().priority() - 1);
             closeReason = CloseReason.HIGHER_PRIORITY_FOUND;
-        }
-        if (isActiveConnectionStalled(now, activeConnection)) {
-            changes |= MASK_STALLED_CONNECTION;
-            closeReason = CloseReason.CONNECTION_STALLED;
         }
         if (isActiveConnectionAutoReset(now, activeConnection)) {
             changes |= MASK_AUTO_RESET;
@@ -705,9 +717,6 @@ public class BlockNodeConnectionManager {
         }
         if ((changes & MASK_HIGHER_PRIORITY_CONNECTION) != 0) {
             sb.append(" higher-priority-connection-found");
-        }
-        if ((changes & MASK_STALLED_CONNECTION) != 0) {
-            sb.append(" stalled-active-connection");
         }
         if ((changes & MASK_AUTO_RESET) != 0) {
             sb.append(" auto-reset-active-connection");
@@ -866,12 +875,11 @@ public class BlockNodeConnectionManager {
      *
      * @param now timestamp used compare against the last heartbeat of the connection
      * @param activeConnection the connection to check if stalled
-     * @return true if the connection is stalled, else false
      */
-    private boolean isActiveConnectionStalled(
+    private void checkActiveConnectionStalled(
             @NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
         if (activeConnection == null) {
-            return false;
+            return;
         }
 
         final long stalledConnectionThresholdMillis = bncConfig().connectionStallThresholdMillis();
@@ -882,17 +890,13 @@ public class BlockNodeConnectionManager {
             final long deltaMillis = now.toEpochMilli() - lastHeartbeatTimestamp;
             if (deltaMillis >= stalledConnectionThresholdMillis) {
                 logger.warn(
-                        "{} Active connection is marked as being stalled (lastHeartbeat: {}, thresholdMillis: {}, deltaMillis: {}); closing connection",
+                        "{} Active connection is slow/stalled (lastHeartbeat: {}, threshold: {}ms, observed: {}ms)",
                         activeConnection,
                         lastHeartbeatTimestamp,
                         stalledConnectionThresholdMillis,
                         deltaMillis);
-                activeConnection.close(CloseReason.CONNECTION_STALLED, true);
-                return true;
             }
         }
-
-        return false;
     }
 
     /**

@@ -1100,3 +1100,4 @@ snyk/
 
 ### Solo Testing Output
 /hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/
+/hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/

@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -86,7 +87,6 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -421,21 +421,6 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze.
-                if (configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockRecordStreamConfig.class)
-                                .liveWritePrevWrappedRecordHashes()
-                        && streamMode != BLOCKS) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-                }
-                if (configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockRecordStreamConfig.class)
-                                .writeWrappedRecordFileBlockHashesToDisk()
-                        && streamMode != BLOCKS) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -642,12 +627,16 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        }
+        final var functionality = topLevelTxn.functionality();
+        final boolean isNodeSubmittedTransaction = functionality == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                || functionality == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+        if (streamMode != BLOCKS && startsNewRecordFile && !isNodeSubmittedTransaction) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
-        if (streamMode != BLOCKS) {
+        if (streamMode != BLOCKS && !isNodeSubmittedTransaction) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
         }
@@ -660,7 +649,9 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
-        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        if (!isNodeSubmittedTransaction) {
+            executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        }
 
         return true;
     }
@@ -876,7 +867,10 @@ public class HandleWorkflow {
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                if (parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                        && parentTxn.functionality() != HederaFunctionality.MIGRATION_ROOT_HASH_VOTE) {
+                    stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                }
                 logPreDispatch(parentTxn);
                 final var hollowAccountCompletionsDetails =
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);

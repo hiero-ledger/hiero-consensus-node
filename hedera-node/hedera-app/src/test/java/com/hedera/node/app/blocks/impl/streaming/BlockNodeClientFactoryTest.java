@@ -8,7 +8,6 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import java.time.Duration;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +32,7 @@ class BlockNodeClientFactoryTest extends BlockNodeCommunicationTestBase {
     @Test
     void testCreateStreamingClient() {
         try (final MockedConstruction<PbjGrpcClient> mockPbjClient = mockConstruction(PbjGrpcClient.class);
-                final BlockStreamPublishServiceClient client = factory.createStreamingClient(config, timeout)) {
+                final BlockStreamPublishBytesClient client = factory.createStreamingClient(config, timeout)) {
             assertThat(client).isNotNull();
 
             assertThat(mockPbjClient.constructed()).hasSize(1);

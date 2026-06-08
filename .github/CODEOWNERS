@@ -30,9 +30,6 @@
 /hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 
-# Hedera Node Docker Definitions
-/hedera-node/docker/                            @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/github-maintainers
-
 # Hedera Node Modules
 /hedera-node/hapi*/                             @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/hedera-admin*/                     @hiero-ledger/hiero-consensus-node-execution-codeowners
@@ -133,6 +130,7 @@
 /platform-sdk/docs/base                             @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/docs/components                       @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/docs/core                             @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/docs/consensus-layer                  @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 #########################
 #####  Core Files  ######

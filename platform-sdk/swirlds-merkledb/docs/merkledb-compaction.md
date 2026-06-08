@@ -63,15 +63,15 @@ MerkleDb has a root storage directory. Within it, each store has its own subdire
 <storageDir>/
 ├── [...irrelevant files and directories...]
 ├── idToHashChunk/                 # IdToHashChunk file collection
-│   ├── state_idtohashchunk_2025-03-04_14-30-00-123__________0.pbj
-│   ├── state_idtohashchunk_2025-03-04_14-30-01-456__________1.pbj
-│   ├── state_idtohashchunk_2025-03-04_14-35-00-789_________10.pbj
+│   ├── state_idtohashchunk_2025-03-04_14-30-00-123_L0__________0.pbj
+│   ├── state_idtohashchunk_2025-03-04_14-30-01-456_L0__________1.pbj
+│   ├── state_idtohashchunk_2025-03-04_14-35-00-789_L1_________10.pbj
 │   └── state_idtohashchunk_metadata.pbj
 ├── objectKeyToPath/               # ObjectKeyToPath file collection
-│   ├── state_objectkeytopath_...________0.pbj
+│   ├── state_objectkeytopath_..._L0________0.pbj
 │   └── state_objectkeytopath_metadata.pbj
 └── pathToHashKeyValue/            # PathToKeyValue file collection
-    ├── state_pathtohashkeyvalue_...________0.pbj
+    ├── state_pathtohashkeyvalue_..._L0________0.pbj
     └── state_pathtohashkeyvalue_metadata.pbj
 ```
 
@@ -83,7 +83,7 @@ there is no separate staging area. Old files are deleted in place after compacti
 
 Data files follow the naming convention:
 
-{storeName}_{timestamp}_L{level}_{index}.pbj
+        {storeName}_{timestamp}_L{level}_{index}.pbj
 
 where `storeName` is the table-qualified store name (e.g. `state_idtohashchunk`),
 `timestamp` is the creation time in `yyyy-MM-dd_HH-mm-ss-SSS` format (UTC),
@@ -126,34 +126,15 @@ From the file system perspective, a compaction of level N files in a store proce
 2. **Data items copied.** The compactor iterates the index. For each entry pointing to a file in the compaction set,
    it reads the data item from the old file and writes it to the new file. The index is atomically updated to the new data location.
 
-   If a snapshot interrupts compaction, the current output file is finalized, and a second output file is created after
-   the snapshot completes — so a single compaction run may produce multiple output files in the directory.
+3. **File finalized.** After all items are copied, the output file is completed: metadata (item count, compaction level)
+   is written, the reader is marked as completed, and the file becomes visible in `getAllCompletedFiles()`.
 
-3. **Output file finalized.** The writer is closed (`DataFileWriter.close()` rewrites the header with the final `itemsCount`,
-   then truncates the file to its exact size). The reader is marked as completed (`setFileCompleted()`), making it eligible for future compactions.
-
-4. **Input files deleted.** If all data items were successfully processed, the old files are removed from the `DataFileCollection`'s
-   in-memory file list (via atomic `getAndUpdate()`) and deleted from disk. If compaction was interrupted (e.g. by shutdown),
-   the old files are **not** deleted — they remain on disk and will be compacted in a future run.
-
-At no point are files moved between directories. All I/O happens within the store's subdirectory.
-
-#### Relationship to State Saving
-
-MerkleDb's working directory resides under the platform's temporary directory (as of now it's `swirlds-tmp`).
-When the platform saves a signed state for a round, data files flow through two stages —
-both using hard links, never byte-level copies:
-
-- **Snapshot**: `DataFileCollection.snapshot()` creates hard links from the store's working directory
-  into a snapshot directory. Index files (off-heap `LongList` structures) are serialized to the snapshot directory since they are in-memory, not file-backed.
-  Compaction is paused for the duration of the snapshot creation.
-- **State persistence**: The platform links the snapshot directory into the final `saved-state` location (`<round_dir>/data/state/...`) via `hardLinkTree()`.
-
-Because hard links share the same underlying `inode`, compaction can safely delete old files from the working directory after copying their live
-data — any previously taken snapshot still holds a valid hard link to the original file blocks on disk.
-The data is only physically freed when all hard links (working directory, snapshot, and saved state) are removed.
-On restore, the reverse happens: `hardLinkTree()` links from the `saved-state` directory into a new working directory under `swirlds-tmp`,
-and `MerkleDbDataSource` opens it as a normal database. Compaction then operates on these linked files as usual.
+4. **Old files deleted.** The compactor calls `DataFileCollection.deleteFiles()` to remove the old files.
+   The `DataFileCollection` atomically removes the old readers from its file list (via CAS loop) and deletes the files from disk.
+   Any active readers — including snapshot hard links — maintain their file handles, so in-flight reads are not affected.
+   The data is only physically freed when all hard links (working directory, snapshot, and saved state) are removed.
+   On restore, the reverse happens: `hardLinkTree()` links from the `saved-state` directory into a new working directory under `swirlds-tmp`,
+   and `MerkleDbDataSource` opens it as a normal database. Compaction then operates on these linked files as usual.
 
 #### Snapshots
 
@@ -198,11 +179,8 @@ to have zero garbage, which means it won't be selected in phase 1 but may still 
 group has budget.
 
 The scanner does not filter or group files by compaction eligibility — it returns the full `IndexedGarbageFileStats`
-for all completed files that are not currently being compacted. Files whose `compactionInProgress` flag is set are
-excluded from the scanner's collection snapshot before stats are computed. This prevents stale scan results from
-referencing files that are mid-compaction and will likely be deleted before the results are consumed.
-Filtering by `gcRateThreshold`, grouping by projected output size, and phase 2 absorption are performed by the
-`MerkleDbCompactionCoordinator` when it processes scan results in `submitCompactionTasks()`.
+for all completed files. Filtering by `gcRateThreshold`, grouping by projected output size, and phase 2 absorption
+are performed by the `MerkleDbCompactionCoordinator` when it processes scan results in `submitCompactionTasks()`.
 
 The coordinator applies a two-phase selection algorithm per level:
 
@@ -267,6 +245,28 @@ initial capacity (1 billion buckets), doubling is a rare event, and essentially 
 before a second doubling could occur. In the unlikely event of two doublings in quick succession, the single-level
 dedup provides a 50% correction — imperfect but sufficient to prevent compaction freezing.
 
+The same mirroring problem affects compaction itself, not just scanning. Without deduplication in the compactor,
+after a bucket doubling the standard compaction path (`compactWithNoDedup`) iterates the full index, encounters
+both `index[x]` and `index[x + N/2]` pointing to the same data location, reads the same bucket twice, and writes
+two independent copies to the output file. Both index entries are CAS-updated to different new locations. Data
+consistency is preserved, but the output file is inflated — roughly 25% larger than the input when approximately
+half the entries are still unsanitized after a fresh doubling. This inflation cascades through levels: the inflated
+output at level 1 is compacted to level 2 (still inflated), then to level 3, and so on, until the affected buckets
+are eventually sanitized by flushes.
+
+The compactor handles this with `deduplicateMirroredEntries` mode (enabled only for ObjectKeyToPath via the
+`DataFileCompactor` constructor). When enabled, `compactWithDedup` iterates only the lower half of the index.
+For each pair `(index[x], index[x + N/2])`:
+
+- If both point to the same location (mirrored/unsanitized): the data is read and written once. Both index entries
+  are updated to point to the same new location — the lower half via CAS inside `compactSingleItem`, the upper half
+  via a standalone `putIfEqual` (no data write, no snapshot lock needed since no file I/O occurs).
+- If they differ (already sanitized): each is processed independently, same as the non-dedup path.
+
+The `indexSize` used for dedup is captured from `HalfDiskHashMap.getNumOfBuckets()` at compactor construction time
+(via the compactor factory, which runs at task execution time). HDHM resizing is blocked while compaction is running
+(`isCompactionRunning` guard in the flush path), so `indexSize` remains valid for the duration of the compaction.
+
 ### Compaction Triggering
 
 Compaction decisions are driven by the dead-to-alive ratio threshold (`gcRateThreshold`, default 0.5). A file whose
@@ -286,20 +286,23 @@ flushes produce many small files with little garbage. These files accumulate gar
 each one stays on disk for a long time before its dead/alive ratio reaches `gcRateThreshold`.
 As a result, many small files coexist on disk at any given time.
 
-Consolidation addresses this with a size-based second pass that runs after garbage-based compaction in each
-`submitCompactionTasks()` call. The algorithm per level:
+Consolidation addresses this with a size-based check that runs as part of the per-level processing in
+`submitCompactionTasks()`, after garbage-based tasks for the level have been assigned. The algorithm per level:
 
-1. Collect all files at this level whose size is below `consolidationMaxInputFileSizeMB` (default 50 MB),
-   excluding files already assigned to a garbage-based compaction task in the current cycle.
-2. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
-3. Submit all candidates as a single consolidation task (reuses `CompactionTask`).
-   This is self-limiting by design. The output file from consolidation exceeds `consolidationMaxInputFileSizeMB`, so it
-   will never be re-selected as a consolidation candidate. Small files accumulate again from subsequent flushes, and the
-   cycle repeats. Each file participates in at most one consolidation, preventing endless re-copying of live data.
+1. Skip level 0 — level 0 files are fresh flush output, expected to be small and consumed by garbage-based
+   compaction. Without this exclusion, consolidation would trigger too aggressively at level 0.
+2. Collect all remaining files at this level (those not assigned to garbage-based tasks) whose size is below
+   `consolidationMaxInputFileSizeMB` (default 50 MB).
+3. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
+4. Submit all candidates as a single consolidation task (reuses `CompactionTask`).
 
-Consolidation tasks use the `"_consolidate_N"` key pattern (where N is the level) and the same counter-based
-deduplication as garbage-based tasks. They share the compaction thread pool, support pause/resume for snapshots,
-and set/reset the `compactionInProgress` flag identically to garbage-based tasks.
+This is self-limiting by design. The output file from consolidation exceeds `consolidationMaxInputFileSizeMB`, so it
+will never be re-selected as a consolidation candidate. Small files accumulate again from subsequent flushes, and the
+cycle repeats. Each file participates in at most one consolidation, preventing endless re-copying of live data.
+
+Consolidation tasks use the `"_consolidate_N"` key pattern (where N is the level). Garbage and consolidation
+tasks at the same level share a single counter entry via the unified `"_level_N"` key. They share the compaction
+thread pool and support pause/resume for snapshots identically to garbage-based tasks.
 
 ### Compaction Task Submission
 
@@ -308,20 +311,25 @@ After each flush, the flush handler submits two kinds of tasks to the compaction
 1. **A scanner task** (if one is not already running for this store). The scanner traverses the in-memory index
    and caches per-file garbage statistics in `scanStatsByStore`.
 
-2. **Compaction tasks** for each level present in the latest scan statistics. The coordinator:
-   a. Applies **phase 1** filtering: selects files whose `deadToAliveRatio > gcRateThreshold`, groups by level.
-   b. **Splits** each level's eligible files into non-overlapping groups bounded by projected output size.
-   c. Applies **phase 2** absorption per group: absorbs additional non-eligible files from a shared remaining pool
+2. **Compaction tasks** via `submitCompactionTasks()`. The coordinator:
+   a. **Filters** scan results against the live file collection (`DataFileCollection.getAllCompletedFiles()`).
+   Files present in scan results but no longer in the collection (deleted by a previous compaction cycle since
+   the scan ran) are excluded. This planning-time filtering replaces the previous execution-time stale-file
+   intersection and `compactionInProgress` flag mechanism.
+   b. For each level, applies **phase 1** filtering: selects files whose `deadToAliveRatio > gcRateThreshold`.
+   c. **Splits** each level's eligible files into non-overlapping groups bounded by projected output size.
+   d. Applies **phase 2** absorption per group: absorbs additional non-eligible files from a shared remaining pool
    for the level, removing absorbed files from the pool so no group can claim the same file.
-   d. **Submits** each group as an independent compaction task.
-   e. **Consolidation pass**: after all garbage-based tasks are submitted, runs `submitConsolidationTasks()` as a
-   second pass. Files already assigned to garbage-based tasks are excluded. Small files at each level are grouped
-   by raw file size and submitted as independent consolidation tasks.
+   e. **Submits** each group as an independent compaction task.
+   f. **Consolidation**: for the same level, collects remaining small files (not assigned to garbage tasks,
+   below `consolidationMaxInputFileSizeMB`, level > 0) and submits a consolidation task if the count meets
+   `consolidationMinFileCount`.
 
    Multiple tasks for the same level run concurrently. This is safe because each task operates on a disjoint set of
    input files and writes to its own output file. Levels are discovered from `scanStatsByStore`, so compaction tasks
    are only submitted once the first scan for a store has completed. New tasks for a level are only submitted when
-   ALL tasks from the previous batch for that level have completed (tracked by a per-level counter).
+   ALL tasks from the previous batch for that level have completed (tracked by a per-level counter under the
+   unified `"_level_N"` key, which covers both garbage and consolidation tasks).
 
 **Projected output size cap.** The `maxCompactedFileSizeInMB` parameter (default 10000 = 10 GB) limits the estimated
 size of each compaction task's output. For each candidate file, the projected alive size is `fileSize × (1 - garbageRatio)`.
@@ -337,18 +345,13 @@ to process — only ~500 MB of data is copied — while a 10 GB file with 10% ga
 
 1. Check if compaction is still enabled (exit if disabled during shutdown).
 2. Create a `DataFileCompactor` via the factory and register it for pause/resume/interrupt.
-3. Filter out stale entries: intersect the assigned file list with the current file collection
-   (`DataFileCollection.getAllCompletedFiles()`). This handles the case where a task was submitted but queued — between
-   submission and execution, a previous compaction cycle may have completed and deleted some of the assigned files. The
-   `compactionInProgress` flag cannot cover this gap because it is only set at execution time, not at submission time
-   (setting at submission time would risk permanently flagging files if the task never executes, e.g. due to shutdown).
-   If no valid files remain, exit.
-4. Mark valid files as being compacted (`setCompactionInProgress()`). This makes them invisible to concurrent scanners,
-   preventing future scan results from referencing files that are about to be compacted.
-5. Compact the valid files into a new output file at `level + 1` (capped at `maxCompactionLevel`).
-6. In the `finally` block, reset the `compactionInProgress` flag on all assigned files
-   (`resetCompactionInProgress()`). If compaction succeeded, the files are already deleted and the reset is a no-op.
-   If compaction failed or was interrupted, the files remain in the collection and become visible to future scans again.
+3. Compact the assigned files into new output file(s) at `level + 1` (capped at `maxCompactionLevel`).
+4. In the `finally` block, clean up coordinator state: remove the compactor from `compactorsByName`,
+   remove the task key from `taskKeys`, decrement the per-level counter, and notify waiters.
+
+Because stale files are filtered at planning time (step 2a above), the task receives only files that were
+present in the live file collection at submission time. There is no execution-time stale-file filter or
+`compactionInProgress` flag.
 
 ### Compaction Execution
 
@@ -356,10 +359,29 @@ When a compaction task runs, it creates a `DataFileCompactor` and processes its 
 new output file at `level + 1`, traverses the index to identify live items in the compaction set, copies them to the
 output file, updates the index, and deletes the old files.
 
-The inner loop works as follows: for each index entry that points to a file in the compaction set, the data item is
-read from the old file, written to the new file via `DataFileWriter.storeDataItemWithTag()`, and the index is atomically
-updated via `CASableLongIndex.putIfEqual()`. The `putIfEqual` call ensures correctness under concurrency — if a concurrent
-flush has already updated the index entry to point to an even newer file, the CAS fails and the compactor's copy is correctly skipped.
+The compactor supports two iteration modes:
+
+**Standard mode (`compactWithNoDedup`):** Used for IdToHashChunk and PathToKeyValue stores where each index entry is
+unique. The compactor iterates all valid index entries via `index.forEach()`. For each entry pointing to a file in the
+compaction set, `compactSingleItem` reads the data item from the old file, writes it to the new file via
+`DataFileWriter.storeDataItemWithTag()`, and atomically updates the index via `CASableLongIndex.putIfEqual()`. The
+`putIfEqual` call ensures correctness under concurrency — if a concurrent flush has already updated the index entry
+to point to an even newer file, the CAS fails and the compactor's copy is correctly skipped.
+
+**Dedup mode (`compactWithDedup`):** Used for the ObjectKeyToPath store (HalfDiskHashMap) to avoid writing mirrored
+bucket entries twice after a bucket index doubling. Instead of iterating the full index, this mode iterates only the
+lower half (`0` to `indexSize/2 - 1`). For each pair `(key, key + halfSize)`, it reads both index entries and
+checks whether they point to the same data location. Mirrored entries (same location) are written once and both
+index entries updated to the same new location. Sanitized entries (different locations) are processed independently.
+See the "HalfDiskHashMap Deduplication" section for details on the mirroring problem and the pairing logic.
+
+Each item copy is performed under the `snapshotCompactionLock` to coordinate with snapshots. If a snapshot pauses
+compaction mid-iteration, the current output file is finalized and a new one is opened when compaction resumes.
+
+The compactor tracks output size via `totalCompactedBytes` — a field accumulated in `finishCurrentCompactionFile()`
+under `snapshotCompactionLock` each time an output file is finalized. This avoids reading output file sizes from
+disk after compaction completes, which would be unsafe: a snapshot-interrupted output file can be picked up and
+deleted by a concurrent compaction task before the original run finishes.
 
 ### Snapshot Interaction
 
@@ -404,50 +426,25 @@ managed by `MerkleDbCompactionCoordinator`. The pool size is configurable via `M
 
 The `MerkleDbCompactionCoordinator` tracks tasks using two structures:
 
-- A `tasksKeys` set containing all active task keys (e.g. `"IdToHashChunk_scan"`, `"IdToHashChunk_compact_2_0"`, `"IdToHashChunk_compact_2_1"`).
-- A `compactionTaskCounts` map tracking the number of outstanding tasks per level key (e.g. `"IdToHashChunk_compact_2" → 3`).
-  When the count reaches zero, new tasks for that level can be submitted from the next scan cycle.
-
-### Key Classes
-
-**`MerkleDbCompactionCoordinator`** manages the lifecycle of scanner and compaction tasks. It tracks two categories of state:
-
 - **Submitted tasks** (`taskKeys`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
-  Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for compaction where N is the level and C is the group index).
+  Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for garbage compaction where N is the level and C is the group index,
+  `"_consolidate_N"` for consolidation where N is the level).
   A task is in this set from submission until its `finally` block.
 - **Active compactors** (`compactorsByName`): tracks tasks that have created a `DataFileCompactor` and are actively compacting.
   This is a subset of submitted tasks. Used for `pauseCompactionAndRun()` during snapshots and `interruptCompaction()` during shutdown.
-
-On each flush, the data source calls `submitScanIfNotRunning()` to ensure a scan is in progress, then `submitCompactionTasks()`
-which reads `scanStatsByStore`, applies phase 1 filtering (by `deadToAliveRatio > gcRateThreshold`), partitions eligible files
-into groups bounded by projected output size, runs per-group phase 2 absorption against a shared remaining pool, and submits
-each group as an independent task.
-
-**`GarbageScanner`** is the background scanner — a pure data collector. It accepts a `LongList` index, a `DataFileCollection`,
-and a store name. It traverses the index, computes per-file garbage stats (`aliveItems`, `deadItems`, `garbageRatio`,
-`deadToAliveRatio`), and returns the full `IndexedGarbageFileStats` with no filtering, grouping, or absorption.
-For the ObjectKeyToPath store, the scanner is constructed with `deduplicateMirroredEntries = true` to handle `HalfDiskHashMap`
-bucket index doubling (see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)). Scanner instances are created once
-per data source and reused across flushes.
-
-**`MerkleDbCompactionCoordinator`** owns the full compaction decision pipeline. Key data structures:
-
-- **Scan statistics** (`scanStatsByStore`): maps store names to the latest `IndexedGarbageFileStats` from the scanner.
-- **Submitted tasks** (`taskKeys`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
-  Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for compaction where N is the level and C is the group index).
-  A task is in this set from submission until its `finally` block.
-- **Active compactors** (`compactorsByName`): tracks tasks that have created a `DataFileCompactor` and are actively compacting.
-  This is a subset of submitted tasks. Used for `pauseCompactionAndRun()` during snapshots and `interruptCompaction()` during shutdown.
+- **Per-level task counts** (`compactionTaskCounts`): tracks the number of outstanding tasks per level via a unified
+  `"_level_N"` key (e.g. `"IdToHashChunk_level_2" → 3`). Both garbage and consolidation tasks at a level share
+  this counter. When the count reaches zero, new tasks for that level can be submitted from the next scan cycle.
 
 The coordinator's `submitCompactionTasks()` method performs:
-1. Phase 1: filter by `deadToAliveRatio > gcRateThreshold`, group by level.
-2. Split each level's eligible files into groups via `splitIntoGroups()`.
+1. Filter scan results against the live file collection (intersect `IndexedGarbageFileStats` with `DataFileCollection.getAllCompletedFiles()`).
+2. For each level: Phase 1 filter by `deadToAliveRatio > gcRateThreshold`, split eligible files into groups via `splitIntoGroups()`.
 3. Per-group phase 2: `absorbIntoGroup()` draws from a shared remaining pool (pre-sorted by dead/alive ratio descending),
 absorbs files that fit both ratio and size limits, and removes them from the pool via `Iterator.remove()`.
-4. Submit each group as a `CompactionTask`.
-5. Consolidation pass: `submitConsolidationTasks()` runs as a second pass after all garbage-based tasks are submitted.
-It collects files below `consolidationMaxInputFileSizeMB`, excludes files already assigned to garbage tasks, and
-submits all candidates at each level as a single consolidation task.
+4. Submit each group as a `CompactionTask`, tracking assigned files in a per-level `levelAssigned` set.
+5. For the same level (if level > 0 and consolidation is enabled): collect remaining small files not in `levelAssigned`,
+submit as a consolidation task if the count meets `consolidationMinFileCount`.
+6. Record the total number of submitted tasks (garbage + consolidation) in the per-level counter.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
 compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
@@ -457,8 +454,10 @@ writer, and reader state. Its key responsibilities are:
   creates a new output file, traverses the index to identify live items, copies them, updates the index, and deletes the old files.
   It also handles logging and metrics reporting (duration, saved space, file size by level).
 
-- `compactFiles()`: the inner loop. For each index entry that points to a file in the compaction set, it reads the data item,
-  writes it to the new file, and atomically updates the index via `putIfEqual()`. Each item copy is performed under the `snapshotCompactionLock` to coordinate with snapshots.
+- `compactFiles()`: dispatches to either `compactWithNoDedup` (standard iteration over all index entries) or
+  `compactWithDedup` (lower-half iteration with mirrored entry detection) depending on the `deduplicateMirroredEntries` flag.
+  Both paths call `compactSingleItem` for each live entry, which reads the old data, writes it under the `snapshotCompactionLock`,
+  and atomically updates the index via `putIfEqual()`.
 
 - `pauseCompaction()` / `resumeCompaction()`: coordinate with snapshots. `pauseCompaction()` acquires the `snapshotCompactionLock`, flushes, and closes the current output
   file if compaction is in progress. `resumeCompaction()` opens a new output file and releases the lock.
@@ -475,10 +474,6 @@ which uses a CAS loop. This makes concurrent modifications from multiple compact
 **`DataFileReader`** represents a single data file and provides read access to its data items.
 It holds the file's `DataFileMetadata` (including compaction level and item count) and tracks whether the file
 has been fully written (`setFileCompleted()`). Only completed files are eligible for compaction.
-It also carries a `compactionInProgress` flag (`AtomicBoolean`) that is set when a compaction task begins processing
-the file and reset in the task's `finally` block. While the flag is set, the `GarbageScanner` excludes the file from
-its collection snapshot, preventing it from appearing in scan results. This avoids "budget evaporation" — a scenario
-where a group's aggregate dead/alive ratio is inflated by files that get deleted before the compaction task executes.
 The file's `metadataRef` is an `AtomicReference<DataFileMetadata>` because metadata is updated after construction:
 `DataFileCollection.endWriting()` propagates the final `itemsCount` from the writer, and `setCompactionLevel()`
 swaps the metadata with a new compaction level. These updates happen on the flush or compaction thread while scanner
@@ -528,6 +523,23 @@ by the coordinator's `splitIntoGroups` + per-group `absorbIntoGroup`), so they d
 They do share the `DataFileCollection`, but `addNewDataFileReader()` and `deleteFiles()` are both atomic CAS-loop operations
 and are safe under concurrency. Each group produces its own output file at the target level.
 
+**Stale scan results referencing deleted files.** Between the time a scan completes and `submitCompactionTasks` runs,
+concurrent compaction tasks may have already compacted and deleted some of the candidate files. The coordinator handles
+this by intersecting scan results against the current live file collection (`DataFileCollection.getAllCompletedFiles()`)
+at the start of `submitCompactionTasks`. Files present in scan results but no longer in the collection are silently
+excluded before any phase 1/phase 2 processing begins. This planning-time filtering ensures that only files currently
+on disk are assigned to compaction or consolidation tasks.
+
+**New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files.
+These files are not included in the current compaction run (the compaction set is fixed at scan time).
+They will be evaluated in the next scan cycle.
+
+**CAS failure during index update.** When the compactor calls `putIfEqual(path, oldLocation, newLocation)`, the CAS
+may fail if a concurrent flush has already updated the index entry for that path to point to an even newer file.
+This is correct: the flush's data is more recent, so the compactor's copy should be discarded.
+The old file still gets deleted at the end of compaction, which is safe because the index no longer points to it
+(it points to the flush's file instead).
+
 **File with zero alive items.** A file where all items have been superseded by newer flushes has 100% garbage.
 Files with `totalItems == 0` (either truly empty or written by older metadata versions) are also assigned a garbage
 ratio of 1.0, ensuring they are always eligible for compaction.
@@ -548,31 +560,6 @@ never be re-selected as a consolidation candidate. If the output happens to be b
 (e.g. only a few files were merged), it may be re-consolidated in a future cycle — but only once
 enough additional small files accumulate to meet `consolidationMinFileCount`. This makes
 re-consolidation rare and bounded.
-**Stale scan results referencing deleted files.** Between the time a scan completes and a compaction task executes,
-concurrent compaction tasks may have already compacted and deleted some of the candidate files. This can occur when a
-task is submitted but sits in the executor queue: the scan ran before the task started (so the `compactionInProgress`
-flag was not yet set), and a previous cycle's task finishes and deletes the files while the new task is still queued.
-By the time the new task executes, the assigned files no longer exist in the collection. The compaction task handles
-this by intersecting the candidate list with the current file collection before proceeding. Files no longer present
-are silently dropped. If all candidates in a group have been deleted, the task exits as a no-op.
-
-**Budget evaporation from mid-compaction files.** _Without the `compactionInProgress` flag_, a scanner running
-concurrently with a compaction task would include mid-compaction files in its stats. If those files are later deleted
-by the compaction task, the coordinator would build groups whose aggregate dead/alive ratio was inflated by files that
-no longer exist. The resulting compaction tasks would process mostly clean files with little garbage — wasting I/O for
-minimal size reduction. The `compactionInProgress` flag prevents this: the scanner excludes flagged files from its
-collection snapshot, so mid-compaction files never appear in scan results. The flag is set at task execution time
-(not submission time) and reset in the task's `finally` block, ensuring files become visible again if compaction fails.
-
-**New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files.
-These files are not included in the current compaction run (the compaction set is fixed at scan time).
-They will be evaluated in the next scan cycle.
-
-**CAS failure during index update.** When the compactor calls `putIfEqual(path, oldLocation, newLocation)`, the CAS
-may fail if a concurrent flush has already updated the index entry for that path to point to an even newer file.
-This is correct: the flush's data is more recent, so the compactor's copy should be discarded.
-The old file still gets deleted at the end of compaction, which is safe because the index no longer points to it
-(it points to the flush's file instead).
 
 **Compaction output file at maxCompactionLevel.** When files at `maxCompactionLevel` are compacted, the output file
 stays at the same level (the cap prevents further promotion). This ensures a bounded number of levels and predictable metric cardinality.
@@ -581,6 +568,10 @@ stays at the same level (the cap prevents further promotion). This ensures a bou
 a scan and compaction, the scanner's deduplication heuristic may be slightly imprecise (comparing against the pre-doubling
 half size). This is harmless — at worst, some alive items are double-counted in the old scan result, leading to a slightly
 underestimated garbage ratio. The next scan will use the post-doubling index size and produce accurate results.
+The compactor's dedup mode (`compactWithDedup`) captures `indexSize` at construction time from the live bucket count.
+HDHM resizing is blocked while compaction is running, so the captured value remains valid for the duration of the run.
+If no doubling has occurred, the dedup iteration still covers all entries correctly — the lower and upper halves simply
+contain independent data, and no mirroring is detected.
 
 ### Configuration
 

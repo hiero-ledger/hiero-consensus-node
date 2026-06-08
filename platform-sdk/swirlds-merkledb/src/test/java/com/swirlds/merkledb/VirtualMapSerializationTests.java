@@ -22,27 +22,20 @@ import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Serialization Test")
-class VirtualMapSerializationTests {
-
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
+class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerAllConstructables();
-        fileSystemManager = new TestFileSystemManager(tempDir);
     }
 
     /**
@@ -126,7 +119,6 @@ class VirtualMapSerializationTests {
     /**
      * Test serialization of a map. Does not release any resources created by caller.
      */
-    @SuppressWarnings("resource")
     private void testMapSerialization(final VirtualMap map) throws IOException {
 
         final Path savedStateDirectory = fileSystemManager.resolveNewTemp("saved-state");
