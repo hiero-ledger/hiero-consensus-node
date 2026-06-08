@@ -554,12 +554,6 @@ jobs:
           echo
           echo "<<<<<<<<<<<<<<<<<< End Diagnostic Log >>>>>>>>>>>>>>>>>>"
 
-      - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Look for script
         if: ${{ always() }}
