@@ -423,8 +423,11 @@ fetch_artifacts() {
   local plat_cache="${CACHE_DIR}/platform"
   mkdir -p "${nmt_cache}" "${plat_cache}"
 
-  local prev_major_minor="${DEPLOY_RELEASE_TAG%.*}"
-  prev_major_minor="${prev_major_minor%-*}"
+  # builds.hedera.com lays the bucket out as node/software/v<MAJOR>.<MINOR>/
+  # (no patch). The previous parameter-expansion attempt stripped after the
+  # last `.`, which for an rc tag (v0.75.0-rc.4) lands inside the rc suffix
+  # and yields v0.75.0 — a directory that doesn't exist.
+  local prev_major_minor="v$(echo "${DEPLOY_RELEASE_TAG#v}" | cut -d. -f1,2)"
   PLATFORM_INSTALLER_BASENAME="build-${DEPLOY_RELEASE_TAG}.zip"
   PLATFORM_INSTALLER_URL="https://builds.hedera.com/node/software/${prev_major_minor}/${PLATFORM_INSTALLER_BASENAME}"
   NMT_INSTALLER_PATH="${nmt_cache}/${NMT_INSTALLER_BASENAME}"
