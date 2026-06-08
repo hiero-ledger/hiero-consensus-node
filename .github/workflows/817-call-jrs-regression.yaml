@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Regression"
+name: "817: [CALL] JRS Regression"
 on:
   workflow_call:
     inputs:

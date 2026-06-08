@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Merge Queue Performance Test"
+name: "Deprecated: ZXC: [CITR] Merge Queue Performance Test"
 
 on:
   workflow_call:

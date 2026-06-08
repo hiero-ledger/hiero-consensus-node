@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Block Node Regression"
+name: "821: [CALL] Block Node Regression"
 on:
   workflow_call:
     inputs:

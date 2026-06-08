@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: [CITR] Execute Performance Test"
+name: "831: [CALL] CITR Exec Perf Test"
 
 on:
   workflow_call:

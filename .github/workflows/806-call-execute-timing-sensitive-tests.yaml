@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "806: [CALL] Exec Timing Tests"
 on:
   workflow_call:
     inputs:
@@ -35,7 +35,7 @@ on:
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.execute-hammer-tests.outputs.failure-mode }}
+        value: ${{ jobs.execute-timing-sensitive-tests.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,9 +56,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  execute-hammer-tests:
-    name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+  execute-timing-sensitive-tests:
+    name: "Timing Sensitive Tests"
+    runs-on: hl-cn-timing-sensitive-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -69,7 +69,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
-          checkout-token: ${{ secrets.access-token }}
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -79,25 +79,25 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
+      - name: Timing Sensitive Tests
+        id: gradle-timing-sensitive
+        run: ${GRADLE_EXEC} timingSensitive
 
-      - name: Publish Hammer Test Report
+      - name: Publish Unit Test (Timing Sensitive) Report
         id: publish-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: Hammer Test Results"
+          check_name: "Node: Timing Sensitive Unit Test Results"
           json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
+          junit_files: "**/build/test-results/timingSensitive/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload Hammer Test Report Artifacts
+      - name: Upload Unit Test (Timing Sensitive) Report Artifacts
         id: upload-test-report-artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
+          name: Unit Test Report (Timing Sensitive)
+          path: "**/build/test-results/timingSensitive/TEST-*.xml"
           retention-days: 7
 
       - name: Set Failure Mode Output
@@ -110,7 +110,7 @@ jobs:
             "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
           )
           test_statuses=(
-            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.gradle-timing-sensitive.outcome || 'skipped' }}"
           )
 
           failure_mode="none"

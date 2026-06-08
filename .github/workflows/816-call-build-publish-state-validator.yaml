@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Build & Publish Hedera State Validator Uber JAR"
+name: "816: [CALL] Build State Validator"
 
 on:
   workflow_dispatch:

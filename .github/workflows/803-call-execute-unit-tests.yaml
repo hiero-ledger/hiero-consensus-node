@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "803: [CALL] Exec Unit Tests"
 on:
   workflow_call:
     inputs:
@@ -32,10 +32,16 @@ on:
       gradle-cache-password:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
+      codecov-token:
+        description: "The Codecov token used to report code coverage."
+        required: false
+      codacy-project-token:
+        description: "The Codacy project token used to report code coverage."
+        required: false
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.execute-hammer-tests.outputs.failure-mode }}
+        value: ${{ jobs.execute-unit-tests.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,9 +62,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  execute-hammer-tests:
-    name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+  execute-unit-tests:
+    name: "Unit Tests"
+    runs-on: hl-cn-unit-test-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -69,7 +75,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
-          checkout-token: ${{ secrets.access-token }}
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -79,26 +85,47 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
+      - name: Unit Testing
+        id: gradle-test
+        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReportPartitioned
 
-      - name: Publish Hammer Test Report
-        id: publish-test-report
+      - name: Publish Unit Test Report
+        id: publish-unit-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: Hammer Test Results"
+          check_name: "Node: Unit Test Results"
           json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
+          junit_files: "**/build/test-results/test/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload Hammer Test Report Artifacts
-        id: upload-test-report-artifacts
+      - name: Upload Unit Test Report Artifacts
+        id: upload-artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
+          name: Unit Test Report
+          path: "**/build/test-results/test/TEST-*.xml"
           retention-days: 7
+
+      - name: Publish To Codecov
+        id: publish-codecov
+        uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
+        with:
+          token: ${{ secrets.codecov-token }}
+          directory: ./gradle/aggregation/build/reports/jacoco-xml
+
+      - name: Publish to Codacy
+        id: publish-codacy
+        env:
+          CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java $(find gradle/aggregation/build/reports/jacoco-xml/*.xml -printf '-r %p ')
+
+      - name: Upload Test Reports
+        id: upload-test-reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Test Reports
+          path: "**/build/reports/tests/**"
 
       - name: Set Failure Mode Output
         id: set-failure-mode
@@ -106,11 +133,14 @@ jobs:
         run: |
           workflow_statuses=(
             "${{ steps.prepare-runner.outcome || 'skipped' }}"
-            "${{ steps.publish-test-report.outcome || 'skipped' }}"
-            "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
+            "${{ steps.publish-unit-test-report.outcome || 'skipped' }}"
+            "${{ steps.upload-artifacts.outcome || 'skipped' }}"
+            "${{ steps.publish-codecov.outcome || 'skipped' }}"
+            "${{ steps.publish-codacy.outcome || 'skipped' }}"
+            "${{ steps.upload-test-reports.outcome || 'skipped' }}"
           )
           test_statuses=(
-            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.gradle-test.outcome || 'skipped' }}"
           )
 
           failure_mode="none"

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: [CITR] Single Day Performance Test"
+name: "833: [CALL] CITR Exec SDPT"
 
 on:
   workflow_call:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Mirror Node Regression"
+name: "820: [CALL] Mirror Node Regress"
 on:
   workflow_call:
     inputs:

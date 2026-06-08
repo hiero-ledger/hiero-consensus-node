@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Executable XTS Tests"
+name: "815: [CALL] Exec XTS Tests"
 on:
   workflow_call:
     inputs:

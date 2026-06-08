@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Compile and Spotless Check"
+name: "Deprecated: ZXC: Compile and Spotless Check"
 on:
   workflow_call:
     inputs:

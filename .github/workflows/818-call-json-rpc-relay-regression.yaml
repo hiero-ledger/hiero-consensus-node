@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: JSON-RPC Relay Regression"
+name: "818: [CALL] JSON-RPC Relay Reg"
 on:
   workflow_call:
     inputs:

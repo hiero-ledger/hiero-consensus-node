@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Executable MATS Tests"
+name: "800: [CALL] Exec MATS Tests"
 on:
   workflow_call:
     inputs:
