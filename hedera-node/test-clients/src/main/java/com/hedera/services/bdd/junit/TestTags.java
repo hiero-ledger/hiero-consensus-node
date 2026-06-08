@@ -17,6 +17,7 @@ public class TestTags {
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";
     public static final String BLOCK_NODE = "BLOCK_NODE";
+    public static final String BLOCK_NODE_SIM = "BLOCK_NODE_SIM";
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
