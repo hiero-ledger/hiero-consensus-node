@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_C
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CANONICAL_ALIAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ACCOUNTS_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
@@ -65,9 +64,11 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
@@ -83,6 +84,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HandleHederaOperationsTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+
     @Mock
     private TokenServiceApi tokenServiceApi;
 
@@ -334,7 +339,7 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
@@ -410,7 +415,7 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
@@ -477,7 +482,7 @@ class HandleHederaOperationsTest {
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
@@ -522,7 +527,7 @@ class HandleHederaOperationsTest {
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
@@ -592,7 +597,7 @@ class HandleHederaOperationsTest {
     void externalizeHollowAccountMerge() {
         // given
         var contractId = ContractID.newBuilder().contractNum(1001).build();
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE))
                 .willReturn(contractCreateRecordBuilder);

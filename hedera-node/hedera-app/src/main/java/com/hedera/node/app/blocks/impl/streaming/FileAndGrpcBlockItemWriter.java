@@ -59,7 +59,7 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         requireNonNull(bytes, "bytes cannot be null");
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         if (shouldForwardNormalBlockStreamToGrpc()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
+            this.grpcBlockItemWriter.writePbjItemAndBytes(item, bytes);
         }
     }
 

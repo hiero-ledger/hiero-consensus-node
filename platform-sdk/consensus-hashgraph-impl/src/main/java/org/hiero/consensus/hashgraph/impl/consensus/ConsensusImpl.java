@@ -1152,21 +1152,19 @@ public class ConsensusImpl implements Consensus {
         }
 
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-        long previousParentRound = Long.MIN_VALUE;
-        boolean allParentsHaveTheSameRound = true;
+        boolean singleParentHasTheGreatestParentRound = true;
         for (final EventImpl parent : x.getAllParents()) {
             if (ancient(parent)) {
                 continue;
             }
+
             final long parentRound = round(parent);
             if (parentRound > greatestParentRound) {
                 greatestParentRound = parentRound;
+                singleParentHasTheGreatestParentRound = true;
+            } else if (parentRound == greatestParentRound) {
+                singleParentHasTheGreatestParentRound = false;
             }
-
-            if (previousParentRound != Long.MIN_VALUE && parentRound != previousParentRound) {
-                allParentsHaveTheSameRound = false;
-            }
-            previousParentRound = parentRound;
         }
 
         //
@@ -1179,7 +1177,7 @@ public class ConsensusImpl implements Consensus {
         // continue to the super majority check below. This edge case only occurs in testing, so
         // we do not optimize for it here.
         //
-        if (!allParentsHaveTheSameRound && !rosterLookup.nodeHasSupermajorityWeight()) {
+        if (singleParentHasTheGreatestParentRound && !rosterLookup.nodeHasSupermajorityWeight()) {
             x.setRoundCreated(greatestParentRound);
             return x.getRoundCreated();
         }

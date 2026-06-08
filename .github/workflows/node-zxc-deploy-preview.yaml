@@ -17,6 +17,11 @@ on:
         type: boolean
         required: false
         default: false
+      reset-enabled:
+        description: "Reset the network (instead of upgrade) on a major/minor version change"
+        type: boolean
+        required: false
+        default: false
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -49,7 +54,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -128,7 +133,7 @@ jobs:
         id: jenkins-preview-request
         env:
           PRE_JSON_REQUEST: ${{ toJSON(github.event) }}
-        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}"' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
+        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}" | .reset = ${{ inputs.reset-enabled }}' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
 
       - name: Notify Jenkins of Release (Preview Network)
         id: jenkins-preview
