@@ -164,7 +164,7 @@ otherwise drop it to `CHECKING`.
 ## Exit
 
 The consensus layer leaves quiescence when a new command supersedes
-`QUIESCE`. There are two shapes, both routed exactly as in
+`QUIESCE`. Two commands can do so, both routed exactly as in
 [Entry](#entry):
 
 - **`DONT_QUIESCE`** — the whole network is resuming. The `QuiescenceRule`
@@ -223,8 +223,8 @@ that.
 Finally, the quiescence-breaker exception exists for one specific
 deadlock: if a single node receives a transaction while every peer is
 quiescing, the tipset algorithm — which normally insists that a new
-event advance consensus — would leave that node unable to create any
-event, and the transaction would strand. The quiescence-breaker is the
+event advance consensus — could leave that node unable to create any
+event, and the transaction would be stranded. The quiescence-breaker is the
 deliberate exception that lets such a node emit an event regardless, so
 the rest of the network observes the work and resumes.
 
