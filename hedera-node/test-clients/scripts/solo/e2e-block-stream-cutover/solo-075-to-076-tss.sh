@@ -726,6 +726,7 @@ verify_block_node_has_blocks() {
   local svc="block-node-${BLOCK_NODE_ID}"
   local remote_port="${BLOCK_NODE_GRPC_PORT}" local_port="${BLOCK_NODE_GRPC_LOCAL_PORT}"
   local pf_log="${WORK_DIR}/port-forward-block-node-status.log" pf_pid=""
+  local grpc_err="${WORK_DIR}/grpcurl-block-node-status.err"
   require_cmd grpcurl
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
   local proto_services_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf"
@@ -742,7 +743,8 @@ verify_block_node_has_blocks() {
   disown "${pf_pid}" 2>/dev/null || true
   if ! wait_for_tcp_open "127.0.0.1" "${local_port}" 20 1; then
     kill "${pf_pid}" >/dev/null 2>&1 || true
-    echo "Could not port-forward to ${svc} (see ${pf_log})" >&2
+    echo "Could not port-forward to ${svc}; kubectl port-forward log:" >&2
+    cat "${pf_log}" >&2 2>/dev/null || true
     return 1
   fi
 
@@ -751,7 +753,7 @@ verify_block_node_has_blocks() {
   while (( SECONDS < deadline )); do
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_services_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
-            org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
+            org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
     last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
     if [[ "${last_available}" =~ ^[0-9]+$ && "${last_available}" -gt 0 ]]; then
       log "verify_block_node_has_blocks: lastAvailableBlock=${last_available} (firstAvailableBlock=$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"'))"
@@ -760,7 +762,11 @@ verify_block_node_has_blocks() {
     fi
     sleep 5
   done
-  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last: ${raw:-<empty>})" >&2
+  echo "BN ${svc} did not report lastAvailableBlock > 0 within ${timeout_secs}s (last serverStatus stdout: ${raw:-<empty>})" >&2
+  echo "  --- last grpcurl stderr (serverStatus) ---" >&2
+  cat "${grpc_err}" >&2 2>/dev/null || true
+  echo "  --- kubectl port-forward log (${svc}) ---" >&2
+  cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
