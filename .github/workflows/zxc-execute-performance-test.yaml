@@ -170,7 +170,7 @@ jobs:
           certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -335,7 +335,7 @@ jobs:
           cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
 
       - name: Authenticate to Google Cloud
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
