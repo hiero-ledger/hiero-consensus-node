@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery.internal;
-
-import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
+package org.hiero.consensus.pcli.recovery.internal;
 
 import com.swirlds.common.utility.BinarySearch;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -58,7 +56,7 @@ public class EventStreamPathIterator implements Iterator<Path> {
         }
 
         final CesEvent firstEvent = getFirstEventInEventStreamFile(eventStreamFiles.get(0));
-        if (bound == UNBOUNDED || bound.compareTo(firstEvent) == 0) {
+        if (bound == EventStreamLowerBound.UNBOUNDED || bound.compareTo(firstEvent) == 0) {
             // We are attempting to get events from the beginning of the event stream.
             iterator = eventStreamFiles.iterator();
         } else {

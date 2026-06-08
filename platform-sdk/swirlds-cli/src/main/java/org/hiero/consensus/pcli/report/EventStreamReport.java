@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_CYAN;

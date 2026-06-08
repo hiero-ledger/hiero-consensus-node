@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.recovery;
+package org.hiero.consensus.event.stream.test.fixtures;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static org.hiero.base.CompareTo.isLessThan;
@@ -13,32 +13,28 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
-import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.io.counting.CounterType;
-import org.hiero.consensus.io.counting.CountingInputStream;
+import org.hiero.consensus.event.stream.EventStreamType;
+import org.hiero.consensus.event.stream.LinkedObjectStream;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
+import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.mockito.Mockito;
@@ -46,9 +42,9 @@ import org.mockito.Mockito;
 /**
  * Utilities for recovery tests.
  */
-public final class RecoveryTestUtils {
+public final class EventStreamTestUtils {
 
-    private RecoveryTestUtils() {}
+    private EventStreamTestUtils() {}
 
     /**
      * Generate a random event. Fields inside event are filled mostly with random nonsense data, and a little realistic
@@ -188,6 +184,35 @@ public final class RecoveryTestUtils {
     }
 
     /**
+     * Writes consensus rounds to an event stream
+     *
+     * @param dir
+     * 		the directory to write to
+     * @param signer
+     * 		signs the files
+     * @param eventStreamWindowSize
+     * 		the windows after which a new stream file will be created
+     * @param rounds
+     * 		the consensus rounds to write
+     */
+    public static void writeRoundsToStream(
+            final Path dir,
+            final Signer signer,
+            final Duration eventStreamWindowSize,
+            final Collection<ConsensusRound> rounds) {
+        final LinkedObjectStream<CesEvent> stream =
+                new RunningHashCalculatorForStream<>(new TimestampStreamFileWriter<>(
+                        dir.toAbsolutePath().toString(),
+                        eventStreamWindowSize.toMillis(),
+                        signer,
+                        false,
+                        EventStreamType.getInstance()));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()]));
+        rounds.stream().flatMap(r -> r.getStreamedEvents().stream()).forEach(stream::addObject);
+        stream.close();
+    }
+
+    /**
      * Compare two event stream files based on creation date.
      */
     private static int compareEventStreamPaths(final Path pathA, final Path pathB) {
@@ -208,8 +233,8 @@ public final class RecoveryTestUtils {
     public static Path getFirstEventStreamFile(final Path directory) throws IOException {
         final List<Path> eventStreamFiles = new ArrayList<>();
         Files.walk(directory)
-                .filter(RecoveryTestUtils::isFileAnEventStreamFile)
-                .sorted(RecoveryTestUtils::compareEventStreamPaths)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
                 .forEachOrdered(eventStreamFiles::add);
 
         return eventStreamFiles.get(0);
@@ -221,8 +246,8 @@ public final class RecoveryTestUtils {
     public static Path getMiddleEventStreamFile(final Path directory) throws IOException {
         final List<Path> eventStreamFiles = new ArrayList<>();
         Files.walk(directory)
-                .filter(RecoveryTestUtils::isFileAnEventStreamFile)
-                .sorted(RecoveryTestUtils::compareEventStreamPaths)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
                 .forEachOrdered(eventStreamFiles::add);
 
         return eventStreamFiles.get(eventStreamFiles.size() / 2);
@@ -234,56 +259,10 @@ public final class RecoveryTestUtils {
     public static Path getLastEventStreamFile(final Path directory) throws IOException {
         final List<Path> eventStreamFiles = new ArrayList<>();
         Files.walk(directory)
-                .filter(RecoveryTestUtils::isFileAnEventStreamFile)
-                .sorted(RecoveryTestUtils::compareEventStreamPaths)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
                 .forEachOrdered(eventStreamFiles::add);
 
-        return eventStreamFiles.get(eventStreamFiles.size() - 1);
-    }
-
-    /**
-     * Remove the second half of a file. Updates the file on disk.
-     *
-     * @param file                     the file to truncate
-     * @param truncateOnObjectBoundary if true then truncate the file on an exact object boundary, if false then
-     *                                 truncate the file somewhere that isn't an object boundary
-     * @return the number of valid objects in the truncated file
-     */
-    public static int truncateFile(final Path file, boolean truncateOnObjectBoundary) throws IOException {
-
-        // Grab the raw bytes.
-        final InputStream in = new BufferedInputStream(new FileInputStream(file.toFile()));
-        final byte[] bytes = in.readAllBytes();
-        in.close();
-
-        // Read objects from the stream, and count the bytes at each object boundary.
-        final Map<Integer, Integer> byteBoundaries = new HashMap<>();
-        final CountingInputStream countingIn =
-                new CountingInputStream(new FileInputStream(file.toFile()), CounterType.THREAD_SAFE);
-        final IOIterator<SelfSerializable> iterator = new ObjectStreamIterator<>(countingIn, false);
-        int count = 0;
-        while (iterator.hasNext()) {
-            byteBoundaries.put(count, (int) countingIn.byteCounter().getCount());
-            iterator.next();
-            count++;
-        }
-        iterator.close();
-
-        Files.delete(file);
-
-        final int objectIndex = count / 2;
-        final int truncationIndex =
-                truncateOnObjectBoundary ? byteBoundaries.get(objectIndex) : byteBoundaries.get(objectIndex) - 1;
-
-        final byte[] truncatedBytes = new byte[truncationIndex];
-        for (int i = 0; i < truncatedBytes.length; i++) {
-            truncatedBytes[i] = bytes[i];
-        }
-
-        final OutputStream out = new BufferedOutputStream(new FileOutputStream(file.toFile()));
-        out.write(truncatedBytes);
-        out.close();
-
-        return objectIndex + (truncateOnObjectBoundary ? 1 : 0);
+        return eventStreamFiles.getLast();
     }
 }

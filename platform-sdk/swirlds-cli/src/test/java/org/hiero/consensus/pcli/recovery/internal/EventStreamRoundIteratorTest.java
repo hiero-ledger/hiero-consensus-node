@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery;
+package org.hiero.consensus.pcli.recovery.internal;
 
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.getLastEventStreamFile;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.getMiddleEventStreamFile;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.truncateFile;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.generateRandomEvents;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getLastEventStreamFile;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getMiddleEventStreamFile;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,9 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
-import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
-import com.swirlds.platform.recovery.internal.StreamedRound;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -231,7 +227,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path lastFile = getLastEventStreamFile(directory);
-        truncateFile(lastFile, false);
+        StreamFileTestUtils.truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
                 mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true, 0L)) {
@@ -285,7 +281,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path lastFile = getLastEventStreamFile(directory);
-        truncateFile(lastFile, false);
+        StreamFileTestUtils.truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
                 mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, false, 0L)) {

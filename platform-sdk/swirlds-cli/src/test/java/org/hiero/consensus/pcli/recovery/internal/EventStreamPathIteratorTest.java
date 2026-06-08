@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery;
+package org.hiero.consensus.pcli.recovery.internal;
 
-import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.generateRandomEvents;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
+import static org.hiero.consensus.pcli.recovery.internal.EventStreamLowerBound.UNBOUNDED;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
-import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
-import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
-import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
@@ -8,9 +8,6 @@ import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.swirlds.base.formatting.UnitFormatter;
 import com.swirlds.base.units.TimeUnit;
-import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
-import com.swirlds.platform.recovery.internal.EventStreamMultiFileIterator;
-import com.swirlds.platform.recovery.internal.MultiFileRunningHashIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,6 +17,9 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamLowerBound;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamMultiFileIterator;
+import org.hiero.consensus.pcli.recovery.internal.MultiFileRunningHashIterator;
 
 /**
  * Scans an event stream and generates a report.

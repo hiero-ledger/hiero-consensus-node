@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery.internal;
+package org.hiero.consensus.pcli.recovery.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;

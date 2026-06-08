@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.report;
+package org.hiero.consensus.pcli.report;
+
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRoundsToStream;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.report.EventStreamReport;
-import com.swirlds.platform.event.report.EventStreamScanner;
-import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
-import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
 import com.swirlds.platform.test.fixtures.simulated.RandomSigner;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -18,10 +16,11 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.event.stream.test.fixtures.StreamUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.GenerateConsensus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundLowerBound;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamTimestampLowerBound;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -67,7 +66,7 @@ class EventStreamReportingToolTest {
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream
-        StreamUtils.writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);
+        writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);
 
         // get report
         final EventStreamReport report = new EventStreamScanner(
@@ -122,7 +121,7 @@ class EventStreamReportingToolTest {
         final Instant lastEventTime = lastRound.get(lastRound.size() - 1).getConsensusTimestamp();
 
         // write event stream
-        StreamUtils.writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);
+        writeRoundsToStream(tmpDir, new RandomSigner(random), eventStreamWindowSize, rounds);
 
         // get report
         final EventStreamReport report = new EventStreamScanner(

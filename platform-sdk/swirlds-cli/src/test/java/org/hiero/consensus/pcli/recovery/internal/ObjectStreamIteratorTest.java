@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery;
+package org.hiero.consensus.pcli.recovery.internal;
 
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.getFirstEventStreamFile;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.truncateFile;
-import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.generateRandomEvents;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getFirstEventStreamFile;
+import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -13,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -120,7 +118,7 @@ class ObjectStreamIteratorTest {
 
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
-        final int validObjectCount = truncateFile(eventStreamFile, false);
+        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, false);
 
         try (final IOIterator<SelfSerializable> iterator = new ObjectStreamIterator<>(eventStreamFile, true)) {
             assertTrue(iterator.next() instanceof Hash, "expected first object to be a hash");
@@ -169,7 +167,7 @@ class ObjectStreamIteratorTest {
 
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
-        final int validObjectCount = truncateFile(eventStreamFile, false);
+        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, false);
 
         boolean exceptionThrown = false;
         int count = 1;
