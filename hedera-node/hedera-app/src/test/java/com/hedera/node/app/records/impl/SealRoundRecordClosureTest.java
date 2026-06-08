@@ -164,6 +164,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 wrbSupplier,
                 blockHashSigner,
                 InitTrigger.RESTART,
+                null,
                 lifecycle);
         return new Context(manager, producer, app.workingStateAccessor().getState(), lifecycle);
     }
