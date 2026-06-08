@@ -41,6 +41,7 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
             throw new IllegalArgumentException(
                     "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
         }
+
         lastDecisionTime = now;
 
         bucket.leak(effectiveLeak(elapsedNanos));
@@ -108,6 +109,7 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
 
     public void resetUsageTo(@NonNull final ThrottleUsageSnapshot usageSnapshot) {
         requireNonNull(usageSnapshot);
+
         lastDecisionTime = usageSnapshot.lastDecisionTime() == null
                 ? null
                 : Instant.ofEpochSecond(

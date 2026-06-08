@@ -110,7 +110,8 @@ class EventIntakeProcessorTests {
                 trueVerifierFactory,
                 rosterHistory,
                 intakeEventCounter,
-                null);
+                null,
+                false);
 
         processorWithFalseVerifier = new ConcurrentEventIntakeProcessor(
                 metrics,
@@ -120,7 +121,8 @@ class EventIntakeProcessorTests {
                 falseVerifierFactory,
                 rosterHistory,
                 intakeEventCounter,
-                null);
+                null,
+                false);
     }
 
     private RosterHistory buildRosterHistory(
@@ -183,7 +185,8 @@ class EventIntakeProcessorTests {
                 trueVerifierFactory,
                 rosterHistory,
                 intakeEventCounter,
-                null);
+                null,
+                false);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)

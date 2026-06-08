@@ -11,8 +11,10 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -78,14 +80,49 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final AtomicLong eventSequenceNumber = new AtomicLong(FIRST_ASSIGNED_SEQUENCE_NUMBER);
 
     /**
-     * Constructor
+     * Hashes of "stale" parent events: events that were referenced as a parent by some consensus event but that never
+     * reached consensus themselves (they went ancient before consensus) and are therefore absent from the block stream.
+     * <p>
+     * This set is <b>empty in normal operation</b> and is only populated when replaying a historical block stream from
+     * which such events cannot be reconstructed (there is no production PCES to supply them). When non-empty, a parent
+     * whose hash is in this set is treated as permanently absent: it is never recorded as a missing parent, so a child
+     * whose only otherwise-missing parents are stale is released immediately rather than waiting forever for an event
+     * that will never arrive.
+     * <p>
+     * This is safe with respect to resulting state: an event that goes ancient before reaching consensus can be omitted
+     * from the hashgraph during replay without changing consensus (it contributed nothing to consensus in production).
+     * The child's own hash is unaffected — it still carries the stale parent's descriptor verbatim — and the downstream
+     * {@code ConsensusLinker} already drops any parent link with no matching event (see RUL-004), so consensus proceeds
+     * on a clean graph. This special case exists only for replays of old streams; in normal operation the parent would
+     * be gossiped and required before the child, and this set is empty so the behavior is unchanged.
+     */
+    private final Set<Hash> staleParentHashes;
+
+    /**
+     * Constructor. Normal-operation entry point: no stale parents.
      *
      * @param metrics            the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultOrphanBuffer(@NonNull final Metrics metrics, @NonNull final IntakeEventCounter intakeEventCounter) {
+        this(metrics, intakeEventCounter, Set.of());
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param metrics the metrics instance to use
+     * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
+     * @param staleParentHashes hashes of parents known to be stale (never reached consensus, absent from the stream);
+     *                          must be empty for normal operation, populated only for historical block-stream replay
+     */
+    public DefaultOrphanBuffer(
+            @NonNull final Metrics metrics,
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final Set<Hash> staleParentHashes) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.staleParentHashes = Set.copyOf(Objects.requireNonNull(staleParentHashes));
         this.currentOrphanCount = 0;
 
         metrics.getOrCreate(new FunctionGauge.Config<>(
@@ -155,7 +192,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
      * Accounts for events potentially becoming un-orphaned as a result of the parent becoming ancient.
      *
      * @param parentAndOrphans the parent that became ancient, along with its orphans
-     * @return the list of events that are no longer orphans as a result of this parent becoming ancient
+     * @return the list of events that are no longer orphans as a result of the parent becoming ancient
      */
     @NonNull
     private List<PlatformEvent> missingParentBecameAncient(@NonNull final ParentAndOrphans parentAndOrphans) {
@@ -185,12 +222,28 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         final List<EventDescriptorWrapper> missingParents = new ArrayList<>();
 
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            if (!eventsWithParents.containsKey(parent) && !eventWindow.isAncient(parent)) {
+            if (!eventsWithParents.containsKey(parent) && !eventWindow.isAncient(parent) && !isStaleParent(parent)) {
                 missingParents.add(parent);
             }
         }
 
         return missingParents;
+    }
+
+    /**
+     * Determine whether the given parent is a known stale event — one that never reached consensus and is therefore
+     * absent from the block stream being replayed. Such a parent will never arrive, so it must not be treated as a
+     * missing parent; the referencing child is released as if the parent did not exist, which is safe because a
+     * pre-consensus-ancient event can be omitted from the replayed hashgraph without changing consensus, and the
+     * downstream linker already drops parent links with no matching event.
+     * <p>
+     * Returns {@code false} for every parent in normal operation, where {@link #staleParentHashes} is empty.
+     *
+     * @param parent the parent descriptor to test
+     * @return {@code true} if the parent is a known stale event that will never arrive
+     */
+    private boolean isStaleParent(@NonNull final EventDescriptorWrapper parent) {
+        return !staleParentHashes.isEmpty() && staleParentHashes.contains(parent.hash());
     }
 
     /**
