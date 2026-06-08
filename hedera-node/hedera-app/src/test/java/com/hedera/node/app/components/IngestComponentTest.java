@@ -16,6 +16,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.DaggerHederaInjectionComponent;
 import com.hedera.node.app.HederaInjectionComponent;
+import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -29,6 +30,7 @@ import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
@@ -133,7 +135,9 @@ class IngestComponentTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         final var historyService =
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var state = new FakeState();
@@ -174,6 +178,8 @@ class IngestComponentTest {
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .addressBookService(new AddressBookServiceImpl())
+                .wrappedRecordBlockHashMigration(new WrappedRecordBlockHashMigration())
+                .transactionOffsetNanos(ServicesMain.transactionOffsetNanos(configuration))
                 .build();
 
         state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));

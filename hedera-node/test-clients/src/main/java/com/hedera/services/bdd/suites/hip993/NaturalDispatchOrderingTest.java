@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip993;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
@@ -16,7 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -67,7 +66,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Asserts the expected presence and order of all valid combinations of preceding and following stream items;
@@ -121,7 +119,7 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("reversible user stream items are as expected")
     final Stream<DynamicTest> reversibleUserItemsAsExpected() {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleUserValidator(), "firstCreation", "duplicateCreation")),
                 scheduleCreate(
                                 "scheduledTxn",
@@ -153,7 +151,6 @@ public class NaturalDispatchOrderingTest {
      */
     @HapiTest
     @DisplayName("reversible child and removable preceding stream items are as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> reversibleChildAndRemovablePrecedingItemsAsExpected(
             @NonFungibleToken(numPreMints = 2) SpecNonFungibleToken nonFungibleToken,
             @Account(maxAutoAssociations = 1) SpecAccount beneficiary,
@@ -161,7 +158,7 @@ public class NaturalDispatchOrderingTest {
             @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
+                streamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         reversibleChildValidator(), "fullSuccess", "containedRevert", "fullRevert")),
                 nonFungibleToken.treasury().authorizeContract(transferContract),
                 transferContract
@@ -220,7 +217,7 @@ public class NaturalDispatchOrderingTest {
             @Account(centBalance = 7, maxAutoAssociations = UNLIMITED_AUTO_ASSOCIATION_SLOTS)
                     SpecAccount insolventPayer) {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleScheduleValidator(), "committed", "rolledBack")),
                 firstToken.treasury().transferUnitsTo(solventPayer, 10, firstToken),
                 secondToken.treasury().transferUnitsTo(insolventPayer, 10, secondToken),
@@ -264,14 +261,13 @@ public class NaturalDispatchOrderingTest {
      */
     @HapiTest
     @DisplayName("removable child stream items are as expected")
-    @Tag(MATS)
     final Stream<DynamicTest> removableChildItemsAsExpected(
             @Contract(contract = "OuterCreator", creationGas = 2_000_000) SpecContract outerCreatorContract,
             @Contract(contract = "LowLevelCall", creationGas = 2_000_000) SpecContract lowLevelCallContract) {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
+                streamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
                 outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
                         .via("nestedCreations")),
@@ -305,7 +301,8 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("irreversible preceding stream items are as expected")
     final Stream<DynamicTest> irreversiblePrecedingItemsAsExpected() {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
+                withOpContext((spec, opLog) -> triggerAndCloseAtLeastOneFile(spec)), // flush migration records first
+                streamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         irreversiblePrecedingValidator(), "finalizationBySuccess", "finalizationByFailure")),
                 tokenCreate("unassociatedToken"),
                 // Create two hollow accounts to finalize, first by a top-level success and second by failure

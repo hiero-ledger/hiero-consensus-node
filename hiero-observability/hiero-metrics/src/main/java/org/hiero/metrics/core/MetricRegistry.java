@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class MetricRegistry implements Closeable {
 
     /** Configuration property to disable metrics exporter discovery.*/
-    private static final String PROPERTY_EXPORT_DISCOVERY_DISABLED = "hiero.metrics.export.discovery.diasbled";
+    private static final String PROPERTY_EXPORT_DISCOVERY_DISABLED = "hiero.metrics.export.discovery.disabled";
 
     private static final System.Logger logger = System.getLogger(MetricRegistry.class.getName());
 
@@ -45,13 +45,16 @@ public final class MetricRegistry implements Closeable {
 
     private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
-    private final MetricRegistrySnapshot snapshot = new MetricRegistrySnapshot();
+
+    @Nullable
+    private final MetricRegistrySnapshot snapshot;
 
     private MetricRegistry(@NonNull List<Label> globalLabels, @Nullable MetricsExporter exporter) {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
         if (exporter != null) {
+            snapshot = new MetricRegistrySnapshot();
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
@@ -59,7 +62,8 @@ public final class MetricRegistry implements Closeable {
                     this.globalLabels,
                     exporter.getClass());
         } else {
-            logger.log(INFO, "Created metric registry. globalLabels={0}", this.globalLabels);
+            snapshot = null;
+            logger.log(INFO, "Created metric registry without exporter. globalLabels={0}", this.globalLabels);
         }
     }
     /**
@@ -95,7 +99,8 @@ public final class MetricRegistry implements Closeable {
     /**
      * Creates and registers a metric using the given metric builder.
      * <p>
-     * This method is <b>not idempotent</b> and throws an exception, if metric with the same name already registered.
+     * This method is <b>not idempotent</b> and throws an exception, if metric with the same name already registered. <br>
+     * Additionally, same builder <b>must not be reused</b>, because registration <b>may modify</b> passed builder (add registry global labels, etc.).
      *
      * @param builder the metric builder, must not be {@code null}
      * @param <M>     the type of the metric to be created and registered
@@ -116,11 +121,17 @@ public final class MetricRegistry implements Closeable {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
-            M metric =
-                    builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
+            builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+            if (snapshot == null) {
+                builder.doNotSnapshot();
+            }
+
+            M metric = builder.build();
             logger.log(DEBUG, "Registered metric. name={0}", metric.name());
 
-            snapshot.addMetricSnapshot(metric.snapshot());
+            if (snapshot != null) {
+                snapshot.addMetricSnapshot(metric.snapshot());
+            }
 
             return metric;
         }));
@@ -138,7 +149,7 @@ public final class MetricRegistry implements Closeable {
      * Metric to be found has to have the same name as the provided key and be of compatible type.
      *
      * @param key the metric key, must not be {@code null}
-     * @return {@code true} if a metric with the given key is registered, {@code false} otherwise
+     * @return {@code true} if a metric with the given key is registered (name and type match), {@code false} otherwise
      * @throws NullPointerException if the key is {@code null}
      */
     public boolean containsMetric(@NonNull MetricKey<?> key) {

@@ -60,14 +60,7 @@ public record DispatchOptions<T extends StreamBuilder>(
          * Wait to commit the dispatched transaction's effects with its parent; hence, only commit these effects
          * if the parent dispatch does not roll back.
          */
-        WITH_PARENT,
-        /**
-         * Commit the transaction's effects immediately, along with any effects already accumulated by the parent
-         * dispatch. (But note the parent dispatch will generally have no pending effects when this option makes
-         * sense to use; i.e., to perform a preceding dispatch that sets up the parent dispatch state but does
-         * not depend on the parent's success.)
-         */
-        IMMEDIATELY,
+        WITH_PARENT
     }
 
     /**
@@ -136,50 +129,6 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
-     * Returns whether the dispatch should commit immediately.
-     */
-    public boolean commitImmediately() {
-        return commit == Commit.IMMEDIATELY;
-    }
-
-    /**
-     * Returns options for a dispatch that is logically independent of the parent dispatch. Use cases include,
-     * <ul>
-     *     <li>Completing a hollow account whose public key was provided in the signature map of
-     *     a parent HAPI transaction.</li>
-     *     <li>Doing post-upgrade setup before the first transaction handled after the upgrade.</li>
-     * </ul>
-     * <b>Important:</b> Since such dispatches are not logically part of the parent dispatch, they should
-     * really be done as a separate top-level transaction. Prefer not introducing any further uses of this
-     * {@link DispatchOptions} factory.
-     *
-     * @param payerId the account to pay for the dispatch
-     * @param body the transaction to dispatch
-     * @param streamBuilderType the type of stream builder to use for the dispatch
-     * @return the options for the setup dispatch
-     * @param <T> the type of stream builder to use for the dispatch
-     */
-    public static <T extends StreamBuilder> DispatchOptions<T> independentDispatch(
-            @NonNull final AccountID payerId,
-            @NonNull final TransactionBody body,
-            @NonNull final Class<T> streamBuilderType) {
-        return new DispatchOptions<>(
-                Commit.IMMEDIATELY,
-                payerId,
-                body,
-                UsePresetTxnId.NO,
-                PREAUTHORIZED_KEYS,
-                emptySet(),
-                TransactionCategory.PRECEDING,
-                ConsensusThrottling.OFF,
-                streamBuilderType,
-                ReversingBehavior.IRREVERSIBLE,
-                NOOP_SIGNED_TX_CUSTOMIZER,
-                EMPTY_METADATA,
-                UNIVERSAL_NOOP_FEE_CHARGING);
-    }
-
-    /**
      * Returns options for a dispatch that is part of the parent dispatch's transactional unit, but in a setup role
      * that logically precedes the parent transaction's effects. Use cases include,
      * <ul>
@@ -194,13 +143,15 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch, if any
+     * @param consensusThrottling the consensus throttling for the dispatch
      * @return the options for the setup dispatch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> setupDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @Nullable final FeeCharging customFeeCharging) {
+            @Nullable final FeeCharging customFeeCharging,
+            @NonNull final ConsensusThrottling consensusThrottling) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -209,7 +160,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 PREAUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.PRECEDING,
-                ConsensusThrottling.ON,
+                consensusThrottling,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,

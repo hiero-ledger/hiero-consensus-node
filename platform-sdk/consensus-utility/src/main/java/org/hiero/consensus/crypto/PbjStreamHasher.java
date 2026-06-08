@@ -66,6 +66,7 @@ public class PbjStreamHasher implements EventHasher {
             @NonNull final EventCore eventCore,
             @NonNull final List<EventDescriptor> parents,
             @NonNull final List<TransactionWrapper> transactions) {
+        boolean success = false;
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
             for (final EventDescriptor parent : parents) {
@@ -75,8 +76,14 @@ public class PbjStreamHasher implements EventHasher {
                 transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
                 processTransactionHash(transaction);
             }
+            success = true;
         } catch (final IOException e) {
             throw new RuntimeException("An exception occurred while trying to hash an event!", e);
+        } finally {
+            if (!success) {
+                transactionDigest.reset();
+                eventDigest.reset();
+            }
         }
 
         return new Hash(eventDigest.digest(), DigestType.SHA_384);

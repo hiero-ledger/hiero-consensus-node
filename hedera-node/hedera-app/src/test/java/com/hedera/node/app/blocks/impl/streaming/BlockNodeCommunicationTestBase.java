@@ -3,6 +3,9 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.block.internal.BlockItemSetBytes;
+import com.hedera.hapi.block.internal.EndStreamBytes;
+import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
@@ -26,8 +29,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
 import org.hiero.block.api.BlockEnd;
-import org.hiero.block.api.BlockItemSet;
-import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -85,31 +86,45 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
-    protected static PublishStreamRequest createRequest(final BlockItem... items) {
-        final BlockItemSet itemSet = BlockItemSet.newBuilder().blockItems(items).build();
-        return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
+    protected static PublishStreamRequestBytes createRequest(final BlockItem... items) {
+        final BlockItemSetBytes itemSet = BlockItemSetBytes.newBuilder()
+                .blockItems(
+                        Arrays.stream(items).map(BlockItem.PROTOBUF::toBytes).toList())
+                .build();
+        return PublishStreamRequestBytes.newBuilder().blockItems(itemSet).build();
     }
 
     @NonNull
-    protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
-        final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
-        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    protected static PublishStreamRequestBytes createRequest(final EndStream.Code endCode) {
+        final EndStreamBytes endStream =
+                EndStreamBytes.newBuilder().endCode(endCode).build();
+        return PublishStreamRequestBytes.newBuilder().endStream(endStream).build();
     }
 
     @NonNull
-    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
-        final EndStream endStream = EndStream.newBuilder()
+    protected static PublishStreamRequestBytes createRequest(
+            final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStreamBytes endStream = EndStreamBytes.newBuilder()
                 .endCode(endCode)
                 .earliestBlockNumber(earliestBlockNumber)
                 .build();
-        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+        return PublishStreamRequestBytes.newBuilder().endStream(endStream).build();
     }
 
     @NonNull
-    protected static PublishStreamRequest createRequest(final long blockNumber) {
+    protected static PublishStreamRequestBytes createRequest(final long blockNumber) {
         final BlockEnd endOfBlock =
                 BlockEnd.newBuilder().blockNumber(blockNumber).build();
-        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
+        return PublishStreamRequestBytes.newBuilder().endOfBlock(endOfBlock).build();
+    }
+
+    /**
+     * Adds a deserialized block item to the buffer service using the serialized-bytes API (convenience for tests).
+     */
+    protected static void addItem(
+            @NonNull final BlockBufferService bufferService, final long blockNumber, @NonNull final BlockItem item) {
+        bufferService.addItem(
+                blockNumber, BlockItem.PROTOBUF.toBytes(item), item.item().kind());
     }
 
     protected TestConfigBuilder createDefaultConfigProvider() {
@@ -122,7 +137,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
-                .withValue("blockNode.highLatencyThresholdMs", 500);
+                .withValue("blockNode.highLatencyThresholdMs", 500)
+                .withValue("blockNode.streamResetPeriodJitter", "0s");
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
@@ -190,11 +206,7 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static BlockNodeConfiguration newBlockNodeConfig(
             final String address, final int port, final int priority) {
         return newBlockNodeConfig(
-                address,
-                port,
-                priority,
-                BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
-                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+                address, port, priority, BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES, 36L * 1024 * 1024);
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(

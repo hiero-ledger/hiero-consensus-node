@@ -31,10 +31,14 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PU
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -84,6 +88,7 @@ import com.hedera.services.bdd.junit.support.translators.impl.EthereumTransactio
 import com.hedera.services.bdd.junit.support.translators.impl.FileCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.NodeCreateTranslator;
+import com.hedera.services.bdd.junit.support.translators.impl.RegisteredNodeCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleDeleteTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleSignTranslator;
@@ -102,9 +107,11 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -113,6 +120,9 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockTransactionalUnitTranslator {
     private static final Logger log = LogManager.getLogger(BlockTransactionalUnitTranslator.class);
+
+    private static final Set<HederaFunctionality> RECORD_STREAM_ABSENT_FUNCTIONALITIES =
+            EnumSet.of(STATE_SIGNATURE_TRANSACTION, HINTS_PARTIAL_SIGNATURE, MIGRATION_ROOT_HASH_VOTE);
 
     /**
      * The base translator used to create the {@link SingleTransactionRecord}s.
@@ -149,6 +159,9 @@ public class BlockTransactionalUnitTranslator {
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_STAKE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_CREATE, new RegisteredNodeCreateTranslator());
+                    put(REGISTERED_NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());
@@ -185,6 +198,7 @@ public class BlockTransactionalUnitTranslator {
                     put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(LEDGER_ID_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(MIGRATION_ROOT_HASH_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 
@@ -243,7 +257,7 @@ public class BlockTransactionalUnitTranslator {
                 if (hookMetadata != null && blockTransactionParts.isHookCall()) {
                     executingHookId = hookMetadata.execHookIds().removeFirst();
                 }
-                if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
+                if (!RECORD_STREAM_ABSENT_FUNCTIONALITIES.contains(blockTransactionParts.functionality())
                         && blockTransactionParts.hasResult()
                         && blockTransactionParts.transactionParts() != null) {
                     final var translation = translator.translate(

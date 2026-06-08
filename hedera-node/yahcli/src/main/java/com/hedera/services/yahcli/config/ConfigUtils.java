@@ -18,8 +18,10 @@ import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.suites.BalanceSuite;
 import com.hedera.services.yahcli.suites.CostOfEveryThingSuite;
 import com.hedera.services.yahcli.suites.CreateNodeSuite;
+import com.hedera.services.yahcli.suites.CreateRegisteredNodeSuite;
 import com.hedera.services.yahcli.suites.CreateSuite;
 import com.hedera.services.yahcli.suites.DeleteNodeSuite;
+import com.hedera.services.yahcli.suites.DeleteRegisteredNodeSuite;
 import com.hedera.services.yahcli.suites.FreezeHelperSuite;
 import com.hedera.services.yahcli.suites.RekeySuite;
 import com.hedera.services.yahcli.suites.ScheduleSuite;
@@ -30,6 +32,7 @@ import com.hedera.services.yahcli.suites.StakeSuite;
 import com.hedera.services.yahcli.suites.SysFileDownloadSuite;
 import com.hedera.services.yahcli.suites.SysFileUploadSuite;
 import com.hedera.services.yahcli.suites.UpdateNodeSuite;
+import com.hedera.services.yahcli.suites.UpdateRegisteredNodeSuite;
 import com.hedera.services.yahcli.suites.UpgradeHelperSuite;
 import java.io.File;
 import java.io.IOException;
@@ -99,5 +102,8 @@ public class ConfigUtils {
             ConfigProviderBase.class,
             CreateNodeSuite.class,
             UpdateNodeSuite.class,
-            DeleteNodeSuite.class);
+            DeleteNodeSuite.class,
+            CreateRegisteredNodeSuite.class,
+            UpdateRegisteredNodeSuite.class,
+            DeleteRegisteredNodeSuite.class);
 }

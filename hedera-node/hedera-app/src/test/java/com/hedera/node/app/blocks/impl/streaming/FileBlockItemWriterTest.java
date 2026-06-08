@@ -9,12 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
@@ -22,6 +26,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -72,16 +77,19 @@ class FileBlockItemWriterTest {
     @BeforeEach
     void setUp() {
         when(selfNodeAccountIdManager.getSelfNodeAccountId()).thenReturn(selfNodeInfo.accountId());
+        lenient().when(blockStreamConfig.blockFileBufferOuterSizeKb()).thenReturn(4096);
+        lenient().when(blockStreamConfig.blockFileBufferInnerSizeKb()).thenReturn(1024);
+        lenient().when(blockStreamConfig.blockFileBufferGzipSizeKb()).thenReturn(256);
     }
 
     @Test
-    protected void testOpenBlock() {
+    void testOpenBlock() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         fileBlockItemWriter.openBlock(1);
 
@@ -99,18 +107,18 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testOpenBlockCannotInitializeTwice() {
+    void testOpenBlockCannotInitializeTwice() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         fileBlockItemWriter.openBlock(1);
 
         // Assertion to check if the directory is created
-        Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedDirectory = tempDir.resolve("block-0.0.3");
         assertThat(Files.exists(expectedDirectory)).isTrue();
 
         assertThatThrownBy(() -> fileBlockItemWriter.openBlock(1), "Cannot initialize a FileBlockItemWriter twice")
@@ -118,13 +126,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testOpenBlockNegativeBlockNumber() {
+    void testOpenBlockNegativeBlockNumber() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         assertThatThrownBy(() -> fileBlockItemWriter.openBlock(-1), "Block number must be non-negative")
@@ -132,13 +140,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testWriteItem() throws IOException {
+    void testWriteItem() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
@@ -146,13 +154,13 @@ class FileBlockItemWriterTest {
 
         // Create a Bytes object and write it
         final var bytes = new byte[] {1, 2, 3, 4, 5};
-        byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
+        final byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
         fileBlockItemWriter.writeItem(bytes);
 
         // Close the block
         fileBlockItemWriter.closeCompleteBlock();
 
-        Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedDirectory = tempDir.resolve("block-0.0.3");
         final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
         final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
@@ -164,8 +172,8 @@ class FileBlockItemWriterTest {
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
         // Ungzip the file
-        try (GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
-            byte[] fileContents = gzis.readAllBytes();
+        try (final GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
+            final byte[] fileContents = gzis.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -174,13 +182,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testWritePbjItemAndBytes() throws IOException {
+    void testWritePbjItemAndBytes() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
@@ -188,11 +196,11 @@ class FileBlockItemWriterTest {
 
         // Create a BlockItem and Bytes object
         final var bytesData = new byte[] {1, 2, 3, 4, 5};
-        Bytes bytes = Bytes.wrap(bytesData);
-        byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
+        final Bytes bytes = Bytes.wrap(bytesData);
+        final byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
 
         // Create a BlockItem (using RoundHeader as a simple example)
-        BlockItem item = BlockItem.newBuilder()
+        final BlockItem item = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
                 .build();
 
@@ -201,7 +209,7 @@ class FileBlockItemWriterTest {
         // Close the block
         fileBlockItemWriter.closeCompleteBlock();
 
-        Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedDirectory = tempDir.resolve("block-0.0.3");
         final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
         final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
@@ -213,8 +221,8 @@ class FileBlockItemWriterTest {
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
         // Ungzip the file
-        try (GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
-            byte[] fileContents = gzis.readAllBytes();
+        try (final GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
+            final byte[] fileContents = gzis.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -223,13 +231,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testWriteItemBeforeOpen() {
+    void testWriteItemBeforeOpen() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Create a Bytes object and write it
@@ -240,13 +248,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testCloseCompleteBlock() throws IOException {
+    void testCloseCompleteBlock() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
@@ -255,9 +263,9 @@ class FileBlockItemWriterTest {
         // Close the block
         fileBlockItemWriter.closeCompleteBlock();
 
-        Path expectedDirectory = tempDir.resolve("block-0.0.3");
-        Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
-        Path expectedMarkerFile = expectedDirectory.resolve(MF);
+        final Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
+        final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
         // Verify both block file and marker file exist
         assertThat(Files.exists(expectedBlockFile)).isTrue();
@@ -268,13 +276,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testCloseCompleteBlockNotOpen() {
+    void testCloseCompleteBlockNotOpen() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         assertThatThrownBy(
@@ -283,13 +291,13 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testCloseCompleteBlockAlreadyClosed() {
+    void testCloseCompleteBlockAlreadyClosed() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
-        FileBlockItemWriter fileBlockItemWriter =
+        final FileBlockItemWriter fileBlockItemWriter =
                 new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
 
         // Open a block
@@ -299,8 +307,8 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.closeCompleteBlock();
 
         // Verify marker file exists before attempting second close
-        Path expectedDirectory = tempDir.resolve("block-0.0.3");
-        Path expectedMarkerFile = expectedDirectory.resolve(MF);
+        final Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedMarkerFile = expectedDirectory.resolve(MF);
         assertThat(Files.exists(expectedMarkerFile)).isTrue();
 
         assertThatThrownBy(
@@ -362,5 +370,45 @@ class FileBlockItemWriterTest {
         assertEquals(pendingProof, recoveredProof, "Recovered proof should match the original");
 
         assertDoesNotThrow(() -> subject.flushPendingBlock(PendingProof.DEFAULT));
+    }
+
+    @Test
+    void loadContiguousPendingBlocksDeserializesSignedTransaction() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        subject.openBlock(2);
+
+        final var signedTxBytes = SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
+                .bodyBytes(Bytes.wrap("test-body".getBytes()))
+                .build());
+        final var blockItem =
+                BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
+        subject.writeItem(BlockItem.PROTOBUF.toBytes(blockItem).toByteArray());
+
+        final var pendingProof = PendingProof.newBuilder()
+                .block(2)
+                .blockHash(Bytes.fromHex("abcd"))
+                .previousBlockHash(Bytes.fromHex("ef01"))
+                .startOfBlockStateRootHash(Bytes.fromHex("2345"))
+                .blockTimestamp(Timestamp.newBuilder().seconds(1_700_000_000L).build())
+                .siblingHashesFromPrevBlockRoot(List.of(
+                        new MerkleSiblingHash(true, Bytes.fromHex("1111")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("2222")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("3333"))))
+                .build();
+        subject.flushPendingBlock(pendingProof);
+
+        final List<OnDiskPendingBlock> loaded = FileBlockItemWriter.loadContiguousPendingBlocks(
+                tempDir, 3, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE);
+
+        assertEquals(1, loaded.size());
+        final var loadedBlock = loaded.getFirst();
+        assertEquals(pendingProof, loadedBlock.pendingProof());
+        assertEquals(1, loadedBlock.items().size());
+        assertTrue(loadedBlock.items().getFirst().hasSignedTransaction());
+        assertEquals(signedTxBytes, loadedBlock.items().getFirst().signedTransactionOrThrow());
     }
 }

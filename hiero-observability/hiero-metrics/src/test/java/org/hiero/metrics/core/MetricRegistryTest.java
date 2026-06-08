@@ -372,6 +372,20 @@ public class MetricRegistryTest {
     }
 
     @Test
+    void testNullSnapshotWhenNoExporter() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+
+        LongCounter counter = registry.register(LongCounter.builder("test_counter"));
+        counter.getOrCreateNotLabeled().increment();
+
+        LongGauge gauge = registry.register(LongGauge.builder("test_gauge").addDynamicLabelNames("label"));
+        gauge.getOrCreateLabeled("label", "1").set(10);
+
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(counter);
+        MetricSnapshotVerifier.verifMetricHasNoSnapshot(gauge);
+    }
+
+    @Test
     void testConcurrentMetricsRegistrations() throws InterruptedException {
         MetricRegistry registry = MetricRegistry.builder().build();
 
@@ -397,7 +411,7 @@ public class MetricRegistryTest {
     @Test
     void testDiscoverAvailableMetricsExporterFactoryAndExportDisabled() {
         Configuration config = ConfigurationBuilder.create()
-                .withValue("hiero.metrics.export.discovery.diasbled", "true")
+                .withValue("hiero.metrics.export.discovery.disabled", "true")
                 .build();
 
         MetricsExporterFactory exporterFactory = mock(MetricsExporterFactory.class);
@@ -475,11 +489,11 @@ public class MetricRegistryTest {
     @MethodSource("exportTestParameters")
     void testExport(String name, MetricRegistry registry, TestMetricsExporter exporter) throws IOException {
         // register metrics
-        LongCounter longCounter = registry.register(LongCounter.builder("counter:long"));
+        LongCounter longCounter = registry.register(LongCounter.builder("counter_long"));
         DoubleCounter doubleCounter =
-                registry.register(DoubleCounter.builder("counter:double").addStaticLabels(new Label("sl1", "static1")));
-        LongGauge longGauge = registry.register(LongGauge.builder("gauge:long").addDynamicLabelNames("dl1", "dl2"));
-        DoubleGauge doubleGauge = registry.register(DoubleGauge.builder("gauge:double")
+                registry.register(DoubleCounter.builder("counter_double").addStaticLabels(new Label("sl1", "static1")));
+        LongGauge longGauge = registry.register(LongGauge.builder("gauge_long").addDynamicLabelNames("dl1", "dl2"));
+        DoubleGauge doubleGauge = registry.register(DoubleGauge.builder("gauge_double")
                 .addStaticLabels(new Label("sl2", "static2"))
                 .addDynamicLabelNames("dl"));
 

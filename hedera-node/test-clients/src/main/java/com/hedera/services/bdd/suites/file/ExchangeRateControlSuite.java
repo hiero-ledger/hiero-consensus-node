@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -24,7 +23,6 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 public class ExchangeRateControlSuite {
@@ -34,7 +32,6 @@ public class ExchangeRateControlSuite {
             .contents(spec -> spec.ratesProvider().rateSetWith(1, 12).toByteString());
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> acct57CanMakeSmallChanges() {
         return hapiTest(
                 resetRatesOp,
@@ -54,7 +51,6 @@ public class ExchangeRateControlSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> midnightRateChangesWhenAcct50UpdatesFile112() {
         return hapiTest(
                 resetRatesOp,

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,11 +15,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig_;
@@ -36,7 +36,7 @@ public class EventMigrationTest {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("");
+        ConstructableRegistration.registerAllConstructables();
     }
 
     public static Stream<Arguments> migrationTestArguments() {

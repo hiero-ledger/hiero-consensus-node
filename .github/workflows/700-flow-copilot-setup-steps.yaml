@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "700: [FLOW] Copilot Setup Steps"
+
+# Automatically run the setup steps when they are changed to allow for easy validation and
+# allow manual testing through the repository's "Actions" tab.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/700-flow-copilot-setup-steps.yaml
+  pull_request:
+    paths:
+      - .github/workflows/700-flow-copilot-setup-steps.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  copilot-setup-steps:
+    needs:
+      - extract-jdk-version
+    runs-on: hl-cn-default-lin-md
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22"

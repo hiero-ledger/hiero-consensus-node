@@ -12,7 +12,6 @@ import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.health.OSHealthCheckConfig;
@@ -30,9 +29,10 @@ import java.nio.file.Path;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 
 /**
  * Utility methods that are helpful when starting up a JVM.
@@ -107,7 +107,7 @@ public final class BootstrapUtils {
      */
     public static void setupConstructableRegistry() {
         try {
-            ConstructableRegistry.getInstance().registerConstructables("");
+            ConstructableRegistration.registerAllConstructables();
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

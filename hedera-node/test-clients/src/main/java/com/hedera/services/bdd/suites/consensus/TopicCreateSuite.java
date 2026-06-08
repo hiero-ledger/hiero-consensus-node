@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -56,7 +55,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
@@ -372,7 +370,6 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCase() {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -537,7 +534,6 @@ public class TopicCreateSuite {
 
     // TOPIC_RENEW_21
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithHollowAccountForAutoRenewAccount() {
         final String accountAlias = "accountAlias";
         final String TOKEN_TREASURY = "tokenTreasury";

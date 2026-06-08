@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -20,6 +22,8 @@ import org.apache.logging.log4j.Logger;
 public final class Utils {
 
     private static final Logger logger = LogManager.getLogger(Utils.class);
+
+    public static final String RUN_DELIMITER = "--------------------------------";
 
     private Utils() {
         // do not instantiate
@@ -50,8 +54,17 @@ public final class Utils {
                     logger.warn("Couldn't delete {}: {}", p, ex.getMessage());
                 }
             });
+        } catch (UncheckedIOException ex) {
+            if (ex.getCause() instanceof NoSuchFileException) {
+                logger.debug(
+                        "Path already deleted while cleaning up {}: {}",
+                        path,
+                        ex.getCause().getMessage());
+            } else {
+                logger.warn("Error while deleting files from {}: {}", path, ex.getMessage());
+            }
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.warn("Error while deleting files from {}: {}", path, ex.getMessage());
         }
     }
 
@@ -75,7 +88,15 @@ public final class Utils {
             }
             logger.info(sb);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            logger.error("Error occurred while printing class histogram", ex);
+        }
+    }
+
+    public static void printVirtualMap(final String label, final VirtualMap virtualMap) {
+        if (virtualMap == null) {
+            logger.info("{} is null", label);
+        } else {
+            logger.info("{}: {} metadata={}", label, virtualMap, virtualMap.getMetadata());
         }
     }
 
@@ -103,16 +124,8 @@ public final class Utils {
 
     public static long fromBytes(byte[] bytes) {
         long val = 0;
-        for (int i = 0; i < Math.min(bytes.length, 8); ++i) {
+        for (int i = 0; i < Math.min(bytes.length, Long.BYTES); ++i) {
             val |= ((long) bytes[i] & 0xff) << (i * 8);
-        }
-        return val;
-    }
-
-    public static long fromBytes(Bytes bytes) {
-        long val = 0;
-        for (int i = 0; i < Math.min(bytes.length(), 8); ++i) {
-            val |= ((long) bytes.getByte(i) & 0xff) << (i * 8);
         }
         return val;
     }

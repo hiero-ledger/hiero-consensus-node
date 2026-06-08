@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -87,7 +86,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
-@Tag(MATS)
 public class TokenUpdateSpecs {
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_SYMBOL_LENGTH = 100;
@@ -694,6 +692,48 @@ public class TokenUpdateSpecs {
                         .treasury("newTreasury")
                         .signedByPayerAnd("adminKey", "newTreasury")
                         .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> canDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates() {
+        final var token = "nonFungible";
+        final var originalTreasury = "originalTreasury";
+        final var previousTreasury = "previousTreasury";
+        final var finalTreasury = "finalTreasury";
+        final var beneficiary = "beneficiary";
+        final var adminKey = "adminKey";
+        final var supplyKey = "supplyKey";
+
+        return defaultHapiSpec("CanDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates")
+                .given(
+                        newKeyNamed(adminKey),
+                        newKeyNamed(supplyKey),
+                        cryptoCreate(originalTreasury),
+                        cryptoCreate(previousTreasury),
+                        cryptoCreate(finalTreasury),
+                        cryptoCreate(beneficiary),
+                        tokenCreate(token)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .adminKey(adminKey)
+                                .supplyKey(supplyKey)
+                                .treasury(originalTreasury),
+                        mintToken(token, List.of(ByteString.copyFromUtf8("memo"))))
+                .when(
+                        tokenAssociate(previousTreasury, token),
+                        tokenUpdate(token).treasury(previousTreasury).signedByPayerAnd(adminKey, previousTreasury),
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(1)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(1)),
+                        tokenAssociate(finalTreasury, token),
+                        tokenUpdate(token).treasury(finalTreasury).signedByPayerAnd(adminKey, finalTreasury))
+                .then(
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(0)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(0)),
+                        cryptoDelete(previousTreasury).transfer(beneficiary));
     }
 
     @HapiTest

@@ -55,6 +55,7 @@ class TokenGetNftInfoHandlerTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         subject = new TokenGetNftInfoHandler();
+        given(context.ledgerId()).willReturn(new BytesConverter().convert("0x03"));
     }
 
     @Test

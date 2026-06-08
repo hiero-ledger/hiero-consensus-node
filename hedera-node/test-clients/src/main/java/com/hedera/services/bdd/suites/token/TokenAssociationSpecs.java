@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -31,6 +31,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenAssociate.DEFAULT_FEE;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -63,6 +64,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -74,7 +76,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
-@Tag(MATS)
 public class TokenAssociationSpecs {
     public static final String FREEZABLE_TOKEN_ON_BY_DEFAULT = "TokenA";
     public static final String FREEZABLE_TOKEN_OFF_BY_DEFAULT = "TokenB";
@@ -313,7 +314,7 @@ public class TokenAssociationSpecs {
                         .logged());
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> expiredAndDeletedTokensStillAppearInContractInfo() {
         final String contract = "Fuse";
         final String treasury = "something";
@@ -321,40 +322,30 @@ public class TokenAssociationSpecs {
         final long lifetimeSecs = 10;
         final long xfer = 123L;
         AtomicLong now = new AtomicLong();
-        return defaultHapiSpec("ExpiredAndDeletedTokensStillAppearInContractInfo")
-                .given(
-                        newKeyNamed("admin"),
-                        cryptoCreate(treasury),
-                        uploadInitCode(contract),
-                        contractCreate(contract).gas(600_000).via(CREATION),
-                        withOpContext((spec, opLog) -> {
-                            var subOp = getTxnRecord(CREATION);
-                            allRunFor(spec, subOp);
-                            var record = subOp.getResponseRecord();
-                            now.set(record.getConsensusTimestamp().getSeconds());
-                        }),
-                        sourcing(() -> tokenCreate(expiringToken)
-                                .decimals(666)
-                                .adminKey("admin")
-                                .treasury(treasury)
-                                .expiry(now.get() + lifetimeSecs)))
-                .when(
-                        tokenAssociate(contract, expiringToken),
-                        cryptoTransfer(moving(xfer, expiringToken).between(treasury, contract)))
-                .then(
-                        getAccountBalance(contract).hasTokenBalance(expiringToken, xfer),
-                        getContractInfo(contract)
-                                .hasToken(relationshipWith(expiringToken).freeze(FreezeNotApplicable)),
-                        sleepFor(lifetimeSecs * 1_000L),
-                        getAccountBalance(contract).hasTokenBalance(expiringToken, xfer, 666),
-                        getContractInfo(contract)
-                                .hasToken(relationshipWith(expiringToken).freeze(FreezeNotApplicable)),
-                        tokenDelete(expiringToken),
-                        getAccountBalance(contract).hasTokenBalance(expiringToken, xfer),
-                        getContractInfo(contract)
-                                .hasToken(relationshipWith(expiringToken)
-                                        .decimals(666)
-                                        .freeze(FreezeNotApplicable)));
+        return hapiTest(
+                newKeyNamed("admin"),
+                cryptoCreate(treasury),
+                uploadInitCode(contract),
+                contractCreate(contract).gas(600_000),
+                exposeSpecSecondTo(now::set),
+                sourcing(() -> tokenCreate(expiringToken)
+                        .decimals(666)
+                        .adminKey("admin")
+                        .treasury(treasury)
+                        .expiry(now.get() + lifetimeSecs)),
+                tokenAssociate(contract, expiringToken),
+                cryptoTransfer(moving(xfer, expiringToken).between(treasury, contract)),
+                getAccountBalance(contract).hasTokenBalance(expiringToken, xfer),
+                getContractInfo(contract)
+                        .hasToken(relationshipWith(expiringToken).freeze(FreezeNotApplicable)),
+                sleepFor(lifetimeSecs * 1_000L),
+                getAccountBalance(contract).hasTokenBalance(expiringToken, xfer, 666),
+                getContractInfo(contract)
+                        .hasToken(relationshipWith(expiringToken).freeze(FreezeNotApplicable)),
+                tokenDelete(expiringToken),
+                getAccountBalance(contract).hasTokenBalance(expiringToken, xfer),
+                getContractInfo(contract)
+                        .hasToken(relationshipWith(expiringToken).decimals(666).freeze(FreezeNotApplicable)));
     }
 
     @HapiTest

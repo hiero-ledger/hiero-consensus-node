@@ -150,7 +150,8 @@ public class MiscCryptoSuite {
 
     @HapiTest
     final Stream<DynamicTest> getInfoIdVariantsTreatedAsExpected() {
-        return hapiTest(sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountInfo(DEFAULT_PAYER)));
+        return hapiTest(
+                cryptoCreate("inert2"), sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountInfo("inert2")));
     }
 
     @HapiTest

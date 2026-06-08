@@ -8,12 +8,14 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
-import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -23,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Orchestrates the hinTS algorithms for,
@@ -56,6 +59,20 @@ public interface HintsService extends Service {
     String NAME = "HintsService";
 
     /**
+     * The result of requesting a hinTS signature.
+     *
+     * @param signing the in-progress signing attempt
+     * @param submissionFuture a future that completes when this node has submitted its partial signature
+     */
+    record SigningResult(
+            @NonNull BlockHashSigning signing, @NonNull CompletableFuture<Void> submissionFuture) {
+        public SigningResult {
+            requireNonNull(signing);
+            requireNonNull(submissionFuture);
+        }
+    }
+
+    /**
      * Since the roster service has to decide to adopt the candidate roster
      * at an upgrade boundary based on availability of hinTS preprocessed
      * keys, the hinTS service must be migrated before the roster service
@@ -78,6 +95,13 @@ public interface HintsService extends Service {
     HintsConstruction activeConstruction();
 
     /**
+     * Sets a completed active construction into the signing context during startup.
+     *
+     * @param construction the active construction to use for signing
+     */
+    void setActiveConstruction(@NonNull HintsConstruction construction);
+
+    /**
      * Whether the signer is ready.
      */
     boolean isReady();
@@ -85,7 +109,21 @@ public interface HintsService extends Service {
     /**
      * Signs the given block hash.
      */
-    HintsContext.Signing sign(@NonNull Bytes blockHash);
+    @NonNull
+    SigningResult sign(@NonNull Bytes blockHash);
+
+    /**
+     * Notifies the service that a new block has started.
+     *
+     * @param blockNumber the block number being started
+     */
+    void onBlockStarted(long blockNumber);
+
+    /**
+     * Returns the TSS node-transaction submission helper.
+     */
+    @NonNull
+    TssSubmissions submissions();
 
     /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
@@ -145,11 +183,16 @@ public interface HintsService extends Service {
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
      *
-     * @param hintsStore            the hints store
-     * @param now                   the current consensus time
-     * @param isActive               if the platform is active
+     * @param hintsStore the hints store
+     * @param now the current consensus time
+     * @param isActive if the platform is active
+     * @param networkInfo the network information
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
+    void executeCrsWork(
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            boolean isActive,
+            @NonNull NetworkInfo networkInfo);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

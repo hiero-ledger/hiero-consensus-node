@@ -3,6 +3,7 @@ package com.swirlds.component.framework.schedulers.builders;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigOption.BUSY_FRACTION_METRIC;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigOption.FLUSHABLE;
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigOption.INFLIGHT_TASK_METRIC;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigOption.SQUELCHABLE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigOption.UNHANDLED_TASK_METRIC;
 
@@ -17,6 +18,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param unhandledTaskCapacity      the maximum number of unhandled tasks, or 0 if unbounded, if null then 0 is used
  * @param unhandledTaskMetricEnabled whether the unhandled task count metric should be enabled, if null than false is
  *                                   used
+ * @param inflightTaskMetricEnabled  whether the in-flight task count metric should be enabled, if null then false is
+ *                                   used. Only supported for {@link TaskSchedulerType#CONCURRENT} schedulers.
  * @param busyFractionMetricEnabled  whether the busy fraction metric should be enabled, if null then false is used
  * @param flushingEnabled            whether flushing is enabled, if null then false is used
  * @param squelchingEnabled          whether squelching is enabled, if null then false is used
@@ -25,6 +28,7 @@ public record TaskSchedulerConfiguration(
         @Nullable TaskSchedulerType type,
         @Nullable Long unhandledTaskCapacity,
         @Nullable Boolean unhandledTaskMetricEnabled,
+        @Nullable Boolean inflightTaskMetricEnabled,
         @Nullable Boolean busyFractionMetricEnabled,
         @Nullable Boolean flushingEnabled,
         @Nullable Boolean squelchingEnabled) {
@@ -34,21 +38,21 @@ public record TaskSchedulerConfiguration(
      * scheduler, but it is provided for convenience.
      */
     public static final TaskSchedulerConfiguration NO_OP_CONFIGURATION =
-            new TaskSchedulerConfiguration(TaskSchedulerType.NO_OP, 0L, false, false, false, false);
+            new TaskSchedulerConfiguration(TaskSchedulerType.NO_OP, 0L, false, false, false, false, false);
 
     /**
      * This configuration is for a simple direct task scheduler. It is not necessary to use this constant for a direct
      * task scheduler, but it is provided for convenience.
      */
     public static final TaskSchedulerConfiguration DIRECT_CONFIGURATION =
-            new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT, 0L, false, false, false, false);
+            new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT, 0L, false, false, false, false, false);
 
     /**
      * This configuration is for a thread-safe direct task scheduler. It is not necessary to use this constant for a
      * thread-safe direct task scheduler, but it is provided for convenience.
      */
     public static final TaskSchedulerConfiguration DIRECT_THREADSAFE_CONFIGURATION =
-            new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT_THREADSAFE, 0L, false, false, false, false);
+            new TaskSchedulerConfiguration(TaskSchedulerType.DIRECT_THREADSAFE, 0L, false, false, false, false, false);
 
     /**
      * Parse a string representation of a task scheduler configuration.
@@ -81,6 +85,7 @@ public record TaskSchedulerConfiguration(
         TaskSchedulerType type = null;
         Long unhandledTaskCapacity = null;
         Boolean unhandledTaskMetricEnabled = null;
+        Boolean inflightTaskMetricEnabled = null;
         Boolean busyFractionMetricEnabled = null;
         Boolean flushingEnabled = null;
         Boolean squelchingEnabled = null;
@@ -120,6 +125,16 @@ public record TaskSchedulerConfiguration(
                 continue;
             }
 
+            final Boolean parsedInflightTaskMetric = tryToParseOption(INFLIGHT_TASK_METRIC, strippedPart);
+            if (parsedInflightTaskMetric != null) {
+                if (inflightTaskMetricEnabled != null) {
+                    throw new IllegalArgumentException(
+                            "Multiple in-flight task metric configurations specified: " + string);
+                }
+                inflightTaskMetricEnabled = parsedInflightTaskMetric;
+                continue;
+            }
+
             final Boolean parsedBusyFractionMetric = tryToParseOption(BUSY_FRACTION_METRIC, strippedPart);
             if (parsedBusyFractionMetric != null) {
                 if (busyFractionMetricEnabled != null) {
@@ -155,6 +170,7 @@ public record TaskSchedulerConfiguration(
                 type,
                 unhandledTaskCapacity,
                 unhandledTaskMetricEnabled,
+                inflightTaskMetricEnabled,
                 busyFractionMetricEnabled,
                 flushingEnabled,
                 squelchingEnabled);

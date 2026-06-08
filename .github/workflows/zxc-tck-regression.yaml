@@ -15,6 +15,16 @@ on:
         description: "The version of solo to install (if not specified, latest will be used):"
         required: false
         type: string
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -51,17 +61,23 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-sdk-tck-lin-lg
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
 
-      #  Check out the specified hiero-consensus-node reference
-      - name: Checkout Consensus Node
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref || '' }}
-          fetch-depth: 0
+          java-distribution: "${{ inputs.java-distribution }}"
+
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "20.18.0"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -97,29 +113,9 @@ jobs:
           echo "Latest JS-SDK tag: ${LATEST_TAG}"
           git checkout ${LATEST_TAG}
 
-      # Set up Java Environment
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: 21.0.6
-
-      # Set up the node environment
-      # Version 20.18.0 is the recommended version for solo.
-      - name: Setup NodeJS Environment
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 20.18.0
-
       - name: Setup PNPM
         run: |
           npm install -g pnpm
-
-      # Set up the gradle environment
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
-        with:
-          cache-read-only: false
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
@@ -156,6 +152,7 @@ jobs:
       # Prepare Hiero Solo
       - name: Prepare Hiero Solo
         id: solo-action
+        timeout-minutes: 20
         uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
         with:
           installMirrorNode: true
@@ -229,16 +226,41 @@ jobs:
   report-tck-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-sdk-tck-lin-sm
-    needs: tck-regression
+    needs:
+      - tck-regression
     if: ${{ always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
+      - name: Checkout Templates
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/workflows/templates
+          sparse-checkout-cone-mode: false
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
       - name: Build Slack Payload Message
         id: payload
+        env:
+          HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
+          STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"
+          PANEL_LABEL: "TCK Regression Panel Result"
+          RESULT: ${{ needs.tck-regression.result }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           COLOR="#FF0000"
           if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
@@ -246,81 +268,8 @@ jobs:
           elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
             COLOR="#555555"
           fi
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "${COLOR}",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*TCK Regression Panel was executed. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "TCK Regression Panel Result"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.tck-regression.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+          export SLACK_COLOR="${COLOR}"
+          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
 
       - name: Report Status to CITR Detailed Test Results
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0

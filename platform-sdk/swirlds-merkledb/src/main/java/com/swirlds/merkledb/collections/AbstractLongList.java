@@ -294,6 +294,7 @@ public abstract class AbstractLongList<C> implements LongList {
      *
      * @param sourceFileName the name of the file from which the list is initialized
      * @param fileChannel the file channel to read the list body from
+     * @param configuration the configuration of the system
      * @throws IOException if there was a problem reading the file
      */
     protected void readBodyFromFileChannelOnInit(
@@ -489,7 +490,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param newValue the new value to store
      * @return whether the newValue was set
      */
-    protected abstract boolean putIfEqual(C chunk, int subIndex, long oldValue, long newValue);
+    protected abstract boolean putIfEqual(@NonNull C chunk, int subIndex, long oldValue, long newValue);
 
     /**
      * Implements CASable.get(index)
@@ -588,7 +589,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param fc The file channel to write to
      * @throws IOException if there was a problem writing longs
      */
-    protected abstract void writeLongsData(final FileChannel fc) throws IOException;
+    protected abstract void writeLongsData(@NonNull final FileChannel fc) throws IOException;
 
     /**
      * Lookup a long in data
@@ -601,7 +602,7 @@ public abstract class AbstractLongList<C> implements LongList {
 
     /** {@inheritDoc} */
     @Override
-    public final void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
+    public void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
         if ((newMinValidIndex < -1) || (newMinValidIndex > newMaxValidIndex)) {
             throw new IndexOutOfBoundsException(INVALID_RANGE_MSG.formatted(newMinValidIndex, newMaxValidIndex));
         }

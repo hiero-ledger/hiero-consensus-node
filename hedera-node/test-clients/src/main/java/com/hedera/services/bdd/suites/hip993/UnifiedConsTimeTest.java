@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.pbjTimestampToInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_LAST_ASSIGNED_CONSENSUS_TIME;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -34,7 +33,6 @@ import java.math.BigInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @DisplayName("given HIP-993 unified consensus times")
 public class UnifiedConsTimeTest {
@@ -45,7 +43,6 @@ public class UnifiedConsTimeTest {
      */
     @DisplayName("user transaction gets platform assigned time")
     @RepeatableHapiTest(NEEDS_LAST_ASSIGNED_CONSENSUS_TIME)
-    @Tag(MATS)
     final Stream<DynamicTest> userTxnGetsPlatformAssignedTime() {
         return hapiTest(cryptoCreate("somebody").via("txn"), withOpContext((spec, opLog) -> {
             final var op = getTxnRecord("txn");
@@ -81,7 +78,6 @@ public class UnifiedConsTimeTest {
 
     @HapiTest
     @DisplayName("child mint time is parent consensus time not synthetic time")
-    @Tag(MATS)
     final Stream<DynamicTest> childMintTimeIsParentConsensusTime(
             @NonFungibleToken final SpecNonFungibleToken token,
             @Contract(contract = "HTSCalls", creationGas = 1_000_000) final SpecContract htsCalls) {

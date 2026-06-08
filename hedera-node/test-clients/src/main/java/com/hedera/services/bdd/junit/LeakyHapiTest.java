@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
@@ -27,7 +28,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @TestFactory
 @ExtendWith({NetworkTargetingExtension.class, SpecNamingExtension.class})
 @ResourceLock(value = "NETWORK", mode = READ_WRITE)
-@Tag(TestTags.SERIAL)
+@Tag(SERIAL)
 public @interface LeakyHapiTest {
     /**
      * If set, the types of context requirements that the test is subject to. If this list includes

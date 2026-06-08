@@ -36,7 +36,25 @@ public final class AddressBookServiceDefinition implements RpcServiceDefinition 
             // Such a deleted node can never be reused.
             // Request is [NodeDeleteTransactionBody](#proto.NodeDeleteTransactionBody)
             //
-            new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class));
+            new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class),
+            // Prepare to add a new registered node to the network.
+            // When a valid HAPI transaction is initiated to add a new registered node,
+            // then the network should acknowledge the transaction and update the network's Address Book.
+            // The new registered node is visible and discoverable immediately upon completion.
+            // Request is [RegisteredNodeCreateTransactionBody](#proto.RegisteredNodeCreateTransactionBody)
+            //
+            new RpcMethodDefinition<>("createRegisteredNode", Transaction.class, TransactionResponse.class),
+            // Prepare to update the registered node in the network.
+            // The registered node will be updated immediately upon completion.
+            // Request is [RegisteredNodeUpdateTransactionBody](#proto.RegisteredNodeUpdateTransactionBody)
+            //
+            new RpcMethodDefinition<>("updateRegisteredNode", Transaction.class, TransactionResponse.class),
+            // Prepare to delete the registered node from the network.
+            // The deleted registered node will be removed immediately upon completion.
+            // Such a deleted registered node can never be reused.
+            // Request is [RegisteredNodeDeleteTransactionBody](#proto.RegisteredNodeDeleteTransactionBody)
+            //
+            new RpcMethodDefinition<>("deleteRegisteredNode", Transaction.class, TransactionResponse.class));
 
     private AddressBookServiceDefinition() {
         // Forbid instantiation

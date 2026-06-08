@@ -21,7 +21,6 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.ConstructorRegistry;
 import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.base.constructable.URLClassLoaderWithLookup;
 import org.hiero.base.exceptions.NotImplementedException;
 
 /**
@@ -68,33 +67,10 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
         return p.constructor();
     }
 
-    /**
-     * Generate lambdas and register all classes provided
-     *
-     * @param constructableClasses
-     * 		the classes to register
-     * @param additionalClassloader
-     * 		a non-default classloader used
-     * @throws ConstructableRegistryException
-     * 		if any class has an issue being registered
-     */
-    public void registerConstructables(
-            final ConstructableClasses<?> constructableClasses, final URLClassLoaderWithLookup additionalClassloader)
-            throws ConstructableRegistryException {
-        if (!constructableClasses.getConstructorType().equals(constructorType)) {
-            throw new ConstructableRegistryException(String.format(
-                    "Cannot register the constructor type %s, this registry requires %s",
-                    constructableClasses.getConstructorType().getCanonicalName(), constructorType.getCanonicalName()));
-        }
-        for (final Class<? extends RuntimeConstructable> constructable : constructableClasses.getClasses()) {
-            registerConstructable(constructable, createConstructorLambda(constructable, additionalClassloader));
-        }
-    }
-
     @Override
     public void registerConstructable(final Class<? extends RuntimeConstructable> aClass)
             throws ConstructableRegistryException {
-        registerConstructable(aClass, createConstructorLambda(aClass, null));
+        registerConstructable(aClass, createConstructorLambda(aClass));
     }
 
     @Override
@@ -138,9 +114,7 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
         }
     }
 
-    private T createConstructorLambda(
-            final Class<? extends RuntimeConstructable> constructable,
-            final URLClassLoaderWithLookup additionalClassloader)
+    private T createConstructorLambda(final Class<? extends RuntimeConstructable> constructable)
             throws ConstructableRegistryException {
         if (!hasRequiredConstructor(constructable)) {
             throw new ConstructableRegistryException(String.format(
@@ -149,7 +123,7 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
         final T constructor;
         try {
             GenericConstructorRegistry.class.getModule().addReads(constructable.getModule());
-            final MethodHandles.Lookup lookup = getLookup(constructable, additionalClassloader);
+            final MethodHandles.Lookup lookup = MethodHandles.lookup();
 
             final Class<?>[] params = constructorSignature.getParameterTypes();
             final MethodHandle mh = lookup.findConstructor(constructable, MethodType.methodType(void.class, params));
@@ -167,28 +141,6 @@ public class GenericConstructorRegistry<T> implements ConstructorRegistry<T> {
                     String.format("Could not create a lambda for constructor: %s", throwable.getMessage()), throwable);
         }
         return constructor;
-    }
-
-    /**
-     * Depending on which classloader loaded the class, the Lookup object should come from the context of that
-     * classloader. So we check which loader loaded the class to get the appropriate lookup object.
-     */
-    private static MethodHandles.Lookup getLookup(
-            final Class<? extends RuntimeConstructable> constructable,
-            final URLClassLoaderWithLookup additionalClassloader)
-            throws ConstructableRegistryException {
-        if (additionalClassloader != null && additionalClassloader.equals(constructable.getClassLoader())) {
-            try {
-                return additionalClassloader.getLookup();
-            } catch (final RuntimeException
-                    | ClassNotFoundException
-                    | NoSuchFieldException
-                    | IllegalAccessException e) {
-                throw new ConstructableRegistryException(
-                        "Issue while getting the MethodHandles.Lookup from URLClassLoaderWithLookup", e);
-            }
-        }
-        return MethodHandles.lookup();
     }
 
     private boolean hasRequiredConstructor(final Class<? extends RuntimeConstructable> constructable) {

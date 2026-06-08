@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -663,11 +662,13 @@ public class AtomicBatchTest {
                                     cryptoCreate("foo")
                                             .via("innerTxn1")
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator),
+                                            .payingWith(batchOperator)
+                                            .signedBy(batchOperator),
                                     cryptoCreate("bar")
                                             .via("innerTxn2")
                                             .batchKey(batchOperator)
-                                            .payingWith(batchOperator))
+                                            .payingWith(batchOperator)
+                                            .signedBy(batchOperator))
                             .payingWith(batchOperator)
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
@@ -681,7 +682,7 @@ public class AtomicBatchTest {
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
-                            return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5);
+                            return validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.0527, 5);
                         }
                     }),
                     doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
@@ -693,7 +694,7 @@ public class AtomicBatchTest {
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.001);
                         } else {
-                            return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5);
+                            return validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.0527, 5);
                         }
                     }));
         }
@@ -1095,7 +1096,6 @@ public class AtomicBatchTest {
 
         @HapiTest
         @DisplayName("Validate crypto transfer precompile gas used for inner transaction")
-        @Tag(MATS)
         final Stream<DynamicTest> validateInnerCallToCryptoTransferPrecompile() {
             final var sender = "sender";
             final var receiver = "receiver";
@@ -1261,7 +1261,6 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> payerIsContract() {
         return hapiTest(
                 cryptoCreate("sender").balance(ONE_MILLION_HBARS),

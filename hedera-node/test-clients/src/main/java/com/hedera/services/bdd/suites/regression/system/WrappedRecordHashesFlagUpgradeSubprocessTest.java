@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -14,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -38,6 +40,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
+// This test should run first to ensure the later `JumpstartFileSuite`'s constructed jumpstart file targets a block
+// number safely after the wrapped record hashes file flag is enabled
+@Order(0)
 public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTest {
     private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
     private static final long DISK_IO_WAIT_MS = 1_000;
@@ -61,11 +66,14 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     public @NonNull Stream<DynamicTest> canEnableWrappedRecordHashesAcrossUpgradeFromDefaultOff() {
         final var enableAtRestart = Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true");
 
         return hapiTest(
+                doingContextual(spec -> org.junit.jupiter.api.Assumptions.assumeTrue(
+                        spec.startupProperties().getStreamMode("blockStream.streamMode") != BLOCKS,
+                        "WRB requires record stream; skipping in BLOCKS-only mode")),
                 // Produce a new record block and ensure nothing was written with default settings
                 waitUntilNextBlock(),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -20,7 +22,7 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Isolated
-@Tag(TestTags.SERIAL)
+@Tag(SERIAL)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
 public @interface OrderedInIsolation {}

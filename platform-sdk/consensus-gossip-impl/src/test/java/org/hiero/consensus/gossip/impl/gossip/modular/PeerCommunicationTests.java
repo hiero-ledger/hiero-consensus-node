@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
@@ -50,9 +49,7 @@ public class PeerCommunicationTests {
     private final ArrayList<CommunicationEvent> events = new ArrayList<>();
 
     @BeforeEach
-    void testSetup() throws Exception {
-        ConstructableRegistry.getInstance().registerConstructables("");
-
+    void testSetup() {
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance())
@@ -69,7 +66,7 @@ public class PeerCommunicationTests {
     }
 
     @AfterEach
-    void testTeardown() throws Exception {
+    void testTeardown() {
         for (PeerCommunication pc : this.peerCommunications) {
             pc.stop();
         }

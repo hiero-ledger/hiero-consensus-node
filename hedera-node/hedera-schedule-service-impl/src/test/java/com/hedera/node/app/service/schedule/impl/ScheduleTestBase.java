@@ -20,6 +20,9 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -422,6 +425,12 @@ public class ScheduleTestBase {
         childBuilder.nodeUpdate(NodeUpdateTransactionBody.newBuilder());
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         childBuilder.nodeDelete(NodeDeleteTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.registeredNodeCreate(RegisteredNodeCreateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.registeredNodeUpdate(RegisteredNodeUpdateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.registeredNodeDelete(RegisteredNodeDeleteTransactionBody.newBuilder());
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         return listOfOptions;
     }

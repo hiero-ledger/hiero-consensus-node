@@ -16,12 +16,13 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.Reservable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -40,13 +41,15 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SignedState;
@@ -199,7 +202,10 @@ public class RandomSignedStateGenerator {
         });
 
         TestingAppStateInitializer.initRosterState(stateInstance);
-        RosterStateUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
+        final WritableStates writableRosterStates = stateInstance.getWritableStates(RosterStateId.SERVICE_NAME);
+        final WritableRosterStore rosterStore = new WritableRosterStore(writableRosterStates);
+        rosterStore.putActiveRoster(rosterInstance, roundInstance);
+        ((CommittableWritableStates) writableRosterStates).commit();
 
         if (signatureVerifier == null) {
             signatureVerifier = SignatureVerificationTestUtils::verifySignature;

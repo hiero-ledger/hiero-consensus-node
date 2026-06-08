@@ -18,6 +18,10 @@ module com.hedera.node.yahcli {
             info.picocli;
     opens com.hedera.services.yahcli.commands.nodes to
             info.picocli;
+    opens com.hedera.services.yahcli.commands.registerednodes to
+            info.picocli;
+    opens com.hedera.services.yahcli.commands.ivy to
+            info.picocli;
 
     exports com.hedera.services.yahcli.config.domain;
     exports com.hedera.services.yahcli.config;

@@ -115,6 +115,18 @@ public class VirtualMapMetadata {
         this.lastLeafPath = path;
     }
 
+    public void setPaths(final long firstLeafPath, final long lastLeafPath) {
+        if (lastLeafPath == firstLeafPath) {
+            if ((firstLeafPath != INVALID_PATH) && (firstLeafPath != 1)) {
+                throw new IllegalArgumentException("Invalid paths: " + firstLeafPath + "/" + lastLeafPath);
+            }
+        } else if (lastLeafPath < firstLeafPath) {
+            throw new IllegalArgumentException("The lastLeafPath must be greater than or equal to the firstLeafPath");
+        }
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
+    }
+
     /**
      * Gets the size of the virtual map. The size is defined as the number of leaves in the tree.
      * @return The size of the virtual map.

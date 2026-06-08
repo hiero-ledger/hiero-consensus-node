@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpGossipModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
@@ -118,7 +118,8 @@ public final class DiagramCommand extends AbstractCommand {
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration);
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

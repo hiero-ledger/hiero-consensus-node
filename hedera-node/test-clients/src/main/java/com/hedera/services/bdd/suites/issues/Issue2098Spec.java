@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -18,19 +18,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class Issue2098Spec {
     private static final String CIVILIAN = "civilian";
     private static final String CRYPTO_TRANSFER = "cryptoTransfer";
     private static final String GET_TOPIC_INFO = "getTopicInfo";
 
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> txnApiPermissionsChangeImmediately() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -47,7 +45,7 @@ public class Issue2098Spec {
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN, FUNDING, 1L)).payingWith(CIVILIAN));
     }
 
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> queryApiPermissionsChangeImmediately() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -62,7 +60,7 @@ public class Issue2098Spec {
                 getTopicInfo("misc").payingWith(CIVILIAN));
     }
 
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> adminsCanQueryNoMatterPermissions() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -77,8 +75,7 @@ public class Issue2098Spec {
                         .overridingProps(Map.of(GET_TOPIC_INFO, "0-*")));
     }
 
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> adminsCanTransactNoMatterPermissions() {
         return hapiTest(
                 cryptoCreate(CIVILIAN),

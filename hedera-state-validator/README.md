@@ -3,6 +3,20 @@
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
 compact state files, and apply block streams to advance state.
 
+### GCP Support
+
+All commands accept a GCS URI (`gs://...`) as the state directory, eliminating the need to manually download state files. When a GCS path is provided, the tool downloads the state to a local cache directory using the `gcloud storage` CLI.
+
+**Prerequisites:** The `gcloud` CLI must be installed and authenticated with access to the target bucket. See [Google Cloud SDK installation](https://cloud.google.com/sdk/docs/install).
+
+**Caching:** Downloaded state files are cached in a deterministic directory (`./state-validator-cache-<round>/`) in the current working directory. Subsequent runs with the same state path reuse the cached copy without re-downloading.
+
+### Global Options
+
+These options apply to all subcommands:
+
+- `--cleanup-temp` - Delete cached directories created for GCP downloads after execution. Default = `false` (cache is preserved for reuse).
+
 ## Validate
 
 [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) ensures state integrity and validates that Hedera nodes can start from existing state snapshots.
@@ -14,20 +28,170 @@ Can also be used for development purposes, such as verifying that the node's sta
 2. Run the following command to execute the validation:
 
 ```shell
-java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
+java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [options]
 ```
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
-- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
-  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
-  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
-  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
-  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/state/Rehash.java) - Runs a full rehash of the state.
-  - [`account`](/src/main/java/com/hedera/statevalidation/validator/service/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
-    and verifies it totals exactly 50 billion HBAR.
-  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
+- `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
+  - [`all`](/src/main/java/com/hedera/statevalidation/validator/Validator.java) - Runs all validators.
+  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
+  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
+  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
+  - [`account`](/src/main/java/com/hedera/statevalidation/validator/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
+  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
+  - `entityIds` - Verifies entity IDs are valid and unique. Validators:
+    - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
+    - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
+  - `rehash` - Compare root hashes. Validators:
+    - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
+    - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
+
+### Options
+
+- `--io-threads` (or `-io`) - Number of IO threads for reading data files from disk and memory. Default: `4`.
+- `--process-threads` (or `-p`) - Number of CPU threads for processing data segments. These threads parse and validate data items read by IO threads. Default: `6`.
+- `--queue-capacity` (or `-q`) - Maximum number of batches that can be queued between IO and processor threads. Controls memory usage and provides backpressure when processors are slower than readers. Default: `100`.
+- `--batch-size` (or `-b`) - Number of data items grouped together before being placed in the queue. Larger batches reduce queue contention but increase memory per batch. Default: `10`.
+- `--min-segment-size-mib` (or `-mss`) - Minimum size in mebibytes (MiB) for file segments. Each data file is divided into segments for parallel reading; this sets the floor for segment size to avoid excessive overhead from too many small segments. Default: `128`.
+- `--segment-multiplier` (or `-s`) - Multiplier applied to IO thread count to determine the target number of segments per file collection. Higher values create more, smaller segments for better load balancing across threads. Default: `2`.
+- `--buffer-size-kib` (or `-bs`) - Buffer size in kibibytes (KiB) for file reading operations and segment boundary detection. Default: `128`.
+
+### Architecture
+
+The validator employs a **two-phase execution model**. First, **individual validators** (those implementing only the base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java) interface) run sequentially — each with its own custom execution logic (e.g., full tree rehash, external file comparison). Then, a **parallel pipeline** performs a single-pass traversal of all MerkleDB data files, dispatching items to multiple pipeline validators concurrently — avoiding redundant full-state scans. The architecture is orchestrated by [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) and [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java).
+
+```mermaid
+graph TD
+CLI["ValidateCommand (CLI)"]
+REG[ValidatorRegistry]
+IND["Individual Validators<br/>(RehashValidator, RootHashValidator)"]
+PIPE[ValidationPipelineExecutor]
+IO["IO Threads<br/>(ChunkedFileIterator + Memory Readers)"]
+Q["Bounded Queue<br/>(backpressure)"]
+PROC["Processor Threads<br/>(ProcessorTask)"]
+PV_P2H["P2H Validators<br/>(HashRecordIntegrityValidator)"]
+PV_P2KV["P2KV Validators<br/>(LeafBytesIntegrityValidator,<br/>AccountAndSupplyValidator,<br/>TokenRelationsIntegrityValidator,<br/>EntityIdCountValidator,<br/>EntityIdUniquenessValidator)"]
+PV_K2P["K2P Validators<br/>(HdhmBucketIntegrityValidator)"]
+LISTEN[ValidationListener]
+REPORT[SlackReportBuilder]
+
+    CLI --> REG
+    REG -->|individual| IND
+    REG -->|pipeline, grouped by Type| PIPE
+    PIPE --> IO
+    IO -->|batches| Q
+    Q --> PROC
+    PROC --> PV_P2H
+    PROC --> PV_P2KV
+    PROC --> PV_K2P
+
+    IND -.->|events| LISTEN
+    PV_P2H -.->|events| LISTEN
+    PV_P2KV -.->|events| LISTEN
+    PV_K2P -.->|events| LISTEN
+    LISTEN --> REPORT
+```
+
+### Validator Type Hierarchy
+
+Validators are categorized by the interface they implement. The [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) automatically routes data to the correct validators based on this hierarchy.
+
+```mermaid
+classDiagram
+    class Validator {
+        <<interface>>
+        +getGroup() String
+        +getName() String
+        +initialize(VirtualMapState)
+        +validate()
+    }
+
+    class HashRecordValidator {
+        <<interface>>
+        +processHashRecord(VirtualHashRecord)
+    }
+
+    class LeafBytesValidator {
+        <<interface>>
+        +processLeafBytes(long, VirtualLeafBytes)
+    }
+
+    class HdhmBucketValidator {
+        <<interface>>
+        +processBucket(long, ParsedBucket)
+    }
+
+    Validator <|-- HashRecordValidator
+    Validator <|-- LeafBytesValidator
+    Validator <|-- HdhmBucketValidator
+
+    HashRecordValidator <|.. HashRecordIntegrityValidator
+    LeafBytesValidator <|.. LeafBytesIntegrityValidator
+    LeafBytesValidator <|.. AccountAndSupplyValidator
+    LeafBytesValidator <|.. TokenRelationsIntegrityValidator
+    LeafBytesValidator <|.. EntityIdCountValidator
+    LeafBytesValidator <|.. EntityIdUniquenessValidator
+    HdhmBucketValidator <|.. HdhmBucketIntegrityValidator
+    Validator <|.. RehashValidator
+    Validator <|.. RootHashValidator
+```
+
+### Validator Lifecycle
+
+Every validator follows a three-phase lifecycle:
+
+|     Phase      |                           Method                           |                                                                      Description                                                                      |
+|----------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Initialize** | `initialize(VirtualMapState)`                              | Extract state references, set up atomic counters.                                                                                                     |
+| **Process**    | `processHashRecord` / `processLeafBytes` / `processBucket` | Receive streamed data items (pipeline validators only).                                                                                               |
+| **Validate**   | `validate()`                                               | Assert accumulated results; throw [ValidationException](src/main/java/com/hedera/statevalidation/validator/util/ValidationException.java) on failure. |
+
+Individual validators (those implementing only the base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java) interface) skip the process phase and perform their own logic directly in `validate()`.
+
+### Execution Flow
+
+1. **State loading** — [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) initializes the state directory and obtains the `VirtualMapState`.
+2. **Individual validators** — [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) filters, initializes, and runs individual validators sequentially (e.g., [RehashValidator](src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) performs a full task-based tree rehash, [RootHashValidator](src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) compares the root hash against a reference file).
+3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
+
+- **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
+- **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
+- After all data is consumed, `validate()` is called on each pipeline validator.
+
+4. **Reporting** — [ValidationExecutionListener](src/main/java/com/hedera/statevalidation/validator/listener/ValidationExecutionListener.java) tracks failures. On failure, [SlackReportBuilder](src/main/java/com/hedera/statevalidation/report/SlackReportBuilder.java) generates a report.
+
+### Pipeline Data Types
+
+|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+
+### Thread Safety
+
+- State is **read-only** during validation.
+- All validator counters must use `AtomicLong` / `AtomicInteger`.
+- The bounded queue provides backpressure between IO and processor threads.
+- [ValidationListener](src/main/java/com/hedera/statevalidation/validator/listener/ValidationListener.java) implementations must be thread-safe (callbacks arrive from multiple threads).
+
+### Adding a New Validator
+
+1. Create a class implementing [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
+2. Add an instance to [ValidatorRegistry.ALL_VALIDATORS](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java).
+3. *(Optional)* Define a new group constant and add it to [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java)'s parameters.
+
+The registry automatically categorizes validators by their interface type.
+
+### Performance Model
+
+- **Pipeline validators:** Single traversal shared by all validators of the same data type → **O(T)** instead of **O(T × N)**.
+- **Individual validators:** Each performs its own traversal → **O(T × M)**.
+
+Where `T` = time for one full traversal, `N` = pipeline validators, `M` = individual validators.
 
 ## Introspect
 
@@ -46,7 +210,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} introspect --service-n
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -73,7 +237,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv]
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -146,7 +310,7 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -307,7 +471,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ## Updating State with a Block Stream
 
@@ -318,22 +482,50 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 ```shell
 java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-stream-dir=<path-to-block-stream-files> \
  --node-id=<self-id> \
- [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>]
+ [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>] \
+ [--rate=<rounds per second>]
+```
+
+#### Using GCS paths:
+
+Both the state directory and block stream directory accept GCS URIs:
+
+```shell
+java -jar ./validator-<version>.jar gs://bucket/prefix/4971437 apply-blocks \
+ --block-stream-dir=gs://bucket/block-stream/0/1 \
+ --node-id=0 \
+ --target-round=5013136 \
+ --out=./out \
+ --billing-project=my-gcp-project
 ```
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`).
 
 ### Options
 
-- `--block-stream-dir` (or `-d`) - Location of the block stream files (required).
+- `--block-stream-dir` (or `-d`) - Location of the block stream files (required). Accepts a local path or a GCS URI (`gs://...`). When a GCS path is provided, `--target-round` is required.
 - `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
 - `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
-- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
-- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
+- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. Required when `--block-stream-dir` is a GCS path.
+- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command validates the hash of the resulting state against it.
+- `--rate` (or `-r`) - Maximum rounds to apply per second (integer, ≥ 1). Controls CPU/IO load independently of state size. For example, `10` means at most 10 rounds/s. Default = unlimited (apply as fast as possible).
+- `--billing-project` (or `-bp`) - GCP billing project for requester-pays buckets. Applies to block stream downloads only.
+- `--download-threads` (or `-dt`) - Number of parallel workers for downloading block files from GCP. Default = `32`.
+
+### GCS Block Stream Download
+
+When `--block-stream-dir` is a GCS path, the tool performs the following steps:
+
+1. **Left boundary**: Reads `BlockStreamInfo.blockNumber` from the loaded state to determine the first block file to download.
+2. **Right boundary**: Uses a scatter-gather binary search over the GCS block files — probes individual `.blk.gz` files, parses `RoundHeader` items, and narrows the range until the block containing the target round is found.
+3. **Download**: Downloads the resolved block range in parallel using batched `gcloud storage cp` invocations.
+4. **Validation**: Verifies all expected files are present and non-empty, with up to 3 retry passes for any missing files.
+   Downloaded block files are cached in a deterministic directory (`./state-validator-blocks-<source-round>-to-<target-round>/`). Subsequent runs with the same state and target round reuse the cached files without re-downloading.
 
 ### Notes:
 
 - The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
 - The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
+- When using GCS paths, progress is reported to stdout: state download percentage, block range probing status, and block file download percentage.

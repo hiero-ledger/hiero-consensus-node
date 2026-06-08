@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -198,7 +197,6 @@ class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> badRelayClient() {
         final var adminKey = "adminKey";
         final var exploitToken = "exploitToken";
@@ -296,7 +294,6 @@ class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> depositSuccess() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

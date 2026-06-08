@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
@@ -19,7 +16,6 @@ import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
@@ -29,28 +25,30 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("EventStreamPathIterator Test")
 class EventStreamPathIteratorTest {
 
+    @TempDir
+    private Path directory;
+
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero");
+        ConstructableRegistration.registerAllConstructables();
     }
 
     @Test
     @DisplayName("Starting From First Event Test")
-    void startingFromFirstEventTest() throws IOException, NoSuchAlgorithmException {
+    void startingFromFirstEventTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -87,9 +85,8 @@ class EventStreamPathIteratorTest {
 
     @Test
     @DisplayName("Starting From Specified Event Test")
-    void startingFromSpecifiedEventTest() throws IOException, NoSuchAlgorithmException {
+    void startingFromSpecifiedEventTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;
@@ -132,9 +129,8 @@ class EventStreamPathIteratorTest {
 
     @Test
     @DisplayName("Request Non Existent Rounds Test")
-    void requestNonExistentRoundsTest() throws IOException, NoSuchAlgorithmException {
+    void requestNonExistentRoundsTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;
@@ -158,9 +154,8 @@ class EventStreamPathIteratorTest {
 
     @Test
     @DisplayName("Extensive Bound Test")
-    void extensiveBoundTest() throws IOException, NoSuchAlgorithmException {
+    void extensiveBoundTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;

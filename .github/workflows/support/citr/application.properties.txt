@@ -1,3 +1,5 @@
+# SOLO_ENABLE_OVERWRITE=true
+
 contracts.chainId=298
 ledger.id=0x03
 entities.unlimitedAutoAssociationsEnabled=true
@@ -5,3 +7,11 @@ bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
+
+#enable Latency Metrics
+blockNode.globalCoolDownSeconds=1
+blockNode.basicNodeCoolDownSeconds=1
+blockNode.extendedNodeCoolDownSeconds=1
+blockNode.connectionStallThresholdMillis=5000
+
+staking.periodMins=360

@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.benchmark.reconnect;
 
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
 import java.io.FileNotFoundException;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.Assertions;
@@ -52,17 +50,13 @@ public abstract class VirtualMapReconnectBenchBase {
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
+        ConstructableRegistration.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {
         final VirtualMap copy = teacherMap.copy();
         try {
-            final var node = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+            final var node = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
             node.release();
             Assertions.assertTrue(learnerMap.isHashed(), "Learner root node must be hashed");
         } finally {

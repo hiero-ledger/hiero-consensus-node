@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.queries;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -40,11 +39,9 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
-    @Tag(MATS)
     final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountBalance() {
         return hapiTest(
                 cryptoCreate(NODE_OPERATOR).balance(ONE_HUNDRED_HBARS),
@@ -191,7 +188,6 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
-    @Tag(MATS)
     final Stream<DynamicTest> nodeOperatorTopicInfoQueryNotCharged() {
         return hapiTest(flattened(
                 nodeOperatorAccount(),

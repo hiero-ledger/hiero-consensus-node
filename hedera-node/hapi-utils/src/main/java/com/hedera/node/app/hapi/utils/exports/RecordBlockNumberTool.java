@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.exports;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.services.stream.proto.RecordStreamFile;
 import java.io.File;
@@ -19,8 +19,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 
 /**
  * This is a standalone utility tool to read record stream file and check if block number is
@@ -47,15 +47,7 @@ public class RecordBlockNumberTool {
     }
 
     public static void prepare() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-
-        LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
-        // if we are parsing new record stream files,
-        // we need to add HederaNode.jar and hedera-protobuf-java-*.jar into class path,
-        // so that we can register for parsing RecordStreamObject
-        registry.registerConstructables("com.hedera.services.stream");
+        ConstructableRegistration.registerAllConstructables();
     }
 
     private static Pair<Integer, Optional<RecordStreamFile>> readMaybeCompressedRecordStreamFile(final String loc)

@@ -42,7 +42,6 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
                 parts,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
-                        final var createdNum = baseTranslator.nextCreatedNum(TOPIC);
                         final var iter = remainingStateChanges.listIterator();
                         while (iter.hasNext()) {
                             final var stateChange = iter.next();
@@ -55,7 +54,8 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .topicIdKeyOrThrow();
-                                if (topicId.topicNum() == createdNum) {
+                                if (baseTranslator.entityCreatedThisUnit(topicId.topicNum())) {
+                                    baseTranslator.consumeCreatedNum(TOPIC, topicId.topicNum());
                                     receiptBuilder.topicID(topicId);
                                     iter.remove();
                                     return;

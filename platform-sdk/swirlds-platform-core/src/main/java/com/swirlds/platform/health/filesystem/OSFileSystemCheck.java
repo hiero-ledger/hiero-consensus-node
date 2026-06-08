@@ -10,8 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import org.hiero.consensus.io.extendable.ExtendableInputStream;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.CounterType;
+import org.hiero.consensus.io.counting.CountingInputStream;
 
 /**
  * Checks that the operating system is able to open a file and read a byte from it without throwing an exception or
@@ -68,11 +68,10 @@ public final class OSFileSystemCheck {
         // Open and read the first byte of the file
         final Supplier<Byte> randomRequester = () -> {
             try (final InputStream in = Files.newInputStream(fileToRead);
-                    final CountingStreamExtension counter = new CountingStreamExtension();
-                    final InputStream ein = new ExtendableInputStream(in, counter)) {
-                final byte byteRead = (byte) ein.read();
+                    final CountingInputStream cis = new CountingInputStream(in, CounterType.THREAD_SAFE)) {
+                final byte byteRead = (byte) cis.read();
 
-                if (counter.getCount() < 1) {
+                if (cis.byteCounter().getCount() < 1) {
                     failureReport.set(Report.failure(TestResultCode.FILE_EMPTY));
                 }
                 return byteRead;

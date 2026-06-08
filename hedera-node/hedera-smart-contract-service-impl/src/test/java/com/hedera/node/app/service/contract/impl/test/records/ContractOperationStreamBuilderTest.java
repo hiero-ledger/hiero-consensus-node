@@ -26,7 +26,9 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ContractOperationStreamBuilderTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+
     @Mock
     private HandleContext context;
 
@@ -72,7 +78,7 @@ class ContractOperationStreamBuilderTest {
                                 ContractID.DEFAULT,
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
                         null));
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
@@ -94,10 +100,73 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 null);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
+        assertSame(subject, builder);
+    }
+
+    @Test
+    void skipsLegacyAddContractActionsWhenStreamModeIsBlocks() {
+        final Configuration blocksOnlyConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+        final var outcome = new CallOutcome(
+                ContractFunctionResult.newBuilder().gasUsed(1L).build(),
+                ResponseCodeEnum.SUCCESS,
+                ContractID.DEFAULT,
+                List.of(),
+                null,
+                null,
+                null,
+                EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
+                null,
+                null);
+        given(context.configuration()).willReturn(blocksOnlyConfig);
+
+        subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
+
+        verify(subject, never()).addContractActions(any(), anyBoolean());
+        verify(subject).addActions(any());
+    }
+
+    @Test
+    void setsBlockModeFieldsIfPresent() {
+        final Configuration blocksOnlyConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+        final var stateChanges = new ContractStateChanges(List.of(new ContractStateChange(
+                ContractID.DEFAULT,
+                List.of(new StorageChange(
+                        Bytes.fromHex("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+                        Bytes.EMPTY,
+                        Bytes.EMPTY)))));
+        final var outcome = new CallOutcome(
+                ContractFunctionResult.newBuilder().gasUsed(1L).build(),
+                ResponseCodeEnum.SUCCESS,
+                ContractID.DEFAULT,
+                List.of(),
+                null,
+                null,
+                null,
+                EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
+                null,
+                new TxStorageUsage(
+                        List.of(new StorageAccesses(
+                                ContractID.DEFAULT,
+                                List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
+                        null));
+        given(context.configuration()).willReturn(blocksOnlyConfig);
+        final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
+
+        verify(subject, never()).addContractActions(any(), anyBoolean());
+        verify(subject, never()).addContractStateChanges(any(), anyBoolean());
+        verify(subject).addActions(any());
+        verify(subject).addContractSlotUsages(any());
         assertSame(subject, builder);
     }
 }
