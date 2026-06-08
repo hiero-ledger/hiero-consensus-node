@@ -241,8 +241,12 @@ public class BlockBufferIO {
             }
 
             final BlockBytes blk = new BlockBytes(items);
-            final Instant closedInstant = block.closedTimestamp();
-            final Instant openedInstant = block.openedTimestamp();
+            final Instant closedInstant = requireNonNull(
+                    block.closedTimestamp(),
+                    "Cannot persist block " + block.blockNumber() + " with a null closed timestamp");
+            final Instant openedInstant = requireNonNull(
+                    block.openedTimestamp(),
+                    "Cannot persist block " + block.blockNumber() + " with a null opened timestamp");
 
             final Timestamp openedTimestamp = Timestamp.newBuilder()
                     .seconds(openedInstant.getEpochSecond())
