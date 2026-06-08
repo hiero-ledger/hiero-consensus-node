@@ -206,6 +206,13 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
     }
 
+    /*
+     *  Return PBJ bytes to avoid a copy
+     */
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ(ContractID contractID) {
+        return contractStateStore.getBytecode(contractID).code();
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -231,6 +238,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return RedirectBytecodeUtils.tokenProxyBytecodeFor(address);
     }
 
+    public com.hedera.pbj.runtime.io.buffer.Bytes getTokenRedirectCodePBJ(Address address) {
+        return RedirectBytecodeUtils.tokenProxyBytecodePjb(address);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -247,6 +258,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public @NonNull Bytes getAccountRedirectCode(@Nullable final Address address) {
         return RedirectBytecodeUtils.accountProxyBytecodeFor(address);
+    }
+
+    public com.hedera.pbj.runtime.io.buffer.Bytes getAccountRedirectCodePBJ(Address address) {
+        return RedirectBytecodeUtils.accountProxyBytecodePjb(address);
     }
 
     /**

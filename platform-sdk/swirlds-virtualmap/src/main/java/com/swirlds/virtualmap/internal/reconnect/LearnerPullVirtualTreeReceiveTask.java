@@ -4,9 +4,10 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -37,8 +38,6 @@ public class LearnerPullVirtualTreeReceiveTask {
     // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
 
-    private final Runnable completeListener;
-
     private final Duration allMessagesReceivedTimeout;
 
     /**
@@ -56,13 +55,11 @@ public class LearnerPullVirtualTreeReceiveTask {
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
-            final AtomicLong expectedResponses,
-            final Runnable completeListener) {
+            final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;
         this.view = view;
         this.expectedResponses = expectedResponses;
-        this.completeListener = completeListener;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
@@ -82,13 +79,9 @@ public class LearnerPullVirtualTreeReceiveTask {
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final byte[] responseBytes = in.readAnticipatedMessage();
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (responseBytes == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                    break;
                 }
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
@@ -111,7 +104,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                                     "Timed out waiting for view all remaining view messages to be processed");
                         }
                     }
-                    completeListener.run();
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
             }

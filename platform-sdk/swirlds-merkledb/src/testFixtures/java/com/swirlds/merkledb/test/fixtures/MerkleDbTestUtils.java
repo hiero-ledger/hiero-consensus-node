@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
@@ -23,21 +20,13 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.LongBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,17 +40,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.HashBuilder;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 
-@SuppressWarnings("unused")
 public class MerkleDbTestUtils {
+
+    public static final String DEFAULT_TABLE_NAME = "testTable";
 
     /**
      * The amount of direct memory used by JVM and caches. This needs to be big enough to allow for
@@ -72,9 +62,7 @@ public class MerkleDbTestUtils {
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .build();
 
     /**
@@ -97,27 +85,8 @@ public class MerkleDbTestUtils {
         executorService.shutdown();
         // Check we did not leak direct memory now that the thread is shut down so thread locals
         // should be released
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
-        // check db count
-        assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
-    }
-
-    /** Dump the Java heap to a file in current working directory */
-    public static void dumpHeap() throws IOException {
-        final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-        final HotSpotDiagnosticMXBean mxBean = ManagementFactory.newPlatformMXBeanProxy(
-                server, "com.sun.management:type=HotSpotDiagnostic", HotSpotDiagnosticMXBean.class);
-        final String filePath = Path.of("heapdump-" + System.currentTimeMillis() + ".hprof")
-                .toAbsolutePath()
-                .toString();
-        mxBean.dumpHeap(filePath, true);
-        System.out.println("Dumped heap to " + filePath);
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
+        assertAllDatabasesClosed();
     }
 
     /**
@@ -130,12 +99,11 @@ public class MerkleDbTestUtils {
      *
      * @param directMemoryBytesBefore The number of bytes of direct memory allocated before test was
      *     started
-     * @return True if more than base usage of direct memory is being used after 20 gc() calls.
      */
-    public static boolean checkDirectMemoryIsCleanedUpToLessThanBaseUsage(final long directMemoryBytesBefore) {
+    public static void checkDirectMemoryIsCleanedUpToLessThanBaseUsage(final long directMemoryBytesBefore) {
         final long limit = directMemoryBytesBefore + DIRECT_MEMORY_BASE_USAGE;
         if (getDirectMemoryUsedBytes() < limit) {
-            return true;
+            return;
         }
         for (int i = 0; i < 5 && getDirectMemoryUsedBytes() > limit; i++) {
             System.gc();
@@ -145,7 +113,13 @@ public class MerkleDbTestUtils {
                 throw new RuntimeException(e);
             }
         }
-        return getDirectMemoryUsedBytes() < limit;
+
+        assertTrue(
+                getDirectMemoryUsedBytes() < limit,
+                "Direct Memory used is more than base usage even after 5 gc() calls. At start was "
+                        + (directMemoryBytesBefore * UnitConstants.BYTES_TO_MEBIBYTES) + "MB and is now "
+                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
+                        + "MB");
     }
 
     private static final BufferPoolMXBean DIRECT_MEMORY_POOL;
@@ -196,57 +170,6 @@ public class MerkleDbTestUtils {
     }
 
     /**
-     * Creates a hash of the status of all files in a directory, that is their names, sizes and
-     * modification dates. This is useful to be able to check if any modifications have happened on
-     * a directory.
-     *
-     * @param dir The directory to scan and hash
-     * @return null if directory doesn't exist or hash of status of contents
-     */
-    public static Hash hashDirectoryContentsStatus(final Path dir) {
-        if (Files.exists(dir) && Files.isDirectory(dir)) {
-            final HashBuilder hashBuilder = new HashBuilder(DigestType.SHA_384);
-            try (final Stream<Path> filesStream = Files.walk(dir)) {
-                filesStream.forEach(filePath -> {
-                    try {
-                        hashBuilder.update(filePath.getFileName().toString().getBytes());
-                        final BasicFileAttributes fileAttributes =
-                                Files.readAttributes(filePath, BasicFileAttributes.class);
-                        hashBuilder.update(fileAttributes.lastModifiedTime().toMillis());
-                        hashBuilder.update(Files.size(filePath));
-                    } catch (final IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-            } catch (final Exception e) {
-                System.err.println("Failed to hash directory [" + dir.toFile().getAbsolutePath() + "]");
-                e.printStackTrace();
-            }
-            return hashBuilder.build();
-        } else {
-            return null;
-        }
-    }
-
-    public static String toLongsString(final Hash hash) {
-        final LongBuffer longBuf = ByteBuffer.wrap(hash.copyToByteArray())
-                .order(ByteOrder.BIG_ENDIAN)
-                .asLongBuffer();
-        final long[] array = new long[longBuf.remaining()];
-        longBuf.get(array);
-        return Arrays.toString(array);
-    }
-
-    public static String toLongsString(final ByteBuffer buf) {
-        buf.rewind();
-        final LongBuffer longBuf = buf.asLongBuffer();
-        final long[] array = new long[longBuf.remaining()];
-        longBuf.get(array);
-        buf.rewind();
-        return Arrays.toString(array);
-    }
-
-    /**
      * Creates a hash containing an int repeated 6 times as longs.
      *
      * @return hash with digest an array of 6 longs determined by the given value
@@ -259,36 +182,6 @@ public class MerkleDbTestUtils {
             System.arraycopy(hardCoded, 0, digest, i * 6 + 4, 4);
         }
         return new Hash(digest, DigestType.SHA_384);
-    }
-
-    public static void hexDump(final PrintStream out, final Path file) throws IOException {
-        final InputStream is = new FileInputStream(file.toFile());
-        int i = 0;
-
-        while (is.available() > 0) {
-            final StringBuilder sb1 = new StringBuilder();
-            final StringBuilder sb2 = new StringBuilder("   ");
-            out.printf("%04X  ", i * 16);
-            for (int j = 0; j < 16; j++) {
-                if (is.available() > 0) {
-                    final int value = is.read();
-                    sb1.append(String.format("%02X ", value));
-                    if (!Character.isISOControl(value)) {
-                        sb2.append((char) value);
-                    } else {
-                        sb2.append(".");
-                    }
-                } else {
-                    for (; j < 16; j++) {
-                        sb1.append("   ");
-                    }
-                }
-            }
-            out.print(sb1);
-            out.println(sb2);
-            i++;
-        }
-        is.close();
     }
 
     /** Code from method java.util.Collections.shuffle(); */
@@ -309,16 +202,6 @@ public class MerkleDbTestUtils {
         array[j] = temp;
     }
 
-    public static String randomString(final int length, final Random random) {
-        final int leftLimit = 48; // numeral '0'
-        final int rightLimit = 122; // letter 'z'
-        return random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(length)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
-    }
-
     public static byte[] randomUtf8Bytes(final int n) {
         final byte[] data = new byte[n];
         int i = 0;
@@ -328,20 +211,6 @@ public class MerkleDbTestUtils {
             i += rnd.length;
         }
         return data;
-    }
-
-    /** Do a standard "ls -lh" on a directory or file and print results to System.out. */
-    public static void ls(final Path dir) {
-        System.out.println("=== " + dir + " ======================================================");
-        try {
-            final ProcessBuilder pb =
-                    new ProcessBuilder("ls", "-Rlh", dir.toAbsolutePath().toString());
-            pb.inheritIO();
-            pb.start().waitFor();
-        } catch (final IOException | InterruptedException e) {
-            e.printStackTrace();
-        }
-        System.out.println("===================================================================");
     }
 
     public static Metrics createMetrics() {
@@ -383,11 +252,48 @@ public class MerkleDbTestUtils {
         return metric.orElse(null);
     }
 
+    public static MerkleDbDataSource createDataSource(
+            final FileSystemManager fileSystemManager,
+            final long size,
+            final boolean compactionEnabled,
+            boolean preferDiskBasedIndexes) {
+        return createDataSource(
+                CONFIGURATION, fileSystemManager, DEFAULT_TABLE_NAME, size, compactionEnabled, preferDiskBasedIndexes);
+    }
+
+    public static MerkleDbDataSource createDataSource(
+            final Configuration configuration,
+            final FileSystemManager fileSystemManager,
+            final String name,
+            final long size,
+            final boolean compactionEnabled,
+            boolean preferDiskBasedIndexes) {
+        MerkleDbDataSourceBuilder dataSourceBuilder =
+                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, size);
+        return (MerkleDbDataSource) dataSourceBuilder.build(name, null, compactionEnabled, preferDiskBasedIndexes);
+    }
+
+    public static MerkleDbDataSource restoreDataSource(
+            final FileSystemManager fileSystemManager,
+            final Path dbPath,
+            final String name,
+            final boolean compactionEnabled)
+            throws IOException {
+        return new MerkleDbDataSource(dbPath, CONFIGURATION, fileSystemManager, name, compactionEnabled, false);
+    }
+
     /**
      * Asserts that all databases are closed within a certain time frame.
      */
     public static void assertAllDatabasesClosed() {
         assertSomeDatabasesStillOpen(0L);
+    }
+
+    public static void assertDatabaseFolderDeleted(MerkleDbDataSource dataSource) {
+        assertEventuallyFalse(
+                () -> Files.exists(dataSource.getDbPaths().storageDir.resolve(dataSource.getTableName())),
+                Duration.ofSeconds(1),
+                "Database should have been deleted");
     }
 
     /**

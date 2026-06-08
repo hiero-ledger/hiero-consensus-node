@@ -8,11 +8,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
@@ -22,6 +17,11 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.sync.LearnerTreeView;
+import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -30,8 +30,8 @@ import java.net.SocketException;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -204,12 +204,11 @@ public class ReconnectStateLearner {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
-        final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-        // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
-        final LearningSynchronizer synchronizer = new LearningSynchronizer(
-                threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(currentState.getRoot(), reconnectConfig, mapStats);
+        final LearnerTreeView learnerView = vmapLearner.getLearnerView();
+        final LearningSynchronizer synchronizer =
+                new LearningSynchronizer(threadManager, in, out, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
         try {
             synchronizer.synchronize();
@@ -217,11 +216,11 @@ public class ReconnectStateLearner {
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
-            reconnectRoot.release();
+            vmapLearner.abortOnException();
             throw e;
         } catch (final Exception e) {
-            reconnectRoot.release();
-            throw new MerkleSynchronizationException(e);
+            vmapLearner.abortOnException();
+            throw new ReconnectStateException(e);
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
@@ -229,10 +228,10 @@ public class ReconnectStateLearner {
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
                 .toString());
 
-        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
+        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(vmapLearner.getVirtualMap());
         final SignedState newSignedState = new SignedState(
                 configuration,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 receivedState,
                 "ReconnectLearner.reconnect()",
                 false,

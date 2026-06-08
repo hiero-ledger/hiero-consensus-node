@@ -33,15 +33,13 @@ jobs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: "0"
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-fetch-depth: "0"
 
       - name: Classify Changed Files
         id: classify
@@ -51,28 +49,35 @@ jobs:
             const script = require('.github/workflows/support/scripts/classify-changed-files.js');
             await script({github, context, core})
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-pr-checks:
     name: MATS
     needs:
       - detect-change-type
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-token: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-misc-records-crypto-and-serial: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-token-and-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-simple-fees-and-nd-reconnect: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-smart-contract: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-smart-contract-and-iss: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: "25"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       custom-job-label: "Standard"
     secrets:
@@ -92,7 +97,7 @@ jobs:
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -109,37 +114,21 @@ jobs:
             exit 1
           fi
 
-  report-flaky-tests:
-    name: Report Flaky Tests
-    needs:
-      - detect-change-type
-      - mats-pr-checks
-    # Skip flaky test processing when the PR is a draft
-    if: ${{  !github.event.pull_request.draft && !cancelled() && always() }}
-    uses: ./.github/workflows/800-call-report-flaky-test.yaml
-    with:
-      workflow-context: pr-checks
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-
   report-summary:
     name: Report PR Check Summary
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
-      - report-flaky-tests
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: "0"
-          ref: ${{ github.event.pull_request.head.sha }}
+          checkout: "true"
+          checkout-ref: ${{ github.event.pull_request.head.sha }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-fetch-depth: "0"
 
       - name: Report Summary
         id: report-summary

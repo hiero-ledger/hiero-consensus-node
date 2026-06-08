@@ -234,7 +234,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
 
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
-        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ignore -> adminKey);
+        final var signers = new java.util.ArrayList<Function<HapiSpec, Key>>();
+        signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
+        signers.add(ignore -> adminKey);
+        account.ifPresent(acct -> signers.add(spec -> spec.registry().getKey(acct)));
+        return signers;
     }
 
     @Override

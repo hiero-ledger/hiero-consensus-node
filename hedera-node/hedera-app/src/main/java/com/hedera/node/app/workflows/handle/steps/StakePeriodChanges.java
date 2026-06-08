@@ -4,9 +4,9 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;

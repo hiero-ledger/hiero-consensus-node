@@ -14,6 +14,7 @@ import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,10 +26,21 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class LongListValidRangeTest {
+class LongListValidRangeTest extends AbstractFileManagerAwareTest {
 
     public static final int MAX_LONGS = 1000;
+
     private AbstractLongList<?> list;
+
+    @AfterEach
+    public void cleanUp() {
+        if (list != null) {
+            list.close();
+            if (list instanceof LongListDisk) {
+                ((LongListDisk) list).resetTransferBuffer();
+            }
+        }
+    }
 
     @Tag(TestComponentTags.VMAP)
     @ParameterizedTest
@@ -98,10 +110,10 @@ class LongListValidRangeTest {
         new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
         new LongListSegment(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
-        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION)
+        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION, fileSystemManager)
                 .resetTransferBuffer()
                 .close();
-        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION)
+        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION, fileSystemManager)
                 .resetTransferBuffer()
                 .close();
         // Illegal cases, too many chunks
@@ -116,10 +128,11 @@ class LongListValidRangeTest {
                 () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION));
+                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION, fileSystemManager));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new LongListDisk(32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION));
+                () -> new LongListDisk(
+                        32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION, fileSystemManager));
         assertThrows(
                 IllegalArgumentException.class, () -> new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
         assertThrows(
@@ -761,21 +774,12 @@ class LongListValidRangeTest {
         return Stream.of(
                 Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
-                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION)),
+                Arguments.of(new LongListDisk(
+                        longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION, fileSystemManager)),
                 Arguments.of(new LongListSegment(longsPerChunk, MAX_LONGS, reservedBufferLength)));
     }
 
     private long maxValidIndex() {
         return list.getMaxValidIndex();
-    }
-
-    @AfterEach
-    public void cleanUp() {
-        if (list != null) {
-            list.close();
-            if (list instanceof LongListDisk) {
-                ((LongListDisk) list).resetTransferBuffer();
-            }
-        }
     }
 }

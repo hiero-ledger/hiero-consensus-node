@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFee
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -26,15 +27,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.matchStateChange;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -79,7 +79,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +170,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var newNode0CertHash = Bytes.fromHex("ab".repeat(48));
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 // This test verifies staking rewards aren't paid for deleted nodes; so ensure staking is active
                 ensureStakingActivated(),
@@ -209,7 +209,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(2)
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("1"),
                 prepareFakeUpgrade(),
@@ -234,7 +234,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(4)
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("3"),
                 prepareFakeUpgrade(),
@@ -250,7 +250,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
@@ -319,7 +319,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         @DisplayName("exported address book reflects only edits before prepare upgrade")
         final Stream<DynamicTest> exportedAddressBookReflectsOnlyEditsBeforePrepareUpgrade() {
             return hapiTest(
-                    recordStreamMustIncludePassFrom(selectedItems(
+                    streamMustIncludePassFrom(selectedItems(
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                     prepareFakeUpgrade(),
                     // Now make some changes that should not be incorporated in this upgrade
@@ -328,7 +328,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     // Validate removal of the nodes from the state after the upgrade
-                    blockStreamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
+                    streamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
                             .stateId(NODES_STATE_ID)
                             .mapDelete(MapDeleteChange.newBuilder()
                                     .key(MapChangeKey.newBuilder()
@@ -367,13 +367,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
                     cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
                     // create node txn
-                    sourcing(
-                            () -> nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
-                                    .adminKey(DEFAULT_PAYER)
-                                    .description(CLASSIC_NODE_NAMES[4])
-                                    .withAvailableSubProcessPorts()
-                                    .gossipCaCertificate(VALID_CERT)
-                                    .exposingCreatedIdTo(nodeId::set)),
+                    nodeCreate("newNode", "nodeAccountId")
+                            .adminKey(DEFAULT_PAYER)
+                            .description(CLASSIC_NODE_NAMES[4])
+                            .withAvailableSubProcessPorts()
+                            .gossipCaCertificate(VALID_CERT)
+                            .exposingCreatedIdTo(nodeId::set),
                     doingContextual(spec -> {
                         allRunFor(
                                 spec,
@@ -481,30 +480,39 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
     }
 
-    private static String recordsPath(String nodeId) {
-        return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
+    private static Path recordsPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("recordStreams");
     }
 
-    private static String blocksPath(String nodeId) {
-        return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
+    private static Path blocksPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("blockStreams");
     }
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
-            assertThat(recordPath.toFile().exists()).isFalse();
-
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
-            assertThat(blockPath.toFile().exists()).isFalse();
+            final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+            if (streamMode != com.hedera.node.config.types.StreamMode.BLOCKS) {
+                final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
+                assertThat(recordPath.toFile().exists()).isFalse();
+            }
+            if (streamMode != com.hedera.node.config.types.StreamMode.RECORDS) {
+                final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
+                assertThat(blockPath.toFile().exists()).isFalse();
+            }
         });
     }
 
     private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
-            assertThat(recordPath.toFile().exists()).isTrue();
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
-            assertThat(blockPath.toFile().exists()).isTrue();
+            final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+            if (streamMode != com.hedera.node.config.types.StreamMode.BLOCKS) {
+                final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
+                assertThat(recordPath.toFile().exists()).isTrue();
+            }
+            if (streamMode != com.hedera.node.config.types.StreamMode.RECORDS) {
+                final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
+                assertThat(blockPath.toFile().exists()).isTrue();
+            }
         });
     }
 }

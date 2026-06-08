@@ -238,6 +238,115 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void constructorInitializesProverWhenWrapsEnabledOnNonWrapsExtensibleTargetProof() {
+        // Regression: when wrapsEnabled flips false -> true after an upgrade, an existing
+        // target proof saved before WRAPS was enabled is no longer "completed" per
+        // HistoryService.isCompleted, but the constructor previously only checked
+        // construction.hasTargetProof() and so skipped createProver(). The fix widens
+        // that gate to !isCompleted(construction, tssConfig) so the conversion path has
+        // a prover to drive.
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .targetProof(aValidProof())
+                .build();
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(proverFactory.create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions)))
+                .willReturn(prover);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                tssConfig);
+
+        verify(proverFactory)
+                .create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions));
+    }
+
+    @Test
+    void advanceConstructionDrivesProverWhenConvertingNonWrapsExtensibleTargetProof() {
+        // Regression: with a target proof that is not WRAPS-extensible and wrapsEnabled=true,
+        // isStillInProgress returns true (because isCompleted=false), advanceConstruction
+        // falls through to the prover-driven branch, and the prover must not be null.
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .targetProof(aValidProof())
+                .build();
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(proverFactory.create(
+                        eq(SELF_ID),
+                        eq(tssConfig),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        any(),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions)))
+                .willReturn(prover);
+
+        final var completedProof = recursiveProof("compressed", "uncompressed");
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(new HistoryProver.Outcome.Completed(completedProof));
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(completedProof)))
+                .willReturn(construction);
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                tssConfig);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(prover).advance(any(), any(), any(), any(), eq(tssConfig), any());
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(completedProof));
+    }
+
+    @Test
     void advanceConstructionPublishesKeyWhenMetadataMissingAndActive() {
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
@@ -739,6 +848,58 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
         verify(historyService).onFinished(eq(writableHistoryStore), any(), any());
+    }
+
+    @Test
+    void finishingProofPurgesPersistedVotesSoReconstructionDoesNotReloadStaleVotes() {
+        // Regression for a SELF_ISS observed when a node restarted (OOM) mid-WRAPS-proof
+        // construction. finishProof clears the IN-MEMORY votes map so the network can vote again to
+        // convert a freshly built proof into a WRAPS-extensible one, but the persisted PROOF_VOTES
+        // were left in state (purged only on construction handoff). A node rebuilding its controller
+        // during the conversion window (ProofControllers#getOrCreateFor -> constructor) reloaded
+        // those now-superseded persisted votes and then treated the later conversion vote from the
+        // same node as already counted (addProofVote's containsKey short-circuit), so it never wrote
+        // the WRAPS-extensible target proof -- diverging ACTIVE_PROOF_CONSTRUCTION from the live
+        // nodes. The fix mirrors the in-memory clear by purging the construction's persisted votes
+        // on completion, so a reconstructed controller starts from the same (empty) vote set.
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        // This is the conversion case: wrapsEnabled=true with a not-yet-WRAPS-extensible proof, so
+        // the network must vote again. Only then do we purge the PERSISTED votes on completion, to
+        // keep a reconstructed controller from reloading stale votes.
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
+        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(Set.of(SELF_ID)));
+    }
+
+    @Test
+    void finishingProofDoesNotPurgePersistedVotesWhenNoConversionFollows() {
+        // No-conversion case: the completed proof is already adequate for the WRAPS setting
+        // (wrapsEnabled == isWrapsExtensible -- here both false), so the network does NOT vote
+        // again. Purging the persisted votes here would write a redundant PROOF_VOTES removal into
+        // the block stream (they are purged at construction handoff anyway) and that extra state
+        // change breaks record/block-stream parity for the completing HistoryProofVote receipt.
+        // So clearProofVotes must NOT be called in this case.
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
+        verify(writableHistoryStore, never()).clearProofVotes(anyLong(), any());
     }
 
     @Test

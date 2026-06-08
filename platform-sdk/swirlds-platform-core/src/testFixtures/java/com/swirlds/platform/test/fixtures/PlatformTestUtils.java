@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -73,12 +72,6 @@ public class PlatformTestUtils {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        // add temp directory to config for marker files.
-        configBuilder
-                .withValue(
-                        PathsConfig_.MARKER_FILES_DIR,
-                        tmpDir.resolve(TEST_MARKER_FILE_DIRECTORY).toString())
-                .withValue(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, true);
         // add configuration to platform builder.
         platformContextBuilder.withConfiguration(configBuilder.getOrCreateConfig());
         if (platformContextModifier != null) {

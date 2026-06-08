@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.app.services.benchmark;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -12,6 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.InstantUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;

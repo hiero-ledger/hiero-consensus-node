@@ -25,10 +25,10 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -121,7 +121,7 @@ public class RepeatableHip1064Tests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -174,11 +174,14 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
                 sleepForBlockPeriod(),
-                // This is considered as one transaction submitted, so one round
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertTrue(
+                            nodeRewards.numRoundsInStakingPeriod() >= 3,
+                            "Expected at least 3 rounds, got " + nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     final long expectedNodeFees = preCollectionNodeFees.get() + additionalNodeFees.get();
                     assertEquals(
@@ -188,7 +191,7 @@ public class RepeatableHip1064Tests {
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),
@@ -225,7 +228,7 @@ public class RepeatableHip1064Tests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -272,11 +275,14 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
                 sleepForBlockPeriod(),
-                // This is considered as one transaction submitted, so one round
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertTrue(
+                            nodeRewards.numRoundsInStakingPeriod() >= 3,
+                            "Expected at least 3 rounds, got " + nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     // Update node 1 to have missed more than 10% of rounds
@@ -284,7 +290,7 @@ public class RepeatableHip1064Tests {
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),
@@ -325,7 +331,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorWithInactiveNodes(
                                         expectedNodeRewards::get, expectedMinNodeReward::get),
@@ -376,7 +382,9 @@ public class RepeatableHip1064Tests {
                                     expectedMinNodeReward.set(minRewardTinybars);
                                 }))),
                 sleepForBlockPeriod(),
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(4, nodeRewards.nodeActivities().size());
@@ -422,7 +430,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.adjustNodeFees", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -469,18 +477,21 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
                 sleepForBlockPeriod(),
-                // This is considered as one transaction submitted, so one round
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertTrue(
+                            nodeRewards.numRoundsInStakingPeriod() >= 3,
+                            "Expected at least 3 rounds, got " + nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),
@@ -506,7 +517,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.preserveMinNodeRewardBalance", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -553,17 +564,21 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
                 sleepForBlockPeriod(),
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    assertTrue(
+                            nodeRewards.numRoundsInStakingPeriod() >= 3,
+                            "Expected at least 3 rounds, got " + nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),
@@ -589,7 +604,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.minNodeRewardBalance", "1000000000000"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get, nodeRewardBalance::get),
                                 // We expect two node rewards payments in this test.
@@ -636,11 +651,18 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
                 sleepForBlockPeriod(),
-                // This is considered as one transaction submitted, so one round
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+                // Force a block boundary with a real transaction so the current block closes.
+                // This ensures the subsequent state mutation is not overwritten by onCloseBlock.
+                cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
+                    // The exact round count depends on block boundary timing; at least 3 rounds
+                    // must have elapsed from the prior transactions in this staking period.
+                    // The exact round count depends on block boundary timing; at least 3 rounds
+                    // must have elapsed from the prior transactions in this staking period.
+                    assertTrue(
+                            nodeRewards.numRoundsInStakingPeriod() >= 3,
+                            "Expected at least 3 rounds, got " + nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     // Update node 1 to have missed more than 10% of rounds
@@ -648,7 +670,7 @@ public class RepeatableHip1064Tests {
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),

@@ -42,7 +42,7 @@ public class RequestResponseMarshaller<T> implements MethodDescriptor.Marshaller
         requireNonNull(inputStream);
 
         try {
-            return codec.parse(Bytes.wrap(inputStream.readAllBytes()));
+            return codec.parseStrict(Bytes.wrap(inputStream.readAllBytes()));
         } catch (final ParseException | IOException e) {
             throw new RuntimeException(e);
         }

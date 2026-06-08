@@ -32,7 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
@@ -182,19 +182,28 @@ public class ConsensusImpl implements Consensus {
     private boolean pcesMode = false;
 
     /**
+     * Nanoseconds to add to the first transaction's timestamp in an event. This allows space for the
+     * execution layer to insert items before the first transaction. Provided by the execution layer at startup.
+     */
+    private final long transactionOffsetNanos;
+
+    /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      *
-     * @param configuration the configuration
-     * @param time the time source
-     * @param consensusMetrics metrics related to consensus
-     * @param roster the global address book, which never changes
+     * @param configuration         the configuration
+     * @param time                  the time source
+     * @param consensusMetrics      metrics related to consensus
+     * @param roster                the global address book, which never changes
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
      */
     public ConsensusImpl(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
-            @NonNull final Roster roster) {
+            @NonNull final Roster roster,
+            final long transactionOffsetNanos) {
         this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
+        this.transactionOffsetNanos = transactionOffsetNanos;
         this.time = time;
         this.consensusMetrics = consensusMetrics;
 
@@ -858,7 +867,7 @@ public class ConsensusImpl implements Consensus {
                     .setConsensusData(new EventConsensusData(
                             HapiUtils.asTimestamp(e.getPreliminaryConsensusTimestamp()), numConsensus));
 
-            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent());
+            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent(), transactionOffsetNanos);
             numConsensus++;
             consensusMetrics.consensusReached(e);
         }
@@ -1143,21 +1152,19 @@ public class ConsensusImpl implements Consensus {
         }
 
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-        long previousParentRound = Long.MIN_VALUE;
-        boolean allParentsHaveTheSameRound = true;
+        boolean singleParentHasTheGreatestParentRound = true;
         for (final EventImpl parent : x.getAllParents()) {
             if (ancient(parent)) {
                 continue;
             }
+
             final long parentRound = round(parent);
             if (parentRound > greatestParentRound) {
                 greatestParentRound = parentRound;
+                singleParentHasTheGreatestParentRound = true;
+            } else if (parentRound == greatestParentRound) {
+                singleParentHasTheGreatestParentRound = false;
             }
-
-            if (previousParentRound != Long.MIN_VALUE && parentRound != previousParentRound) {
-                allParentsHaveTheSameRound = false;
-            }
-            previousParentRound = parentRound;
         }
 
         //
@@ -1170,7 +1177,7 @@ public class ConsensusImpl implements Consensus {
         // continue to the super majority check below. This edge case only occurs in testing, so
         // we do not optimize for it here.
         //
-        if (!allParentsHaveTheSameRound && !rosterLookup.nodeHasSupermajorityWeight()) {
+        if (singleParentHasTheGreatestParentRound && !rosterLookup.nodeHasSupermajorityWeight()) {
             x.setRoundCreated(greatestParentRound);
             return x.getRoundCreated();
         }

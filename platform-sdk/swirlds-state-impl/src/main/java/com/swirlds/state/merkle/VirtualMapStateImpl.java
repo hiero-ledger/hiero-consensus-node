@@ -10,6 +10,7 @@ import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueStateKey;
 import static com.swirlds.state.merkle.StateKeyUtils.singletonKey;
+import static com.swirlds.state.merkle.StateUtils.STATE_VALUE_QUEUE_STATE;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.unwrap;
 import static com.swirlds.state.merkle.StateUtils.wrapValue;
@@ -26,8 +27,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.Reservable;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -78,7 +77,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
 import org.json.JSONObject;
 
 /**
@@ -122,12 +124,15 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapStateImpl(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public VirtualMapStateImpl(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(configuration, merkleDbConfig.initialCapacity());
+        dsBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
 
         this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
@@ -835,7 +840,12 @@ public class VirtualMapStateImpl implements VirtualMapState {
                                 extractStateIdFromStateValueOneOf(leafBytes.valueBytes()), new QueueStateCodec());
                         try {
                             final QueueState queueState = queueStateCodec
-                                    .parse(leafBytes.valueBytes())
+                                    .parse(
+                                            leafBytes.valueBytes().toReadableSequentialData(),
+                                            false,
+                                            false,
+                                            Codec.DEFAULT_MAX_DEPTH,
+                                            virtualMap.valueParseMaxSizeBytes())
                                     .value();
                             final JSONObject queueJson = new JSONObject();
                             queueJson.put("head", queueState.head());
@@ -1041,7 +1051,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         // increment tail and persist queue state
         final QueueState updated = qState.elementAdded();
         final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
-        final Bytes wrappedState = wrapValue(stateId, rawState);
+        final Bytes wrappedState = wrapValue(STATE_VALUE_QUEUE_STATE, rawState);
         virtualMap.putBytes(qStateKey, wrappedState);
     }
 
@@ -1067,7 +1077,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         // increment head
         final QueueState updated = qState.elementRemoved();
         final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
-        final Bytes wrappedState = wrapValue(stateId, rawState);
+        final Bytes wrappedState = wrapValue(STATE_VALUE_QUEUE_STATE, rawState);
         virtualMap.putBytes(qStateKey, wrappedState);
 
         return value;

@@ -39,10 +39,11 @@ with "conn" for identification.
 | `blockStream_conn_activeConnIp`                    | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer)   |
 | `blockStream_conn_endOfStreamLimitExceeded`        | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses          |
 | `blockStream_conn_highLatencyEvents`               | Counter         | Count of high latency events from the active block node connection                                     |
-| `blockStream_conn_headerSentToAckLatency`          | Running average | Average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement            |
-| `blockStream_conn_headerProducedToAckLatency`      | Running average | Average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement            |
-| `blockStream_conn_blockEndSentToAckLatency`        | Running average | Average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
-| `blockStream_conn_blockClosedToAckLatency`         | Running average | Average latency (ms) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
+| `blockStream_conn_headerSentToAckLatency`          | Running average | Average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement            |
+| `blockStream_conn_headerProducedToAckLatency`      | Running average | Average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement            |
+| `blockStream_conn_blockEndSentToAckLatency`        | Running average | Average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
+| `blockStream_conn_blockClosedToAckLatency`         | Running average | Average latency (µs) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
+| `blockStream_conn_headerSentToBlockEndSentLatency` | Running average | Average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd          |
 | `blockStream_conn_pipelineOperationTimeoutCounter` | Counter         | Number of times a pipeline operation has occured                                                       |
 | `blockStream_conn_activeConnectionCount`           | Gauge (long)    | Current number of streaming connections that are active                                                |
 
@@ -83,7 +84,7 @@ These metrics relate to the requests sent from the consensus node to a block nod
 | `blockStream_connSend_endStream_error`        | Counter         | Number of EndStream.Error requests sent                          |
 | `blockStream_connSend_endStream_tooFarBehind` | Counter         | Number of EndStream.TooFarBehind requests sent                   |
 | `blockStream_connSend_failure`                | Counter         | Number of requests sent to block nodes that failed               |
-| `blockStream_connSend_requestSendLatency`     | Running average | Average latency (ms) for a PublishStreamRequest to be sent       |
+| `blockStream_connSend_requestSendLatency`     | Running average | Average latency (μs) for a PublishStreamRequest to be sent       |
 | `blockStream_connSend_latestBlockEndOfBlock`  | Gauge (long)    | The latest block number for which an EndOfBlock request was sent |
 | `blockStream_connSend_streamingBlockNumber`   | Gauge (long)    | The current block number this connection is streaming            |
 | `blockStream_connSend_requestBytes`           | Running average | Average size in bytes of a PublishStreamRequest                  |
@@ -143,8 +144,8 @@ Utilizing Low (L), Medium (M) and High (H) severity levels, some recommended ale
 
 **Latency**: Alerts related to streaming latency (a block should generally be streamed and acknowledged within ~2.5s)
 
-| Severity |                Metric Name                 |     Alert Condition     |
-|----------|--------------------------------------------|-------------------------|
-| L        | `blockStream_conn_headerSentToAckLatency`  | If value exceeds 2200ms |
-| L        | `blockStream_conn_blockClosedToAckLatency` | If value exceeds 500ms  |
-| L        | `blockStream_connSend_requestSendLatency`  | If value exceeds 100ms  |
+| Severity |                Metric Name                 |      Alert Condition       |
+|----------|--------------------------------------------|----------------------------|
+| L        | `blockStream_conn_headerSentToAckLatency`  | If value exceeds 2200000µs |
+| L        | `blockStream_conn_blockClosedToAckLatency` | If value exceeds 500000µs  |
+| L        | `blockStream_connSend_requestSendLatency`  | If value exceeds 100ms     |

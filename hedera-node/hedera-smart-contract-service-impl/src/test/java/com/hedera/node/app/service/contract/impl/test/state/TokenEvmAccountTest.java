@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -32,7 +32,7 @@ class TokenEvmAccountTest {
             Hash.wrap(Bytes32.wrap("<NOT-REALLY-BYTECODE-HASH-12345>".getBytes()));
 
     @Mock
-    private EvmFrameState state;
+    private DispatchingEvmFrameState state;
 
     private TokenEvmAccount subject;
 

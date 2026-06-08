@@ -17,7 +17,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25"
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -65,7 +64,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -75,6 +74,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"

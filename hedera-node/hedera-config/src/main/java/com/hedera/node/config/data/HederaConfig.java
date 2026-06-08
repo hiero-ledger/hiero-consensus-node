@@ -6,6 +6,7 @@ import com.hedera.node.config.NodeProperty;
 import com.hedera.node.config.types.Profile;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import java.time.Duration;
 
 /**
  * @param throttleTransactionQueueSize Stop accepting new non-system transactions into the transaction queue if it
@@ -75,6 +76,9 @@ public record HederaConfig(
 
         @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
         int throttleTransactionQueueSize,
+
+        @ConfigProperty(value = "nowFrozenWriteTimeout", defaultValue = "60s") @NetworkProperty
+        Duration nowFrozenWriteTimeout,
 
         @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
         long maximumPermissibleUnhealthySeconds) {}

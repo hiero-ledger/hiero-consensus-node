@@ -18,7 +18,6 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
-import com.swirlds.common.io.utility.FileUtils;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -37,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.file.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -300,6 +300,35 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(config.configs()).hasSize(1);
         final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
         assertThat(nodeConfig).isNotNull();
+        assertThat(nodeConfig.address()).isEqualTo("localhost");
+        assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
+        assertThat(nodeConfig.priority()).isEqualTo(1);
+    }
+
+    @Test
+    void testLoadConfiguration_unknownFieldsIgnored() throws Throwable {
+        // Forward-compat: unknown/removed fields must not fail the parse.
+        writeConfig("""
+                {
+                    "topLevelUnknownField": 42,
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 1,
+                            "futureFieldFromNewerVersion": "ignored"
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.versionNumber()).isEqualTo(1L);
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
         assertThat(nodeConfig.address()).isEqualTo("localhost");
         assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
         assertThat(nodeConfig.priority()).isEqualTo(1);
@@ -728,8 +757,8 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
             final FileSystem fileSystem = mock(FileSystem.class);
             final WatchService watchService = mock(WatchService.class);
             final WatchKey watchKey = mock(WatchKey.class);
-            when(watchKey.pollEvents()).thenReturn(List.of());
-            when(watchKey.reset()).thenReturn(true);
+            lenient().when(watchKey.pollEvents()).thenReturn(List.of());
+            lenient().when(watchKey.reset()).thenReturn(true);
             when(configDirectory.getFileSystem()).thenReturn(fileSystem);
             when(fileSystem.newWatchService()).thenReturn(watchService);
 
