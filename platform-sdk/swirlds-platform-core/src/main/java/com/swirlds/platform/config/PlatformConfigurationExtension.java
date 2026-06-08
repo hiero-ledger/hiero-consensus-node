@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -41,8 +39,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                StateCommonConfig.class,
-                TemporaryFileConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,
