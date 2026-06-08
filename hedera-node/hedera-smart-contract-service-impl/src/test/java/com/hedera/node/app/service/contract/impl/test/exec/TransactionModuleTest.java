@@ -51,6 +51,8 @@ import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.util.Map;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -152,6 +154,9 @@ class TransactionModuleTest {
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
         given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
+        Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+
         final var pendingCreationBuilder = new PendingCreationMetadataRef();
         final var result = provideHederaEvmContext(
                 context,
