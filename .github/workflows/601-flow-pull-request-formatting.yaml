@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: PR Formatting"
+name: "601: [FLOW] PR Formatting"
 on:
   pull_request_target:
     types:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 210: [FLOW] Merge Queue Controller"
+name: "602: [FLOW] Merge Queue Controller"
 on:
   push:
     branches:
