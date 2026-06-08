@@ -27,10 +27,11 @@ load-bearing — a `retired` rule must not be enforced by review, and a
 
 ## Index
 
-|   ID    |                                                        Title                                                        |   Class    |                      Topics                      | Status |
-|---------|---------------------------------------------------------------------------------------------------------------------|------------|--------------------------------------------------|--------|
-| RUL-001 | A SignedState must remain reserved while any consumer can still access it                                           | structural | signed-state-management                          | holds  |
-| RUL-002 | The intake pipeline is flushed component-by-component in topological order so every event advances as far as it can | structural | restart-and-pces, event-intake, wiring-framework | holds  |
+|   ID    |                                                        Title                                                        |     Class     |                               Topics                                | Status |
+|---------|---------------------------------------------------------------------------------------------------------------------|---------------|---------------------------------------------------------------------|--------|
+| RUL-001 | A SignedState must remain reserved while any consumer can still access it                                           | structural    | signed-state-management                                             | holds  |
+| RUL-002 | The intake pipeline is flushed component-by-component in topological order so every event advances as far as it can | structural    | restart-and-pces, event-intake, wiring-framework                    | holds  |
+| RUL-003 | A reconnected node must write the learned state to disk before it resumes creating events                           | state-machine | reconnect, event-creator, restart-and-pces, signed-state-management | holds  |
 
 <!--
 Row convention, one line per entry, kept in RUL-NNN order:

@@ -7,7 +7,7 @@ related:
   decisions: []
   scenarios: []
   heuristics: []
-  rules: []
+  rules: [RUL-003]
 status: accepted
 date: 2026-06-04
 deciders:
@@ -36,21 +36,22 @@ it crashed, it could not restart from its own disk.
 
 ### The network-wide unrecoverability scenario
 
-A reconnect gap only forms when **consensus advances far enough past a node that is falling behind** that the node can
-no longer catch up from gossip and has *fallen* behind — that is what makes the events between the node's last on-disk
-state and the learned state garbage-collected and unreachable. Consensus advances only with a supermajority (more than
-2/3 of the weight) online, so a node can fall behind only while **strictly fewer than 1/3 of the weight is lagging**. If
-half — or any third or more — of the network is lagging at once, consensus *stalls*, the network never moves far enough
-past the lagging nodes for them to fall behind, and they learn nothing newer on reconnect: no gap forms. The dangerous
-case is therefore not a large group dropping at once, but a small minority continuously falling behind while the network
+A node *falls behind* when **consensus advances far enough past it** that the events it needs to keep building its
+hashgraph get garbage-collected and are no longer retrievable from enough peers through gossip. Its in-memory and
+on-disk state can then no longer be advanced to the current consensus state, so it must reconnect — and that reconnect
+leaves the PCES gap described above. Consensus advances only with a supermajority (more than 2/3 of the weight)
+online, so a node can fall behind only while **strictly fewer than 1/3 of the weight is falling behind**. If
+any third or more of the network starts to fall behind at once, consensus *stalls*, the network never moves
+past those nodes and no reconnect is required: no gap forms. The dangerous case
+is therefore not a large group dropping at once, but a small rolling minority continuously falling behind while the network
 keeps advancing.
 
-Consider a network where a **rolling minority** lags and reconnects:
+Consider a network where a **rolling minority** falls behind and reconnects:
 
 1. At every instant, under 1/3 of the weight is behind and reconnecting, so the supermajority keeps consensus advancing
    the whole time.
-2. *Which* nodes make up that lagging minority rotates over time.
-3. Within a single state-save interval, the lag rotates across the entire membership — so every node reconnects, each
+2. *Which* nodes make up that falling-behind minority rotates over time.
+3. Within a single state-save interval, the falling-behind set rotates across the entire membership — so every node reconnects, each
    learning a state newer than its last on-disk save, and none reaches the next state-save boundary.
 
 By the end, every node's on-disk state predates its reconnect, so every node carries a PCES gap between its last on-disk
@@ -58,7 +59,7 @@ state and the state it learned. No node can restart cleanly from its own disk. A
 would be **unrecoverable** — there is no node anywhere holding a startable on-disk state that covers the current
 consensus position.
 
-### The invariant that prevents this
+### The rule that prevents this
 
 The network stays recoverable as long as **at least one node that is contributing to the advancement of consensus is
 crash resilient** — i.e. holds an on-disk state it can actually restart from, with no PCES gap above it. If consensus
@@ -66,8 +67,13 @@ can only advance through nodes that are each individually startable, then no rea
 whole network stuck.
 
 A node "contributes to the advancement of consensus" precisely when it **creates events**. So the cleanest place to
-enforce the invariant is the event-creation gate: a node must not resume creating events after a reconnect until it has
-made itself crash resilient again, which means **writing the learned state to disk**.
+make that condition hold is the event-creation gate: a node must not resume creating events after a reconnect until it
+has made itself crash resilient again, which means **writing the learned state to disk**.
+
+This is a **rule**, not an invariant: the protocol does not *require* that only crash-resilient nodes create events — a
+correct reimplementation could instead backfill the PCES gap from gossip and resume event creation immediately (see
+[Alternatives Considered](#alternatives-considered)). It is a deliberate property of the current implementation,
+cataloged as [RUL-003](../rules/RUL-003-persist-reconnect-state-before-event-creation.md).
 
 ## Decision
 
@@ -114,10 +120,12 @@ advancing consensus.
 - **Added latency before a reconnected node creates events.** The node must complete a full state write to disk before
   leaving `RECONNECT_COMPLETE`. On large states this write is not instant, so there is a delay between finishing
   reconnect and resuming contribution to consensus.
-- **A reconnected node that cannot persist cannot rejoin event creation.** If the disk write never succeeds (for
-  example, a full or failing disk), the node stays in `RECONNECT_COMPLETE` indefinitely — gossiping but never creating
-  events. This is intentional: a node that cannot make itself crash resilient should not be advancing consensus. It does
-  mean a persistence fault manifests as a node stuck out of event creation rather than as an explicit error at the gate.
+- **A persistence fault surfaces only as a node silently stuck out of event creation.** If the disk write never
+  succeeds (for example, a full or failing disk), the node stays in `RECONNECT_COMPLETE` indefinitely — gossiping but
+  never creating events — with no explicit error raised at the gate. Keeping such a node out of event creation is
+  intentional (the flip side of the crash-resilience guarantee above: a node that cannot make itself crash resilient
+  must not advance consensus), but the cost is that the fault is diagnosed only by noticing a node lingering in
+  `RECONNECT_COMPLETE`, rather than from a direct failure signal.
 
 ### Neutral
 
