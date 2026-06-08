@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -490,6 +490,32 @@ class VirtualPipelineTests {
 
     @Test
     @Tag(TestComponentTags.VMAP)
+    @DisplayName("Final destroyed copy is flushed before shutdown")
+    void finalDestroyedCopyIsFlushedBeforeShutdown() throws InterruptedException {
+        final List<DummyVirtualRoot> copies = setupCopies(3, i -> i == 0);
+        final DummyVirtualRoot flushableCopy = copies.get(0);
+        final DummyVirtualRoot middleCopy = copies.get(1);
+        final DummyVirtualRoot lastCopy = copies.get(2);
+
+        // Destroy newer copies first. The pipeline should run, but the flushable copy is still not destroyed,
+        // so it must not be flushed yet.
+        middleCopy.release();
+        lastCopy.release();
+
+        MILLISECONDS.sleep(100);
+        assertFalse(flushableCopy.isFlushed(), "Flushable copy should not flush before it is destroyed");
+
+        // This final release makes the oldest copy both destroyed and flushable.
+        // The pipeline must run one final lifecycle pass before shutdown.
+        flushableCopy.release();
+
+        assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Pipeline should shut down");
+        assertTrue(flushableCopy.isFlushed(), "Final destroyed flushable copy should be flushed before shutdown");
+        assertTrue(lastCopy.isShutdownHandlerCalled(), "Shutdown handler should be invoked");
+    }
+
+    @Test
+    @Tag(TestComponentTags.VMAP)
     @DisplayName("Datasource is closed after the last copy is destroyed")
     void dataSourceClosedAfterLastCopyDestroyed() throws InterruptedException {
         // Create 10 copies. Copy 3, 6, and 9 are flush eligible.
@@ -529,7 +555,7 @@ class VirtualPipelineTests {
             assertFalse(copy.isShutdownHandlerCalled(), "Should not be invoked yet");
         }
 
-        copies.get(0).getPipeline().terminate();
+        copies.getFirst().getPipeline().terminate();
         final var lastCopy = copies.get(copyCount - 1);
         assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Timed out");
         assertTrue(lastCopy.isShutdownHandlerCalled(), "Callback should now be invoked");
@@ -618,7 +644,7 @@ class VirtualPipelineTests {
         final VirtualMapConfig config = configuration.getConfigData(VirtualMapConfig.class);
 
         final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> false);
-        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot last = copies.getLast();
         DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make it immutable and eligible to flush
@@ -662,7 +688,7 @@ class VirtualPipelineTests {
             // Set all copies small enough, so none of them should be flushed even after merge
             copy.setEstimatedSize(config.copyFlushCandidateThreshold() / (copyCount + 1));
         }
-        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot last = copies.getLast();
         DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make afterCopy immutable / eligible to flush
@@ -820,11 +846,9 @@ class VirtualPipelineTests {
         final List<DummyVirtualRoot> copies = setupCopies(NUM_COPIES, i -> false);
 
         final DummyVirtualRoot penultimate = copies.get(copies.size() - 2);
-        final DummyVirtualRoot last = copies.get(copies.size() - 1);
+        final DummyVirtualRoot last = copies.getLast();
         final Hash[] hashes = new Hash[NUM_COPIES];
-        IntStream.range(0, NUM_THREADS).parallel().forEach(i -> {
-            hashes[i] = penultimate.getHash();
-        });
+        IntStream.range(0, NUM_THREADS).parallel().forEach(i -> hashes[i] = penultimate.getHash());
         for (final Hash hash : hashes) {
             assertSame(hash, hashes[0]);
         }

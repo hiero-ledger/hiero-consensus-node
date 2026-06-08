@@ -29,4 +29,3 @@ prometheus.endpointEnabled,                    false                        # di
                                           #           Misc            #
                                           #############################
 
-loadKeysFromPfxFiles,                          false                        # differs from mainnet

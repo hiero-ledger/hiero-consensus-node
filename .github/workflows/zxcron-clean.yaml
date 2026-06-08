@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -40,7 +40,7 @@ jobs:
 
       - name: Authorize Teleport K8S Access to Dallas Cluster
         id: auth-k8s-dal
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -49,6 +49,12 @@ jobs:
 
       - name: List SSH Resources
         run: tsh -i "${{ steps.auth-ssh.outputs.identity-file }}" ls
+
+      - name: Install Wget
+        run: sudo apt install -y wget
+
+      - name: Download MC
+        run: wget -q -O /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/mc
 
       - name: Call clean Dal
         run: |
@@ -64,7 +70,7 @@ jobs:
 
       - name: Authorize Teleport K8S Access to Chicago Cluster
         id: auth-k8s-chi
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot

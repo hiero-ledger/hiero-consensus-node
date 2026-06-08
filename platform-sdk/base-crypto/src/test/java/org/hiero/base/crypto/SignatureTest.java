@@ -3,9 +3,9 @@ package org.hiero.base.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
+import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
 import org.junit.jupiter.api.Test;
 
 public class SignatureTest {

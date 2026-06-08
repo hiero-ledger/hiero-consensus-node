@@ -4,19 +4,21 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
@@ -104,21 +106,19 @@ public class TeacherPullVirtualTreeReceiveTask {
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
-                final PullVirtualTreeRequest request = in.readAnticipatedMessage(PullVirtualTreeRequest::new);
-                if (request == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                final byte[] requestBytes = in.readOrWait(YieldStrategy.SLEEP);
+                if (requestBytes == null) {
+                    break;
                 }
+                final PullVirtualTreeRequest request =
+                        PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
-                if (request.getPath() == Path.INVALID_PATH) {
+                if (request.path() == Path.INVALID_PATH) {
                     logger.info(RECONNECT.getMarker(), "Teaching is complete as requested by the learner");
                     break;
                 }
-                final long path = request.getPath();
-                final Hash learnerHash = request.getHash();
+                final long path = request.path();
+                final Hash learnerHash = request.hash();
                 assert learnerHash != null;
                 final Hash teacherHash = view.loadHash(path);
                 // The only valid scenario, when teacherHash may be null, is the empty tree
@@ -131,8 +131,8 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final long firstLeafPath = view.getReconnectState().getFirstLeafPath();
                 final long lastLeafPath = view.getReconnectState().getLastLeafPath();
                 final PullVirtualTreeResponse response =
-                        new PullVirtualTreeResponse(view, path, isClean, firstLeafPath, lastLeafPath, leafData);
-                out.sendAsync(response);
+                        new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
+                out.sendAsync(serializeMessage(response));
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
@@ -155,5 +155,18 @@ public class TeacherPullVirtualTreeReceiveTask {
                 out.done();
             }
         }
+    }
+
+    /**
+     * Serializes the given response into a byte array suitable for sending via the async
+     * output stream.
+     *
+     * @param response the response to serialize
+     * @return the serialized bytes
+     */
+    private static byte[] serializeMessage(final PullVirtualTreeResponse response) {
+        final byte[] bytes = new byte[response.getSizeInBytes()];
+        response.writeTo(BufferedData.wrap(bytes));
+        return bytes;
     }
 }

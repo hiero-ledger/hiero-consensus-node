@@ -3,6 +3,7 @@ package org.hiero.sloth.fixtures.app;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
@@ -44,12 +45,14 @@ public interface SlothService {
      * @param trigger the trigger that caused the initialization
      * @param selfId the ID of this node
      * @param configuration the configuration to use
+     * @param metrics the metrics to use
      * @param state the current state at the time of initialization
      */
     default void initialize(
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final VirtualMapState state) {
         // Default implementation does nothing
     }

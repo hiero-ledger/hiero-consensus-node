@@ -299,6 +299,13 @@ public class PairedStreamBuilder
         return this;
     }
 
+    @Override
+    public StreamBuilder blockNumber(final Long blockNumber) {
+        recordStreamBuilder.blockNumber(blockNumber);
+        blockStreamBuilder.blockNumber(blockNumber);
+        return this;
+    }
+
     @NonNull
     @Override
     public NodeCreateStreamBuilder nodeID(long nodeID) {

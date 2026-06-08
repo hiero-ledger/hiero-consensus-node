@@ -14,8 +14,6 @@ import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
@@ -78,13 +76,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         lenient().when(config.getConfigData(MerkleDbConfig.class)).thenReturn(merkleDbConfig);
         final var virtualMapConfig = mock(VirtualMapConfig.class);
         lenient().when(config.getConfigData(VirtualMapConfig.class)).thenReturn(virtualMapConfig);
-        final var temporaryFileDbConfig = mock(TemporaryFileConfig.class);
-        lenient().when(config.getConfigData(TemporaryFileConfig.class)).thenReturn(temporaryFileDbConfig);
-        final var stateCommonConfig = mock(StateCommonConfig.class);
-        lenient().when(config.getConfigData(StateCommonConfig.class)).thenReturn(stateCommonConfig);
-        lenient()
-                .when(temporaryFileDbConfig.getTemporaryFilePath(stateCommonConfig))
-                .thenReturn("test");
     }
 
     @Nested
@@ -168,7 +159,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
-            final var virtualMap = VirtualMapUtils.createVirtualMap();
+            final var virtualMap = VirtualMapUtils.createVirtualMap(FILE_SYSTEM_MANAGER);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
                     createTestStateWithVM(virtualMap),

@@ -72,31 +72,35 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                     notification.getConsensusTimestamp(),
                     notification.getRoundNumber(),
                     notification.getSequence());
-            try (final var wrappedState = stateAccessor.get()) {
-                final var readableStoreFactory = new ReadableStoreFactoryImpl(wrappedState.get());
-                final var readableFreezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
-                final var readableUpgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
-                final var readableNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
-                final var readableStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
-
-                final var upgradeActions = new ReadableFreezeUpgradeActions(
-                        configProvider.getConfiguration(),
-                        readableFreezeStore,
-                        executor,
-                        readableUpgradeFileStore,
-                        readableNodeStore,
-                        readableStakingInfoStore,
-                        entityIdFactory);
-                log.info("Externalizing freeze if upgrade is pending");
-                upgradeActions.externalizeFreezeIfUpgradePending();
-            } catch (final Exception e) {
-                log.error("Error while responding to freeze state notification", e);
-            }
+            externalizeFreezeIfUpgradePending();
         }
         // We don't archive genesis startup assets until at least one round has actually been handled,
         // since we need these assets to create genesis entities at the beginning of the first round
         if (notification.getRoundNumber() > 0) {
             startupNetworks.archiveStartupNetworks();
+        }
+    }
+
+    void externalizeFreezeIfUpgradePending() {
+        try (final var wrappedState = stateAccessor.get()) {
+            final var readableStoreFactory = new ReadableStoreFactoryImpl(wrappedState.get());
+            final var readableFreezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
+            final var readableUpgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
+            final var readableNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
+            final var readableStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
+
+            final var upgradeActions = new ReadableFreezeUpgradeActions(
+                    configProvider.getConfiguration(),
+                    readableFreezeStore,
+                    executor,
+                    readableUpgradeFileStore,
+                    readableNodeStore,
+                    readableStakingInfoStore,
+                    entityIdFactory);
+            log.info("Externalizing freeze if upgrade is pending");
+            upgradeActions.externalizeFreezeIfUpgradePending();
+        } catch (final Exception e) {
+            log.error("Error while responding to freeze state notification", e);
         }
     }
 }

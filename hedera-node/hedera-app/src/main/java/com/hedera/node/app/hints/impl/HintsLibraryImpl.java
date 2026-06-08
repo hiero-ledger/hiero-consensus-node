@@ -19,6 +19,7 @@ import java.util.SplittableRandom;
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
+    private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
 
     public static final int VK_LENGTH = 1096;
 
@@ -31,7 +32,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes updateCrs(@NonNull final Bytes crs, @NonNull final Bytes entropy) {
         requireNonNull(crs);
         requireNonNull(entropy);
-        return Bytes.wrap(BRIDGE.updateCRS(crs.toByteArray(), entropy.toByteArray()));
+        final var updatedCrs = BRIDGE.updateCRS(crs.toByteArray(), entropy.toByteArray());
+        return updatedCrs == null ? null : Bytes.wrap(updatedCrs);
     }
 
     @Override
@@ -108,6 +110,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
+        if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH) {
+            return false;
+        }
         return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
@@ -121,6 +126,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(aggregationKey);
         requireNonNull(verificationKey);
         requireNonNull(partialSignatures);
+        if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH) {
+            return null;
+        }
         final int[] parties =
                 partialSignatures.keySet().stream().mapToInt(Integer::intValue).toArray();
         final byte[][] signatures = Arrays.stream(parties)
@@ -129,6 +137,11 @@ public class HintsLibraryImpl implements HintsLibrary {
         final var aggregatedSignature = BRIDGE.aggregateSignatures(
                 crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures);
         return aggregatedSignature == null ? null : Bytes.wrap(aggregatedSignature);
+    }
+
+    @Override
+    public void resetCache() {
+        BRIDGE.resetCache();
     }
 
     @Override

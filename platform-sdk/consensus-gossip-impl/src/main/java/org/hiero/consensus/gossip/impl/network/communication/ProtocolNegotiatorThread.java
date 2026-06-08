@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;

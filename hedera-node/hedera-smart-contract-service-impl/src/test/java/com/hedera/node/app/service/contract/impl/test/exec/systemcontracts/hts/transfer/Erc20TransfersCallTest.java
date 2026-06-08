@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
@@ -20,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -34,7 +37,11 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -45,6 +52,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class Erc20TransfersCallTest extends CallTestBase {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
     private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
@@ -93,6 +106,7 @@ class Erc20TransfersCallTest extends CallTestBase {
     @Test
     void transferHappyPathSucceedsWithTrue() {
         givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -127,6 +141,7 @@ class Erc20TransfersCallTest extends CallTestBase {
     @Test
     void transferFromHappyPathSucceedsWithTrue() {
         givenSynthIdHelperWithFrom();
+        givenFrameConfig();
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -167,6 +182,56 @@ class Erc20TransfersCallTest extends CallTestBase {
         assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.getOutput());
     }
 
+    @Test
+    void transferHappyPathSucceedsWithTrueInBlocksMode() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfigBlocks();
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.evmCallTransactionResult(any())).willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
+        given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        verify(streamBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void transferFromHappyPathSucceedsWithTrueInBlocksMode() {
+        givenSynthIdHelperWithFrom();
+        givenFrameConfigBlocks();
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(A_NEW_ACCOUNT_ID)).willReturn(OWNER_ACCOUNT);
+        given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.evmCallTransactionResult(any())).willReturn(streamBuilder);
+
+        subject = subjectForTransferFrom(1L);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        verify(streamBuilder, never()).contractCallResult(any());
+    }
+
     private void givenSynthIdHelperWithFrom() {
         given(addressIdConverter.convert(FROM_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
         given(addressIdConverter.convertCredit(TO_ADDRESS)).willReturn(B_NEW_ACCOUNT_ID);
@@ -174,6 +239,20 @@ class Erc20TransfersCallTest extends CallTestBase {
 
     private void givenSynthIdHelperWithoutFrom() {
         given(addressIdConverter.convertCredit(TO_ADDRESS)).willReturn(B_NEW_ACCOUNT_ID);
+    }
+
+    private void givenFrameConfig() {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(BOTH_MODE_CONFIG);
+    }
+
+    private void givenFrameConfigBlocks() {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(BLOCKS_MODE_CONFIG);
     }
 
     private Erc20TransfersCall subjectForTransfer(final long amount) {

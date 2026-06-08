@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,13 +41,13 @@ class EvmActionTracerTest {
 
     @BeforeEach
     void setUp() {
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        given(stack.isEmpty()).willReturn(true);
         subject = new EvmActionTracer(actionStack);
     }
 
     @Test
     void customInitIsNoopWithoutActionSidecars() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenNoActionSidecars();
         given(actionStack.asContractActions()).willReturn(List.of());
 
@@ -60,6 +59,8 @@ class EvmActionTracerTest {
 
     @Test
     void customInitTracksTopLevel() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenSidecarsOnly();
 
         subject.traceOriginAction(frame);
@@ -69,6 +70,8 @@ class EvmActionTracerTest {
 
     @Test
     void customFinalizeNoopIfNoActionSidecars() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenNoActionSidecars();
 
         subject.sanitizeTracedActions(frame);
@@ -78,6 +81,8 @@ class EvmActionTracerTest {
 
     @Test
     void customFinalizeNoopIfNotValidatingActions() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenSidecarsOnly();
 
         subject.sanitizeTracedActions(frame);
@@ -87,6 +92,8 @@ class EvmActionTracerTest {
 
     @Test
     void customFinalizeSanitizesActionsIfValidating() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenActionSidecarsAndValidation();
 
         subject.sanitizeTracedActions(frame);
@@ -95,46 +102,36 @@ class EvmActionTracerTest {
     }
 
     @Test
-    void postExecNoopWithoutActionSidecars() {
-        givenNoActionSidecars();
-
-        subject.tracePostExecution(frame, new Operation.OperationResult(123, null));
-
-        verifyNoInteractions(actionStack);
-    }
-
-    @Test
     void postExecNoopIfCodeExecutingState() {
-        givenSidecarsOnly();
-        given(frame.getState()).willReturn(MessageFrame.State.CODE_EXECUTING);
-
-        subject.tracePostExecution(frame, new Operation.OperationResult(123, null));
+        // No-op.  API exists for other implementors.
+        subject.tracePerOpcode(frame, 123, null, null);
 
         verifyNoInteractions(actionStack);
     }
 
     @Test
     void postExecTracksIntermediateIfSuspended() {
-        givenSidecarsOnly();
-        given(frame.getState()).willReturn(MessageFrame.State.CODE_SUSPENDED);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        givenNoActionSidecars();
 
-        subject.tracePostExecution(frame, new Operation.OperationResult(123, null));
+        MessageFrame child = frame.getMessageFrameStack().peek();
+        subject.traceSuspended(frame, child, null);
 
-        verify(actionStack).pushActionOfIntermediate(frame);
+        verify(actionStack).pushActionOfIntermediate(frame, child, null);
     }
 
     @Test
     void postExecFinalizesIfNotSuspended() {
-        givenActionSidecarsAndValidation();
-        given(frame.getState()).willReturn(MessageFrame.State.COMPLETED_SUCCESS);
 
-        subject.tracePostExecution(frame, new Operation.OperationResult(123, null));
+        subject.traceNotExecuting(frame);
 
-        verify(actionStack).finalizeLastAction(frame, ActionStack.Validation.ON);
+        verify(actionStack).finalizeLastAction(frame, ActionStack.Validation.OFF);
     }
 
     @Test
     void precompileTraceIsNoopIfNoSidecars() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenNoActionSidecars();
 
         subject.tracePrecompileResult(frame, ContractActionType.SYSTEM);
@@ -144,6 +141,8 @@ class EvmActionTracerTest {
 
     @Test
     void systemPrecompileTraceIsStillTrackedEvenIfHalted() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenSidecarsOnly();
 
         subject.tracePrecompileResult(frame, ContractActionType.SYSTEM);
@@ -154,6 +153,8 @@ class EvmActionTracerTest {
 
     @Test
     void accountCreationTraceIsNoopIfNoSidecars() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenNoActionSidecars();
 
         subject.traceAccountCreationResult(frame, Optional.empty());
@@ -163,6 +164,8 @@ class EvmActionTracerTest {
 
     @Test
     void accountCreationTraceDoesNotFinalizesEvenWithSidecarsUnlessHaltReasonProvided() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenSidecarsOnly();
 
         subject.traceAccountCreationResult(frame, Optional.empty());
@@ -172,6 +175,8 @@ class EvmActionTracerTest {
 
     @Test
     void accountCreationTraceFinalizesWithSidecarsAndHaltReason() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenActionSidecarsAndValidation();
 
         subject.traceAccountCreationResult(frame, Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
@@ -181,6 +186,8 @@ class EvmActionTracerTest {
 
     @Test
     void contractCreationTraceFinalizesWithSidecarsAndHaltReason() {
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
         givenSidecarsOnly();
         given(actionStack.isEmpty()).willReturn(true);
         subject.traceAccountCreationResult(frame, Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));

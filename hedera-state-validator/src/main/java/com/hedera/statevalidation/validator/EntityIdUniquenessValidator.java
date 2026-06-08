@@ -28,13 +28,14 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.util.StateUtils;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -58,6 +59,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
 
     private final AtomicLong idCounter = new AtomicLong(0);
     private final AtomicLong issuesFound = new AtomicLong(0);
+
+    private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
     /**
      * {@inheritDoc}
@@ -144,75 +147,86 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(0, issuesFound.get(), getName());
+        if (issuesFound.get() != 0) {
+            throw new ValidationException(getName(), String.format("Expected <%d> but was <%d>", 0, issuesFound.get()));
+        }
     }
 
     private void checkEntityUniqueness(long entityId) {
         // From time to time we need to reset cache to prevent OOM errors
         if (idCounter.incrementAndGet() % 100_000 == 0) {
-            StateUtils.resetStateCache();
+            cacheLock.writeLock().lock();
+            try {
+                StateUtils.resetStateCache();
+            } finally {
+                cacheLock.writeLock().unlock();
+            }
         }
-
-        int counter = 0;
-        final Token token = tokensState.get(new TokenID(0, 0, entityId));
-        if (token != null) {
-            counter++;
-        }
-
-        final Account account =
-                accountState.get(AccountID.newBuilder().accountNum(entityId).build());
-        if (account != null) {
-            counter++;
-        }
-
-        final Bytecode contract = smartContractState.get(
-                ContractID.newBuilder().contractNum(entityId).build());
-
-        if (contract != null) {
-            counter++;
-        }
-
-        final Topic topic =
-                topicState.get(TopicID.newBuilder().topicNum(entityId).build());
-
-        if (topic != null) {
-            counter++;
-        }
-
-        final File file = fileState.get(FileID.newBuilder().fileNum(entityId).build());
-        if (file != null) {
-            counter++;
-        }
-
-        final Schedule schedule = scheduleState.get(new ScheduleID(0, 0, entityId));
-        if (schedule != null) {
-            counter++;
-        }
-
-        if (counter == 0) {
-            final String errorMessage = String.format("No entity found for Entity ID %d", entityId);
-            log.error(errorMessage);
-            issuesFound.incrementAndGet();
-        }
-        if (counter > 1) {
-            if ((account != null) && (contract != null) && (counter == 2)) {
-                // if it's a smart contract account, we expect it to have a contract with matching id
-                return;
+        cacheLock.readLock().lock();
+        try {
+            int counter = 0;
+            final Token token = tokensState.get(new TokenID(0, 0, entityId));
+            if (token != null) {
+                counter++;
             }
 
-            final String errorMessage =
-                    String.format("""
-            Entity ID %d is not unique, found %d entities.\s
-             Token = %s, \
-            \s
-             Account = %s,\s
-             Contract = %s, \s
-             Topic = %s,\s
-             File = %s,\s
-             Schedule = %s
-            """, entityId, counter, token, account, contract, topic, file, schedule);
-            log.error(errorMessage);
-            issuesFound.incrementAndGet();
+            final Account account =
+                    accountState.get(AccountID.newBuilder().accountNum(entityId).build());
+            if (account != null) {
+                counter++;
+            }
+
+            final Bytecode contract = smartContractState.get(
+                    ContractID.newBuilder().contractNum(entityId).build());
+
+            if (contract != null) {
+                counter++;
+            }
+
+            final Topic topic =
+                    topicState.get(TopicID.newBuilder().topicNum(entityId).build());
+
+            if (topic != null) {
+                counter++;
+            }
+
+            final File file =
+                    fileState.get(FileID.newBuilder().fileNum(entityId).build());
+            if (file != null) {
+                counter++;
+            }
+
+            final Schedule schedule = scheduleState.get(new ScheduleID(0, 0, entityId));
+            if (schedule != null) {
+                counter++;
+            }
+            if (counter == 0) {
+                final String errorMessage = String.format("No entity found for Entity ID %d", entityId);
+                log.error(errorMessage);
+                issuesFound.incrementAndGet();
+            }
+            if (counter > 1) {
+                if ((account != null) && (contract != null) && (counter == 2)) {
+                    // if it's a smart contract account, we expect it to have a contract with matching id
+                    return;
+                }
+
+                final String errorMessage =
+                        String.format("""
+                                      Entity ID %d is not unique, found %d entities.\s
+                                       Token = %s, \
+                                      \s
+                                       Account = %s,\s
+                                       Contract = %s, \s
+                                       Topic = %s,\s
+                                       File = %s,\s
+                                       Schedule = %s
+                          """, entityId, counter, token, account, contract, topic, file, schedule);
+                log.error(errorMessage);
+                issuesFound.incrementAndGet();
+            }
+        } finally {
+            cacheLock.readLock().unlock();
         }
     }
 }

@@ -5,12 +5,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
@@ -21,16 +23,18 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class PairedStreams implements AutoCloseable {
 
+    private static final Logger logger = LogManager.getLogger(PairedStreams.class);
+
     protected BufferedOutputStream teacherOutputBuffer;
-    protected SerializableDataOutputStream teacherOutput;
+    protected DataOutputStream teacherOutput;
 
     protected BufferedInputStream teacherInputBuffer;
-    protected SerializableDataInputStream teacherInput;
+    protected DataInputStream teacherInput;
 
     protected BufferedOutputStream learnerOutputBuffer;
-    protected SerializableDataOutputStream learnerOutput;
+    protected DataOutputStream learnerOutput;
     protected BufferedInputStream learnerInputBuffer;
-    protected SerializableDataInputStream learnerInput;
+    protected DataInputStream learnerInput;
 
     protected Socket teacherSocket;
     protected Socket learnerSocket;
@@ -50,31 +54,31 @@ public class PairedStreams implements AutoCloseable {
         learnerSocket = server.accept();
 
         teacherOutputBuffer = new BufferedOutputStream(teacherSocket.getOutputStream());
-        teacherOutput = new SerializableDataOutputStream(teacherOutputBuffer);
+        teacherOutput = new DataOutputStream(teacherOutputBuffer);
 
         teacherInputBuffer = new BufferedInputStream(teacherSocket.getInputStream());
-        teacherInput = new SerializableDataInputStream(teacherInputBuffer);
+        teacherInput = new DataInputStream(teacherInputBuffer);
 
         learnerOutputBuffer = new BufferedOutputStream(learnerSocket.getOutputStream());
-        learnerOutput = new SerializableDataOutputStream(learnerOutputBuffer);
+        learnerOutput = new DataOutputStream(learnerOutputBuffer);
 
         learnerInputBuffer = new BufferedInputStream(learnerSocket.getInputStream());
-        learnerInput = new SerializableDataInputStream(learnerInputBuffer);
+        learnerInput = new DataInputStream(learnerInputBuffer);
     }
 
-    public SerializableDataOutputStream getTeacherOutput() {
+    public DataOutputStream getTeacherOutput() {
         return teacherOutput;
     }
 
-    public SerializableDataInputStream getTeacherInput() {
+    public DataInputStream getTeacherInput() {
         return teacherInput;
     }
 
-    public SerializableDataOutputStream getLearnerOutput() {
+    public DataOutputStream getLearnerOutput() {
         return learnerOutput;
     }
 
-    public SerializableDataInputStream getLearnerInput() {
+    public DataInputStream getLearnerInput() {
         return learnerInput;
     }
 
@@ -97,7 +101,7 @@ public class PairedStreams implements AutoCloseable {
                 c.close();
             } catch (final Exception e) {
                 // this is the test code, and we don't want the test to fail because of a close error
-                e.printStackTrace(System.err);
+                logger.error("Error while closing resources", e);
             }
         }
     }

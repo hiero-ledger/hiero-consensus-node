@@ -154,6 +154,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     private Consumer<Object[]> eventDataObserver;
     private String eventName;
     private String contractResultAbi = null;
+    private boolean hasBlockNumber = false;
 
     public static ByteString sha384HashOf(final Transaction transaction) {
         if (transaction.getSignedTransactionBytes().isEmpty()) {
@@ -219,6 +220,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     public HapiGetTxnRecord exposingCreationsTo(final Consumer<List<String>> creationObserver) {
         this.createdIdsObserver = creationObserver;
         return andAllChildRecords();
+    }
+
+    public HapiGetTxnRecord hasNonNullBlockNumber() {
+        hasBlockNumber = true;
+        return this;
     }
 
     public HapiGetTxnRecord exposingCreationDetailsTo(final Consumer<List<AccountCreationDetails>> observer) {
@@ -759,6 +765,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         if (hasScheduledTransactionId) {
             final var scheduledTransactionId = actualRecord.getReceipt().getScheduledTransactionID();
             assertNotNull(scheduledTransactionId);
+        }
+        if (hasBlockNumber) {
+            assertTrue(
+                    actualRecord.getReceipt().hasBlockNumber(),
+                    "Expected block number in the receipt, but it was not found");
         }
     }
 

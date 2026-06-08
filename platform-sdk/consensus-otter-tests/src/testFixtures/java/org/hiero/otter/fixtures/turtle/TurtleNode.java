@@ -17,8 +17,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -47,9 +45,12 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -57,7 +58,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
@@ -66,6 +68,7 @@ import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterStateUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
@@ -213,7 +216,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 // ignore, this is just a fallback in case an earlier test didn't clean up properly
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-            final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
+            final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
+            final FileSystemManager fileSystemManager =
+                    new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
             final RecycleBin recycleBin = RecycleBinImpl.create(
                     metrics,
                     currentConfiguration,
@@ -230,8 +235,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
-            final StateLifecycleManager stateLifecycleManager =
-                    new VirtualMapStateLifecycleManager(metrics, timeManager.time(), currentConfiguration);
+            final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                    metrics, timeManager.time(), currentConfiguration, fileSystemManager);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
@@ -257,11 +262,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final VirtualMapState state = initialState.get().getState();
 
             // Set the active roster
-            final ReadablePlatformStateStore store =
+            final ReadablePlatformStateStore platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            RosterStateUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+            final WritableRosterStore rosterStore =
+                    new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+            rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
+            OtterStateUtils.commitState(state);
 
-            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
@@ -286,7 +294,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withExecutionLayer(executionLayer)
                     .withModel(model)
                     .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule);
+                    .withGossipModule(gossipModule)
+                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();

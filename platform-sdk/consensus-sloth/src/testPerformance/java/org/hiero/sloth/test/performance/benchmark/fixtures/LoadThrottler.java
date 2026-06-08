@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.test.performance.benchmark.fixtures;
 
-import com.swirlds.common.utility.InstantUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.hiero.base.utility.InstantUtils;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TestEnvironment;

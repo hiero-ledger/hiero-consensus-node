@@ -12,7 +12,6 @@ module org.hiero.consensus.metrics {
     exports org.hiero.consensus.metrics.statistics;
     exports org.hiero.consensus.metrics.statistics.atomic;
     exports org.hiero.consensus.metrics.statistics.cycle;
-    exports org.hiero.consensus.metrics.statistics.internal;
     exports org.hiero.consensus.metrics.statistics.simple;
 
     requires transitive com.swirlds.base;

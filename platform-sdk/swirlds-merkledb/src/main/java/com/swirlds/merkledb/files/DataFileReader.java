@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -92,8 +93,14 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     private final AtomicBoolean open = new AtomicBoolean(true);
     /** The path to the file on disk */
     private final Path path;
-    /** The metadata for this file read from the footer */
-    private final DataFileMetadata metadata;
+    /**
+     * The metadata for this file. This is an {@link AtomicReference} because metadata is updated
+     * after construction — {@link DataFileCollection#endWriting()} propagates the final
+     * {@code itemsCount} from the writer. These updates happen on the flush or compaction thread while
+     * scanner and compaction threads may concurrently read the metadata. The atomic reference
+     * ensures cross-thread visibility without explicit synchronization.
+     */
+    private final AtomicReference<DataFileMetadata> metadataRef = new AtomicReference<>();
     /** A flag for if the underlying file is fully written and ready to be compacted. */
     private final AtomicBoolean fileCompleted = new AtomicBoolean(false);
 
@@ -131,7 +138,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     "Tried to open a non existent data file [" + path.toAbsolutePath() + "].");
         }
         this.path = path;
-        this.metadata = metadata;
+        this.metadataRef.set(metadata);
         openNewFileChannel(0);
     }
 
@@ -166,7 +173,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
      * @return file index
      */
     public int getIndex() {
-        return metadata.getIndex();
+        return metadataRef.get().getIndex();
     }
 
     /**
@@ -175,7 +182,15 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
      * @return file metadata
      */
     public DataFileMetadata getMetadata() {
-        return metadata;
+        return metadataRef.get();
+    }
+
+    /**
+     * Update the metadata of this data file.
+     * @param metadata new metadata to set
+     */
+    public void updateMetadata(final DataFileMetadata metadata) {
+        metadataRef.set(metadata);
     }
 
     /**
@@ -196,7 +211,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
      * @throws IOException if there was a problem creating a new DataFileIterator
      */
     public DataFileIterator createIterator() throws IOException {
-        return new DataFileIterator(dbConfig, path, metadata);
+        return new DataFileIterator(dbConfig, path, metadataRef.get());
     }
 
     /**
@@ -263,6 +278,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         if (this == o) {
             return 0;
         }
+        final DataFileMetadata metadata = metadataRef.get();
         final int res = metadata.getCreationDate().compareTo(o.getMetadata().getCreationDate());
         return (res != 0)
                 ? res
@@ -272,7 +288,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     /** ToString for debugging */
     @Override
     public String toString() {
-        return Integer.toString(metadata.getIndex());
+        return Integer.toString(metadataRef.get().getIndex());
     }
 
     // For testing purpose
@@ -451,7 +467,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= totalSize) {
+                if (readBB.capacity() < totalSize) {
                     readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);

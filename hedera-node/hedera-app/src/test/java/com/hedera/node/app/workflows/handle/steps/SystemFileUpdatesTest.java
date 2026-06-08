@@ -371,7 +371,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
             mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
                 final Runnable r = inv.getArgument(0);
                 r.run();
-                return CompletableFuture.completedFuture(null);
+                return new CompletableFuture<>();
             });
 
             // when
@@ -426,7 +426,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
             mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
                 final Runnable r = inv.getArgument(0);
                 r.run();
-                return CompletableFuture.completedFuture(null);
+                return new CompletableFuture<>();
             });
 
             // when

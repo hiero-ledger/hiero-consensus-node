@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -239,7 +239,6 @@ public class ContractUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updatingExpiryWorks() {
         final var someValidExpiry = new AtomicLong();
         return hapiTest(
@@ -357,6 +356,7 @@ public class ContractUpdateSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";
@@ -467,7 +467,6 @@ public class ContractUpdateSuite {
     }
 
     @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations"})
-    @Tag(MATS)
     final Stream<DynamicTest> tryContractUpdateWithMaxAutoAssociations() {
         return hapiTest(
                 overriding("ledger.maxAutoAssociations", "5000"),

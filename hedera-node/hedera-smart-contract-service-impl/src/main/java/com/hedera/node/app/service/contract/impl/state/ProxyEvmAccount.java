@@ -40,7 +40,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     @Nullable
     private Address address;
 
-    public ProxyEvmAccount(final AccountID accountID, @NonNull final EvmFrameState state) {
+    public ProxyEvmAccount(final AccountID accountID, @NonNull final DispatchingEvmFrameState state) {
         super(accountID, state);
     }
 
@@ -57,6 +57,11 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Bytes getCode() {
         return state.getAccountRedirectCode(address);
+    }
+
+    @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return state.getAccountRedirectCodePBJ(address);
     }
 
     @Override

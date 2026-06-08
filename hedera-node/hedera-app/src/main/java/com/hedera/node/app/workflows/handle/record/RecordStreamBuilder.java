@@ -1003,6 +1003,13 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
+        // No op for stream mode records
+        return this;
+    }
+
     /**
      * Sets the receipt topicID.
      *
@@ -1343,7 +1350,7 @@ public class RecordStreamBuilder
      */
     private TransactionBody inProgressBody() {
         try {
-            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }

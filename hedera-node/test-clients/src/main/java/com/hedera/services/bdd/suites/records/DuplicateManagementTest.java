@@ -39,7 +39,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -185,7 +184,7 @@ public class DuplicateManagementTest {
                 getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> usesUnclassifiableIfNoClassifiableAvailable() {
         return hapiTest(
                 newKeyNamed("wrongKey"),
@@ -194,7 +193,7 @@ public class DuplicateManagementTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
                 uncheckedSubmit(
                         cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
-                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                sleepFor(500), // time to reach consensus
                 getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
