@@ -622,8 +622,28 @@ public final class HashgraphInfo {
             }
 
             // function firstSelfWitnessS /-----------------------------------------------------------------------
+            {
+                EventInfo p = h.selfParent;
+                if (p == null || votingRound > p.votingRound) {
+                    firstSelfWitnessS = this;
+                } else {
+                    firstSelfWitnessS = p.firstSelfWitnessS;
+                }
+            }
 
             // function firstWitnessS /---------------------------------------------------------------------------
+            if (h.parents.isEmpty()) {
+                firstWitnessS = null;
+            } else if (votingRound != parentRound) {
+                firstWitnessS = this;
+            } else {
+                for (EventInfo p : h.parents){
+                    if (votingRound == p.votingRound) {
+                        firstWitnessS = p.firstWitnessS;
+                        break; // this break will happen because votingRound = parentRound at this point
+                    }
+                }
+            }
 
             // function stronglySeeS1 /---------------------------------------------------------------------------
 
