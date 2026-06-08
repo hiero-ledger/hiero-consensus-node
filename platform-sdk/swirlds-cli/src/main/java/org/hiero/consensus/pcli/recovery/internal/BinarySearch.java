@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.consensus.pcli.recovery.internal;
 
 import com.swirlds.base.function.CheckedFunction;
 import edu.umd.cs.findbugs.annotations.NonNull;
