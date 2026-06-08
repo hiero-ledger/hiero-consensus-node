@@ -88,40 +88,7 @@ public class SortedJsonExporter {
 
         serviceNameStateKeyList.forEach(p -> {
             final int stateId = StateUtils.stateIdFor(p.left(), p.right());
-            final Comparator<Pair<Long, Bytes>> comparator;
-            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
-                comparator = (key1, key2) -> {
-                    ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
-                    keyData1.readVarInt(false); // read tag
-                    keyData1.readVarInt(false); // read value
-
-                    ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
-                    keyData2.readVarInt(false); // read tag
-                    keyData2.readVarInt(false); // read value
-
-                    return keyData1.readBytes((int) keyData1.remaining())
-                            .compareTo(keyData2.readBytes((int) keyData2.remaining()));
-                };
-            } else {
-                comparator = (key1, key2) -> {
-                    try {
-                        final StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
-                        final StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
-                        // queue metadata
-                        if (stateKey1.key().value() instanceof SingletonType) {
-                            return -1;
-                        }
-                        if (stateKey2.key().value() instanceof SingletonType) {
-                            return 1;
-                        }
-                        final Long index1 = (Long) stateKey1.key().value();
-                        final Long index2 = (Long) stateKey2.key().value();
-                        return index1.compareTo(index2);
-                    } catch (ParseException e) {
-                        throw new RuntimeException(e);
-                    }
-                };
-            }
+            final Comparator<Pair<Long, Bytes>> comparator = keyComparatorFor(stateId);
             keysByExpectedStateIds.computeIfAbsent(stateId, k -> new ConcurrentSkipListSet<>(comparator));
             nameByStateId.put(stateId, p);
         });
@@ -233,44 +200,8 @@ public class SortedJsonExporter {
                 final long path = keys.get(i).left();
                 final Bytes keyBytes = keys.get(i).right();
                 final Bytes valueBytes = vm.getRecords().findLeafRecord(path).valueBytes();
-                final StateKey stateKey;
-                final StateValue stateValue;
-                try {
-                    stateKey = StateKey.PROTOBUF.parse(keyBytes);
-                    stateValue = StateValue.PROTOBUF.parse(
-                            valueBytes.toReadableSequentialData(),
-                            false,
-                            false,
-                            Codec.DEFAULT_MAX_DEPTH,
-                            getVirtualMapValueParseMaxSizeBytes());
-                    if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
-                        JsonUtils.write(
-                                writer,
-                                "{\"v\":%s}\n".formatted(StateUtils.valueToJson(stateValue.value())),
-                                PRETTY_PRINT_ENABLED);
-                    } else if (stateKey.key().value() instanceof Long) { // queue
-                        JsonUtils.write(
-                                writer,
-                                "{\"i\":%s, \"v\":%s}\n"
-                                        .formatted(stateKey.key().value(), StateUtils.valueToJson(stateValue.value())),
-                                PRETTY_PRINT_ENABLED);
-                    } else { // kv
-                        JsonUtils.write(
-                                writer,
-                                "{\"k\":\"%s\", \"v\":\"%s\"}\n"
-                                        .formatted(
-                                                StateUtils.keyToJson(stateKey.key())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\""),
-                                                StateUtils.valueToJson(stateValue.value())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\"")),
-                                PRETTY_PRINT_ENABLED);
-                    }
-                    emptyFile = false;
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                }
+                writeEntry(writer, keyBytes, valueBytes);
+                emptyFile = false;
                 long currentObjCount = objectsProcessed.incrementAndGet();
                 if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
                     log.debug("{} objects of {} are processed", currentObjCount, totalNumber);
@@ -282,6 +213,78 @@ public class SortedJsonExporter {
 
         if (emptyFile) {
             file.delete();
+        }
+    }
+
+    public static Comparator<Pair<Long, Bytes>> keyComparatorFor(final int stateId) {
+        if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
+            return (key1, key2) -> {
+                final ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
+                keyData1.readVarInt(false); // tag
+                keyData1.readVarInt(false); // value length
+                final ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
+                keyData2.readVarInt(false);
+                keyData2.readVarInt(false);
+                return keyData1.readBytes((int) keyData1.remaining())
+                        .compareTo(keyData2.readBytes((int) keyData2.remaining()));
+            };
+        }
+        return (key1, key2) -> {
+            try {
+                final StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
+                final StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
+                if (stateKey1.key().value() instanceof SingletonType) {
+                    return -1;
+                }
+                if (stateKey2.key().value() instanceof SingletonType) {
+                    return 1;
+                }
+                final Long index1 = (Long) stateKey1.key().value();
+                final Long index2 = (Long) stateKey2.key().value();
+                return index1.compareTo(index2);
+            } catch (final ParseException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    public static void writeEntry(
+            @NonNull final BufferedWriter writer, @NonNull final Bytes keyBytes, @NonNull final Bytes valueBytes)
+            throws IOException {
+        final StateKey stateKey;
+        final StateValue stateValue;
+        try {
+            stateKey = StateKey.PROTOBUF.parse(keyBytes);
+            stateValue = StateValue.PROTOBUF.parse(
+                    valueBytes.toReadableSequentialData(),
+                    false,
+                    false,
+                    Codec.DEFAULT_MAX_DEPTH,
+                    getVirtualMapValueParseMaxSizeBytes());
+        } catch (final ParseException e) {
+            throw new RuntimeException(e);
+        }
+        if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
+            JsonUtils.write(
+                    writer, "{\"v\":%s}\n".formatted(StateUtils.valueToJson(stateValue.value())), PRETTY_PRINT_ENABLED);
+        } else if (stateKey.key().value() instanceof Long) { // queue
+            JsonUtils.write(
+                    writer,
+                    "{\"i\":%s, \"v\":%s}\n"
+                            .formatted(stateKey.key().value(), StateUtils.valueToJson(stateValue.value())),
+                    PRETTY_PRINT_ENABLED);
+        } else { // kv
+            JsonUtils.write(
+                    writer,
+                    "{\"k\":\"%s\", \"v\":\"%s\"}\n"
+                            .formatted(
+                                    StateUtils.keyToJson(stateKey.key())
+                                            .replace("\\", "\\\\")
+                                            .replace("\"", "\\\""),
+                                    StateUtils.valueToJson(stateValue.value())
+                                            .replace("\\", "\\\\")
+                                            .replace("\"", "\\\"")),
+                    PRETTY_PRINT_ENABLED);
         }
     }
 }
