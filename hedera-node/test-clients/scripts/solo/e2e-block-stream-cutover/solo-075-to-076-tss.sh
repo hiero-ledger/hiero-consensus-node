@@ -10,7 +10,8 @@
 #
 #   1. Deploy a baseline CN network at the published v0.75.0-rc.4 release tag
 #      with resources/0.75/application.properties.
-#   2. Deploy a mirror node + explorer UI on top of the 0.75 baseline (importer
+#   2. Deploy a mirror node (with --pinger, so it keeps submitting transactions and the
+#      network keeps producing blocks) + explorer UI on top of the 0.75 baseline (importer
 #      reads RECORD streams from MinIO).
 #   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks
 #      streamed by the CN through the RSA bootstrap roster.
@@ -28,6 +29,7 @@
 #   - local-build version on all consensus nodes
 #   - WRAPS env wired, artifacts on disk, mock WRAPS proof construction in hgcaa.log
 #   - Block Node still receiving + verifying mock-sig blocks (lastAvailableBlock advances)
+#   - Mirror node imported the LedgerIdPublication transaction (ledger id externalized to the MN)
 #
 # Block Node and mirror node + explorer are always deployed in this script — no toggles.
 
@@ -75,7 +77,10 @@ HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
+# Timeouts for the post-0.76 verification gates (WRAPS is per-node; BN/MN are overall).
 WRAPS_VERIFY_TIMEOUT_SECS="${WRAPS_VERIFY_TIMEOUT_SECS:-600}"
+BLOCK_NODE_VERIFY_TIMEOUT_SECS="${BLOCK_NODE_VERIFY_TIMEOUT_SECS:-180}"
+MIRROR_LEDGER_ID_TIMEOUT_SECS="${MIRROR_LEDGER_ID_TIMEOUT_SECS:-300}"
 
 # Local port-forward + operator key used by the post-upgrade tx nudge that
 # pushes consensus rounds past the genesis WRAPS CRS-adoption stall.
@@ -187,14 +192,14 @@ configured_wraps_artifacts_container_dir() {
   fi
 }
 
-# Writes a copy of the shared 0.76 application.properties with tss.wrapsProvingKeyDownloadUrl
-# switched to the public WRAPS URL (the local nginx server is not used in this script). The
-# shared resources/0.76/application.properties is left untouched so the wider cutover scripts
-# that rely on the local nginx URL still work.
-generate_076_application_properties_with_public_wraps_url() {
+# Writes a copy of the shared 0.76 application.properties with tss.wrapsProvingKeyDownloadUrl set to
+# WRAPS_ARTIFACTS_DOWNLOAD_URL (the public mirror by default; override the env var to serve from a
+# local host). The shared resources/0.76/application.properties is left untouched so the wider
+# cutover scripts that rely on their own URL still work.
+generate_076_application_properties_with_wraps_url() {
   sed -E "s#^tss.wrapsProvingKeyDownloadUrl=.*#tss.wrapsProvingKeyDownloadUrl=${WRAPS_ARTIFACTS_DOWNLOAD_URL}#" \
     "${APP_PROPS_076_FILE}" > "${APP_PROPS_076_GENERATED_FILE}"
-  log "Generated 0.76 application.properties with public WRAPS URL at ${APP_PROPS_076_GENERATED_FILE}"
+  log "Generated 0.76 application.properties with WRAPS download URL ${WRAPS_ARTIFACTS_DOWNLOAD_URL} at ${APP_PROPS_076_GENERATED_FILE}"
 }
 
 # Pre-inject TSS_LIB_WRAPS_ARTIFACTS_PATH into every consensus StatefulSet's
@@ -688,9 +693,7 @@ EOF
 
 deploy_block_node() {
   validate_block_node_repo || return 1
-  # earliestManagedBlock must sit ABOVE the CN's current block at deploy time; the BN then
-  # snaps down to whatever CN first publishes. This script produces few blocks before this
-  # point, so a high constant is safely above current. Override via env if needed.
+  # Default to a fixed 1000 (safely above this short test's block-stream tip); see the var decl.
   [[ -z "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}" ]] && BLOCK_NODE_EARLIEST_MANAGED_BLOCK="1000"
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
 
@@ -1004,7 +1007,7 @@ deploy_mirror_and_explorer() {
 # 0.75 baseline first and then upgrade in place — to the local 0.76 build by default, or to a
 # published Solo tag when UPGRADE_TAG is set.
 upgrade_to_local_076() {
-  generate_076_application_properties_with_public_wraps_url
+  generate_076_application_properties_with_wraps_url
   inject_wraps_env_into_statefulsets
 
   local upgrade_cmd=(
@@ -1096,10 +1099,10 @@ deploy_block_node
 upgrade_to_local_076
 
 log "--- Post-0.76 BN check: Block Node still receiving + verifying mock-sig blocks ---"
-verify_block_node_has_blocks 180
+verify_block_node_has_blocks "${BLOCK_NODE_VERIFY_TIMEOUT_SECS}"
 
 log "--- Post-0.76 MN check: mirror node imported the LedgerIdPublication (ledger id reached the MN) ---"
-verify_mirror_node_has_ledger_id_publication 300
+verify_mirror_node_has_ledger_id_publication "${MIRROR_LEDGER_ID_TIMEOUT_SECS}"
 
 log "PASS: 0.75 (${DEPLOY_RELEASE_TAG}) -> 0.76 (TSS enabled, mock signatures) upgrade completed cleanly"
 log "PASS: Block Node verified the mock-sig (RSA WRB) blocks across the 0.75 -> 0.76 upgrade"
