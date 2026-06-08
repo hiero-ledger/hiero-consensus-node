@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: Generate Release Notes"
+name: "305: [FLOW] Generate Rel Notes"
 on:
   push:
     tags:

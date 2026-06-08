@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: Node: Build Application"
+name: "300: [FLOW] Build Application"
 on:
   push:
     branches:
@@ -121,7 +121,6 @@ jobs:
           checkout-ref: ${{ github.sha }}
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
           checkout-fetch-depth: "0"
-          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         env:
@@ -250,6 +249,16 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
+
+      - name: Install gomplate
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' || steps.report-category.outputs.category == 'cancelled' }}
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
 
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}

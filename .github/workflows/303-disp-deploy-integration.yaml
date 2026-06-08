@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [Node] Deploy Integration Network Release"
+name: "303: [DISP] Deploy Integration"
 on:
   workflow_dispatch:
 
