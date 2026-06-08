@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.function.Consumer;
 
 /**
  * This package contains a single file that does all the consensus calculations for the Hashgraph consensus algorithm.
@@ -68,8 +67,8 @@ public final class HashgraphInfo {
     private long totalStake;
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
-    private ArrayList<EventInfo> parents = new ArrayList<>();
-    private EventInfo selfParent;
+    private ArrayList<EventInfo> parents = new ArrayList<>(); //used as scratchpad during update of an event
+    private EventInfo selfParent; //used as scratchpad during update of an event
     private int parentsMaxSize = 0; // largest parents has ever been (used to recover from massive branching)
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
@@ -359,10 +358,9 @@ public final class HashgraphInfo {
          */
         public UpdateResults update(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
             // make the names look more like the r and x in the tech report
-            final EventInfo x = this;
             final RoundInfo r = roundInfo;
             final RoundInfoPrev rp = roundInfoPrev;
-            final HashgraphInfo h = x.hashgraph;
+            final HashgraphInfo h = hashgraph;
             long parentRound;
             ArrayList<EventInfo> roundJudges;
             ArrayList<EventInfo> consensusEvents;
@@ -416,9 +414,9 @@ public final class HashgraphInfo {
                 // if this is the first time this event has been updated, or if this round has a changed address book,
                 // then recalculate the index for the creator.
                 // The index is -1 if the creator is not in this round's address book.
-                if (x.lastSee == null || h.nodesChanged) {
-                    Integer index = h.nodeIdToIndex.get(x.creatorNodeID);
-                    x.creator = (index == null) ? -1 : index;
+                if (lastSee == null || h.nodesChanged) {
+                    Integer index = h.nodeIdToIndex.get(creatorNodeID);
+                    creator = (index == null) ? -1 : index;
                 }
 
                 // set isPrevJudge to true for the judges in the previous round
@@ -435,8 +433,7 @@ public final class HashgraphInfo {
                 // function supermajority /-----------------------------------------------------------------------
                 h.supermajorityThreshold = 2 * h.totalStake / 3;
 
-                // function voteD  /------------------------------------------------------------------------------
-                {
+                { // function voteD  /----------------------------------------------------------------------------
                     long totalStake = 0;
                     for (EventInfo judge : rp.prevJudges) {
                         totalStake += r.stake[judge.creator];
@@ -447,69 +444,68 @@ public final class HashgraphInfo {
             }
 
             // instantiate fields if they are null, or the array is the wrong size.
-            if (x.ancestorJudge == null || x.ancestorJudge.length != h.numNodes) {
-                x.ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
+            if (ancestorJudge == null || ancestorJudge.length != h.numNodes) {
+                ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
             }
-            if (x.lastSee == null || x.lastSee.length != h.numNodes) {
-                x.lastSee = new EventInfo[h.numNodes];
+            if (lastSee == null || lastSee.length != h.numNodes) {
+                lastSee = new EventInfo[h.numNodes];
             }
-            if (x.stronglySeeP == null || x.stronglySeeP.length != h.numNodes) {
-                x.stronglySeeP = new EventInfo[h.numNodes];
+            if (stronglySeeP == null || stronglySeeP.length != h.numNodes) {
+                stronglySeeP = new EventInfo[h.numNodes];
             }
-            if (x.stronglySeeS1 == null || x.stronglySeeS1.length != h.numNodes) {
-                x.stronglySeeS1 = new EventInfo[h.numNodes];
+            if (stronglySeeS1 == null || stronglySeeS1.length != h.numNodes) {
+                stronglySeeS1 = new EventInfo[h.numNodes];
             }
-            if (x.voteE == null || x.voteE.length != h.numNodes) {
-                x.voteE = new EventInfo[h.numNodes];
+            if (voteE == null || voteE.length != h.numNodes) {
+                voteE = new EventInfo[h.numNodes];
             }
-            if (x.voteB == null || x.voteB.length != h.numNodes) {
-                x.voteB = new boolean[h.numNodes];
+            if (voteB == null || voteB.length != h.numNodes) {
+                voteB = new boolean[h.numNodes];
             }
 
             // function parents  /--------------------------------------------------------------------------------
             // put in the h.parents list only parents that are non-ancient descendents of judges in the prev round
-            if (h.parentsMaxSize > h.numNodes && x.parentsSigned.length < h.numNodes) {
+            if (h.parentsMaxSize > h.numNodes && parentsSigned.length < h.numNodes) {
                 // shrink to recover after branching
                 h.parents = new ArrayList<>(h.numNodes);
                 h.parentsMaxSize = 0;
             }
             h.parents.clear();
-            for (int i = 0; i < x.parentsSigned.length; i++) {
-                if (x.parentsSigned[i] != null && x.parentsSigned[i].prevJudgeDesc) {
-                    h.parents.add(x.parentsSigned[i]);
+            for (int i = 0; i < parentsSigned.length; i++) {
+                if (parentsSigned[i] != null && parentsSigned[i].prevJudgeDesc) {
+                    h.parents.add(parentsSigned[i]);
                 }
             }
-            h.parentsMaxSize = Math.max(h.parentsMaxSize, x.parentsSigned.length);
-            h.selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != x.creator)
+            h.parentsMaxSize = Math.max(h.parentsMaxSize, parentsSigned.length);
+            h.selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != creator)
                             ? null : h.parents.getFirst();
 
             // function prevJudgeDesc /---------------------------------------------------------------------------
             // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
-            x.maxJudgeRound = x.prevJudge ? (r.pendingRound - 1) : 1;
+            maxJudgeRound = prevJudge ? (r.pendingRound - 1) : 1;
             for (EventInfo parent : h.parents) {
-                x.maxJudgeRound = Math.max(x.maxJudgeRound, parent.maxJudgeRound);
+                maxJudgeRound = Math.max(maxJudgeRound, parent.maxJudgeRound);
             }
-            x.prevJudgeDesc = (x.maxJudgeRound >= r.pendingRound - 1); // use alg in paper comments, not equations
+            prevJudgeDesc = (maxJudgeRound >= r.pendingRound - 1); // use alg in paper comments, not equations
 
             // function ancestorJudge  /--------------------------------------------------------------------------
             // (for each y that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {
-                x.ancestorJudge[i] = (x == rp.prevJudges[i]);
-                for (EventInfo parent : x.parentsSigned) {
+                ancestorJudge[i] = (this == rp.prevJudges[i]);
+                for (EventInfo parent : parentsSigned) {
                     if (parent.ancestorJudge[i]) {
-                        x.ancestorJudge[i] = true;
+                        ancestorJudge[i] = true;
                         break;
                     }
                 }
             }
 
-            // function gen /-------------------------------------------------------------------------------------
-            {
+            { // function gen /-----------------------------------------------------------------------------------
                 long t = 0;
                 for (EventInfo parent : h.parents) {
                     t = Math.max(t, parent.gen);
                 }
-                x.gen = t + 1;
+                gen = t + 1;
             }
 
             // function parentRound /-----------------------------------------------------------------------------
@@ -524,8 +520,8 @@ public final class HashgraphInfo {
 
             // function lastSee /---------------------------------------------------------------------------------
             for (int m = 0; m < h.numNodes; m++) {
-                if (m == x.creator) {
-                    x.lastSee[m] = x;
+                if (m == creator) {
+                    lastSee[m] = this;
                 } else {
                     // find k = max(map(s1,votingRound))
                     long k = 1; // start at 1 to ensure max({}) = 1
@@ -557,46 +553,18 @@ public final class HashgraphInfo {
                             }
                         }
                     }
-                    x.lastSee[m] = s2empty ? null : p;
+                    lastSee[m] = s2empty ? null : p;
                 }
             }
 
-            // function seeThru /---------------------------------------------------------------------------------
-            {   //function y=seeThru(r,x,m,m) where m is passed twice
-                int m = 7;/**/
-                EventInfo ans;
-
-                EventInfo y, z, p = h.selfParent;
-                if (x.creator == m) {
-                    ans = (p == null) ? null : p.firstSelfWitnessS;
-                } else {
-                    y = x.lastSee[m];
-                    z = (y == null) ? null : y.lastSee[m];
-                    ans = (z == null) ? null : z.firstSelfWitnessS;
-                }
-            }
-            {   //function y=seeThru(r,x,m,mp)
-                int m = 7;/**/
-                int mp = 5;/**/
-                EventInfo seeThrummp;
-
-                EventInfo y, z, p = h.selfParent;
-                if (m == mp && x.creator == mp) {
-                    seeThrummp = (p == null) ? null : p.firstSelfWitnessS;
-                } else {
-                    y = x.lastSee[m];
-                    z = (y == null) ? null : y.lastSee[m];
-                    seeThrummp = (z == null) ? null : z.firstSelfWitnessS;
-                }
-            }
             // function stronglySeeP /----------------------------------------------------------------------------
             for (int m = 0; m < h.numNodes; m++) {
                 EventInfo y, z, p = h.selfParent;
                 //y = seeThru(r,x,m,m)
-                if (x.creator == m) {
+                if (creator == m) {
                     y = (p == null) ? null : p.firstSelfWitnessS;
                 } else {
-                    y = x.lastSee[m];
+                    y = lastSee[m];
                     z = (y == null) ? null : y.lastSee[m];
                     y = (z == null) ? null : z.firstSelfWitnessS;
                 }
@@ -608,11 +576,11 @@ public final class HashgraphInfo {
                         EventInfo yp;
                         // function seeThru /---------------------------------------------------------------------
                         //yp = seeThru(r,x,m,mp)
-                        if (m == mp && x.creator == m) {
+                        if (m == mp && creator == m) {
                             yp = (p == null) ? null : p.firstSelfWitnessS;
                         } else {
-                            yp = x.lastSee[mp];
-                            z = (y == null) ? null : y.lastSee[m];
+                            yp = lastSee[mp];
+                            z = (yp == null) ? null : yp.lastSee[m];
                             yp = (z == null) ? null : z.firstSelfWitnessS;
                         }
                         s += (yp == null) ? 0 : r.stake[mp];
@@ -621,7 +589,34 @@ public final class HashgraphInfo {
                 }
             }
 
-            // function votingRound /-----------------------------------------------------------------------------
+            { // function votingRound /---------------------------------------------------------------------------
+                long p = parentRound;
+                if (r.pendingRound == p + 1) {
+                    boolean b = true;
+                    for (int y = 0; y < rp.prevJudges.length; y++) {
+                        b = b && (this != rp.prevJudges[y]) && ancestorJudge[y];
+                    }
+                    if (r.pendingRound == p + 1) {
+                        votingRound = b ? p + 1 : p;
+                    } else if ((r.pendingRound == p) && r.firstVotingRoundSee && (h.voteD == 1)) { //if q
+                        long s = 0;
+                        for (int m = 0; m < r.nodes.length; m++) {
+                            s += (((creator == m) && (h.selfParent != null)
+                                    && (h.selfParent.votingRound == p))
+                                    || ((creator != m) && (lastSee[m] != null)
+                                    && (lastSee[m].votingRound == p)))
+                                    ? r.stake[m] : 0;
+                        }
+                        votingRound = (s >= h.supermajorityThreshold) ? p + 1 : p;
+                    } else { //not q
+                        long s = 0;
+                        for (int m = 0; m < r.nodes.length; m++) {
+                            s += (stronglySeeP[m] != null) ? r.stake[m] : 0;
+                        }
+                        votingRound = (s >= h.supermajorityThreshold) ? p + 1 : p;
+                    }
+                }
+            }
 
             // function firstSelfWitnessS /-----------------------------------------------------------------------
 
