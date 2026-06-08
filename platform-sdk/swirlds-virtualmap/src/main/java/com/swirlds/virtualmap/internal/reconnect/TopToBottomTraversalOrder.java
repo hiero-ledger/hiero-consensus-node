@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.virtualmap.internal.Path;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Deque;
 import java.util.Queue;
@@ -287,9 +286,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     /**
      * Finds the active chunk whose subtree contains the given internal path.
      *
-     * @throws IllegalStateException if no active chunk owns the path
+     * @return  if no active chunk owns the path
      */
-    @NonNull
+    @Nullable
     private ChunkState findOwningChunk(final long path) {
         final int rank = Path.getRank(path);
         if (rank <= chunkRootRank) {
@@ -302,9 +301,20 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 return chunk;
             }
         }
-        throw new IllegalStateException("nodeReceived for path " + path + " (rank " + rank
-                + ") with no owning chunk; lastPoppedRightmost="
-                + lastPoppedChunkRightmost + " activeChunks=" + activeChunks.size());
+
+        // No active chunk owns this path — its chunk was already completed and popped.
+        // This is a benign race: the sender thread popped the chunk (all leaves resolved)
+        // while in-flight internal responses from the teacher were still in the receiver
+        // pipeline. The information is stale and safe to discard.
+        logger.trace(
+                RECONNECT.getMarker(),
+                "Ignoring stale nodeReceived for path {} (rank {}): owning chunk already popped "
+                        + "(lastPoppedRightmost={}, activeChunks={})",
+                path,
+                rank,
+                lastPoppedChunkRightmost,
+                activeChunks.size());
+        return null;
     }
 
     @Override
@@ -318,6 +328,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             return;
         }
         final ChunkState chunk = findOwningChunk(path);
+        if (chunk == null) {
+            return; // stale response for a completed chunk
+        }
         final int rank = Path.getRank(path);
         if (isClean) {
             chunk.cleanPaths.add(path);
