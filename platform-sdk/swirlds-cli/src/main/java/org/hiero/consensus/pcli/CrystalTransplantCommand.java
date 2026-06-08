@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -193,7 +192,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final Path sourcePcesDir = this.targetStateDir.resolve(pcesConfig.databaseDirectory());
         final Path targetPcesDir = targetNodePath
-                .resolve(configuration.getConfigData(StateCommonConfig.class).savedStateDirectory())
+                .resolve(configuration.getConfigData(PathsConfig.class).savedStateDir())
                 .resolve(pcesConfig.databaseDirectory())
                 .resolve(Long.toString(selfId.id()));
         copyPCESFilesToCorrectDirectory(sourcePcesDir, targetPcesDir);

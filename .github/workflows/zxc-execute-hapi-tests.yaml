@@ -17,7 +17,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25"
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -73,6 +72,26 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-crypto-and-misc-serial:
+        description: "HAPI Testing (Crypto & Misc Serial) Enabled"
+        type: string
+        required: false
+        default: "false"
+      stream-mode-override:
+        description: "Optional blockStream.streamMode override applied to every HAPI subtask (e.g. 'BLOCKS'). Empty = no override."
+        type: string
+        required: false
+        default: ""
+      writer-mode-override:
+        description: "Optional blockStream.writerMode override applied to every HAPI subtask (e.g. 'FILE'). Empty = no override."
+        type: string
+        required: false
+        default: ""
+      wrapped-record-blocks-override:
+        description: "Optional blockStream.streamWrappedRecordBlocks override applied to every HAPI subtask (e.g. 'false'). Empty = no override."
+        type: string
+        required: false
+        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -105,6 +124,9 @@ env:
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
+  STREAM_MODE_OVERRIDE: ${{ inputs.stream-mode-override }}
+  WRITER_MODE_OVERRIDE: ${{ inputs.writer-mode-override }}
+  WRAPPED_RECORD_BLOCKS_OVERRIDE: ${{ inputs.wrapped-record-blocks-override }}
 
 jobs:
   hapi-tests-misc:
@@ -115,7 +137,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -125,6 +147,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -232,7 +255,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -242,6 +265,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -335,7 +359,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -345,6 +369,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -436,7 +461,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -446,6 +471,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -537,7 +563,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -547,6 +573,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -637,7 +664,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -647,6 +674,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -720,7 +748,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -730,6 +758,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -801,7 +830,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -811,6 +840,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -901,7 +931,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -911,6 +941,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -976,6 +1007,109 @@ jobs:
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
 
+  # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
+  hapi-tests-crypto-and-misc-serial:
+    name: "HAPI Tests (Crypto & Misc Serial)"
+    if: ${{ inputs.enable-hapi-tests-crypto-and-misc-serial == 'true' }}
+    runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: HAPI Testing (Crypto & Misc Serial)
+        id: gradle-hapi-crypto-and-misc-serial
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: |
+          status=0
+          run_subtask() {
+            local t=$1
+            echo "::group::${t}"
+            if ${GRADLE_EXEC} "${t}" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::${t} failed"
+            echo "❌ ${t} FAILED — expand group above for details"
+          }
+          run_subtask hapiTestCrypto
+          run_subtask hapiTestCryptoEmbedded
+          run_subtask hapiTestCryptoSerial
+          run_subtask hapiTestMiscSerial
+          exit "${status}"
+
+      - name: Publish HAPI Test (Crypto & Misc Serial) Reports
+        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        with:
+          check_name: "Node: HAPI Test (Crypto & Misc Serial) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Crypto & Misc Serial) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: HAPI Test (Crypto & Misc Serial) Reports
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Crypto & Misc Serial) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-crypto-and-misc-serial.conclusion == 'failure' }}
+        with:
+          name: HAPI Test (Crypto & Misc Serial) Network Logs
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Crypto & Misc Serial) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-hapi-crypto-and-misc-serial.conclusion == 'failure' }}
+        with:
+          name: HAPI Test (Crypto & Misc Serial) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-crypto-and-misc-serial.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-crypto-and-misc-serial.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-crypto-and-misc-serial.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -989,12 +1123,13 @@ jobs:
       - hapi-tests-restart
       - hapi-tests-bn-comms
       - hapi-tests-state-throttling
+      - hapi-tests-crypto-and-misc-serial
     if: ${{ always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode
@@ -1009,6 +1144,7 @@ jobs:
             "${{ needs.hapi-tests-restart.result || 'skipped' }}"
             "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
             "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
+            "${{ needs.hapi-tests-crypto-and-misc-serial.result || 'skipped' }}"
           )
 
           # Must be kept in the same order as job_statuses above so the loop below
@@ -1023,6 +1159,7 @@ jobs:
             "${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-crypto-and-misc-serial.outputs.failure-mode || 'none' }}"
           )
 
           failure_mode="none"

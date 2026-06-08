@@ -4,14 +4,13 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for sending requests to the teacher.
@@ -43,8 +42,6 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Create a thread for sending node requests to the teacher.
      *
-     * @param reconnectConfig
-     *      the reconnect configuration (reserved for future use)
      * @param workGroup
      * 		the work group that will manage this thread
      * @param out
@@ -58,7 +55,6 @@ public class LearnerPullVirtualTreeSendTask {
      *      the counter to decrease when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
-            final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncOutputStream out,
             final LearnerPullVirtualTreeView view,

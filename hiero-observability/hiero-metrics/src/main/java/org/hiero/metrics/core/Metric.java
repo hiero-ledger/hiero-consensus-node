@@ -176,7 +176,7 @@ public abstract class Metric implements MetricInfo {
             return LabelValues.EMPTY;
         }
 
-        // Defensive copy to avoid external modifications; cheap for few elements as typical use case fo labels
+        // Defensive copy to avoid external modifications; cheap for few elements as typical use case for labels
         final String[] nv = namesAndValues.clone();
 
         // sort names and values according to dynamic labelNames order
@@ -214,6 +214,7 @@ public abstract class Metric implements MetricInfo {
 
     /**
      * Base builder class for constructing {@link Metric} instances.
+     * <b>Builders must never be reused.</b>
      *
      * @param <B> the concrete builder type to return for method chaining
      * @param <M> the concrete metric type to build

@@ -86,8 +86,8 @@ public final class MetricUtils {
      *
      * @param argument     the argument checked
      * @param argumentName the name of the argument
-     * @throws NullPointerException of passed argument is {@code null}
-     * @throws IllegalArgumentException of passed argument is blank using {@link String#isBlank()}
+     * @throws NullPointerException if passed argument is {@code null}
+     * @throws IllegalArgumentException if passed argument is blank using {@link String#isBlank()}
      */
     @NonNull
     public static String throwArgBlank(@NonNull final String argument, @NonNull final String argumentName)

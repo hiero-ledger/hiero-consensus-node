@@ -101,11 +101,10 @@ class ReconnectControllerTest {
     private SignedStateValidator signedStateValidator;
 
     @TempDir
-    static Path tempDir;
+    Path tempDir;
 
     @AfterAll
     static void tearDownClass() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
@@ -188,6 +187,10 @@ class ReconnectControllerTest {
             testReservedSignedState.close();
         }
         destroyStateLifecycleManager(stateLifecycleManager);
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        // Wait for MerkleDB's background threads to finish closing the database before JUnit deletes the per-test
+        // @TempDir. Otherwise the directory can still be in use, causing the deletion to fail intermittently in CI.
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     /**

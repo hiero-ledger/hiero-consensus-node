@@ -6,15 +6,16 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.sync.TeacherTreeView;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
@@ -65,7 +66,12 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView {
         // any parallel tasks. The root response carries the teacher's first/last leaf path range.
         // Once sent, the learner will start sending non-root requests, which the parallel tasks
         // will process. This guarantees no task races for the first message on the stream.
-        exchangeRootNode(in, out);
+        try {
+            exchangeRootNode(in, out);
+        } catch (Exception e) {
+            workGroup.handleError(e);
+            throw e; // rethrow
+        }
 
         // FUTURE work: pool size config
         final int teacherTasks = 16;
@@ -88,7 +94,7 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView {
      * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
      */
     private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
-        final byte[] rootRequestBytes = in.readAnticipatedMessageSync();
+        final byte[] rootRequestBytes = in.readOrWait(YieldStrategy.PARK);
         if (rootRequestBytes == null) {
             throw new MerkleSynchronizationException("Stream closed before root node request was received");
         }

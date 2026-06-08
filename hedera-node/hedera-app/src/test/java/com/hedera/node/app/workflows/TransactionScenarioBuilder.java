@@ -111,8 +111,13 @@ public class TransactionScenarioBuilder implements Scenarios {
 
     @NonNull
     public TransactionInfo txInfoForBatch() {
+        return txInfoForBatch(new TransactionScenarioBuilder().txInfo());
+    }
+
+    @NonNull
+    public TransactionInfo txInfoForBatch(@NonNull final TransactionInfo innerTxInfo) {
         final var innerBody =
-                goodDefaultBody().copyBuilder().batchKey(Key.DEFAULT).build();
+                innerTxInfo.txBody().copyBuilder().batchKey(Key.DEFAULT).build();
         final var innerTxns = List.of(Transaction.newBuilder()
                 .body(innerBody)
                 .signedTransactionBytes(asBytes(
@@ -123,12 +128,7 @@ public class TransactionScenarioBuilder implements Scenarios {
                 .build());
         final var atomicBody = TransactionBody.newBuilder()
                 .nodeAccountID(NODE_1.nodeAccountID())
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(ALICE.accountID())
-                        .transactionValidStart(Timestamp.newBuilder()
-                                .seconds((System.currentTimeMillis() / 1000) - 1)
-                                .build())
-                        .build())
+                .transactionID(innerBody.transactionIDOrThrow()) // outer & inner share an ID deterministically
                 .atomicBatch(AtomicBatchTransactionBody.newBuilder()
                         .transactions(
                                 innerTxns.stream().map(Transaction::bodyBytes).toList()))

@@ -837,8 +837,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         bucketMaskBits.set(trailingZeroes);
     }
 
-    // For testing purposes
-    int getNumOfBuckets() {
+    /**
+     * @return The number of buckets in this map.
+     */
+    public int getNumOfBuckets() {
         return numOfBuckets.get();
     }
 
