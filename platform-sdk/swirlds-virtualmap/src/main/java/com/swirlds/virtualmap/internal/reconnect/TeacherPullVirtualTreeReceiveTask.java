@@ -6,14 +6,15 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,7 +38,6 @@ public class TeacherPullVirtualTreeReceiveTask {
 
     private static final String NAME = "reconnect-teacher-receiver";
 
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final RecordAccessor teacherView;
@@ -51,7 +51,6 @@ public class TeacherPullVirtualTreeReceiveTask {
      *
      * @param time                  the wall clock time
      * @param reconnectConfig       the configuration for reconnect
-     * @param workGroup             the work group managing the reconnect
      * @param in                    the input stream
      * @param out                   the output stream
      * @param teacherView           view of teacher state
@@ -59,12 +58,10 @@ public class TeacherPullVirtualTreeReceiveTask {
     public TeacherPullVirtualTreeReceiveTask(
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final RecordAccessor teacherView,
             final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.teacherView = teacherView;
@@ -83,7 +80,8 @@ public class TeacherPullVirtualTreeReceiveTask {
     /**
      * Start the thread that sends lessons and queries to the learner.
      */
-    public void exec() {
+    public void exec(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
         workGroup.execute(NAME, this::run);
     }
 
@@ -125,7 +123,7 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final Hash teacherHash = teacherView.findHash(path);
                 // The only valid scenario, when teacherHash may be null, is the empty tree
                 if ((teacherHash == null) && (path != 0)) {
-                    throw new MerkleSerializationException(
+                    throw new MerkleSynchronizationException(
                             "Cannot load node hash (bad request from learner?), path=" + path);
                 }
                 final boolean isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
@@ -148,8 +146,6 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }

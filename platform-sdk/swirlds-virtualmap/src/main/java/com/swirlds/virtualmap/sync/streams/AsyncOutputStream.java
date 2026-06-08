@@ -7,6 +7,7 @@ import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -38,14 +39,13 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  *
  * <p>
  * Lifecycle is tracked by {@link Status}: {@link Status#NOT_STARTED} → {@link Status#RUNNING} (set by
- * {@link #start()}) → {@link Status#FINISHING} (set by {@link #done()}, while the background thread
+ * {@link #start(StandardWorkGroup)}) → {@link Status#FINISHING} (set by {@link #done()}, while the background thread
  * is still draining) → {@link Status#DONE} (set by the background thread when it exits — drain
  * complete or I/O error). {@link #done()} only signals; observers wait for actual termination via the
  * {@link StandardWorkGroup}. {@link #sendAsync(byte[])} only accepts new work while the status is
  * {@link Status#RUNNING}; any call during {@link Status#FINISHING} or after fails with
  * {@link IllegalStateException}. An I/O error is reported through the work group rather than the
- * status, so {@link Status#DONE} does not distinguish clean shutdown from a failure — callers that
- * care should consult {@link StandardWorkGroup#hasExceptions()}.
+ * status, so {@link Status#DONE} does not distinguish clean shutdown from a failure.
  * </p>
  */
 public class AsyncOutputStream {
@@ -56,7 +56,7 @@ public class AsyncOutputStream {
 
     /** Lifecycle states of the background writer thread. Transitions are monotonic. */
     public enum Status {
-        /** {@link #start()} has not been called yet. */
+        /** {@link #start(StandardWorkGroup)} has not been called yet. */
         NOT_STARTED,
         /** The background writer thread is running and {@link #sendAsync(byte[])} accepts new work. */
         RUNNING,
@@ -77,8 +77,6 @@ public class AsyncOutputStream {
     /** Maximum time {@link #sendAsync(byte[])} will wait when the buffer is full. */
     private final long timeoutNanos;
 
-    private final StandardWorkGroup workGroup;
-
     // Single writer per transition: start() sets RUNNING atomically; done() sets FINISHING atomically
     // (guarded — no-op unless RUNNING); the background thread sets DONE on exit.
     private final AtomicReference<Status> status = new AtomicReference<>(Status.NOT_STARTED);
@@ -87,7 +85,6 @@ public class AsyncOutputStream {
      * Constructs a new instance.
      *
      * @param outputStream  the stream all serialized messages are written to
-     * @param workGroup     the work group that executes the background writer thread
      * @param bufferSize    capacity of the internal queue; must be {@code > 0}
      * @param flushInterval maximum time the background thread waits for a new message before flushing
      *                      buffered data; must be non-null and positive
@@ -96,12 +93,10 @@ public class AsyncOutputStream {
      */
     public AsyncOutputStream(
             @NonNull final DataOutputStream outputStream,
-            @NonNull final StandardWorkGroup workGroup,
             final int bufferSize,
             @NonNull final Duration flushInterval,
             @NonNull final Duration timeout) {
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
-        this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
         Objects.requireNonNull(flushInterval, "flushInterval must not be null");
         Objects.requireNonNull(timeout, "timeout must not be null");
 
@@ -126,7 +121,9 @@ public class AsyncOutputStream {
      * @throws IllegalStateException          if the stream has already been started or terminated
      * @throws MerkleSynchronizationException if the background thread cannot be submitted for execution
      */
-    public void start() {
+    public void start(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
+
         if (!status.compareAndSet(Status.NOT_STARTED, Status.RUNNING)) {
             throw new IllegalStateException("Stream status has already been set: " + status.get());
         }
@@ -135,17 +132,16 @@ public class AsyncOutputStream {
             workGroup.execute(THREAD_NAME, this::run);
         } catch (Exception e) {
             status.set(Status.DONE);
-            workGroup.handleError(e); // terminate other tasks that already running
-            throw new MerkleSynchronizationException("Background writing thread cannot be submitted for execution", e);
+            throw e;
         }
     }
 
     /**
      * Signal that no more messages will be sent. The background thread drains any remaining queued
      * messages, writes a {@code -1} termination marker, flushes, and exits. This method only signals;
-     * observers wait for actual termination via {@link StandardWorkGroup#waitForTermination()}.
+     * observers wait for actual termination via {@link StandardWorkGroup#join()}.
      *
-     * <p>Calls made before {@link #start()} or after the stream has reached {@link Status#FINISHING}
+     * <p>Calls made before {@link #start(StandardWorkGroup)} or after the stream has reached {@link Status#FINISHING}
      * or {@link Status#DONE} are silent no-ops.
      */
     public void done() {
@@ -226,7 +222,7 @@ public class AsyncOutputStream {
             logger.debug(RECONNECT.getMarker(), "Background writer thread interrupted");
         } catch (final IOException e) {
             logger.warn(RECONNECT.getMarker(), "Async output stream failed due to I/O error", e);
-            workGroup.handleError(e);
+            throw new UncheckedIOException(e);
         } finally {
             status.set(Status.DONE);
             logger.debug(RECONNECT.getMarker(), "Background writer thread stopped");

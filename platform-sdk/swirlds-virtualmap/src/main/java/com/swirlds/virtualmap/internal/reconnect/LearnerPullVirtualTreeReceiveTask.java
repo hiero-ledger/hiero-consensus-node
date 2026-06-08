@@ -6,8 +6,9 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -21,26 +22,18 @@ public class LearnerPullVirtualTreeReceiveTask {
 
     private static final String NAME = "reconnect-learner-receiver";
 
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final LearnerTreeExchanger treeExchanger;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
      * @param treeExchanger
      * 		the exchanger used to callback on tree node received
      */
-    public LearnerPullVirtualTreeReceiveTask(
-            final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final LearnerTreeExchanger treeExchanger) {
-        this.workGroup = workGroup;
+    public LearnerPullVirtualTreeReceiveTask(final AsyncInputStream in, final LearnerTreeExchanger treeExchanger) {
         this.in = in;
         this.treeExchanger = treeExchanger;
     }
@@ -48,7 +41,8 @@ public class LearnerPullVirtualTreeReceiveTask {
     /**
      * Start the background thread that receives responses from the teacher.
      */
-    public void exec() {
+    public void exec(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
         workGroup.execute(NAME, this::run);
     }
 
@@ -58,21 +52,17 @@ public class LearnerPullVirtualTreeReceiveTask {
      * Terminates when input streams returns no more messages to process.
      */
     private void run() {
-        try {
-            while (!Thread.currentThread().isInterrupted()) {
-                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
-                if (responseBytes == null) {
-                    break;
-                }
-                final PullVirtualTreeResponse response =
-                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
-
-                assert response.path() != Path.INVALID_PATH : "Invalid path received from teacher: " + response.path();
-
-                treeExchanger.responseReceived(response);
+        while (!Thread.currentThread().isInterrupted()) {
+            final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
+            if (responseBytes == null) {
+                break;
             }
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
+            final PullVirtualTreeResponse response =
+                    PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+
+            assert response.path() != Path.INVALID_PATH : "Invalid path received from teacher: " + response.path();
+
+            treeExchanger.responseReceived(response);
         }
     }
 }

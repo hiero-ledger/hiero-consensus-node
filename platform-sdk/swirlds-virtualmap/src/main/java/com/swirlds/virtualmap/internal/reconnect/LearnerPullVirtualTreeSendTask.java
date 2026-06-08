@@ -7,6 +7,8 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +29,6 @@ public class LearnerPullVirtualTreeSendTask {
 
     private static final String NAME = "reconnect-learner-sender";
 
-    private final StandardWorkGroup workGroup;
     private final AsyncOutputStream out;
     private final LearnerTreeExchanger treeExchanger;
 
@@ -36,8 +37,6 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Create a thread for sending node requests to the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param out
      * 		the output stream, this object is responsible for closing this when finished
      * @param treeExchanger
@@ -46,11 +45,7 @@ public class LearnerPullVirtualTreeSendTask {
      *      the counter to decrease when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
-            final StandardWorkGroup workGroup,
-            final AsyncOutputStream out,
-            final LearnerTreeExchanger treeExchanger,
-            final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
+            final AsyncOutputStream out, final LearnerTreeExchanger treeExchanger, final CountDownLatch tasksDone) {
         this.out = out;
         this.treeExchanger = treeExchanger;
         this.tasksDone = tasksDone;
@@ -59,7 +54,8 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Start the background thread that sends requests to the teacher.
      */
-    public void exec() {
+    public void exec(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
         workGroup.execute(NAME, this::run);
     }
 
@@ -86,8 +82,6 @@ public class LearnerPullVirtualTreeSendTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner sending task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }
