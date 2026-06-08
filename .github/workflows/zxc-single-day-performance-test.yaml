@@ -627,7 +627,7 @@ jobs:
 
           for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "cat /proc/7/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${pod} -- bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); cat /proc/\$jpid/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
           done
 
       - name: Update RSA BlockNodes
