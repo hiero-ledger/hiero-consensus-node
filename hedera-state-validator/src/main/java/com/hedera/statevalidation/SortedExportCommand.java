@@ -84,7 +84,7 @@ public class SortedExportCommand implements Runnable {
         log.info("Total time is {} seconds.", (System.currentTimeMillis() - start) / 1000);
     }
 
-    private static List<Pair<String, String>> prepareServiceNamesAndStateKeys() {
+    public static List<Pair<String, String>> prepareServiceNamesAndStateKeys() {
         final List<Pair<String, String>> serviceNamesAndStateKeys = new ArrayList<>();
         for (final StateKey.KeyOneOfType value : StateKey.KeyOneOfType.values()) {
             extractStateName(value.protoName(), serviceNamesAndStateKeys);

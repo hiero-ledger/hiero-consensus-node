@@ -56,6 +56,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final FreezeRoundController freezeRoundController;
 
+    /** True while replaying the PCES; when true the future event buffer is bypassed. */
+    private boolean pcesMode = false;
+
     /**
      * Constructor
      *
@@ -91,7 +94,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        consensus.setPcesMode(platformStatus == REPLAYING_EVENTS);
+        this.pcesMode = (platformStatus == REPLAYING_EVENTS);
+        consensus.setPcesMode(pcesMode);
     }
 
     /**
@@ -107,11 +111,23 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             return ConsensusEngineOutput.emptyInstance();
         }
 
-        final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
-        if (consensusRelevantEvent == null) {
-            // The event is either a future event or an ancient event.
-            // If it is a future event, it will be added later when the event window is updated.
-            return ConsensusEngineOutput.emptyInstance();
+        final PlatformEvent consensusRelevantEvent;
+        if (pcesMode) {
+            // During PCES replay events are fully validated and delivered in topological
+            // order, so the future event buffer's holding/reordering role is unnecessary.
+            // Its PENDING_CONSENSUS_ROUND gate would otherwise lock events that are needed
+            // to complete the current frontier round (they are born a round ahead of the
+            // lagging replay pending round), deadlocking consensus and growing the buffer
+            // without bound. Bypass it and feed the event straight through. Ancient events
+            // are still dropped by linker.linkEvent below.
+            consensusRelevantEvent = event;
+        } else {
+            consensusRelevantEvent = futureEventBuffer.addEvent(event);
+            if (consensusRelevantEvent == null) {
+                // The event is either a future event or an ancient event.
+                // If it is a future event, it will be added later when the event window is updated.
+                return ConsensusEngineOutput.emptyInstance();
+            }
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
