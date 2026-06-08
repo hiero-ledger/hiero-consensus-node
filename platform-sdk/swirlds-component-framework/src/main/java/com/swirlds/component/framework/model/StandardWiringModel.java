@@ -2,7 +2,6 @@
 package com.swirlds.component.framework.model;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL_THREAD;
 
 import com.swirlds.base.time.Time;
@@ -109,7 +108,7 @@ public class StandardWiringModel extends TraceableWiringModel {
         healthMonitorSchedulerBuilder.withHyperlink(HyperlinkBuilder.platformCoreHyperlink(HealthMonitor.class));
         if (builder.isHealthMonitorEnabled()) {
             healthMonitorSchedulerBuilder
-                    .withType(SEQUENTIAL)
+                    .withType(SEQUENTIAL_THREAD)
                     .withUnhandledTaskMetricEnabled(true)
                     .withUnhandledTaskCapacity(builder.getHealthMonitorCapacity());
         } else {
