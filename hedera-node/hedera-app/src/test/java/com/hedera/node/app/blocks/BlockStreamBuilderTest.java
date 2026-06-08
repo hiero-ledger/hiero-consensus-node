@@ -178,6 +178,17 @@ public class BlockStreamBuilderTest {
         assertTrue(output.hasAccountCreate());
     }
 
+    @Test
+    void testTransactionBodyReturnsDeserializedBody() {
+        final var builder = createBaseBuilder().functionality(HederaFunctionality.CRYPTO_TRANSFER);
+
+        final var body = builder.transactionBody();
+
+        assertEquals("ABCDEFG", body.memo());
+        assertEquals(123, body.transactionFee());
+        assertTrue(body.hasCryptoTransfer());
+    }
+
     private void validateTransactionResult(final List<BlockItem> blockItems) {
         final var resultBlockItem = blockItems.get(1);
         assertTrue(resultBlockItem.hasTransactionResult());

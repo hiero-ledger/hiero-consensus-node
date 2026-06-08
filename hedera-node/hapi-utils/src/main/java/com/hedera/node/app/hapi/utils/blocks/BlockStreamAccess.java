@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -67,6 +68,21 @@ public enum BlockStreamAccess {
     }
 
     /**
+     * Reads all parseable files matching the block file pattern from the given path and returns them in
+     * ascending order of block number, ignoring marker files and block files that cannot be read yet.
+     *
+     * <p>This is useful when reading from a live block stream directory where the active node may still be
+     * writing the latest block file.
+     *
+     * @param path the path to read blocks from
+     * @return the parseable blocks
+     * @throws UncheckedIOException if an I/O error occurs while listing candidate blocks
+     */
+    public List<Block> readBlocksIgnoringMarkersAndReadErrors(@NonNull final Path path) {
+        return readBlocks(path, false, true).toList();
+    }
+
+    /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
      *
@@ -75,8 +91,17 @@ public enum BlockStreamAccess {
      * @throws UncheckedIOException if an I/O error occurs
      */
     public static Stream<Block> readBlocks(@NonNull final Path path, boolean checkForMarkerFiles) {
+        return readBlocks(path, checkForMarkerFiles, false);
+    }
+
+    private static Stream<Block> readBlocks(
+            @NonNull final Path path, final boolean checkForMarkerFiles, final boolean ignoreBlockReadErrors) {
         try {
-            return orderedBlocksFrom(path, checkForMarkerFiles).stream().map(BlockStreamAccess::blockFrom);
+            final var blockPaths = orderedBlocksFrom(path, checkForMarkerFiles);
+            if (ignoreBlockReadErrors) {
+                return blockPaths.stream().map(BlockStreamAccess::tryBlockFrom).flatMap(Optional::stream);
+            }
+            return blockPaths.stream().map(BlockStreamAccess::blockFrom);
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);
@@ -172,9 +197,10 @@ public enum BlockStreamAccess {
         try {
             if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
+                    // parseStrict shorthand omitted intentionally: maxSize validation requires the multi-arg overload.
                     return Block.PROTOBUF.parse(
                             Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
-                            false,
+                            true,
                             false,
                             DEFAULT_MAX_DEPTH,
                             MAX_PBJ_RECORD_SIZE);
@@ -182,13 +208,22 @@ public enum BlockStreamAccess {
             } else {
                 return Block.PROTOBUF.parse(
                         Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
-                        false,
+                        true,
                         false,
                         DEFAULT_MAX_DEPTH,
                         MAX_PBJ_RECORD_SIZE);
             }
         } catch (IOException | ParseException e) {
             throw new RuntimeException("Failed reading block @ " + path, e);
+        }
+    }
+
+    private static Optional<Block> tryBlockFrom(@NonNull final Path path) {
+        try {
+            return Optional.of(blockFrom(path));
+        } catch (RuntimeException e) {
+            log.warn("Skipping unreadable block @ {}", path, e);
+            return Optional.empty();
         }
     }
 

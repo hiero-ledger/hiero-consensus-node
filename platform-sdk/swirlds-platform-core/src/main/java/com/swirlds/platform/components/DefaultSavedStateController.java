@@ -128,11 +128,13 @@ public class DefaultSavedStateController implements SavedStateController {
             return FIRST_ROUND_AFTER_GENESIS;
         }
 
-        if ((signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
-                > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
+        final boolean periodicSnapshotsEnabled = stateConfig.periodicSnapshotsEnabled();
+        if (periodicSnapshotsEnabled
+                && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
+                        > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
             return PERIODIC_SNAPSHOT;
         } else {
-            // the period hasn't yet elapsed
+            // the period hasn't yet elapsed or periodic snapshots are disabled
             return null;
         }
     }

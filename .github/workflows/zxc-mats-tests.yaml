@@ -13,11 +13,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: string
@@ -33,13 +28,33 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-crypto:
-        description: "HAPI Testing (Crypto) Enabled"
+      enable-hapi-tests-misc-records-crypto-and-serial:
+        description: "HAPI Testing (Misc Records, Crypto & Misc Serial) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-token:
-        description: "HAPI Testing (Token) Enabled"
+      enable-hapi-tests-token-and-time-consuming:
+        description: "HAPI Testing (Token & Time Consuming) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-simple-fees-and-nd-reconnect:
+        description: "HAPI Testing (Simple Fees & ND Reconnect) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-atomic-batch:
+        description: "HAPI Testing (Atomic Batch) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-smart-contract-and-iss:
+        description: "HAPI Testing (Smart Contracts & ISS) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-state-throttling:
+        description: "HAPI Testing (State Throttling) Enabled"
         type: string
         required: false
         default: "false"
@@ -67,7 +82,6 @@ on:
         description: "Java JDK Version"
         type: string
         required: false
-        default: "21.0.6"
       java-distribution:
         description: "Java JDK Distribution"
         type: string
@@ -125,7 +139,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # v1.0.4
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -138,15 +152,15 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
-  build:
-    name: "${{ inputs.custom-job-label }} Compile Code"
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+  compile-and-spotless:
+    name: "${{ inputs.custom-job-label }} Compile and Spotless"
+    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:
-      java-version: "21.0.6"
-      java-distribution: "temurin"
-      ref: ${{ needs.commit-info.outputs.sha }}
+      ref: "${{ needs.commit-info.outputs.sha }}"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -158,23 +172,10 @@ jobs:
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
-  spotless:
-    name: "${{ inputs.custom-job-label }} Spotless"
-    if: ${{ inputs.enable-spotless-check == 'true' }}
-    uses: ./.github/workflows/zxc-spotless-check.yaml
-    needs:
-      - commit-info
-      - build
-    with:
-      ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -186,11 +187,11 @@ jobs:
     uses: ./.github/workflows/zxc-execute-unit-tests.yaml
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -204,11 +205,11 @@ jobs:
     uses: ./.github/workflows/zxc-execute-integration-tests.yaml
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -221,23 +222,20 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests-crypto == 'true' }}"
-      enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-token: "${{ inputs.enable-hapi-tests-token == 'true' }}"
-      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
+      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
+      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-network-log-capture: "true"
-      mats-suffix: "MATS"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -248,12 +246,12 @@ jobs:
     if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
@@ -266,12 +264,12 @@ jobs:
     if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -283,12 +281,12 @@ jobs:
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -299,12 +297,12 @@ jobs:
     if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
-      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -318,9 +316,8 @@ jobs:
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
       - dependency-check
-      - spotless
       - mats-unit-tests
       - mats-integration-tests
       - mats-hapi-tests
@@ -328,57 +325,54 @@ jobs:
       - mats-snyk-scan
       - mats-gradle-determinism
       - mats-docker-determinism
-    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    if: ${{ always() }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Set Failure Mode
         id: set-failure-mode
         run: |
           job_statuses=(
             ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.build.result || 'skipped' }}
+            ${{ needs.compile-and-spotless.result || 'skipped' }}
             ${{ needs.dependency-check.result || 'skipped' }}
-            ${{ needs.spotless.result || 'skipped' }}
             ${{ needs.mats-unit-tests.result || 'skipped' }}
             ${{ needs.mats-integration-tests.result || 'skipped' }}
             ${{ needs.mats-hapi-tests.result || 'skipped' }}
             ${{ needs.mats-otter-tests.result || 'skipped' }}
             ${{ needs.mats-snyk-scan.result || 'skipped' }}
+            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
+            ${{ needs.mats-docker-determinism.result || 'skipped' }}
           )
           job_failure_modes=(
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
-            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.compile-and-spotless.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
-            ${{ needs.spotless.outputs.failure-mode || 'none' }}
             ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
           )
           job_names=(
             "commit-info"
-            "build"
+            "compile-and-spotless"
             "dependency-check"
-            "spotless"
             "mats-unit-tests"
             "mats-integration-tests"
             "mats-hapi-tests"
             "mats-otter-tests"
             "mats-snyk-scan"
+            "mats-gradle-determinism"
+            "mats-docker-determinism"
           )
 
           # Final outputs
           failure_mode="none"
           failed_tests=""
-
-          # go through all of the job statuses and check failure mode (none | workflow | general)
-          # if any job failed (failure-mode != none) then set the failure mode for the workflow
-          # to that jobs failure mode.
-          # only set failure mode once
-          # append the failing job to the failed-tests list.
 
           for job in "${!job_statuses[@]}"; do
             status=${job_statuses[$job]}
@@ -386,42 +380,26 @@ jobs:
             name=${job_names[$job]}
 
             if [[ "$status" == "failure" ]]; then
-              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
+              if [[ "${failure_mode}" == "none" ]]; then
                 failure_mode="$mode"
+              elif [[ "$mode" == "workflow" ]]; then
+                failure_mode="workflow"
               fi
               if [[ -z "$failed_tests" ]]; then
                 failed_tests="$name"
               else
                 failed_tests="$failed_tests, $name"
               fi
-            fi
-          done
-
-          # if any determinism jobs failed, set failure mode to 'general' if not already set to something
-          # other than "none"
-          # Add the failed determinism job to the failed-tests list
-
-          determinism_statuses=(
-            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
-            ${{ needs.mats-docker-determinism.result || 'skipped' }}
-          )
-          determinism_names=(
-            "mats-gradle-determinism"
-            "mats-docker-determinism"
-          )
-
-          for job in "${!determinism_statuses[@]}"; do
-            status=${determinism_statuses[$job]}
-            name=${determinism_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="general"
+            elif [[ "$status" == "cancelled" ]]; then
+              # A cancelled job signals an infrastructure/runner issue, not a test bug.
+              # Default to workflow so report-status routes to the environment channel.
+              if [[ "${failure_mode}" != "workflow" ]]; then
+                failure_mode="workflow"
               fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name (cancelled)"
               else
-                failed_tests="${failed_tests}, ${name}"
+                failed_tests="$failed_tests, $name (cancelled)"
               fi
             fi
           done

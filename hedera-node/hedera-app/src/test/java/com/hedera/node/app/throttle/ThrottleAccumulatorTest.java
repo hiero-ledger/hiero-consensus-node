@@ -22,6 +22,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -70,6 +73,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
@@ -90,8 +94,10 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -113,6 +119,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -184,6 +191,12 @@ public class ThrottleAccumulatorTest {
     private EntitiesConfig entitiesConfig;
 
     @Mock
+    private FeesConfig feesConfig;
+
+    @Mock
+    private NetworkAdminConfig networkAdminConfig;
+
+    @Mock
     private State state;
 
     @Mock
@@ -206,6 +219,14 @@ public class ThrottleAccumulatorTest {
 
     private final HederaConfig hederaConfig =
             HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(HederaConfig.class);
+
+    @BeforeEach
+    void setUpFeatureFlagDefaults() {
+        lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+        lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
+        lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+    }
 
     @Test
     void noOpThrottlesNeverThrottleAnything() {
@@ -338,6 +359,9 @@ public class ThrottleAccumulatorTest {
                 .state(new FunctionReadableSingletonState<Object>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -387,6 +411,9 @@ public class ThrottleAccumulatorTest {
                                 .build()))
                 .state(new FunctionReadableSingletonState<Object>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
                                 .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
@@ -449,6 +476,8 @@ public class ThrottleAccumulatorTest {
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()))
+                .state(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .build();
@@ -480,6 +509,69 @@ public class ThrottleAccumulatorTest {
                     CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), numericQuery, state, PAYER_ID)
         };
         assertThat(numericResult).containsExactly(false, true);
+    }
+
+    @Test
+    void worksAsExpectedForCountsAssociationsWhenContractIdIsProvidedInGetBalance() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tokens.countingGetBalanceThrottleEnabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Use a contractID for the balance query
+        final var contractId = ContractID.newBuilder()
+                .contractNum(RECEIVER_ID.accountNumOrThrow())
+                .build();
+        final var contractQuery = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .contractID(contractId)
+                        .build())
+                .build();
+
+        // The underlying contract account has 2 associations
+        final var contractAccount =
+                Account.newBuilder().smartContract(true).numberAssociations(2).build();
+        final var states = MapReadableStates.builder()
+                .state(new MapReadableKVState<>(
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, contractAccount)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
+                .build();
+        given(state.getReadableStates(TokenService.NAME)).willReturn(states);
+        final var entityIdStates = MapReadableStates.builder()
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
+                .build();
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+
+        // when (contractID path)
+        final var contractResult = new boolean[] {
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(0), contractQuery, state, PAYER_ID),
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), contractQuery, state, PAYER_ID)
+        };
+
+        // then (contractID path)
+        // With 2 associations, the first passes and the second is throttled
+        assertThat(contractResult).containsExactly(false, true);
     }
 
     @Test

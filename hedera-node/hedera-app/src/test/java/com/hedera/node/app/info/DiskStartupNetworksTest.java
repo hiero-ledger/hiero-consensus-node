@@ -18,6 +18,8 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
@@ -41,6 +43,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -80,6 +83,7 @@ class DiskStartupNetworksTest {
     private StoreMetricsServiceImpl storeMetricsService;
 
     private static final long ROUND_NO = 666L;
+    private static final int JUST_OVER_DEFAULT_JSON_SIZE_LIMIT = 4 * 1024 * 1024 + 1;
 
     private static Network NETWORK;
 
@@ -125,6 +129,39 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void cachesAvailableGenesisNetworkUntilCleared() throws IOException {
+        givenConfig();
+        putJsonAt(GENESIS_NETWORK_JSON);
+        final var cachedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+        final var updatedNetwork =
+                NETWORK.copyBuilder().ledgerId(Bytes.wrap("updated-ledger-id")).build();
+        putJsonAt(GENESIS_NETWORK_JSON, updatedNetwork);
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(cachedNetwork);
+
+        subject.clearCachedNetworks();
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(updatedNetwork);
+    }
+
+    @Test
+    void findsAvailableGenesisNetworkWithLargeTssProof() throws IOException {
+        givenConfig();
+        final var network = NETWORK.copyBuilder()
+                .tssMetadata(TssMetadata.newBuilder()
+                        .activeProofConstruction(HistoryProofConstruction.newBuilder()
+                                .targetProof(HistoryProof.newBuilder()
+                                        .uncompressedWrapsProof(
+                                                Bytes.wrap(new byte[JUST_OVER_DEFAULT_JSON_SIZE_LIMIT])))))
+                .build();
+        putJsonAt(GENESIS_NETWORK_JSON, network);
+
+        final var loadedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+
+        assertThat(loadedNetwork).isEqualTo(network);
+    }
+
+    @Test
     void findsAvailableMigrationNetwork() throws IOException {
         givenConfig();
         putJsonAt(OVERRIDE_NETWORK_JSON);
@@ -138,6 +175,13 @@ class DiskStartupNetworksTest {
                 HederaTestConfigBuilder.create().withValue("addressBook.forceUseOfConfigAddressBook", "true"));
 
         final Optional<Network> object = subject.overrideNetworkFor(ROUND_NO, configB);
+        assertThat(object).isEmpty();
+    }
+
+    @Test
+    void hasNoLastUsedOverrideNetworkBeforeOverrideRoundIsSet() {
+        final var object = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
         assertThat(object).isEmpty();
     }
 
@@ -215,6 +259,19 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void findsLastUsedOverrideNetworkAfterOverrideRoundIsSet() throws IOException {
+        givenConfig();
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        final var lastUsedOverrideNetwork = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(lastUsedOverrideNetwork).isPresent();
+        assertThat(lastUsedOverrideNetwork.orElseThrow()).isEqualTo(NETWORK);
+    }
+
+    @Test
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
@@ -226,9 +283,13 @@ class DiskStartupNetworksTest {
     }
 
     private void putJsonAt(@NonNull final String fileName) throws IOException {
+        putJsonAt(fileName, NETWORK);
+    }
+
+    private void putJsonAt(@NonNull final String fileName, @NonNull final Network network) throws IOException {
         final var loc = tempDir.resolve(fileName);
         try (final var fout = Files.newOutputStream(loc)) {
-            Network.JSON.write(NETWORK, new WritableStreamingData(fout));
+            Network.JSON.write(network, new WritableStreamingData(fout));
         }
     }
 
@@ -241,7 +302,7 @@ class DiskStartupNetworksTest {
         Set.of(
                         new PlatformStateService(),
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

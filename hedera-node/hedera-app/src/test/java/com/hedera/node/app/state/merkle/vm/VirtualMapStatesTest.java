@@ -41,7 +41,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.state.lifecycle.Schema;
@@ -54,6 +53,7 @@ import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -89,7 +89,7 @@ class VirtualMapStatesTest extends MerkleTestBase {
             }
         };
 
-        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER, 100);
         virtualMap = new VirtualMap(builder, CONFIGURATION);
 
         Configuration config = mock(Configuration.class);
@@ -143,7 +143,8 @@ class VirtualMapStatesTest extends MerkleTestBase {
         copy.release();
         virtualMap.getHash();
 
-        final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
+        final var snapshotDir = FILE_SYSTEM_MANAGER.resolveNewTemp("snapshot");
+        Files.createDirectories(snapshotDir);
         virtualMap.createSnapshot(snapshotDir);
 
         // Before we can read the data back, we need to register the data types

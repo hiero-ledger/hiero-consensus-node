@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -130,7 +129,6 @@ public class DelegatePrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> delegateCallForBurn() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
@@ -178,7 +176,6 @@ public class DelegatePrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> delegateCallForMint() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 

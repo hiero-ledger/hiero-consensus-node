@@ -67,6 +67,23 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
+     * Represents an unassigned sequence number in a {@code PlatformEvent}. This constant is used as a placeholder to
+     * indicate that a specific sequence number has not yet been assigned to an event.
+     * <p>
+     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}. This value is chosen because sequence
+     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
+     */
+    public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
+
+    /**
+     * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
+     * event released from orphan buffer, providing a way to identify the order of events, which can be used for
+     * topological ordering. If the sequence number is not assigned, it will hold the value of
+     * {@code UNASSIGNED_SEQUENCE_NUMBER}.
+     */
+    private long sequenceNumber = UNASSIGNED_SEQUENCE_NUMBER;
+
+    /**
      * Construct a new instance from an unsigned event and a signature.
      *
      * @param unsignedEvent the unsigned event
@@ -138,6 +155,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * The origin of this event, which indicates where this event came from.
+     *
      * @return the origin of this event
      */
     public @NonNull EventOrigin getOrigin() {
@@ -211,6 +229,33 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public void setNGen(final long nGen) {
         this.nGen = nGen;
+    }
+
+    /**
+     * The sequence number of this event.
+     *
+     * @return the sequence number of this event.
+     */
+    public long getSequenceNumber() {
+        return sequenceNumber;
+    }
+
+    /**
+     * Checks whether the sequence number for this event has been assigned.
+     *
+     * @return {@code true} if the sequence number is assigned, {@code false} otherwise.
+     */
+    public boolean hasSequenceNumber() {
+        return sequenceNumber != UNASSIGNED_SEQUENCE_NUMBER;
+    }
+
+    /**
+     * Sets the sequence number for this event.
+     *
+     * @param sequenceNumber the sequence number to be assigned to this event
+     */
+    public void setSequenceNumber(final long sequenceNumber) {
+        this.sequenceNumber = sequenceNumber;
     }
 
     /**
@@ -313,14 +358,17 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     /**
      * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus
      * time is set for this event.
+     *
+     * @param transactionOffsetNanos nanoseconds to add to the event consensus timestamp before the first user
+     *                           transaction, reserving space for preceding and system records
      */
-    public void setConsensusTimestampsOnTransactions() {
+    public void setConsensusTimestampsOnTransactions(final long transactionOffsetNanos) {
         if (this.consensusData == NO_CONSENSUS) {
             throw new IllegalStateException("Consensus data must be set");
         }
 
         for (int i = 0; i < metadata.getTransactions().size(); i++) {
-            metadata.getTransactions().get(i).setConsensusTimestamp(getTransactionTime(i));
+            metadata.getTransactions().get(i).setConsensusTimestamp(getTransactionTime(i, transactionOffsetNanos));
         }
     }
 
@@ -329,19 +377,21 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Returns the timestamp of the transaction with given index in this event
+     * Returns the timestamp of the transaction with given index in this event.
      *
-     * @param transactionIndex index of the transaction in this event
+     * @param transactionIndex   index of the transaction in this event
+     * @param transactionOffsetNanos nanoseconds to add to the event consensus timestamp before the first user
+     *                           transaction, reserving space for preceding and system records
      * @return timestamp of the given index transaction
      */
-    public @NonNull Instant getTransactionTime(final int transactionIndex) {
+    public @NonNull Instant getTransactionTime(final int transactionIndex, final long transactionOffsetNanos) {
         if (consensusTimestamp == null) {
             throw new IllegalArgumentException("Event is not a consensus event");
         }
         if (transactionIndex >= getTransactionCount()) {
             throw new IllegalArgumentException("Event does not have a transaction with index: " + transactionIndex);
         }
-        return consensusTimestamp.plusNanos(transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
+        return consensusTimestamp.plusNanos(transactionOffsetNanos + MIN_TRANS_TIMESTAMP_INCR_NANOS * transactionIndex);
     }
 
     /**

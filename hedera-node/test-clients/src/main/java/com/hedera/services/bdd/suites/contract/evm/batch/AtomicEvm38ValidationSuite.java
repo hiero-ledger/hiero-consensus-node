@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -45,6 +44,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -67,6 +67,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
+@OrderedInIsolation
 class AtomicEvm38ValidationSuite {
 
     private static final String CREATE_TRIVIAL = "CreateTrivial";
@@ -352,7 +353,6 @@ class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForStaticCall() {
         final var contract = "CallOperationsChecker";
         final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
@@ -404,7 +404,6 @@ class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> factoryAndSelfDestructInConstructorContract() {
         final var contract = "FactorySelfDestructConstructor";
 

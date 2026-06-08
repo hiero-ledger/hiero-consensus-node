@@ -31,29 +31,28 @@ import org.hiero.consensus.test.fixtures.Randotron;
  */
 public class GeneratorEventGraphSource implements EventGraphSource {
 
-    private final EventDescriptor[] latestEventPerNode;
-
-    /**
-     * The roster.
-     */
-    private final Roster roster;
-
-    /**
-     * The timestamp of the previously emitted event.
-     */
-    private Instant latestEventTime;
-    /**
-     * The source of all randomness for this class.
-     */
-    private final Randotron random;
-
-    private final GeneratorConsensus consensus;
-    private final PbjStreamHasher hasher;
-    /** The maximum number of other parents an event can have */
+    private final Configuration configuration;
+    private final Time time;
+    private final long seed;
     private final int maxOtherParents;
-
+    private final Roster roster;
     private final GeneratorEventSigner eventSigner;
     private final boolean populateNgen;
+
+    /** The source of all randomness for this class. */
+    private Randotron random;
+
+    /**  The instance of consensus used to advance the birth round of new events */
+    private GeneratorConsensus consensus;
+
+    /** Hasher for newly created events */
+    private final PbjStreamHasher hasher;
+
+    /** Tracks the latest known event by each creator */
+    private EventDescriptor[] latestEventPerNode;
+
+    /** The timestamp of the previously emitted event. */
+    private Instant latestEventTime;
 
     /**
      * Creates a new graph generator.
@@ -74,14 +73,19 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             @NonNull final Roster roster,
             @NonNull final GeneratorEventSigner eventSigner,
             final boolean populateNgen) {
+        this.configuration = configuration;
+        this.time = time;
+        this.seed = seed;
         this.maxOtherParents = maxOtherParents;
-        this.random = Randotron.create(seed);
-        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
-        this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
         this.populateNgen = populateNgen;
+
+        // These fields get reset in reset()
+        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.consensus = new GeneratorConsensus(configuration, time, roster);
+        this.random = Randotron.create(seed);
     }
 
     /**
@@ -158,6 +162,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
             // wants ngen values to be populated on the returned events
             copy.setNGen(platformEvent.getNGen());
+            copy.setSequenceNumber(platformEvent.getSequenceNumber());
         }
         return copy;
     }
@@ -165,5 +170,13 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     @Override
     public boolean hasNext() {
         return true;
+    }
+
+    @Override
+    public void reset() {
+        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.consensus = new GeneratorConsensus(configuration, time, roster);
+        this.random = Randotron.create(seed);
+        this.latestEventTime = null;
     }
 }

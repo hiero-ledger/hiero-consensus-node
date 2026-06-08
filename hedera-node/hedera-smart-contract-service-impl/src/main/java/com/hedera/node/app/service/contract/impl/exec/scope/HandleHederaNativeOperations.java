@@ -140,7 +140,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                             context.payer(),
                             synthTxn,
                             CryptoCreateStreamBuilder.class,
-                            DISPATCH_ONLY_NOOP_FEE_CHARGING))
+                            DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                            HandleContext.ConsensusThrottling.ON))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because

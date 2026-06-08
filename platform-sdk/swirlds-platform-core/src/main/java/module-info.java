@@ -71,7 +71,8 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
     exports com.swirlds.platform.recovery.internal to
-            org.hiero.consensus.pcli;
+            org.hiero.consensus.pcli,
+            com.swirlds.platform.core.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -88,6 +89,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.event.stream;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;

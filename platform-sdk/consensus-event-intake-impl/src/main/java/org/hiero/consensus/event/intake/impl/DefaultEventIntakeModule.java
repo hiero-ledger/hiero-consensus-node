@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.UnaryOperator;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -28,7 +28,9 @@ import org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureVali
 import org.hiero.consensus.event.intake.impl.signature.EventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -130,31 +132,27 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
         // Wire metrics
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("hashing");
+            pipelineTracker.registerMetric("hashing", EventOrigin.GOSSIP, EventOrigin.STORAGE);
             this.eventHasherWiring
                     .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
             pipelineTracker.registerMetric("validation");
             this.eventValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("validation", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
             pipelineTracker.registerMetric("deduplication");
             this.eventDeduplicatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("deduplication", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
             pipelineTracker.registerMetric("verification");
             this.eventSignatureValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
             pipelineTracker.registerMetric("orphanBuffer");
             this.orphanBufferWiring
                     .getSplitOutput()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent(
-                            "orphanBuffer", ((PlatformEvent) platformEvent).getTimeReceived()));
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("orphanBuffer", (PlatformEvent) platformEvent));
         }
 
         // Force not soldered wires to be built
@@ -165,13 +163,13 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
-        final InternalEventValidator internalEventValidator =
-                new DefaultInternalEventValidator(metrics, time, intakeEventCounter, transactionLimits);
+        final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
+                new DefaultEventFieldValidator(metrics, time, transactionLimits), intakeEventCounter);
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, ConsensusCryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);

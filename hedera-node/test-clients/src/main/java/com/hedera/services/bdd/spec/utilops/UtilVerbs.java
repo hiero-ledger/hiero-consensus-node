@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.ex
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
+import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
@@ -92,12 +93,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -162,19 +166,25 @@ import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.UntilLogContainsOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AssertingBiConsumer;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedBlockItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartConfigOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -185,6 +195,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -257,8 +268,6 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
-    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
-
     /**
      * Private constructor to prevent instantiation.
      *
@@ -460,10 +469,7 @@ public class UtilVerbs {
      * @return the operation that validates the streams
      */
     public static StreamValidationOp validateStreams() {
-        final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
-                .map(Integer::parseInt)
-                .orElse(0);
-        return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
+        return new StreamValidationOp();
     }
 
     /**
@@ -541,6 +547,182 @@ public class UtilVerbs {
     public static LogContainmentOp assertBlockNodeCommsLogDoesNotContainText(
             @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that polls the selected nodes' block node comms logs until they contain
+     * the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep polling
+     * @return the operation that polls until the target logs contain the given text
+     */
+    public static UntilLogContainsOp awaitBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration timeout) {
+        return new UntilLogContainsOp(selector, BLOCK_NODE_COMMS_LOG, text, null, () -> new SpecOperation[0])
+                .lasting(timeout)
+                .pollingEvery(Duration.ofSeconds(1));
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsText(selector, text, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target text
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, text, null, opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsText(selector, text, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target text
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given text
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsText(
+            @NonNull final NodeSelector selector,
+            @NonNull final String text,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, text, null, opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsPattern(selector, regex, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target regex
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, null, Pattern.compile(regex), opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return untilHgcaaLogContainsPattern(selector, regex, timeout, Duration.ofSeconds(1), opSource);
+    }
+
+    /**
+     * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
+     * application logs contain the given regex, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param regex the regex that must eventually be present
+     * @param timeout the maximum amount of time to keep running operations
+     * @param pollInterval how often to poll the logs for the target regex
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @return the operation that runs until the target logs contain the given regex
+     */
+    public static UntilLogContainsOp untilHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector,
+            @NonNull final String regex,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource) {
+        return new UntilLogContainsOp(selector, APPLICATION_LOG, null, Pattern.compile(regex), opSource)
+                .lasting(timeout)
+                .pollingEvery(pollInterval);
     }
 
     /**
@@ -634,10 +816,6 @@ public class UtilVerbs {
         return new ContextualActionOp(action);
     }
 
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
-    }
-
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
         return new WaitForStatusOp(selector, timeout, ACTIVE);
     }
@@ -666,6 +844,7 @@ public class UtilVerbs {
         return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), timeout, ACTIVE), doingContextual(spec -> {
             if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.refreshClients();
+                subProcessNetwork.awaitLedgerId(LEDGER_ID_TIMEOUT);
             }
         }));
     }
@@ -763,6 +942,60 @@ public class UtilVerbs {
 
     public static BuildUpgradeZipOp buildUpgradeZipFrom(@NonNull final Path path) {
         return new BuildUpgradeZipOp(path);
+    }
+
+    public static BuildDynamicJumpstartConfigOp buildDynamicJumpstartConfig(
+            @NonNull final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartConfigOp(jumpstartConfigRef, envOverrides);
+    }
+
+    public static GetWrappedRecordHashesOp getWrappedRecordHashes(
+            @NonNull final AtomicReference<List<WrappedRecordFileBlockHashes>> entriesRef) {
+        return new GetWrappedRecordHashesOp(entriesRef);
+    }
+
+    /**
+     * Verifies the node's jumpstart hash computation via three-way comparison:
+     * file entries, .rcd replay, and the node's logged hash.
+     *
+     * @param jumpstartConfig            the jumpstart config properties
+     * @param wrappedHashes              per-block entries from the wrapped record hashes file
+     * @param nodeComputedHash           the hash the node logged during migration
+     * @param freezeBlockNum             the last block the migration processed
+     */
+    public static VerifyJumpstartHashOp verifyJumpstartHash(
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
+            @NonNull final String nodeComputedHash,
+            @NonNull final String freezeBlockNum) {
+        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
+    }
+
+    /**
+     * Verifies the node's persisted live wrapped record block root hash by replaying
+     * {@code .rcd} files from genesis through the given block and comparing the final
+     * chained hash against the node's persisted value.
+     *
+     * @param nodeComputedHash the hash the node persisted (from log scraping)
+     * @param liveBlockNum     the block number at which the live hash was persisted
+     */
+    public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
+            @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
+        return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
+    }
+
+    /**
+     * Asserts the wrapped record hashes file contains a contiguous run of block numbers
+     * ending exactly at {@code expectedLastBlockNum}, confirming that disk writes remained
+     * enabled alongside live hash wrapping.
+     *
+     * @param entries              entries read from the node's wrapped record hashes file
+     * @param expectedLastBlockNum the expected block number of the file's last entry
+     */
+    public static VerifyWrappedHashesCoverageOp verifyWrappedHashesCoverage(
+            @NonNull final List<WrappedRecordFileBlockHashes> entries, @NonNull final String expectedLastBlockNum) {
+        return new VerifyWrappedHashesCoverageOp(entries, expectedLastBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {
@@ -954,13 +1187,7 @@ public class UtilVerbs {
         return new CustomSpecAssert(custom);
     }
 
-    private static final ByteString MAINNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x00});
-    private static final ByteString TESTNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x01});
-    private static final ByteString PREVIEWNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x02});
-    private static final ByteString DEVNET_LEDGER_ID = ByteString.copyFrom(new byte[] {0x03});
-
-    private static final Set<ByteString> RECOGNIZED_LEDGER_IDS =
-            Set.of(MAINNET_LEDGER_ID, TESTNET_LEDGER_ID, PREVIEWNET_LEDGER_ID, DEVNET_LEDGER_ID);
+    private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
      * Returns an operation that uses a {@link com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo} query
@@ -971,13 +1198,7 @@ public class UtilVerbs {
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerId -> {
-            if (!RECOGNIZED_LEDGER_IDS.contains(ledgerId)) {
-                Assertions.fail(
-                        "Target network is claiming unrecognized ledger id " + CommonUtils.hex(ledgerId.toByteArray()));
-            }
-            ledgerIdConsumer.accept(ledgerId);
-        });
+        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
     }
 
     /**
@@ -995,6 +1216,105 @@ public class UtilVerbs {
         final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
         return blockingOrder(
                 exposeTargetLedgerIdTo(targetLedgerId::set), sourcing(() -> opFn.apply(targetLedgerId.get())));
+    }
+
+    /**
+     * Returns an operation that waits for a node's application log to report an externalized ledger id, converts the
+     * logged hex value to a {@link ByteString}, and passes it to the given callback.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param ledgerIdConsumer the callback to pass the externalized ledger id to
+     * @return the operation exposing the externalized ledger id to the callback
+     */
+    public static HapiSpecOperation exposeExternalizedLedgerIdFromHgcaaLogTo(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource,
+            @NonNull final Consumer<ByteString> ledgerIdConsumer) {
+        return exposeExternalizedLedgerIdFromHgcaaLogTo(
+                selector, timeout, pollInterval, ignore -> opSource.get(), ledgerIdConsumer);
+    }
+
+    /**
+     * Returns an operation that waits for a node's application log to report an externalized ledger id, converts the
+     * logged hex value to a {@link ByteString}, and passes it to the given callback.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param ledgerIdConsumer the callback to pass the externalized ledger id to
+     * @return the operation exposing the externalized ledger id to the callback
+     */
+    public static HapiSpecOperation exposeExternalizedLedgerIdFromHgcaaLogTo(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource,
+            @NonNull final Consumer<ByteString> ledgerIdConsumer) {
+        final AtomicReference<String> externalizedLedgerIdHex = new AtomicReference<>();
+        return blockingOrder(
+                untilHgcaaLogContainsPattern(
+                                selector, EXTERNALIZED_LEDGER_ID_LOG_PATTERN, timeout, pollInterval, opSource)
+                        .exposingMatchGroupTo(1, externalizedLedgerIdHex),
+                doAdhoc(() -> ledgerIdConsumer.accept(
+                        ByteString.copyFrom(CommonUtils.unhex(requireNonNull(externalizedLedgerIdHex.get()))))));
+    }
+
+    /**
+     * A convenience operation that accepts a factory mapping the externalized ledger id found in an hgcaa log into a
+     * {@link HapiSpecOperation}; and then,
+     * <ol>
+     *     <Li>Looks up the externalized ledger id via {@link #exposeExternalizedLedgerIdFromHgcaaLogTo(NodeSelector, Duration, Duration, Supplier, Consumer)}; and,</Li>
+     *     <Li>Calls the given factory with this id, and runs the resulting {@link HapiSpecOperation}.</Li>
+     * </ol>
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param opFn the factory mapping the externalized ledger id into a {@link HapiSpecOperation}
+     * @return the operation that looks up the externalized ledger id and runs the resulting {@link HapiSpecOperation}
+     */
+    public static HapiSpecOperation withExternalizedLedgerIdFromHgcaaLog(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Supplier<SpecOperation[]> opSource,
+            @NonNull final Function<ByteString, HapiSpecOperation> opFn) {
+        return withExternalizedLedgerIdFromHgcaaLog(selector, timeout, pollInterval, ignore -> opSource.get(), opFn);
+    }
+
+    /**
+     * A convenience operation that accepts a factory mapping the externalized ledger id found in an hgcaa log into a
+     * {@link HapiSpecOperation}; and then,
+     * <ol>
+     *     <Li>Looks up the externalized ledger id via {@link #exposeExternalizedLedgerIdFromHgcaaLogTo(NodeSelector, Duration, Duration, Function, Consumer)}; and,</Li>
+     *     <Li>Calls the given factory with this id, and runs the resulting {@link HapiSpecOperation}.</Li>
+     * </ol>
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param timeout the maximum amount of time to wait for the externalization log line
+     * @param pollInterval how often to poll the logs
+     * @param opSource the source of a fresh batch of operations for each loop iteration
+     * @param opFn the factory mapping the externalized ledger id into a {@link HapiSpecOperation}
+     * @return the operation that looks up the externalized ledger id and runs the resulting {@link HapiSpecOperation}
+     */
+    public static HapiSpecOperation withExternalizedLedgerIdFromHgcaaLog(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final Duration pollInterval,
+            @NonNull final Function<HapiSpec, SpecOperation[]> opSource,
+            @NonNull final Function<ByteString, HapiSpecOperation> opFn) {
+        final AtomicReference<ByteString> externalizedLedgerId = new AtomicReference<>();
+        return blockingOrder(
+                exposeExternalizedLedgerIdFromHgcaaLogTo(
+                        selector, timeout, pollInterval, opSource, externalizedLedgerId::set),
+                sourcing(() -> opFn.apply(requireNonNull(externalizedLedgerId.get()))));
     }
 
     public static BalanceSnapshot balanceSnapshot(String name, String forAccount) {
@@ -1340,86 +1660,39 @@ public class UtilVerbs {
                 }));
     }
 
-    /* Stream validation. */
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
-                .withBackgroundTraffic();
+    /* ── Stream-mode-aware validation ──
+     * These verbs dynamically route to the record or block stream based on the active streamMode.
+     * Accepts both RecordStreamAssertion and BlockStreamAssertion via the common StreamAssertion type.
+     * Prefer these over the record-specific or block-specific variants below. */
+
+    public static EventualStreamAssertion streamMustIncludeNoFailuresFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, true);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
+    public static EventualStreamAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, false);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
-                .withBackgroundTraffic();
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, null, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and that background traffic is running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    public static EventualStreamAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and if the background traffic should be running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @param needsBackgroundTraffic whether background traffic should be running
-     * @return the operation that asserts a passing record stream
-     */
-    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
-            @NonNull final Duration timeout,
-            final boolean needsBackgroundTraffic) {
-        requireNonNull(assertion);
-        requireNonNull(timeout);
-        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
-        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include no failures from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts no block stream problems
-     */
-    public static EventualBlockStreamAssertion blockStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(assertion);
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts a passing block stream
-     */
-    public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+    public static EventualStreamAssertion streamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePassWithReplay(assertion, timeout);
     }
 
     public static RunnableOp verify(@NonNull final Runnable runnable) {
@@ -1470,6 +1743,18 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
+    }
+
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
             @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
@@ -1483,6 +1768,21 @@ public class UtilVerbs {
         requireNonNull(validator);
         requireNonNull(test);
         return spec -> new SelectedItemsAssertion(n, spec, test, validator);
+    }
+
+    /**
+     * Block-stream analog of {@link #selectedItems}. Translates each incoming {@link
+     * com.hedera.hapi.block.stream.Block} back to {@link RecordStreamItem}s so the existing
+     * predicate and {@link VisibleItemsValidator} APIs can be reused under
+     * {@code streamMode=BLOCKS} without re-implementing per-test selection logic.
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> selectedBlockItems(
+            @NonNull final VisibleItemsValidator validator,
+            final int n,
+            @NonNull final BiPredicate<HapiSpec, RecordStreamItem> test) {
+        requireNonNull(validator);
+        requireNonNull(test);
+        return spec -> new SelectedBlockItemsAssertion(n, spec, test, validator);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleNonSyntheticItems(
@@ -2236,6 +2536,40 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert validateNodePaymentAmountForQuery(
+            @NonNull final String txn, final long expectedTinycents) {
+        requireNonNull(txn);
+        return assertionsHold((spec, assertLog) -> {
+            final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            final var rate = getExchangeRateForQuery(spec, txn);
+            final var expectedTinybars = expectedTinycents * rate.getHbarEquiv() / rate.getCentEquiv();
+            assertEquals(
+                    expectedTinybars,
+                    actualNodePayment,
+                    String.format(
+                            "Node payment for query '%s' was %d tinybars, expected %d tinybars"
+                                    + " (from %d tinycents at rate %d/%d)",
+                            txn,
+                            actualNodePayment,
+                            expectedTinybars,
+                            expectedTinycents,
+                            rate.getHbarEquiv(),
+                            rate.getCentEquiv()));
+        });
+    }
+
+    public static CustomSpecAssert validateNonZeroNodePaymentForQuery(@NonNull final String txn) {
+        requireNonNull(txn);
+        return assertionsHold((spec, assertLog) -> {
+            final var actualNodePayment = getDefaultNodePaymentForQuery(spec, txn);
+            assertTrue(
+                    actualNodePayment > 0,
+                    String.format(
+                            "Expected positive node payment for query '%s', but got %d tinybars",
+                            txn, actualNodePayment));
         });
     }
 
@@ -3028,6 +3362,27 @@ public class UtilVerbs {
                 / 100;
     }
 
+    private static long getDefaultNodePaymentForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        final var defaultNode = spec.setup().defaultNode();
+        return rcd.getTransferList().getAccountAmountsList().stream()
+                .filter(aa -> aa.getAccountID().equals(defaultNode))
+                .mapToLong(AccountAmount::getAmount)
+                .sum();
+    }
+
+    private static ExchangeRate getExchangeRateForQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        final var subOp = getTxnRecord(txn);
+        allRunFor(spec, subOp);
+        return subOp.getResponseRecord().getReceipt().getExchangeRate().getCurrentRate();
+    }
+
     private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -3353,5 +3708,22 @@ public class UtilVerbs {
                 return null;
             }
         }
+    }
+
+    public static Function<HapiSpec, BlockStreamAssertion> matchStateChange(@NonNull StateChange stateChange) {
+        return spec -> block -> {
+            final var items = block.items();
+            for (final com.hedera.hapi.block.stream.BlockItem item : items) {
+                if (item.hasStateChanges()) {
+                    final var stateChanges = item.stateChanges().stateChanges();
+                    for (final StateChange change : stateChanges) {
+                        if (change.equals(stateChange)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        };
     }
 }

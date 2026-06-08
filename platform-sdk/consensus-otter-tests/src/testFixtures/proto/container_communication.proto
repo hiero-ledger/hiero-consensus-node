@@ -14,6 +14,8 @@ message InitRequest {
   com.hedera.hapi.platform.state.NodeId self_id = 1;
   // Whether GC logging should be enabled for the consensus node process.
   bool gc_logging_enabled = 2;
+  // JVM arguments to be passed when starting the consensus node process.
+  repeated string jvm_args = 3;
 }
 
 // Request to kill the application immediately.

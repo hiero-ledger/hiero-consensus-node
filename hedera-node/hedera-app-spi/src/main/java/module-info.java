@@ -10,6 +10,7 @@ module com.hedera.node.app.spi {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.apache.logging.log4j;
+    requires com.hedera.node.config;
     requires static transitive com.github.spotbugs.annotations;
 
     // for test assertions that use reflection

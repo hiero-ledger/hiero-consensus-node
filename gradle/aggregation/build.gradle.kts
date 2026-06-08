@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":swirlds-platform-base-example"))
     // projects that only contain tests (and no production code)
     implementation(project(":test-clients"))
+    implementation(project(":yahcli"))
     implementation(project(":consensus-otter-docker-app"))
     implementation(project(":consensus-otter-tests"))
 }

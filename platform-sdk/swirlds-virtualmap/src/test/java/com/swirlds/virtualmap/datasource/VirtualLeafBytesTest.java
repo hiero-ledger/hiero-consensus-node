@@ -8,13 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +58,8 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(102, key, value, TestValueCodec.INSTANCE);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertEquals(value.toBytes(), leafBytes.valueBytes(), "value bytes should match original");
-        assertEquals(value, leafBytes.value(TestValueCodec.INSTANCE), "value should match original");
+        assertEquals(
+                value, leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should match original");
         assertEquals(102, leafBytes.path(), "path should match value set");
     }
 
@@ -68,7 +73,8 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(103, key, valueBytes);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertEquals(valueBytes, leafBytes.valueBytes(), "value bytes should match original");
-        assertEquals(value, leafBytes.value(TestValueCodec.INSTANCE), "value should match original");
+        assertEquals(
+                value, leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should match original");
         assertEquals(103, leafBytes.path(), "path should match value set");
     }
 
@@ -80,7 +86,7 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(104, key, null);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertNull(leafBytes.valueBytes(), "value bytes should be null");
-        assertNull(leafBytes.value(TestValueCodec.INSTANCE), "value should be null");
+        assertNull(leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should be null");
         assertEquals(104, leafBytes.path(), "path should match value set");
     }
 
@@ -336,5 +342,55 @@ class VirtualLeafBytesTest {
         // empty value bytes add no extra bytes but length 0 is written
 
         assertArrayEquals(expected, actual, "hashing bytes should match");
+    }
+
+    @Test
+    void isNewOrMovedIsTrueByDefault() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        assertTrue(leaf.isNewOrMoved(), "Newly created leaves should be new/moved");
+    }
+
+    @Test
+    void withPathPreservesPathOnDisk() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        final VirtualLeafBytes<TestValue> updated = leaf.withPath(12);
+        assertTrue(updated.isNewOrMoved(), "withPath should mark the leaf as new/moved");
+    }
+
+    @Test
+    void withValuePreservesPathOnDisk() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(1, key, Bytes.EMPTY);
+        final VirtualLeafBytes<TestValue> updated = leaf.withPath(12);
+        final VirtualLeafBytes<TestValue> updatedUpdated =
+                updated.withValue(new TestValue("New!"), TestValueCodec.INSTANCE);
+        assertTrue(updatedUpdated.isNewOrMoved(), "withValue should mark the leaf as new/moved");
+    }
+
+    @Test
+    void isNewOrMovedIsFalseWhenDeserialized() {
+        final Bytes key = TestKey.longToKey(RANDOM.nextLong());
+        final TestValue value = new TestValue("Value");
+        final VirtualLeafBytes<TestValue> leaf = new VirtualLeafBytes<>(11, key, value, TestValueCodec.INSTANCE);
+
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        leaf.writeTo(new WritableStreamingData(out));
+
+        final byte[] bytes = out.toByteArray();
+        final BufferedData in = BufferedData.wrap(bytes);
+        final VirtualLeafBytes<TestValue> deserialized = VirtualLeafBytes.parseFrom(in);
+        assertFalse(deserialized.isNewOrMoved(), "Deserialized leaf should not be new/moved");
+
+        final TestValue updatedValue = new TestValue("Updated");
+        final VirtualLeafBytes<TestValue> updated = deserialized.withValue(updatedValue, TestValueCodec.INSTANCE);
+        assertFalse(updated.isNewOrMoved(), "withValue should not mark the leaf as new/moved");
+
+        final VirtualLeafBytes<TestValue> moved = deserialized.withPath(12);
+        assertTrue(moved.isNewOrMoved(), "withPath should mark the leaf as new/moved");
+
+        final VirtualLeafBytes<TestValue> movedBack = moved.withPath(deserialized.path());
+        assertTrue(movedBack.isNewOrMoved(), "Should still be new/moved when moved to the original path");
     }
 }

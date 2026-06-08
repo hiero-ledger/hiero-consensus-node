@@ -10,15 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
-import com.swirlds.common.test.fixtures.io.SerializationUtils;
-import com.swirlds.common.utility.Mnemonics;
 import java.io.IOException;
 import java.util.Arrays;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
+import org.hiero.base.utility.test.fixtures.io.SerializationUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

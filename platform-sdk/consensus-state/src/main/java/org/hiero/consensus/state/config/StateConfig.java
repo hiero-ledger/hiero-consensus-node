@@ -10,6 +10,13 @@ import java.time.Duration;
  *
  * @param saveStatePeriod               The frequency of writes of a state to disk every this many seconds (0 to never
  *                                      write).
+ * @param saveStateAsync                If true, periodic state snapshots are created asynchronously. This is a
+ *                                      performance optimization for networks with high TPS and large state sizes,
+ *                                      reducing backpressure on the VirtualPipeline. Only applies to PERIODIC_SNAPSHOT
+ *                                      states; other states (e.g., freeze) use synchronous creation.
+ * @param asyncSnapshotTimeout          The maximum time in seconds to wait for an asynchronous snapshot to complete.
+ *                                      If the snapshot is not completed within this time, a timeout error is logged.
+ *                                      Only relevant when {@code saveStateAsync} is true.
  * @param signedStateDisk               Keep at least this many of the old complete signed states on disk. This should
  *                                      be at least 2 so that  we don't delete an old state while a new one is in the
  *                                      process of writing to disk. set to 0 to not keep any states to disk.
@@ -58,14 +65,18 @@ import java.time.Duration;
  *                                      careful enabling this network wide. If this is enabled and all states on disk
  *                                      have deserialization bugs, then all nodes will delete all state copies and the
  *                                      network will restart from genesis.
- * @param validateInitialState          If false then do not do ISS validation on the state loaded from disk at startup.
+ * @param validateInitialState          If false, then do not do ISS validation on the state loaded from disk at startup.
  *                                      This should always be enabled in production environments. Disabling initial
  *                                      state validation is intended to be a test-only feature.
+ * @param periodicSnapshotsEnabled       If true, then create periodic snapshots of the signed state.
+ *
  */
 @ConfigData("state")
 public record StateConfig(
         @ConfigProperty(defaultValue = "") String mainClassNameOverride,
         @ConfigProperty(defaultValue = "900") int saveStatePeriod,
+        @ConfigProperty(defaultValue = "true") boolean saveStateAsync,
+        @ConfigProperty(defaultValue = "750") long asyncSnapshotTimeout,
         @ConfigProperty(defaultValue = "5") int signedStateDisk,
         @ConfigProperty(defaultValue = "false") boolean haltOnAnyIss,
         @ConfigProperty(defaultValue = "false") boolean automatedSelfIssRecovery,
@@ -81,7 +92,8 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
-        @ConfigProperty(defaultValue = "true") boolean validateInitialState) {
+        @ConfigProperty(defaultValue = "true") boolean validateInitialState,
+        @ConfigProperty(defaultValue = "true") boolean periodicSnapshotsEnabled) {
 
     /**
      * Get the main class name that should be used for signed states.

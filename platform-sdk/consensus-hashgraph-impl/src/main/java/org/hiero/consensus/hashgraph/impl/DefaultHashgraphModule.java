@@ -52,7 +52,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker,
-            @Nullable EventPipelineTracker pipelineTracker) {
+            @Nullable final EventPipelineTracker pipelineTracker,
+            final long transactionOffsetNanos) {
 
         //noinspection VariableNotUsedInsideIf
         if (consensusEngineWiring != null) {
@@ -82,17 +83,14 @@ public class DefaultHashgraphModule implements HashgraphModule {
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         // Create and bind components
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
+                configuration, metrics, time, roster, selfId, freezeChecker, transactionOffsetNanos);
         consensusEngineWiring.bind(consensusEngine);
 
         if (pipelineTracker != null) {
             pipelineTracker.registerMetric("consensus");
-            consensusRoundOutputWire.solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
-                    "consensus",
-                    consensusRound.getConsensusEvents().stream()
-                            .map(PlatformEvent::getTimeReceived)
-                            .toList()));
+            consensusRoundOutputWire.solderForMonitoring(
+                    consensusRound -> pipelineTracker.recordEvents("consensus", consensusRound.getConsensusEvents()));
         }
     }
 

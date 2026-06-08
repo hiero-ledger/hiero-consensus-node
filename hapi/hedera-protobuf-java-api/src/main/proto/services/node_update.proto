@@ -43,8 +43,16 @@ message NodeUpdateTransactionBody {
      * An account identifier.
      * <p>
      * If set, this SHALL replace the node account identifier.<br/>
-     * If set, this transaction MUST be signed by the active `key` for _both_
-     * the current node account _and_ the identified new node account.
+     * If set to a valid, non-zero account identifier, this transaction MUST
+     * be signed by the `Key` for the new account. Additionally, when only
+     * the `account_id` is updated (no other fields changed), the transaction
+     * MUST also be signed by either the current node account `Key` or
+     * the node `admin_key`. When other fields are also changed, the node
+     * `admin_key` MUST sign (as required for any non-account field update).<br/>
+     * If set to the sentinel value `0.0.0`, the node account association
+     * SHALL be removed, and this transaction MUST be signed by either
+     * the current node account `Key` or the node `admin_key`.<br/>
+     * Each `account_id` MUST NOT be associated with more than one node.
      */
     proto.AccountID account_id = 2;
 
@@ -174,12 +182,29 @@ message NodeUpdateTransactionBody {
      * HIP-1137) that are operated by the same entity that operates this
      * consensus node.
      * <p>
-     * This field is OPTIONAL and MAY be empty.<br/>
+     * This field is OPTIONAL.<br/>
+     * If this field is not set, the current list SHALL NOT change.<br/>
+     * If this field is set, but contains an empty list, any existing
+     * associated registered nodes SHALL be removed.<br/>
      * This field MUST NOT contain more than twenty(20) entries.<br/>
      * Every entry in this list MUST be a valid `registered_node_id` for a
      * current registered node.
-     * <p>
-     * If set, the new list SHALL replace the existing list.
      */
-    repeated uint64 associated_registered_node = 11;
+    AssociatedRegisteredNodeList associated_registered_node_list = 11;
+}
+
+/**
+ * A wrapper around a list of associated registered node identifiers.<br/>
+ * This wrapper exists to enable an update transaction to differentiate
+ * between a field that is not set and an empty list of values.
+ * <p>
+ * An _unset_ field of this type SHALL NOT modify existing values.<br/>
+ * A _set_ field of this type with an empty list SHALL remove any
+ * existing values.
+ */
+message AssociatedRegisteredNodeList {
+    /**
+     * A list of registered node identifiers.
+     */
+    repeated uint64 associated_registered_node = 1;
 }

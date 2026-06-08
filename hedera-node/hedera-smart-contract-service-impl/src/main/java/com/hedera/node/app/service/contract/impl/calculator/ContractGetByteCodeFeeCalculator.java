@@ -31,7 +31,7 @@ public class ContractGetByteCodeFeeCalculator implements QueryFeeCalculator {
                 addExtraFee(
                         feeResult,
                         serviceDef,
-                        Extra.STATE_BYTES,
+                        Extra.PROCESSING_BYTES,
                         feeSchedule,
                         bytecode.code().length());
             }

@@ -2,9 +2,9 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -49,23 +50,32 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -73,7 +83,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
-@Tag(MATS)
 @HapiTestLifecycle
 public class TokenServiceSimpleFeesSuite {
     private static final double TOKEN_ASSOCIATE_FEE = 0.05;
@@ -794,7 +803,8 @@ public class TokenServiceSimpleFeesSuite {
                         .hasTotalSupply(1000L)
                         .via("get-token-info-query")
                         .payingWith(PAYER),
-                validateChargedSimpleFees("Simple Fees", "get-token-info-query", 0.0001, 1));
+                validateChargedSimpleFees("Simple Fees", "get-token-info-query", 0.0001, 1),
+                validateNodePaymentAmountForQuery("get-token-info-query", 84L));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -821,7 +831,42 @@ public class TokenServiceSimpleFeesSuite {
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("get-token-nft-info-query"),
-                validateChargedSimpleFees("Simple Fees", "get-token-nft-info-query", 0.0001, 1));
+                validateChargedSimpleFees("Simple Fees", "get-token-nft-info-query", 0.0001, 1),
+                validateNodePaymentAmountForQuery("get-token-nft-info-query", 84L));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("token get info - invalid token fails - no fee charged")
+    final Stream<DynamicTest> tokenGetInfoInvalidTokenFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                getTokenInfo("0.0.99999999").payingWith(PAYER).hasCostAnswerPrecheck(INVALID_TOKEN_ID),
+                getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("token get nft info - invalid token fails - no fee charged")
+    final Stream<DynamicTest> tokenGetNftInfoInvalidTokenFails() {
+        final AtomicLong initialBalance = new AtomicLong();
+        final AtomicLong afterBalance = new AtomicLong();
+
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                getTokenNftInfo("0.0.99999999", 1L).payingWith(PAYER).hasCostAnswerPrecheck(INVALID_NFT_ID),
+                getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                withOpContext((spec, log) -> {
+                    assertEquals(initialBalance.get(), afterBalance.get());
+                }));
     }
 
     @HapiTest
@@ -889,5 +934,58 @@ public class TokenServiceSimpleFeesSuite {
                         .blankMemo()
                         .via("updateTxn"),
                 validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("BASELINE: Valid single fungible token transfer charged correct token fee")
+    final Stream<DynamicTest> validFungibleTransferUndercharged() {
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                tokenCreate("fungibleToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury("payer")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("payer"),
+                tokenAssociate("receiver", "fungibleToken"),
+                cryptoTransfer(moving(2000, "fungibleToken").between("payer", "receiver"))
+                        .payingWith("payer")
+                        .signedBy("payer")
+                        .fee(ONE_HBAR)
+                        .via("baselineTxn")
+                        .memo("baselineTxn")
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
+                validateChargedUsd("baselineTxn", TOKEN_TRANSFER_FEE),
+                cryptoTransfer((spec, b) -> {
+                            final var attackerInfo = spec.registry().getAccountID("payer");
+                            final var receiverInfo = spec.registry().getAccountID("receiver");
+                            final var bogusTokenId = TokenID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm())
+                                    .setTokenNum(9_000_001L)
+                                    .build();
+                            final var ttl = TokenTransferList.newBuilder()
+                                    .setToken(bogusTokenId)
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(attackerInfo)
+                                            .setAmount(-1L)
+                                            .build())
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(receiverInfo)
+                                            .setAmount(1L)
+                                            .build())
+                                    .build();
+                            b.addTokenTransfers(ttl);
+                        })
+                        .memo("attackTxn")
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("attackTxn")
+                        .hasKnownStatus(INVALID_TOKEN_ID),
+                // verify that the regular fee is charged even though the transfer failed due to an invalid token id
+                validateChargedUsd("attackTxn", TOKEN_TRANSFER_FEE),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 }

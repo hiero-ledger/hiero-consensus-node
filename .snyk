@@ -15,3 +15,9 @@ exclude:
       platform-sdk/consensus-otter-docker-app/src/testFixtures/java/org/hiero/consensus/otter/docker/app/DockerManager.java
     - >-
       platform-sdk/consensus-otter-docker-app/src/testFixtures/java/org/hiero/consensus/otter/docker/app/platform/NodeCommunicationService.java
+    - >-
+      platform-sdk/consensus-sloth/src/testFixtures/java/org/hiero/sloth/fixtures/container/docker/DockerManager.java
+    - >-
+      platform-sdk/consensus-sloth/src/testFixtures/java/org/hiero/sloth/fixtures/container/docker/platform/NodeCommunicationService.java
+    - >-
+      platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/PeerConnectionServer.java

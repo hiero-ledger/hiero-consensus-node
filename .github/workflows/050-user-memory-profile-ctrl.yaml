@@ -46,12 +46,22 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   run-single-node-tests:
     name: Single node tests
     runs-on: hl-cn-mem-profiler-lin
+    needs:
+      - extract-jdk-version
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -63,7 +73,7 @@ jobs:
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Checkout BlockNode scripts
         if: false
@@ -105,13 +115,13 @@ jobs:
           wait: 120s
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 20.18.0
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
@@ -120,7 +130,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
 
       - name: Install tools
         run: |

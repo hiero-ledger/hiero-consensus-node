@@ -28,7 +28,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -81,7 +81,6 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
         final var query = context.query();
-        final var config = context.configuration().getConfigData(LedgerConfig.class);
         final var nftStore = context.createStore(ReadableNftStore.class);
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var op = query.tokenGetNftInfoOrThrow();
@@ -91,7 +90,7 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         response.header(header);
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
-            final var optionalInfo = infoForNft(nftId, nftStore, tokenStore, config);
+            final var optionalInfo = infoForNft(nftId, nftStore, tokenStore, context.ledgerId());
             if (optionalInfo.isPresent()) {
                 response.nft(optionalInfo.get());
             } else {
@@ -112,19 +111,19 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
      * the {@link ReadableNftStore} to get the {@link TokenNftInfo} from
      * @param readableTokenStore
      *  the {@link ReadableTokenStore} to get the {@link com.hedera.hapi.node.state.token.Token} from
-     * @param config
-     * the {@link LedgerConfig} to get the ledger ID from
+     * @param ledgerId
+     * the ledger ID to surface in the query response
      * @return the {@link TokenNftInfo} for the given {@link NftID} if it exists
      */
     private Optional<TokenNftInfo> infoForNft(
             @NonNull final NftID nftId,
             @NonNull final ReadableNftStore readableNftStore,
             @NonNull final ReadableTokenStore readableTokenStore,
-            @NonNull final LedgerConfig config) {
+            @NonNull final Bytes ledgerId) {
         requireNonNull(nftId);
         requireNonNull(readableNftStore);
         requireNonNull(readableTokenStore);
-        requireNonNull(config);
+        requireNonNull(ledgerId);
 
         final var nft = readableNftStore.get(nftId.tokenIdOrThrow(), nftId.serialNumber());
         final var token = requireNonNull(readableTokenStore.get(nftId.tokenIdOrThrow()));
@@ -132,7 +131,7 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
             return Optional.empty();
         } else {
             final var info = TokenNftInfo.newBuilder()
-                    .ledgerId(config.id())
+                    .ledgerId(ledgerId)
                     .nftID(nftId)
                     .accountID(nft.ownerIdOrElse(token.treasuryAccountIdOrThrow()))
                     .creationTime(nft.mintTime())

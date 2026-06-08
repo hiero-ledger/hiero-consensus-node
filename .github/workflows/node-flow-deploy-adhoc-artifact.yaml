@@ -18,7 +18,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -34,17 +33,32 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.event.inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   release-adhoc:
     name: Release [Adhoc]
     if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs:
+      - extract-jdk-version
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
     with:
       version-policy: branch-commit
       trigger-env-deploy: none
       release-profile: AdhocCommit
       dry-run-enabled: ${{ github.event.inputs.dry-run-enabled == 'true' }}
-      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-version: ${{ github.event.inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       gradle-version: ${{ github.event.inputs.gradle-version || 'wrapper' }}
       ref: ${{ github.event.inputs.ref }}
@@ -62,7 +76,7 @@ jobs:
       sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
       sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
       sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
+      slack-webhook-url: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
       jf-url: ${{ vars.JF_URL }}
       jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
       jf-user-name: ${{ vars.JF_USER_NAME }}

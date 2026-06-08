@@ -9,14 +9,16 @@ import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconn
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.sync.TeacherTreeView;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
@@ -24,14 +26,11 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -193,7 +192,6 @@ public class ReconnectStateTeacher {
                         selfId.id(),
                         otherId.id(),
                         lastRoundReceived));
-        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
                         {}""", () -> getInfoString(signedState.getState()));
@@ -203,7 +201,7 @@ public class ReconnectStateTeacher {
         logger.info(
                 RECONNECT.getMarker(),
                 () -> new ReconnectFinishPayload(
-                        "Finished reconnect in the role of the sender.",
+                        "Finished reconnect in the role of the sender",
                         false,
                         selfId.id(),
                         otherId.id(),
@@ -216,18 +214,16 @@ public class ReconnectStateTeacher {
      * @throws InterruptedException thrown if the current thread is interrupted
      */
     private void reconnect() throws InterruptedException, IOException {
-        logger.info(RECONNECT.getMarker(), "Starting synchronization in the role of the sender.");
         statistics.incrementSenderStartTimes();
 
-        connection.getDis().getSyncByteCounter().resetCount();
-        connection.getDos().getSyncByteCounter().resetCount();
+        connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
                 time,
                 threadManager,
-                new SerializableDataInputStream(connection.getDis()),
-                new SerializableDataOutputStream(connection.getDos()),
+                new DataInputStream(connection.getDis()),
+                new DataOutputStream(connection.getDos()),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
@@ -235,7 +231,6 @@ public class ReconnectStateTeacher {
         connection.getDos().flush();
 
         statistics.incrementSenderEndTimes();
-        logger.info(RECONNECT.getMarker(), "Finished synchronization in the role of the sender.");
     }
 
     /**

@@ -37,9 +37,6 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty
         String tssKeysPath,
 
-        @ConfigProperty(defaultValue = "512") @NetworkProperty
-        short initialCrsParties,
-
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean useDeterministicHintsSignatures,
 
@@ -62,4 +59,26 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
         int maxWrapsRetries,
 
-        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank) {}
+        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
+
+        // Whether to double-check aggregate hinTS signature during block signing
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean validateBlockSignatures,
+
+        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
+        // in prod until release that fully cuts over to streamMode=BLOCKS
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean forceMockSignatures,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsProvingKeyDownloadEnabled,
+
+        @ConfigProperty(defaultValue = "data/keys/wraps") @NodeProperty
+        String wrapsProvingKeyPath,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration wrapsProvingKeyRetryInterval) {}

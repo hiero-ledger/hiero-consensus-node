@@ -33,17 +33,14 @@ jobs:
     outputs:
       commit-is-present: ${{ steps.validate-input.outputs.commit_on_dev }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Default Branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: "main"
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-fetch-depth: "0"
 
       - name: Validate Input Ref
         id: validate-input
@@ -67,17 +64,14 @@ jobs:
       - validate-input-ref
     if: ${{ needs.validate-input-ref.outputs.commit-is-present == 'true' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-fetch-depth: "0"
+          checkout-ref: ${{inputs.ref }}
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -148,7 +142,7 @@ jobs:
     if: ${{ (needs.validate-input-ref.result == 'failure' || needs.tag-for-xts.result == 'failure') && !cancelled() && always() }}
     steps:
       - name: Report Failure (Rootly)
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}

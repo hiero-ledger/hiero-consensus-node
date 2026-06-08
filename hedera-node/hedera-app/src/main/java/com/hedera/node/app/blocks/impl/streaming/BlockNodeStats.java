@@ -30,6 +30,11 @@ public class BlockNodeStats {
     private final Queue<Instant> behindPublisherTimestamps = new ConcurrentLinkedQueue<>();
 
     /**
+     * Timestamp when the current BehindPublisher ignore period ends. Null if not currently ignoring.
+     */
+    private Instant behindPublisherIgnoreUntil;
+
+    /**
      * Map for tracking the timestamps when blocks are sent to the block node.
      * The key is the block number and the value is the timestamp when the block was sent.
      */
@@ -68,7 +73,7 @@ public class BlockNodeStats {
      * @return true if the number of EndOfStream responses exceeds the maximum, otherwise false
      */
     public boolean addEndOfStreamAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -101,7 +106,7 @@ public class BlockNodeStats {
      * @return true if the number of BehindPublisher responses exceeds the maximum, otherwise false
      */
     public boolean addBehindPublisherAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -122,6 +127,50 @@ public class BlockNodeStats {
             }
         }
         return behindPublisherTimestamps.size() > maxAllowed;
+    }
+
+    /**
+     * Checks if the current BehindPublisher message should be ignored based on the ignore period.
+     * If the BehindPublisher queue is empty (new window), resets the ignore period.
+     * If not currently ignoring, starts a new ignore period.
+     *
+     * @param now the current timestamp
+     * @param ignorePeriod the duration of the ignore period
+     * @param timeFrame the time window for counting BehindPublisher responses
+     * @return true if the BehindPublisher message should be ignored, false if it should be processed
+     */
+    public boolean shouldIgnoreBehindPublisher(
+            @NonNull final Instant now, @NonNull final Duration ignorePeriod, @NonNull final Duration timeFrame) {
+        requireNonNull(now, "now must not be null");
+        requireNonNull(ignorePeriod, "ignorePeriod must not be null");
+        requireNonNull(timeFrame, "timeFrame must not be null");
+
+        final Instant cutoff = now.minus(timeFrame);
+
+        // Remove expired timestamps from the queue
+        final Iterator<Instant> it = behindPublisherTimestamps.iterator();
+        while (it.hasNext()) {
+            final Instant timestamp = it.next();
+            if (timestamp.isBefore(cutoff)) {
+                it.remove();
+            } else {
+                break;
+            }
+        }
+
+        // If the queue is empty, we're in a new window - reset the ignore period
+        if (behindPublisherTimestamps.isEmpty()) {
+            behindPublisherIgnoreUntil = null;
+        }
+
+        // Check if we're within the ignore period
+        if (behindPublisherIgnoreUntil != null && now.isBefore(behindPublisherIgnoreUntil)) {
+            return true;
+        }
+
+        // Start a new ignore period
+        behindPublisherIgnoreUntil = now.plus(ignorePeriod);
+        return false;
     }
 
     /**
@@ -165,7 +214,7 @@ public class BlockNodeStats {
 
         final long latencyMs = Duration.between(sendTime, acknowledgedTime).toMillis();
         final boolean isHighLatency = latencyMs > highLatencyThreshold.toMillis();
-        int consecutiveCount;
+        final int consecutiveCount;
         boolean shouldSwitch = false;
 
         synchronized (consecutiveHighLatencyEvents) {
