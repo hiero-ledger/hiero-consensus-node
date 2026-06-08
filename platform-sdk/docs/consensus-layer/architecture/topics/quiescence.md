@@ -48,13 +48,15 @@ to send.
   creation through its own mechanism, separate from quiescence (see
   [`freeze-and-upgrade.md`](freeze-and-upgrade.md)).
 
-One cross-boundary contract supports Execution's counting and is worth
-naming here: every pre-consensus event the consensus layer hands to
-Execution must eventually be reported back as either a consensus event or
-a stale event, so that Execution's transaction counter stays balanced.
-Consensus is the central point that reports stale events. The mechanics of
-that contract belong to [`../../concepts/stale-events.md`](../../concepts/stale-events.md);
-quiescence relies on it but does not define it.
+Quiescence depends on one boundary-wide contract as a **critical
+requirement**: every pre-consensus event the consensus layer hands to
+Execution must be reported back as a consensus event or a stale event,
+keeping Execution's transaction count balanced — otherwise the "no
+outstanding user transactions" condition could never settle. Introduced
+for quiescence but a property of the boundary, the contract is owned by
+[`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md#boundary-wide-contracts)
+(including its behaviour across restart and reconnect); quiescence relies
+on it but does not define it.
 
 ## State
 
@@ -251,15 +253,16 @@ Topics:
 Concepts:
 
 - [`../../concepts/stale-events.md`](../../concepts/stale-events.md) — the
-  consensus → execution reporting contract that keeps Execution's
-  transaction count balanced.
+  stale-event mechanics the balanced-count contract builds on.
 
 Interface:
 
 - [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)
   — `Platform#quiescenceCommand` is the boundary operation; the
   `QuiescenceController` and the quiescence conditions live on the
-  Execution side of this seam.
+  Execution side of this seam; its
+  [Boundary-wide contracts](../interfaces/consensus-execution-boundary.md#boundary-wide-contracts)
+  section owns the pre-handle → consensus-or-stale requirement.
 
 Spec:
 
