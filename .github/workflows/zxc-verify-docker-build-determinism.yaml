@@ -64,6 +64,12 @@ jobs:
       name: ${{ steps.baseline.outputs.name }}
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
 
+    services:
+      registry:
+        image: registry@sha256:8a7c1aae9db5028cbc1cfe83e5969d270a50e8bc0b72eef3cc5657542ec383c9 # v3.1.0
+        ports:
+          - 5000:5000
+
     steps:
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -132,10 +138,6 @@ jobs:
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
-
-      - name: Setup Local Docker Registry
-        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Show Docker Version
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
@@ -233,6 +235,13 @@ jobs:
           - hl-cn-docker-determinism-lin-d12-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+
+    services:
+      registry:
+        image: registry@sha256:8a7c1aae9db5028cbc1cfe83e5969d270a50e8bc0b72eef3cc5657542ec383c9 # v3.1.0
+        ports:
+          - 5000:5000
+
     steps:
       - name: Standardize Git Line Endings
         run: |
@@ -341,9 +350,6 @@ jobs:
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
-
-      - name: Setup Local Docker Registry
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
 
       - name: Show Docker Version
         run: docker version
