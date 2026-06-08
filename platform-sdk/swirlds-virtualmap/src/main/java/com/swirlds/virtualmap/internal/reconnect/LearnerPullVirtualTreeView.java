@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -130,6 +131,20 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         exchangeRootNode(in, out);
 
         final AtomicLong expectedResponses = new AtomicLong(0);
+
+        // Dedicated ordered leaf-apply thread. The leaf hash-feed must stay in anticipatedLeafPaths
+        // FIFO order, but running that drain on a receiver thread lets a long contiguous backlog
+        // block that receiver from reading the socket — stalling the TCP receive window and
+        // throttling the teacher. This single thread performs the ordered drain continuously,
+        // overlapping transfer, while the 16 receivers stay free to drain the socket.
+        workGroup.execute("reconnect-learner-applier", () -> {
+            try {
+                applierLoop(expectedResponses);
+            } catch (final Exception ex) {
+                workGroup.handleError(ex);
+            }
+        });
+
         // FUTURE WORK: configurable number of tasks
         for (int i = 0; i < 16; i++) {
             final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
@@ -144,6 +159,52 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
             final LearnerPullVirtualTreeSendTask learnerSendTask =
                     new LearnerPullVirtualTreeSendTask(workGroup, out, this, expectedResponses, tasksDone);
             learnerSendTask.exec();
+        }
+    }
+
+    /**
+     * Dedicated, single-threaded loop that feeds leaf responses to the hasher in
+     * {@link #anticipatedLeafPaths} FIFO order. Exactly one thread (this one) ever drains the FIFO,
+     * so leaf apply remains single-threaded — identical to the previous behaviour, just relocated
+     * off the receiver threads so a long contiguous-backlog drain can no longer block a receiver
+     * from reading the socket.
+     *
+     * @param expectedResponses the shared outstanding-request counter; reaching zero (after the last
+     *                          leaf request has been sent) means no further responses will arrive
+     */
+    private void applierLoop(final AtomicLong expectedResponses) {
+        while (true) {
+            boolean drainedAny = false;
+            while (true) {
+                final Long nextExpectedPath = anticipatedLeafPaths.peek();
+                if (nextExpectedPath == null) {
+                    break;
+                }
+                final PullVirtualTreeResponse r = responses.remove(nextExpectedPath);
+                if (r == null) {
+                    break; // FIFO head not yet received
+                }
+                handleResponse(r);
+                anticipatedLeafPaths.remove();
+                drainedAny = true;
+            }
+            if (!drainedAny) {
+                // lastLeafSent guards against a transient expectedResponses==0 early in the run.
+                // put-into-`responses` happens-before the decrement, so when the counter is zero
+                // every received leaf is already in the map; if the head is still missing here it
+                // genuinely never arrived (a protocol error), so we exit rather than hang.
+                if (lastLeafSent.get() && expectedResponses.get() == 0) {
+                    if (!anticipatedLeafPaths.isEmpty()) {
+                        logger.error(
+                                RECONNECT.getMarker(),
+                                "Applier exiting with {} undrained leaf path(s); head={}",
+                                anticipatedLeafPaths.size(),
+                                anticipatedLeafPaths.peek());
+                    }
+                    break;
+                }
+                LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
+            }
         }
     }
 
@@ -251,22 +312,6 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         } else {
             responses.put(responsePath, response);
             // Handle responses in the same order as the corresponding requests were sent to the teacher
-            while (true) {
-                final Long nextExpectedPath = anticipatedLeafPaths.peek();
-                if (nextExpectedPath == null) {
-                    break;
-                }
-                final PullVirtualTreeResponse r = responses.remove(nextExpectedPath);
-                if (r == null) {
-                    break;
-                }
-                handleResponse(r);
-                handleResponseCounts
-                        .computeIfAbsent(
-                                Thread.currentThread().getName(), k -> new java.util.concurrent.atomic.LongAdder())
-                        .increment();
-                anticipatedLeafPaths.remove();
-            }
             mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
         }
     }
