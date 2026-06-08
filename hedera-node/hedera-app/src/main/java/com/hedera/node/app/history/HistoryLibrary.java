@@ -6,6 +6,7 @@ import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.SchnorrKeys;
+import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -21,10 +22,10 @@ import java.util.stream.IntStream;
  */
 public interface HistoryLibrary {
     /**
-     * The empty public key to use when a node fails to publish its proof key within the grace period.
+     * The sentinel public key to use when a node fails to publish its proof key within the grace period.
+     * The corresponding private key is intentionally unavailable, so this key must never be used for signing.
      */
-    Bytes MISSING_SCHNORR_KEY = Bytes.fromHex(
-            "8b3288d58331049d2703cf9e1fba5de9565d26eeb97233452d286000d6ce101bbdeeb9632479bd393126759069765e655f2c4bbde7fe7cb98fe9e7a3deaa3129cb0480f74201ff0f3c38f20a73871dc3e7f4e5e2cce872c8f3bf28210ca027244e747258ba0ac3e203576a2152c7f43b9fc885c3afca026dcd5bd933b0ec382146b25b4409f4539f05efc85e6306e9b5b659a7016b63ed0e47303a4bb5e6c8034700ceb44c2242a28e4046d36630fde788785bd06023364ef9bec1c333ad7602");
+    Bytes MISSING_SCHNORR_KEY = Bytes.wrap(WRAPSLibraryBridge.getInstance().provideSentinelPublicKey());
 
     /**
      * An address book for use in the history library.

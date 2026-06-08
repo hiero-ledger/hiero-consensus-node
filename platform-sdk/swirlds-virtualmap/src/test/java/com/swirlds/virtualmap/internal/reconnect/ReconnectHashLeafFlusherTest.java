@@ -2,22 +2,19 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.TestKey.longToKey;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.nio.ByteBuffer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -31,28 +28,18 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 public class ReconnectHashLeafFlusherTest {
 
-    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
-
-    public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);
-
     @Test
     void testNullDataSourceThrows() {
-        final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(null, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats));
+                () -> new ReconnectHashLeafFlusher(null, 100, mock(VirtualMapStatistics.class)));
     }
 
     @Test
     void testNullStatsThrows() {
-        final VirtualDataSource ds = new InMemoryDataSource("testNullStatsThrows");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), null));
+                () -> new ReconnectHashLeafFlusher(mock(VirtualDataSource.class), 100, null));
     }
 
     @ParameterizedTest
@@ -65,7 +52,7 @@ public class ReconnectHashLeafFlusherTest {
         " 9, 8"
     }) // Invalid (both should be equal only if == 1
     @DisplayName("Illegal first and last leaf path combinations throw")
-    void testNadLeafPaths(long firstLeafPath, long lastLeafPath) {
+    void testInvalidLeafPaths(long firstLeafPath, long lastLeafPath) {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         final ReconnectHashLeafFlusher flusher =

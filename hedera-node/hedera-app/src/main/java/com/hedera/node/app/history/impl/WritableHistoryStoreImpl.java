@@ -134,6 +134,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public void clearProofVotes(final long constructionId, @NonNull final Set<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        nodeIds.forEach(nodeId -> votes.remove(new ConstructionNodeId(constructionId, nodeId)));
+    }
+
+    @Override
     public void addWrapsMessage(final long constructionId, @NonNull final WrapsMessagePublication publication) {
         requireNonNull(publication);
         final var key = new ConstructionNodeId(constructionId, publication.nodeId());

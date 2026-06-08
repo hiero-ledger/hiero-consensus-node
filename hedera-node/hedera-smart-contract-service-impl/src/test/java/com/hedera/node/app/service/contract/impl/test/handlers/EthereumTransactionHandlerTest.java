@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -65,7 +66,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
@@ -85,6 +88,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class EthereumTransactionHandlerTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
+
     @Mock
     private EthereumCallDataHydration callDataHydration;
 
@@ -231,6 +241,7 @@ class EthereumTransactionHandlerTest {
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
@@ -288,6 +299,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
@@ -326,6 +338,102 @@ class EthereumTransactionHandlerTest {
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
         assertDoesNotThrow(() -> subject.handle(context));
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndExposesEthTxDataCallInBlocksMode() {
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        setUpTransactionProcessing();
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
+        given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
+        givenSenderAccountWithNonce(SIGNER_NONCE);
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
+
+        final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
+                ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
+                        ETH_DATA_WITH_TO_ADDRESS,
+                        baseProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
+                        null),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
+                null,
+                null);
+        given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
+        given(callRecordBuilder.evmCallTransactionResult(any())).willReturn(callRecordBuilder);
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
+                .willReturn(recordBuilder);
+        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(callRecordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(callRecordBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndExposesEthTxDataCreateInBlocksMode() {
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.hydratedEthTxData())
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        setUpTransactionProcessing();
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
+        given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(baseProxyWorldUpdater.enhancement()).willReturn(enhancement);
+
+        final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
+                ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                List.of(CALLED_CONTRACT_ID),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
+                        ETH_DATA_WITHOUT_TO_ADDRESS,
+                        baseProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
+                null);
+
+        given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
+        given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(createRecordBuilder);
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
+                .willReturn(recordBuilder);
+        givenSenderAccountWithNonce(SIGNER_NONCE);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(createRecordBuilder, never()).contractCreateResult(any());
     }
 
     @Test
@@ -509,6 +617,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
