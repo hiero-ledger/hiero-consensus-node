@@ -465,6 +465,71 @@ public final class GcpPathHelper {
     }
 
     /**
+     * Lists the first object in a GCS directory. Returns the full GCS URI, or null if empty.
+     */
+    public static String listFirstFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        try {
+            final List<String> cmd = new ArrayList<>();
+            cmd.add("gcloud");
+            cmd.add("storage");
+            cmd.add("ls");
+            if (billingProject != null && !billingProject.isEmpty()) {
+                cmd.add("--billing-project=" + billingProject);
+            }
+            cmd.add(gcpPath);
+
+            final ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            final Process process = pb.start();
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty() && !line.endsWith("/")) {
+                        process.destroyForcibly(); // got what we need, don't wait for full listing
+                        return line.trim();
+                    }
+                }
+            }
+            process.waitFor(30, TimeUnit.SECONDS);
+            return null;
+        } catch (IOException | InterruptedException e) {
+            log.debug("Failed to list first file in {}", gcpPath, e);
+            return null;
+        }
+    }
+
+    public static String listLastFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
+        try {
+            final List<String> cmd = new ArrayList<>();
+            cmd.add("gcloud");
+            cmd.add("storage");
+            cmd.add("ls");
+            if (billingProject != null && !billingProject.isEmpty()) {
+                cmd.add("--billing-project=" + billingProject);
+            }
+            cmd.add(gcpPath);
+
+            final ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            final Process process = pb.start();
+            String lastFile = null;
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty() && !line.endsWith("/")) {
+                        lastFile = line.trim();
+                    }
+                }
+            }
+            process.waitFor(30, TimeUnit.SECONDS);
+            return lastFile;
+        } catch (IOException | InterruptedException e) {
+            log.debug("Failed to list last file in {}", gcpPath, e);
+            return null;
+        }
+    }
+
+    /**
      * Validates that all downloaded files with the given extension are non-empty.
      *
      * @throws IOException if any file is empty (likely a partial/failed download)
