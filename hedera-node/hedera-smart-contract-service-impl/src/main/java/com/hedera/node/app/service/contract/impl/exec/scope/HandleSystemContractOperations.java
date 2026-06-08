@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -27,6 +28,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
@@ -122,12 +124,18 @@ public class HandleSystemContractOperations implements SystemContractOperations 
         requireNonNull(result);
         requireNonNull(responseStatus);
         requireNonNull(txResult);
-        context.savepointStack()
+        final var childBuilder = context.savepointStack()
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL)
                 .signedTx(signedTx)
-                .status(responseStatus)
-                .contractCallResult(result)
-                .evmCallTransactionResult(txResult);
+                .status(responseStatus);
+
+        // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
+        if (streamMode != BLOCKS) {
+            childBuilder.contractCallResult(result);
+        }
+        childBuilder.evmCallTransactionResult(txResult);
     }
 
     @Override

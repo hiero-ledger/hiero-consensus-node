@@ -6,9 +6,12 @@ on:
       ref:
         required: true
         description: "The commit sha, tag, or branch to check out"
-      branch_name:
+      branch-name:
         required: false
         description: "The branch name, for JRS Panel output"
+      solo-version:
+        required: false
+        description: "Override default solo version for testing"
       enable-timing-sensitive-test-suite:
         type: boolean
         description: "Run Timing Sensitive Test Suite"
@@ -54,6 +57,16 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      enable-migration-testing-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Migration Testing Panel"
+      enable-hapi-tests-blocks-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -83,18 +96,19 @@ jobs:
       solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
 
       - name: Print Params
         id: params
         run: |
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_XTS_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          SOLO_VERSION="${{ inputs.solo-version || vars.ADHOC_XTS_SOLO_VERSION }}"
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
           HELM_NAME="mirror"
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
           fi
           echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ inputs.branch-name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Timing Sensitive Test Suite: ${{ inputs.enable-timing-sensitive-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hammer Test Suite: ${{ inputs.enable-hammer-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable HAPI Test Suite: ${{ inputs.enable-hapi-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -105,12 +119,22 @@ jobs:
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable HAPI Tests BLOCKS Suite: ${{ inputs.enable-hapi-tests-blocks-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
@@ -124,10 +148,11 @@ jobs:
     name: Execute XTS
     needs:
       - parameters
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
-      branch_name: ${{ inputs.branch_name }}
+      branch-name: ${{ inputs.branch-name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
@@ -142,6 +167,9 @@ jobs:
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
+      enable-hapi-tests-blocks-suite: ${{ inputs.enable-hapi-tests-blocks-suite }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}

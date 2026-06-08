@@ -11,7 +11,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
@@ -96,6 +95,7 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -210,7 +210,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 Bytes.fromHex(
                         "50ea5c2588457b952dba215bcefc5f54a1b87c298e5c0f2a534a8eb7177354126c55ee5c23319187e964443e4c17c007"),
                 node0Dir.resolve("output/swirlds.log"),
-                node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
@@ -274,7 +273,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         return new StateChangesValidator(
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
-                node0.getExternalPath(APPLICATION_PROPERTIES),
                 node0.getExternalPath(DATA_CONFIG_DIR),
                 (adaptiveChecksEnabled || isHintsEnabled) ? HintsEnabled.YES : HintsEnabled.NO,
                 (adaptiveChecksEnabled || isHistoryEnabled) ? HistoryEnabled.YES : HistoryEnabled.NO,
@@ -295,7 +293,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     public StateChangesValidator(
             @NonNull final Bytes expectedRootHash,
             @NonNull final Path pathToNode0SwirldsLog,
-            @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
@@ -332,7 +329,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        final var hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent());
+        final var hedera = ServicesMain.newHedera(
+                platformConfig, fileSystemManager, metrics, Time.getCurrent(), NodeId.FIRST_NODE_ID);
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();
         this.state = stateLifecycleManager.copyMutableState();

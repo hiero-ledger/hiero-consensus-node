@@ -8,11 +8,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
@@ -23,6 +18,10 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.sync.LearnerTreeView;
+import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
+import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -221,7 +220,7 @@ public class ReconnectStateLearner {
             throw e;
         } catch (final Exception e) {
             vmapLearner.abortOnException();
-            throw new MerkleSynchronizationException(e);
+            throw new ReconnectStateException(e);
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;

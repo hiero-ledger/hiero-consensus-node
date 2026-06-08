@@ -95,6 +95,13 @@ public interface HintsService extends Service {
     HintsConstruction activeConstruction();
 
     /**
+     * Sets a completed active construction into the signing context during startup.
+     *
+     * @param construction the active construction to use for signing
+     */
+    void setActiveConstruction(@NonNull HintsConstruction construction);
+
+    /**
      * Whether the signer is ready.
      */
     boolean isReady();
@@ -104,6 +111,13 @@ public interface HintsService extends Service {
      */
     @NonNull
     SigningResult sign(@NonNull Bytes blockHash);
+
+    /**
+     * Notifies the service that a new block has started.
+     *
+     * @param blockNumber the block number being started
+     */
+    void onBlockStarted(long blockNumber);
 
     /**
      * Returns the TSS node-transaction submission helper.

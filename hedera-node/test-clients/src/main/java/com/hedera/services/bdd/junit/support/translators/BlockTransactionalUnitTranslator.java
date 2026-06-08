@@ -107,9 +107,11 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -118,6 +120,9 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockTransactionalUnitTranslator {
     private static final Logger log = LogManager.getLogger(BlockTransactionalUnitTranslator.class);
+
+    private static final Set<HederaFunctionality> RECORD_STREAM_ABSENT_FUNCTIONALITIES =
+            EnumSet.of(STATE_SIGNATURE_TRANSACTION, HINTS_PARTIAL_SIGNATURE, MIGRATION_ROOT_HASH_VOTE);
 
     /**
      * The base translator used to create the {@link SingleTransactionRecord}s.
@@ -252,7 +257,7 @@ public class BlockTransactionalUnitTranslator {
                 if (hookMetadata != null && blockTransactionParts.isHookCall()) {
                     executingHookId = hookMetadata.execHookIds().removeFirst();
                 }
-                if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
+                if (!RECORD_STREAM_ABSENT_FUNCTIONALITIES.contains(blockTransactionParts.functionality())
                         && blockTransactionParts.hasResult()
                         && blockTransactionParts.transactionParts() != null) {
                     final var translation = translator.translate(
