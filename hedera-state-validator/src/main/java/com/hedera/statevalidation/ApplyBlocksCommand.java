@@ -39,7 +39,6 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
     public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
     private long targetRound = DEFAULT_TARGET_ROUND;
     private String expectedHash = "";
-    private int roundsPerSecond = Integer.MAX_VALUE;
     private String billingProject;
     private int downloadThreads = 32;
 
