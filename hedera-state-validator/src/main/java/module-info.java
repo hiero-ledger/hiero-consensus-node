@@ -42,6 +42,7 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.pcli;
     requires org.hiero.consensus.platformstate;
