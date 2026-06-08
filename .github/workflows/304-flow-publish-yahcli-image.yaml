@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Publish Yahcli Image"
+name: "304: [FLOW] Publish Yahcli Image"
 on:
   push:
     tags:
