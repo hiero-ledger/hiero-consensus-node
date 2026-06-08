@@ -140,6 +140,11 @@ public class HintsLibraryImpl implements HintsLibrary {
     }
 
     @Override
+    public void resetCache() {
+        BRIDGE.resetCache();
+    }
+
+    @Override
     public boolean verifyAggregate(
             @NonNull final Bytes signature,
             @NonNull final Bytes message,
