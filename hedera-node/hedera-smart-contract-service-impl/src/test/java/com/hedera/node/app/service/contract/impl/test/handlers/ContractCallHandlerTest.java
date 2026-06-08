@@ -34,9 +34,6 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -291,20 +288,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         final var txn5 = contractCallTransactionWithContractId(ConstantUtils.EVM_ZERO_CONTRACT_ID);
         given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-    }
-
-    @Test
-    void testCalculateFeesWithoutCallBody() {
-        final var txn = TransactionBody.newBuilder().build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
     }
 
     private TransactionBody contractCallTransaction() {

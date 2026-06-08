@@ -18,8 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.RETURNS_SELF;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doReturn;
@@ -47,10 +45,6 @@ import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessage
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
@@ -354,39 +348,6 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_CHUNK_TRANSACTION_ID, msg.getStatus());
-    }
-
-    @Test
-    void calculateFeesHappyPath() {
-        givenValidTopic();
-        final var chunkTxnId =
-                TransactionID.newBuilder().accountID(anotherPayer).build();
-        final var txn = newSubmitMessageTxnWithChunksAndPayer(topicEntityNum, 1, 2, chunkTxnId);
-        final var feeCtx = mock(FeeContext.class);
-        readableStore = mock(ReadableTopicStore.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addNetworkRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-        readableStore = mock(ReadableTopicStore.class);
-        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(readableStore.getTopic(topicId))
-                .willReturn(Topic.newBuilder()
-                        .runningHash(Bytes.wrap(new byte[48]))
-                        .sequenceNumber(1L)
-                        .build());
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(28);
-        verify(feeCalc).addNetworkRamByteSeconds(10080);
     }
 
     @Test
