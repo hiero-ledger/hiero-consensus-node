@@ -729,7 +729,9 @@ verify_block_node_has_blocks() {
   local grpc_err="${WORK_DIR}/grpcurl-block-node-status.err"
   require_cmd grpcurl
   local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
-  local proto_services_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf"
+  # node_service.proto imports services/basic_types.proto; resolve it from this repo's tracked hapi
+  # source (always checked out, build-independent) instead of the BN repo's gitignored generated dir.
+  local proto_hapi_root="${REPO_ROOT}/hapi/hedera-protobuf-java-api/src/main/proto"
   local proto_file="block-node/api/node_service.proto"
   if [[ ! -f "${proto_api_root}/${proto_file}" ]]; then
     echo "verify_block_node_has_blocks: proto not found at ${proto_api_root}/${proto_file}" >&2
@@ -751,7 +753,7 @@ verify_block_node_has_blocks() {
   local deadline=$((SECONDS + timeout_secs)) last_available="" raw=""
   log "Polling ${svc} serverStatus for lastAvailableBlock > 0 (up to ${timeout_secs}s)"
   while (( SECONDS < deadline )); do
-    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_services_root}" \
+    raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>"${grpc_err}")" || true
     last_available="$(echo "${raw}" | jq -r '.lastAvailableBlock // empty' 2>/dev/null || true)"
