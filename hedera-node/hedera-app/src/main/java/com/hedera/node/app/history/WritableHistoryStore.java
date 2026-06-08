@@ -61,6 +61,20 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);
 
     /**
+     * Removes any persisted proof votes for the given construction cast by the given nodes.
+     *
+     * <p>Used when a proof is completed to mirror the in-memory clearing of votes that lets the
+     * network vote again (for example, to convert a freshly built proof into a WRAPS-extensible
+     * one). Without this, a node that restarts or reconnects while a conversion is in flight would
+     * rebuild its controller from the now-superseded persisted votes and treat the subsequent
+     * conversion vote as already counted, diverging the active construction from the live network.
+     *
+     * @param constructionId the construction ID
+     * @param nodeIds the IDs of the nodes whose votes should be removed
+     */
+    void clearProofVotes(long constructionId, @NonNull Set<Long> nodeIds);
+
+    /**
      * Adds a node's signature on a particular assembled history proof for the given construction.
      */
     void addWrapsMessage(long constructionId, @NonNull WrapsMessagePublication publication);
