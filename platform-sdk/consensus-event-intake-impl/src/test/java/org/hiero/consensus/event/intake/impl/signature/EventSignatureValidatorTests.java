@@ -102,11 +102,11 @@ class EventSignatureValidatorTests {
         rosterHistory = buildRosterHistory(
                 PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
-        validatorWithTrueVerifier =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        validatorWithTrueVerifier = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
-        validatorWithFalseVerifier =
-                new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
+        validatorWithFalseVerifier = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, false);
     }
 
     public RosterHistory buildRosterHistory(
@@ -134,8 +134,8 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("An event with a lower round than the available in roster history should not validate")
     void rosterNotFoundForRound() {
-        final EventSignatureValidator signatureValidator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        final EventSignatureValidator signatureValidator = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
@@ -168,7 +168,7 @@ class EventSignatureValidatorTests {
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter, false);
 
         final NodeId nodeId = NodeId.of(88);
 
@@ -257,8 +257,8 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Ancient events are discarded")
     void ancientEvent() {
-        final EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
+        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
+                metrics, time, trueVerifier, rosterHistory, intakeEventCounter, false);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)

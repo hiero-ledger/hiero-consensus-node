@@ -124,7 +124,9 @@ public class SwirldsPlatform implements Platform {
         buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
-        buildingBlocks.gossipModule().start();
+        logger.info(
+                STARTUP.getMarker(),
+                "Gossip skipped (hedera.skipGossipOnStartup=true). " + "Node will not communicate with peers.");
     }
 
     @Override
