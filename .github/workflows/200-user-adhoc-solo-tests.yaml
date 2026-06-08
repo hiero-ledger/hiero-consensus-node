@@ -204,6 +204,10 @@ jobs:
           UPGRADE_TAG: ${{ inputs.scenario == 'jumpstart-075' && (inputs.jumpstart-075-upgrade-tag || 'v0.75.0-rc.3') || inputs.jumpstart-upgrade-tag }}
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          # Remote MinIO record downloads are slow; the migration-vote comparison already validates the
+          # jumpstart, so skip the optional, time-consuming saved-state re-wrap on remote (it re-downloads
+          # all records 0..lastBlock and otherwise blows the job timeout). Kind keeps the full check.
+          VERIFY_STATE_BLOCK_INFO: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'false' || 'true' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
@@ -216,6 +220,7 @@ jobs:
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
+              VERIFY_STATE_BLOCK_INFO="${VERIFY_STATE_BLOCK_INFO}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
