@@ -357,7 +357,10 @@ public final class HashgraphInfo {
          * @return the consensus results, or null if this event didn't decide this round
          */
         public UpdateResults update(@NonNull RoundInfo roundInfo, @NonNull RoundInfoPrev roundInfoPrev) {
-            // make the names look more like the r and x in the tech report
+            // The following 2 variables make the names look more like the tech report.
+            // Each "x" there becomes "this" here. "f(r,x)" becomes "f". "f(r,x,m)" becomes "f[m]".
+            // "r" becomes either "r" or "rp", using the latter for fields with names starting with "prev".
+            // "h" is used instead of this in some cases, to reduce computation, memory usage and garbage collection.
             final RoundInfo r = roundInfo;
             final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = hashgraph;
