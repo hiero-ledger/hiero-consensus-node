@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -156,6 +157,10 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         if (handle == null) {
             return CompletableFuture.completedFuture(null);
         }
+        // Flush the JFR recording before SIGKILL so the data survives. destroyForcibly() sends
+        // SIGKILL which the JVM cannot intercept, so JFR chunks written by disk=true are left
+        // open/locked and unreadable. JFR.stop via jcmd finalizes and closes them first.
+        dumpJfr(handle.pid());
         final var stopFuture = handle.onExit().thenAccept(exited -> {
             log.info("Destroyed PID {}", exited.pid());
             this.processHandle = null;
@@ -285,6 +290,33 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     public enum ReassignPorts {
         YES,
         NO
+    }
+
+    private void dumpJfr(final long pid) {
+        final var javaHome = System.getProperty("java.home");
+        var jcmdPath = javaHome + File.separator + "bin" + File.separator + "jcmd";
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            jcmdPath += ".exe";
+        }
+        final var outputDir = metadata.workingDirOrThrow().resolve(OUTPUT_DIR).toAbsolutePath();
+        final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
+        try {
+            final var jcmd = new ProcessBuilder(
+                            jcmdPath,
+                            Long.toString(pid),
+                            "JFR.stop",
+                            "name=hapitest",
+                            "filename=" + jfrFile)
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!jcmd.waitFor(5, TimeUnit.SECONDS)) {
+                jcmd.destroyForcibly();
+                log.warn("JFR.stop timed out for node{} PID {}", metadata.nodeId(), pid);
+            }
+        } catch (final Exception e) {
+            log.warn("Failed to dump JFR for node{} PID {}", metadata.nodeId(), pid, e);
+        }
     }
 
     private void triggerThreadDump() throws IOException {

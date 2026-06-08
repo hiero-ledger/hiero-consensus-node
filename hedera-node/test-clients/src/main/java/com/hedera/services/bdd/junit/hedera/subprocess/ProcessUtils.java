@@ -230,12 +230,13 @@ public class ProcessUtils {
         }
         // Enable JFR to capture CPU scheduling delays, GC events, and thread activity
         // for diagnosing OS-level starvation spikes visible in JVMPauseDetector and HealthMonitor logs.
-        // FlightRecorderOptions.repository= writes chunks continuously to an existing directory so
-        // they survive a SIGKILL; filename= is only flushed on graceful exit.
+        // disk=true writes chunks to repository= continuously; dumponexit=true finalizes on graceful exit.
+        // For SIGKILL (non-interceptable), SubProcessNode.stopFuture() calls jcmd JFR.stop before kill.
         final var outputDir = metadata.workingDirOrThrow().resolve(OUTPUT_DIR).toAbsolutePath();
         final var jfrFile = outputDir.resolve("jfr-node" + metadata.nodeId() + ".jfr");
         commandLine.add("-XX:FlightRecorderOptions=repository=" + outputDir);
-        commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile + ",settings=profile,disk=true,name=hapitest");
+        commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile
+                + ",settings=profile,disk=true,dumponexit=true,name=hapitest");
         commandLine.addAll(List.of(
                 "--module-path",
                 // Use the same module path that started this process, excluding test-clients
