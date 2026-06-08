@@ -75,6 +75,7 @@ HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
+WRAPS_VERIFY_TIMEOUT_SECS="${WRAPS_VERIFY_TIMEOUT_SECS:-600}"
 
 # Local port-forward + operator key used by the post-upgrade tx nudge that
 # pushes consensus rounds past the genesis WRAPS CRS-adoption stall.
@@ -92,12 +93,12 @@ BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
 BLOCK_NODE_GRPC_LOCAL_PORT="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
-# earliestManagedBlock: must sit ABOVE the CN's current block-stream block number when the
-# BN joins mid-chain. Auto-computed (current max block + margin) unless set explicitly.
-BLOCK_NODE_CUTOVER_START_BLOCK="${BLOCK_NODE_CUTOVER_START_BLOCK:-}"
-BLOCK_NODE_START_BLOCK_MARGIN="${BLOCK_NODE_START_BLOCK_MARGIN:-20}"
-# RSA roster-bootstrap env (BN >= 0.34). Unused in v0.34.0-rc1 (plugin jar not shipped) and
-# this script has no mirror REST exposed inside the BN's reach, so the base URL is left empty.
+# Block Node earliestManagedBlock (also used as the backfill start block). Must sit ABOVE the CN's
+# block-stream tip when the BN joins mid-chain; defaults to a fixed 1000 in deploy_block_node
+# (safely above this short test's tip). Override via env if needed.
+BLOCK_NODE_EARLIEST_MANAGED_BLOCK="${BLOCK_NODE_EARLIEST_MANAGED_BLOCK:-}"
+# RSA roster-bootstrap env (BN >= 0.34). The base URL is left empty because this script has no
+# mirror REST reachable from the BN; the RSA roster is seeded as a file instead (deploy_block_node).
 ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL:-}"
 ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS:-5}"
 ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS:-10}"
@@ -118,7 +119,7 @@ WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-e2e-075-to-076.XXXXXX")"
 NUDGE_SCRIPT="${WORK_DIR}/nudge-consensus.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
 RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
-BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
+BLOCK_NODE_GENERATED_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 APP_PROPS_076_GENERATED_FILE="${WORK_DIR}/application-076-public-wraps.properties"
 MIRROR_PORT_FORWARD_PID=""
@@ -630,15 +631,15 @@ EOF
 # Helm values: earliestManagedBlock/backfill floor + a seed-rsa-bootstrap-roster init
 # container that bakes the roster JSON onto the live PVC. (See the full e2e script for the
 # field-by-field rationale; this is a verbatim port.)
-write_block_node_cutover_values() {
+write_block_node_values() {
   local roster_indented
   roster_indented="$(sed 's/^/          /' "${RSA_BOOTSTRAP_ROSTER_FILE}")"
 
-  cat > "${BLOCK_NODE_CUTOVER_VALUES_FILE}" <<EOF
+  cat > "${BLOCK_NODE_GENERATED_VALUES_FILE}" <<EOF
 blockNode:
   config:
-    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "${BLOCK_NODE_CUTOVER_START_BLOCK}"
-    BACKFILL_START_BLOCK: "${BLOCK_NODE_CUTOVER_START_BLOCK}"
+    BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}"
+    BACKFILL_START_BLOCK: "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}"
     APP_STATE_RSA_BOOTSTRAP_FILE_PATH: "/opt/hiero/block-node/data/live/rsa-bootstrap-roster.json"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL}"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS}"
@@ -690,11 +691,11 @@ deploy_block_node() {
   # earliestManagedBlock must sit ABOVE the CN's current block at deploy time; the BN then
   # snaps down to whatever CN first publishes. This script produces few blocks before this
   # point, so a high constant is safely above current. Override via env if needed.
-  [[ -z "${BLOCK_NODE_CUTOVER_START_BLOCK}" ]] && BLOCK_NODE_CUTOVER_START_BLOCK="1000"
+  [[ -z "${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}" ]] && BLOCK_NODE_EARLIEST_MANAGED_BLOCK="1000"
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
 
   generate_rsa_bootstrap_roster_json || return 1
-  write_block_node_cutover_values
+  write_block_node_values
 
   local add_args=(
     solo block node add
@@ -704,11 +705,11 @@ deploy_block_node() {
     --priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}"
   )
   [[ -n "${BLOCK_NODE_CHART_VERSION}" ]] && add_args+=(--chart-version "${BLOCK_NODE_CHART_VERSION}")
-  local values_files="${BLOCK_NODE_CUTOVER_VALUES_FILE}"
-  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && values_files="${BLOCK_NODE_VALUES_FILE},${BLOCK_NODE_CUTOVER_VALUES_FILE}"
+  local values_files="${BLOCK_NODE_GENERATED_VALUES_FILE}"
+  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && values_files="${BLOCK_NODE_VALUES_FILE},${BLOCK_NODE_GENERATED_VALUES_FILE}"
   add_args+=(--values-file "${values_files}")
 
-  log "Deploying Block Node ${BLOCK_NODE_ID} (earliestManagedBlock=${BLOCK_NODE_CUTOVER_START_BLOCK}, priority '${BLOCK_NODE_PRIORITY_MAPPING}')"
+  log "Deploying Block Node ${BLOCK_NODE_ID} (earliestManagedBlock=${BLOCK_NODE_EARLIEST_MANAGED_BLOCK}, priority '${BLOCK_NODE_PRIORITY_MAPPING}')"
   "${add_args[@]}"
   kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
 }
@@ -770,6 +771,40 @@ verify_block_node_has_blocks() {
   echo "  --- kubectl port-forward log (${svc}) ---" >&2
   cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
+  return 1
+}
+
+# Hard gate: confirm the mirror node imported the LedgerIdPublication transaction (HederaFunctionality
+# 112). It is dispatched as a synthetic admin tx during the 0.76 WRAPS/history ceremony and
+# externalized to the record stream (streamMode=BOTH) that the importer reads from MinIO — i.e. the
+# ledger id reached the MN, ready for 0.77 real-TSS verification.
+verify_mirror_node_has_ledger_id_publication() {
+  local timeout_secs="${1:-300}"
+  local base="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1"
+  local url="${base}/transactions?transactiontype=ledgeridpublication&limit=1"
+  local deadline=$((SECONDS + timeout_secs)) raw="" count=""
+
+  start_mirror_rest_port_forward || {
+    echo "verify_mirror_node_has_ledger_id_publication: mirror REST port-forward failed" >&2
+    return 1
+  }
+
+  log "Verifying mirror node imported the LedgerIdPublication transaction (up to ${timeout_secs}s)"
+  while (( SECONDS < deadline )); do
+    raw="$(curl -sf "${url}" 2>/dev/null || true)"
+    count="$(printf '%s' "${raw}" | jq -r '.transactions | length' 2>/dev/null || echo 0)"
+    if [[ "${count}" =~ ^[0-9]+$ && "${count}" -gt 0 ]]; then
+      log "verify_mirror_node_has_ledger_id_publication: found $(printf '%s' "${raw}" | jq -r '.transactions[0] | "\(.name) consensus_timestamp=\(.consensus_timestamp) result=\(.result)"')"
+      return 0
+    fi
+    sleep 5
+  done
+
+  echo "Mirror node did not import a LedgerIdPublication transaction within ${timeout_secs}s" >&2
+  echo "  --- typed query response (${url}) ---" >&2
+  printf '%s\n' "${raw:-<empty>}" | head -c 800 >&2; echo >&2
+  echo "  --- distinct transaction types the MN imported (recent 100) ---" >&2
+  curl -sf "${base}/transactions?limit=100&order=desc" 2>/dev/null | jq -r '.transactions[].name' 2>/dev/null | sort -u | head -40 >&2 || true
   return 1
 }
 
@@ -1003,7 +1038,7 @@ upgrade_to_local_076() {
   nudge_consensus_with_transactions
 
   log "--- 0.76 check 3/3: verify WRAPS runtime + proof construction on every consensus node ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
 
   report_wraps_download_times
 }
@@ -1063,6 +1098,10 @@ upgrade_to_local_076
 log "--- Post-0.76 BN check: Block Node still receiving + verifying mock-sig blocks ---"
 verify_block_node_has_blocks 180
 
+log "--- Post-0.76 MN check: mirror node imported the LedgerIdPublication (ledger id reached the MN) ---"
+verify_mirror_node_has_ledger_id_publication 300
+
 log "PASS: 0.75 (${DEPLOY_RELEASE_TAG}) -> 0.76 (TSS enabled, mock signatures) upgrade completed cleanly"
 log "PASS: Block Node verified the mock-sig (RSA WRB) blocks across the 0.75 -> 0.76 upgrade"
+log "PASS: Mirror node imported the LedgerIdPublication transaction (ledger id externalized to the MN)"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
