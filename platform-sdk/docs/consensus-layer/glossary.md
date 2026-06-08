@@ -8,7 +8,7 @@ last_reviewed: TBD
 
 The canonical, one-line home for vocabulary used across the consensus-layer KB,
 and the disambiguator for overloaded terms (round / voting round / consensus round /
-birth round; ancient / expired / stale; lagging behind / fallen behind). Entries are
+birth round; ancient / expired / stale; falling behind / fallen behind). Entries are
 deliberately short: where a term needs more than a sentence or two, the entry points
 at the concept file (`concepts/`) or architecture topic (`architecture/topics/`) that
 holds the depth.
@@ -59,16 +59,16 @@ See [concepts/branching.md](concepts/branching.md).
 
 ### Broadcast
 
-A gossip channel that pushes fresh self-events to peers immediately, complementing
-*Sync*; when broadcast is active, sync defers likely-duplicate self-events to avoid
-sending them twice.
+The push side of gossip: layered on the same peer connection as *Sync*, it pushes fresh
+self-events to peers immediately. When broadcast is active, sync defers likely-duplicate
+self-events to avoid sending them twice.
 See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
 ### CGen
 
 *Consensus generation* (`LocalConsensusGeneration`): orders the events that reach consensus
-within a single round (ties broken by event hash). Assigned to those events identically on
-every node, but temporary — cleared once the round is complete. Used only within the
+within a single *Consensus round* (ties broken by event hash). Assigned to those events identically on
+every node, but temporary — cleared once that round is complete. Used only within the
 hashgraph algorithm. Contrast *NGen* and *DeGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
@@ -79,7 +79,7 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Coin round
 
-A periodic round in a fame *Election* (every `coinFreq` rounds, default 12) where a voter
+A periodic round in a fame *Election* (every `coinFreq` *Voting rounds*, default 12) where a voter
 that does not strongly see a super-majority falls back to a pseudo-random bit derived
 from the voter's `coin` field, guaranteeing the election eventually decides.
 See [concepts/coin-rounds.md](concepts/coin-rounds.md).
@@ -87,20 +87,20 @@ See [concepts/coin-rounds.md](concepts/coin-rounds.md).
 ### Consensus / Execution boundary
 
 The interface across which Consensus hands decided rounds, pre-handle events, and stale
-events to Execution and pulls transactions back. In current code it is several callback
-shapes (`onPreHandle`, `onHandleConsensusRound`, `getTransactionsForEvent`, …) rather
+events to Execution and pulls transactions back. In current code it is a set of separate
+callbacks (`onPreHandle`, `onHandleConsensusRound`, `getTransactionsForEvent`, …) rather
 than a single API.
 See [architecture/interfaces/consensus-execution-boundary.md](architecture/interfaces/consensus-execution-boundary.md).
 
 ### Consensus event
 
-An event that has reached consensus, and so carries a *Consensus round*, *Consensus order*,
-and *Consensus timestamp*.
+An event that has reached consensus, and so carries a *Consensus order* and
+*Consensus timestamp*.
 See [concepts/judges.md](concepts/judges.md).
 
 ### Consensus order
 
-The total order over events the algorithm produces once a round is decided, fixed by the
+The total order over events the algorithm produces once a *Voting round* is decided, fixed by the
 round's *Judges* and then split into per-transaction *Consensus timestamps*.
 See [concepts/judges.md](concepts/judges.md).
 
@@ -129,8 +129,9 @@ See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Deduplication
 
-The intake stage that discards events already seen — keyed per creator — so the pipeline
-and hashgraph process each event once.
+The intake stage that discards events already seen — keyed on the `(descriptor, signature)`
+pair — so the pipeline and hashgraph process each event once. A known descriptor arriving
+with a new signature is kept, not dropped (a disparate signature).
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### DeGen
@@ -148,14 +149,14 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Election
 
-The per-round fame vote on a witness. A round is *decided* once every witness in it has a
+The per-round fame vote on a witness. A *Voting round* is *decided* once every witness in it has a
 fame verdict, at which point that round's *Judges* and consensus order are fixed.
 See [concepts/voting.md](concepts/voting.md).
 
 ### Event
 
-A signed record created by one node, containing transactions, parent hashes, and a birth
-round; events are the vertices of the hashgraph DAG.
+A signed record created by one node, that may contain transactions, information about its
+parent events, and some other metadata. Events are the vertices of the hashgraph DAG.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Event creator
@@ -200,26 +201,33 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 ### Fallen behind
 
 The condition of a node so far behind that the events it needs are already expired on its
-peers, so gossip cannot close the gap and it must *Reconnect*. Contrast *Lagging behind*,
+peers, so gossip cannot close the gap and it must *Reconnect*. Contrast *Falling behind*,
 which is still recoverable by gossip.
 See [architecture/topics/reconnect.md](architecture/topics/reconnect.md).
 
+### Falling behind
+
+A node trailing its peers but still able to catch up through gossip; such a node may
+self-suppress event creation to avoid authoring events that would go *Stale*. Contrast
+*Fallen behind*.
+See [architecture/topics/reasons-not-to-gossip.md](architecture/topics/reasons-not-to-gossip.md).
+
 ### Famous witness
 
-A *Witness* voted *famous* by virtual voting. The famous witnesses of a round, merged to
+A *Witness* voted *famous* by virtual voting. The famous witnesses of a *Voting round*, merged to
 one per creator, are its *Judges*.
 See [concepts/voting.md](concepts/voting.md).
 
 ### firstSee
 
-`firstSee(x, m)` — the first *Witness* on *x*'s self-ancestor line in the round of
+`firstSee(x, m)` — the first *Witness* on *x*'s self-ancestor line in the *Voting round* of
 `lastSee(x, m)` (the most recent event by creator *m* that is an ancestor of *x*). A
 *see*-family helper used with *lastSee* and *seeThru* to compute *Strongly seeing*.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
 ### Freeze and upgrade
 
-A coordinated network freeze at a chosen round that quiesces consensus so every node can
+A coordinated network freeze at a chosen *Consensus round* that stops consensus so every node can
 take a matching state and restart on new software.
 See [architecture/topics/freeze-and-upgrade.md](architecture/topics/freeze-and-upgrade.md).
 
@@ -241,13 +249,15 @@ A per-event count: one plus the maximum parent generation. The paper used a sing
 *deterministic* generation as the ancient horizon; current code uses *Birth round* for that
 and keeps three separate generation counters instead, each calculated differently and used
 for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
-for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a round).
+for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
+*Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).
 
 ### Gossip
 
-Peer-to-peer event exchange. The consensus layer uses a *Sync* protocol plus an optional
-*Broadcast* channel, governed by neighbor-discipline rules for when not to gossip.
+Peer-to-peer event exchange. Over each peer connection the consensus layer multiplexes a
+*Sync* protocol and an optional *Broadcast* of self-events, governed by neighbor-discipline
+rules for when not to gossip.
 See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
 ### Hashgraph
@@ -279,17 +289,14 @@ See [architecture/topics/iss-detection.md](architecture/topics/iss-detection.md)
 
 ### Judge
 
-The unique *Famous witness* for a creator in a decided round; the judges of a round
+The unique *Famous witness* for a creator in a decided *Voting round*; the judges of a *Voting round*
 jointly fix the *Consensus round* (and thus consensus order) of every event that is an
 ancestor of all of them. The paper terms these "unique famous witnesses."
 See [concepts/judges.md](concepts/judges.md).
 
 ### Lagging behind
 
-A node trailing its peers but still able to catch up through gossip; a lagging node may
-self-suppress event creation to avoid authoring events that would go *Stale*. Contrast
-*Fallen behind*.
-See [architecture/topics/reasons-not-to-gossip.md](architecture/topics/reasons-not-to-gossip.md).
+The older name for *Falling behind*. See *Falling behind*.
 
 ### lastSee
 
@@ -305,7 +312,7 @@ See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
 ### Min judge birth round
 
-The smallest *Birth round* among a decided round's *Judges*; stored per round as
+The smallest *Birth round* among a decided *Voting round*'s *Judges*; stored per round as
 `MinimumJudgeInfo`, it anchors the *Ancient threshold* and *Expired threshold*.
 See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
@@ -331,9 +338,8 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Other-parent
 
-A parent edge to an event by a different creator (the peer just gossiped with). The data
-model allows several; the current default caps it at one (`maxOtherParents`). Contrast
-*Self-parent*.
+A parent edge to an event by a different creator. The data model allows several; the current
+default caps it at one (`maxOtherParents`). Contrast *Self-parent*.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Parent
@@ -362,7 +368,7 @@ See [architecture/interfaces/consensus-execution-boundary.md](architecture/inter
 
 ### Prehandle
 
-Execution's early, per-event pass over an event's transactions, before its round reaches
+Execution's early, per-event pass over an event's transactions, before it reaches
 consensus; an event sent to prehandle that later goes *Stale* must be reported back to
 Execution so prehandle state can be reconciled.
 See [concepts/stale-events.md](concepts/stale-events.md).
@@ -370,8 +376,8 @@ See [concepts/stale-events.md](concepts/stale-events.md).
 ### Quiescence
 
 An opt-in feature that pauses self-event creation when nothing is pending and no deadline
-is near, and that constrains how stale events are reported across the
-Consensus / Execution boundary.
+is near, and that constrains how preconsensus, consensus, and stale events are reported
+across the Consensus / Execution boundary.
 See [architecture/topics/quiescence.md](architecture/topics/quiescence.md).
 
 ### Reconnect
@@ -397,9 +403,10 @@ See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
 ### Round timestamp
 
-The end-of-round timestamp (`ConsensusRound.getConsensusTimestamp`): the *Consensus
+The end-of-round timestamp (`ConsensusRound.getConsensusTimestamp`): normally the *Consensus
 timestamp* of the last transaction of the round's last event, strictly greater than the
-previous round's.
+previous round's. Edge cases — a round with no events, or events with no transactions — fall
+back to a derived value.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Round-created
@@ -409,7 +416,7 @@ See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
 ### Round-received
 
-Deprecated name for *Consensus round* (sense a); still used in code but being phased out.
+Deprecated name for *Consensus round*; still used in code but being phased out.
 See [concepts/rounds-and-witnesses.md](concepts/rounds-and-witnesses.md).
 
 ### Scheduler
@@ -454,8 +461,8 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Self-event
 
-An event a node creates itself (as opposed to receiving via gossip); the creator tracks
-its latest self-event locally to use as the next *Self-parent*.
+An event a node creates itself; the creator tracks its latest self-event locally to use as
+the next *Self-parent*.
 See [architecture/topics/event-creator.md](architecture/topics/event-creator.md).
 
 ### Self-parent
@@ -472,7 +479,7 @@ See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
 ### Signed state
 
-A periodic snapshot of the application state for a round, hashed and signed by nodes; a
+A periodic snapshot of the application state for a *Consensus round*, hashed and signed by nodes; a
 threshold of signatures makes it usable for *Reconnect* and for *ISS* detection.
 See [architecture/topics/signed-state-management.md](architecture/topics/signed-state-management.md).
 
@@ -499,20 +506,20 @@ See [concepts/stale-events.md](concepts/stale-events.md).
 ### Strongly seeing
 
 Event *x* *strongly sees* witness *y* when a *Super-majority* of roster weight, spread
-across distinct creators, lies on paths between *y* and *x*. The relation gates round
-bumps and fame voting and is what keeps consensus safe under *Branching*.
+across distinct creators, lies on paths between *y* and *x*. The relation gates voting
+round bumps and fame voting and is what keeps consensus safe under *Branching*.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
 ### Super-majority
 
-More than two-thirds of total roster weight; the threshold for *Strongly seeing*, round
-bumps, and fame *Election* decisions.
+More than two-thirds of total roster weight; the threshold for *Strongly seeing*, voting
+round bumps, and fame *Election* decisions.
 See [concepts/strongly-seeing.md](concepts/strongly-seeing.md).
 
 ### Sync
 
 The three-phase gossip protocol in which two peers exchange event windows and *Tips*, then
-send each other the events the other lacks; the primary catch-up channel. Contrast
+send each other the events the other lacks; the primary catch-up mechanism. Contrast
 *Broadcast*.
 See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 
@@ -543,7 +550,7 @@ See [concepts/voting.md](concepts/voting.md).
 
 ### Voter
 
-A *Witness* that votes in the *Elections* of earlier rounds (`votingWitness`): one round
+A *Witness* that votes in the *Elections* of earlier *Voting rounds* (`votingWitness`): one round
 later it casts a *first vote* (does it see the candidate?), and in later rounds a *counting
 vote* (the tally over the voters it strongly sees).
 See [concepts/voting.md](concepts/voting.md).
