@@ -2,19 +2,36 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.ServicesMain;
+import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.base.time.Time;
+import com.swirlds.state.merkle.StateKeyUtils;
+import com.swirlds.virtualmap.VirtualMapIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.config.PathsConfig;
 
 /**
  * Validates the structure of blocks, including both normal blocks and Wrapped Record Blocks (WRBs)
@@ -26,14 +43,76 @@ public class BlockContentsValidator implements BlockStreamValidator {
     private static final int REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE = 3;
 
     public static void main(String[] args) {
-        final var node0Dir = Paths.get("hedera-node/test-clients")
-                .resolve(workingDirFor(0, "hapi"))
+        final var savedStateDir = Paths.get("hedera-node/test-clients/hapi-nodejs/.saved/compressed/175900")
                 .toAbsolutePath()
                 .normalize();
-        final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
-        validator.validateBlocks(blocks);
+        final var metrics = new NoOpMetrics();
+        final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final var hedera =
+                ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent(), NodeId.FIRST_NODE_ID);
+        final var stateLifecycleManager = hedera.getStateLifecycleManager();
+
+        try {
+            stateLifecycleManager.loadSnapshot(savedStateDir);
+            final var state = stateLifecycleManager.getMutableState();
+            hedera.initializeStatesApi(state, RESTART, platformConfig);
+            final var virtualMap = state.getRoot();
+            try {
+                final var tokensIterator = new VirtualMapIterator(virtualMap)
+                        .setFilter(leafBytes -> StateKeyUtils.extractStateIdFromStateKeyOneOf(leafBytes.keyBytes())
+                                == V0490TokenSchema.TOKENS_STATE_ID);
+                while (tokensIterator.hasNext()) {
+                    final var leafRecord = tokensIterator.next();
+                    final var keyBytes = leafRecord.keyBytes();
+
+                    final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
+                    final TokenID tokenId = stateKey.key().as();
+                    final StateValue stateValue = StateValue.PROTOBUF.parse(
+                            leafRecord.valueBytes().toReadableSequentialData(),
+                            false,
+                            false,
+                            Codec.DEFAULT_MAX_DEPTH,
+                            Integer.MAX_VALUE);
+                    final Token token = stateValue.value().as();
+
+                    final List<String> emptyRoleKeys = new ArrayList<>();
+                    if (token.hasAdminKey() && isEmpty(token.adminKey())) {
+                        emptyRoleKeys.add("adminKey");
+                    }
+                    if (token.hasKycKey() && isEmpty(token.kycKey())) {
+                        emptyRoleKeys.add("kycKey");
+                    }
+                    if (token.hasFreezeKey() && isEmpty(token.freezeKey())) {
+                        emptyRoleKeys.add("freezeKey");
+                    }
+                    if (token.hasWipeKey() && isEmpty(token.wipeKey())) {
+                        emptyRoleKeys.add("wipeKey");
+                    }
+                    if (token.hasSupplyKey() && isEmpty(token.supplyKey())) {
+                        emptyRoleKeys.add("supplyKey");
+                    }
+                    if (token.hasFeeScheduleKey() && isEmpty(token.feeScheduleKey())) {
+                        emptyRoleKeys.add("feeScheduleKey");
+                    }
+                    if (token.hasPauseKey() && isEmpty(token.pauseKey())) {
+                        emptyRoleKeys.add("pauseKey");
+                    }
+                    if (token.hasMetadataKey() && isEmpty(token.metadataKey())) {
+                        emptyRoleKeys.add("metadataKey");
+                    }
+
+                    if (!emptyRoleKeys.isEmpty()) {
+                        System.out.printf("Token %s has empty role keys: %s%n", tokenId, emptyRoleKeys);
+                    }
+                }
+            } finally {
+                virtualMap.release();
+            }
+        } catch (IOException | ParseException e) {
+            logger.error("Failed to inspect token keys from saved state {}", savedStateDir, e);
+        }
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
