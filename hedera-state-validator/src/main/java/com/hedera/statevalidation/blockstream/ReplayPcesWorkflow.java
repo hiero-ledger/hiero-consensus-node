@@ -8,9 +8,12 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -32,7 +35,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
@@ -40,6 +42,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -107,11 +110,11 @@ public final class ReplayPcesWorkflow {
         requireNonNull(consensusEventStreamName);
 
         // --- Construct the Hedera execution layer exactly as ServicesMain does ---
-        final Hedera hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
+        final Hedera hedera = ServicesMain.newHedera(platformConfig, metrics, time);
         final SemanticVersion version = hedera.getSemanticVersion();
         log.info("Replaying PCES on node {} with software version {}", selfId, version);
 
-        final var recycleBin = org.hiero.consensus.io.RecycleBinImpl.create(
+        final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
@@ -146,14 +149,14 @@ public final class ReplayPcesWorkflow {
         // --- Roster + keys (same derivation the platform uses at restart/reconnect) ---
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         final KeysAndCerts keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         // Computed deterministically from config by the same public helper ServicesMain uses.
-        final int transactionOffsetNanos = ServicesMain.transactionOffsetNanos(platformConfig);
-        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+     //   final int transactionOffsetNanos = ServicesMain.transactionOffsetNanos(platformConfig);
+      //  hedera.setTxnOffsetNanos(transactionOffsetNanos);
 
         // --- Build the platform (constructor priming runs inside build()) ---
         final PlatformComponentBuilder componentBuilder = PlatformBuilder.create(
@@ -170,8 +173,7 @@ public final class ReplayPcesWorkflow {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventConsumer(hedera)
-                .withTransactionOffsetNanos(transactionOffsetNanos)
+                .withStaleEventCallback(hedera)
                 .buildComponentBuilder();
 
         final Platform platform = componentBuilder.build();
@@ -245,7 +247,7 @@ public final class ReplayPcesWorkflow {
             @NonNull final NodeId selfId)
             throws IOException {
 
-        final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
+        final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
 
         // Find the directory in pcesDir that actually contains the .pces files. blocks-to-pces writes them under a
         // node-id subdirectory (node 0). Accept either pcesDir directly containing .pces files, or a single

@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import com.hedera.node.app.ServicesMain;
 import com.hedera.statevalidation.blockstream.ReplayPcesWorkflow;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -14,8 +15,6 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -116,9 +115,7 @@ public class ReplayPcesCommand implements Callable<Integer> {
         final Time time = Time.getCurrent();
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
 
-        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
-        final FileSystemManager fileSystemManager =
-                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
 
         final long resultRound = ReplayPcesWorkflow.run(
                 stateDir,
