@@ -20,37 +20,28 @@ on:
         default: "jumpstart"
         options:
           - "jumpstart"
-          - "jumpstart-075"
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
       cluster-target:
-        description: "Where to run. kind = ephemeral cluster on the runner (all scenarios); remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport, jumpstart-075 only (others fail fast)."
+        description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
         required: true
         type: choice
         default: "kind"
         options:
           - "kind"
           - "remote-sdlt-n6"
-      # Shared by both the jumpstart and jumpstart-075 scenarios (you only ever run one per dispatch).
-      # The blank-default differs by scenario and is resolved in the job's env below: the upgrade tag
-      # defaults to the local build for jumpstart, and to v0.75.0-rc.3 for jumpstart-075.
       jumpstart-starting-tag:
-        description: "[Jumpstart(-075)] Consensus-node release tag for the initial network deploy. Blank → v0.74.0."
+        description: "[Jumpstart] Consensus-node release tag for the initial network deploy. Blank → v0.74.0."
         required: false
         type: string
         default: ""
       jumpstart-upgrade-tag:
-        description: "[Jumpstart(-075)] Consensus-node release tag to upgrade to. Blank → local build (jumpstart) / v0.75.0-rc.3 (075)."
-        required: false
-        type: string
-        default: ""
-      streaming-tag:
-        description: "[Streaming] Consensus-node release tag for the WRB streaming network deploy (e.g. v0.74.0-rc.1). Blank → local build."
+        description: "[Jumpstart] Consensus-node release tag to upgrade to. Blank → v0.75.0-rc.5; 'local' → the local build from the checked-out ref; or any release tag."
         required: false
         type: string
         default: ""
       cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.3."
+        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.5."
         required: false
         type: string
         default: ""
@@ -64,13 +55,13 @@ permissions:
   actions: read
   id-token: write # required for Teleport OIDC auth when cluster-target == remote-sdlt-n6
 
-# Remote is only offered for jumpstart-075 (enforced by the validate-inputs job). Those jumpstart-075
-# remote runs share the solo-sdlt-n6 namespace + solo-sdlt-n6-test deployment, so they must run
-# one-at-a-time: concurrent runs collide (Solo deployment lock contention, and one run's "consensus
-# network destroy" deletes another's solo-remote-config ConfigMap / network pods). Everything else
-# (all Kind runs) is isolated per run, so it gets a unique group (github.run_id) and may run in parallel.
+# Every remote-sdlt-n6 run (any scenario) shares the solo-sdlt-n6 namespace + solo-sdlt-n6-test
+# deployment, so they must run one-at-a-time: concurrent runs collide (Solo deployment lock contention,
+# and one run's "consensus network destroy" deletes another's solo-remote-config ConfigMap / pods).
+# Kind runs are isolated (ephemeral cluster per run), so they get a unique group and may run in parallel.
+# Note: GitHub keeps only one queued run per group, so dispatch remote runs one at a time.
 concurrency:
-  group: ${{ (inputs.scenario == 'jumpstart-075' && inputs.cluster-target == 'remote-sdlt-n6') && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
+  group: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -89,28 +80,11 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Gate the whole workflow: remote-sdlt-n6 is wired/validated ONLY for jumpstart-075. Reject it for
-  # any other scenario here (before any runner/Teleport work) so the selection can't silently fall
-  # back to Kind. Every scenario job "needs" this, so a rejection skips them with a clear message.
-  validate-inputs:
-    name: Validate Inputs
-    runs-on: hl-cn-rpc-relay-lin-lg
-    steps:
-      - name: Reject remote-sdlt-n6 for non jumpstart-075 scenarios
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' && inputs.scenario != 'jumpstart-075' }}
-        run: |
-          echo "::error::cluster-target=remote-sdlt-n6 is only supported for the 'jumpstart-075' scenario. Scenario '${{ inputs.scenario }}' is Kind-only for now; re-run it with cluster-target=kind."
-          exit 1
-      - name: Inputs validated
-        run: |
-          echo "scenario=${{ inputs.scenario }}, cluster-target=${{ inputs.cluster-target }} — validated."
-
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
-      - validate-inputs
-    if: ${{ inputs.scenario == 'jumpstart' || inputs.scenario == 'jumpstart-075' }}
+    if: ${{ inputs.scenario == 'jumpstart' }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
@@ -213,14 +187,16 @@ jobs:
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
-        # jumpstart-075 always upgrades to a release tag, so it never needs a local build.
-        if: ${{ inputs.scenario == 'jumpstart' && inputs.jumpstart-upgrade-tag == '' }}
+        # Only the explicit local-build opt-in (jumpstart-upgrade-tag=local) needs a local build; the
+        # default (v0.75.0-rc.5) and any release tag pull the published image instead.
+        if: ${{ inputs.jumpstart-upgrade-tag == 'local' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
         env:
           INITIAL_RELEASE_TAG: ${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}
-          UPGRADE_TAG: ${{ inputs.scenario == 'jumpstart-075' && (inputs.jumpstart-upgrade-tag || 'v0.75.0-rc.3') || inputs.jumpstart-upgrade-tag }}
+          # Raw input; the run step resolves blank → v0.75.0-rc.5 and the "local" sentinel → local build.
+          RAW_UPGRADE_TAG: ${{ inputs.jumpstart-upgrade-tag }}
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
           # Remote MinIO record downloads are slow; the migration-vote comparison already validates the
@@ -229,6 +205,13 @@ jobs:
           VERIFY_STATE_BLOCK_INFO: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'false' || 'true' }}
         run: |
           set -eo pipefail
+          # Resolve the upgrade target: blank → pinned v0.75.0-rc.5; "local" → local build (empty
+          # UPGRADE_TAG makes the script take its --local-build-path path); else → that release tag.
+          if [[ "${RAW_UPGRADE_TAG}" == "local" ]]; then
+            UPGRADE_TAG=""
+          else
+            UPGRADE_TAG="${RAW_UPGRADE_TAG:-v0.75.0-rc.5}"
+          fi
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 75m \
@@ -291,7 +274,6 @@ jobs:
     name: "Solo E2E Block Stream Cutover"
     needs:
       - extract-jdk-version
-      - validate-inputs
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 180
@@ -422,7 +404,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 150m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.3' }}" \
+              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.5' }}" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
@@ -478,7 +460,6 @@ jobs:
     name: "Solo WRB Streaming to Block Node"
     needs:
       - extract-jdk-version
-      - validate-inputs
     if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
@@ -589,10 +570,6 @@ jobs:
 
           echo "BLOCK_NODE_CHART_VERSION=${latest_bn_tag}" >> "${GITHUB_ENV}"
 
-      - name: Build Consensus Node Local Artifacts
-        if: ${{ inputs.streaming-tag == '' }}
-        run: ${GRADLE_EXEC} assemble
-
       - name: Run WRB Streaming to Block Node Scenario
         env:
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
@@ -603,10 +580,10 @@ jobs:
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
-              RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
-              BLOCK_NODE_RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
+              RELEASE_TAG="v0.75.0-rc.5" \
+              BLOCK_NODE_RELEASE_TAG="v0.73.0" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
-              USE_LOCAL_BUILD="${{ inputs.streaming-tag == '' && 'true' || 'false' }}" \
+              USE_LOCAL_BUILD="false" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \

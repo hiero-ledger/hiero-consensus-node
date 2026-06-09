@@ -26,7 +26,7 @@ Environment:
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars, used when UPGRADE_TAG is
                                 empty (default: <repo>/hedera-node/data)
   LOCAL_BUILD_UPGRADE_TAG       Placeholder upgrade-version Solo applies to a local-build upgrade
-                                (default: v0.75.0-rc.3)
+                                (default: v0.75.0-rc.5)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
                                 (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
   BASE_074_APP_PROPS_FILE       Base 0.74 properties used to generate temp upgrade file
@@ -63,7 +63,7 @@ up to BlockInfo.lastBlockNumber.
 
 Examples:
   ./solo-wrb-jumpstart.sh
-  NODE_ALIASES=node1,node2,node3 UPGRADE_TAG=v0.75.0-rc.3 ./solo-wrb-jumpstart.sh --nodes 3
+  NODE_ALIASES=node1,node2,node3 UPGRADE_TAG=v0.75.0-rc.5 ./solo-wrb-jumpstart.sh --nodes 3
 EOF
 }
 
@@ -140,7 +140,7 @@ INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.74.0}"
 #   UPGRADE_TAG set   -> tag-based upgrade to that release, no local build
 UPGRADE_TAG="${UPGRADE_TAG:-}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.3}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.5}"
 USE_LOCAL_BUILD_FOR_UPGRADE="false"
 SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
