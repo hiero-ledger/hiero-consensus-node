@@ -1200,16 +1200,20 @@ public class UtilVerbs {
      * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To
      * avoid that race this operation waits for the externalization log to appear before returning - driving rounds
      * via small system transfers so the proof can finish even if the surrounding spec is otherwise quiescent. With
-     * history disabled (or on non-subprocess networks) the externalization log never appears and we fall back to
-     * a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
+     * history disabled, {@code blockStream.streamMode=RECORDS} (which deactivates TSS regardless of
+     * {@code tss.historyEnabled}), or on non-subprocess networks, the externalization log never appears and we
+     * fall back to a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
         return sourcingContextual(spec -> {
+            // Match TssBlockHashSigner's gating: TSS only runs when history is enabled AND the block stream is
+            // active (streamMode != RECORDS); otherwise the "Externalizing ledger id" log never appears.
             final boolean waitForExternalization = spec.targetNetworkOrThrow() instanceof SubProcessNetwork
-                    && spec.startupProperties().getBoolean("tss.historyEnabled");
+                    && spec.startupProperties().getBoolean("tss.historyEnabled")
+                    && !"RECORDS".equals(spec.startupProperties().get("blockStream.streamMode"));
             if (waitForExternalization) {
                 return exposeExternalizedLedgerIdFromHgcaaLogTo(
                         NodeSelector.byNodeId(0),
