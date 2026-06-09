@@ -156,9 +156,16 @@ class HistoryServiceImplTest {
     void noopReconciliationIfBootstrapHasProof() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        // isCompleted() requires an uncompressed WRAPS proof when tss.wrapsEnabled=true (new default),
+        // so supply a wraps-extensible proof to keep the test asserting what it's meant to:
+        // that reconcile is a no-op once a proof is complete.
+        final var wrapsExtensibleProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.newBuilder()
-                        .targetProof(HistoryProof.DEFAULT)
+                        .targetProof(wrapsExtensibleProof)
                         .build());
 
         subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);

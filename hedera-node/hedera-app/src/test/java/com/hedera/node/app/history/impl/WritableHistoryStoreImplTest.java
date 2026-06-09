@@ -139,7 +139,15 @@ class WritableHistoryStoreImplTest {
 
     @Test
     void expectedWrapsProvingKeyHashIsNullUntilSet() {
-        assertNull(subject.getWrapsProvingKeyHash());
+        // After doGenesisSetup() with the default config (which now has a non-blank
+        // wrapsProvingKeyHash), the store is pre-populated with the configured hash.
+        // getWrapsProvingKeyHash() returns null only when the stored value is Bytes.EMPTY.
+        final var configuredHash = TSS_CONFIG.wrapsProvingKeyHash();
+        if (configuredHash.isBlank()) {
+            assertNull(subject.getWrapsProvingKeyHash());
+        } else {
+            assertEquals(Bytes.fromHex(configuredHash), subject.getWrapsProvingKeyHash());
+        }
 
         final var hash = Bytes.wrap("proving-key-hash");
         subject.setWrapsProvingKeyHash(hash);
