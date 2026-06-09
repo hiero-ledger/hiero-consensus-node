@@ -92,6 +92,11 @@ jobs:
         if: ${{ github.event.repository.private == false }}
         run: snyk --version
 
+      - name: Snyk Scan - Disable Gradle Isolated Projects
+        id: snyk-scan-disable-isolated-projects
+        if: ${{ github.event.repository.private == false }}
+        run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
+
       - name: Snyk Scan
         id: snyk-scan
         if: ${{ github.event.repository.private == false }}
