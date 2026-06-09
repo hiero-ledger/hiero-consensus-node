@@ -214,8 +214,15 @@ val prCheckPropOverrides =
         "hapiTestSmartContract" to
             "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+        // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
+        // tss.historyEnabled=false by config default; with the new branch default of true the
+        // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
+        // forceMockSignatures=false) needs to make progress concurrently with multi-restart
+        // pressure. The interaction is fragile enough that DabEnabledUpgradeTest's upgrade flows
+        // start timing out as the network falls behind. Pin historyEnabled to its main-branch
+        // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWrapsDownload" to
             "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
