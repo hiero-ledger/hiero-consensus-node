@@ -95,6 +95,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
+    // Diagnostic: total time each receiver thread spends in the eager storeDirtyLeaf() call
+    // (checkOldLeafToBeDeleted + updateLeaf). Confirms the store cost moved off the applier and
+    // is spread across the 16 receivers. A thread whose storeMs is large while its readBlockedMs
+    // (receive-task breakdown) climbs is stalling on a flush — the flush-on-receiver risk.
+    private final ConcurrentHashMap<String, LongAdder> storeNanos = new ConcurrentHashMap<>();
+
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
@@ -173,6 +179,10 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      *                          leaf request has been sent) means no further responses will arrive
      */
     private void applierLoop(final AtomicLong expectedResponses) {
+        long handleNanos = 0;
+        long parkNanos = 0;
+        long drained = 0;
+        int maxResponsesMapSize = 0;
         while (true) {
             boolean drainedAny = false;
             while (true) {
@@ -184,9 +194,16 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 if (r == null) {
                     break; // FIFO head not yet received
                 }
+                final long handleStart = System.nanoTime();
                 handleResponse(r);
+                handleNanos += System.nanoTime() - handleStart;
                 anticipatedLeafPaths.remove();
                 drainedAny = true;
+                drained++;
+            }
+            final int mapSize = responses.size();
+            if (mapSize > maxResponsesMapSize) {
+                maxResponsesMapSize = mapSize;
             }
             if (!drainedAny) {
                 // lastLeafSent guards against a transient expectedResponses==0 early in the run.
@@ -203,9 +220,18 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                     }
                     break;
                 }
+                final long parkStart = System.nanoTime();
                 LockSupport.parkNanos(50_000L); // head in flight; nothing to drain this pass
+                parkNanos += System.nanoTime() - parkStart;
             }
         }
+        logger.info(
+                RECONNECT.getMarker(),
+                "Applier summary: drained={} handleMs={} parkMs={} maxResponsesMapSize={}",
+                drained,
+                handleNanos / 1_000_000,
+                parkNanos / 1_000_000,
+                maxResponsesMapSize);
     }
 
     /**
@@ -258,6 +284,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     public void onSuccessfulComplete() {
         handleResponseCounts.forEach((thread, count) ->
                 logger.info(RECONNECT.getMarker(), "handleResponse count: thread={} count={}", thread, count.sum()));
+        storeNanos.forEach((thread, ns) -> logger.info(
+                RECONNECT.getMarker(), "storeDirtyLeaf time: thread={} storeMs={}", thread, ns.sum() / 1_000_000));
         vmapLearner.finish();
     }
 
@@ -310,8 +338,19 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                     .increment();
             mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
         } else {
+            // Eager, order-independent store: stale-key tracking + leaf store, done in parallel
+            // on this receiver the moment the leaf arrives. Only the ordered supply() is deferred
+            // to the applier. nodeReceived is a no-op for leaf paths, so it is not needed here.
+            if (!response.isClean() && reconnectState.getLastLeafPath() > 0) {
+                final VirtualLeafBytes<?> leaf = response.leafData();
+                assert leaf != null && leaf.path() == responsePath;
+                final long storeStart = System.nanoTime();
+                vmapLearner.storeDirtyLeaf(leaf);
+                storeNanos
+                        .computeIfAbsent(Thread.currentThread().getName(), k -> new LongAdder())
+                        .add(System.nanoTime() - storeStart);
+            }
             responses.put(responsePath, response);
-            // Handle responses in the same order as the corresponding requests were sent to the teacher
             mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
         }
     }
@@ -333,7 +372,9 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
+                // Store already happened eagerly in responseReceived. Here, on the applier in
+                // FIFO order, do only the ordered hash-feed. May block if hashing is slower than ingest.
+                vmapLearner.supplyDirtyLeaf(leaf);
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
         } else {

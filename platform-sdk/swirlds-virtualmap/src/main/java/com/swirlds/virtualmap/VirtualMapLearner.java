@@ -280,6 +280,37 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * Order-independent half of dirty-leaf handling: stale-key delete tracking and the leaf
+     * store. Both go through the thread-safe {@link ReconnectHashLeafFlusher} (never the
+     * single-threaded cache) and tolerate out-of-order calls, so this may be called eagerly
+     * from any receiver thread the moment a leaf arrives, in parallel.
+     */
+    public void storeDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        assert stage.get() == Stage.INITIALIZED : "reconnect is not initialized yet";
+        checkOldLeafToBeDeleted(leaf);
+        reconnectFlusher.updateLeaf(leaf);
+    }
+
+    /**
+     * Ordered half of dirty-leaf handling: feeds the leaf into the hashing pipeline. The hasher
+     * requires leaves in ascending path order, so this MUST be called in anticipatedLeafPaths
+     * FIFO order, by a single thread. May block if the hasher is slower than ingest.
+     */
+    public void supplyDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        try {
+            reconnectIterator.supply(leaf);
+        } catch (final MerkleSynchronizationException e) {
+            throw e;
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException(
+                    "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
+        } catch (final Exception e) {
+            throw new MerkleSynchronizationException("Failed to handle a leaf during reconnect on the learner", e);
+        }
+    }
+
+    /**
      * Deletes an old leaf, if the new leaf node is in the same path position and leaf keys are different.
      *
      * @param newLeaf new leaf to be checked if
