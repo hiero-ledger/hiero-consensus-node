@@ -140,7 +140,7 @@ jobs:
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -524,7 +524,7 @@ jobs:
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -671,7 +671,7 @@ jobs:
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
@@ -829,7 +829,7 @@ jobs:
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
