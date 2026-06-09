@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
@@ -877,7 +878,7 @@ class ProofControllerImplTest {
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
-        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(Set.of(SELF_ID)));
+        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(new TreeSet<>(List.of(SELF_ID))));
     }
 
     @Test
