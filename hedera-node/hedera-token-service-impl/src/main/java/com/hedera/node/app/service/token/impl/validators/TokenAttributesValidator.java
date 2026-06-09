@@ -94,11 +94,11 @@ public class TokenAttributesValidator {
     }
 
     /**
-     * Validates the token keys for TokenCreate, ensuring each supplied key is structurally valid.
-     * The empty {@link KeyList} sentinel ({@code IMMUTABILITY_SENTINEL_KEY}) is a key-removal marker
-     * that is only meaningful for TokenUpdate, so it is rejected for every role key here (TokenCreate
-     * has no key to remove). The admin key is the sole exception: the sentinel is allowed there to
-     * create an immutable token. TokenUpdate performs its own key validation.
+     * Validates the token keys for TokenCreate. Each supplied non-empty key must be structurally valid.
+     * The empty {@link KeyList} sentinel ({@code IMMUTABILITY_SENTINEL_KEY}) is accepted for any key and
+     * stored verbatim; it counts as "no key" for that function (the privileged handlers treat an empty
+     * key as absent), so the function is disabled and cannot be re-added later, matching HIP-540's
+     * treatment of a removed key. TokenUpdate performs its own key validation.
      *
      * @param hasAdminKey whether the token has an admin key
      * @param adminKey the token admin key to validate
@@ -134,35 +134,33 @@ public class TokenAttributesValidator {
             @Nullable final Key pauseKey,
             final boolean hasMetadataKey,
             @Nullable final Key metadataKey) {
-        // The admin key may be set to the IMMUTABILITY_SENTINEL_KEY (empty KeyList) on TokenCreate to
-        // create an immutable token; a token with a sentinel admin key is treated as immutable by
-        // TokenUpdate, so it cannot be exploited.
+        // Any key may be set to the IMMUTABILITY_SENTINEL_KEY (empty KeyList) on TokenCreate. The empty
+        // key is accepted and stored verbatim; it counts as "no key" for that function because the
+        // privileged handlers treat an empty key as absent (see KeyUtils.isEmpty usages). The function is
+        // therefore disabled and cannot be re-added later, matching HIP-540's treatment of a removed key.
+        // Any non-empty key must still be structurally valid.
         if (hasAdminKey && !isImmutableKey(adminKey)) {
             validateTrue(isValid(adminKey), INVALID_ADMIN_KEY);
         }
-        // For all role keys, the empty-KeyList sentinel is a TokenUpdate-only "remove this key" marker.
-        // On TokenCreate there is nothing to remove, so it must be rejected rather than stored verbatim:
-        // otherwise the downstream signing pipeline silently drops the empty key and the role function
-        // ends up requiring no signature (i.e. becomes permissionless).
-        if (hasKycKey) {
+        if (hasKycKey && !isImmutableKey(kycKey)) {
             validateTrue(isValid(kycKey), INVALID_KYC_KEY);
         }
-        if (hasWipeKey) {
+        if (hasWipeKey && !isImmutableKey(wipeKey)) {
             validateTrue(isValid(wipeKey), INVALID_WIPE_KEY);
         }
-        if (hasSupplyKey) {
+        if (hasSupplyKey && !isImmutableKey(supplyKey)) {
             validateTrue(isValid(supplyKey), INVALID_SUPPLY_KEY);
         }
-        if (hasFreezeKey) {
+        if (hasFreezeKey && !isImmutableKey(freezeKey)) {
             validateTrue(isValid(freezeKey), INVALID_FREEZE_KEY);
         }
-        if (hasFeeScheduleKey) {
+        if (hasFeeScheduleKey && !isImmutableKey(feeScheduleKey)) {
             validateTrue(isValid(feeScheduleKey), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
         }
-        if (hasPauseKey) {
+        if (hasPauseKey && !isImmutableKey(pauseKey)) {
             validateTrue(isValid(pauseKey), INVALID_PAUSE_KEY);
         }
-        if (hasMetadataKey) {
+        if (hasMetadataKey && !isImmutableKey(metadataKey)) {
             validateTrue(isValid(metadataKey), INVALID_METADATA_KEY);
         }
     }

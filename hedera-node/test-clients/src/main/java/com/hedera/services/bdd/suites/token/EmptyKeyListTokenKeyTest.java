@@ -5,20 +5,20 @@ import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FREEZE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_KYC_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_METADATA_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAUSE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SUPPLY_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -29,16 +29,16 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Regression tests for the empty-KeyList token-key authorization bypass.
+ * Regression tests for empty-KeyList ({@code IMMUTABILITY_SENTINEL_KEY}) token keys.
  *
- * <p>The empty {@link KeyList} (the {@code IMMUTABILITY_SENTINEL_KEY}) is only meaningful as a
- * "remove this key" marker for TokenUpdate (HIP-540). On TokenCreate it must be rejected for every
- * role key: an empty key list is dropped by the signing pipeline, which would otherwise leave the
- * corresponding role function (wipe, mint/burn, freeze, kyc, pause, fee schedule, metadata) requiring
- * no signature — i.e. permissionless for anyone.
+ * <p>An empty KeyList is accepted for any key at TokenCreate and stored verbatim, but it counts as
+ * "no key" for that function: the privileged handlers treat an empty key as absent, so the function
+ * (wipe, mint/burn, freeze, kyc, pause, fee schedule, metadata) is disabled and cannot be re-added
+ * later — matching HIP-540's treatment of a removed key. An empty admin key likewise makes the token
+ * immutable.
  *
- * <p>The admin key is the sole exception: the sentinel is accepted there because it is the documented
- * way to create an immutable token, and such a token is correctly treated as immutable by TokenUpdate.
+ * <p>Crucially, an empty key must NOT be treated as "no signature required": the previous behavior
+ * silently dropped the unsatisfiable signature requirement, making the operation permissionless.
  */
 @Tag(TOKEN)
 public class EmptyKeyListTokenKeyTest {
@@ -46,6 +46,7 @@ public class EmptyKeyListTokenKeyTest {
     private static final String EMPTY_KEY = "emptyKeyListSentinel";
     private static final String TREASURY = "treasury";
     private static final String ATTACKER = "attacker";
+    private static final String HOLDER = "holder";
 
     // The same value as KeyUtils.IMMUTABILITY_SENTINEL_KEY — duplicated here to avoid a
     // test-clients dependency on hapi-utils internals.
@@ -53,51 +54,49 @@ public class EmptyKeyListTokenKeyTest {
             Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
 
     @HapiTest
-    final Stream<DynamicTest> tokenCreateRejectsEmptyKeyListRoleKeys() {
+    final Stream<DynamicTest> tokenCreateAcceptsEmptyKeyListRoleKeysAsDisabled() {
         return hapiTest(
                 // Register the empty-KeyList sentinel under a name so the TokenCreate builder can use it.
-                withOpContext((spec, _) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
+                withOpContext((spec, opLog) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
                 cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(HOLDER).balance(ONE_HUNDRED_HBARS),
 
-                // Each role key set to the empty-KeyList sentinel must be rejected at create time with
-                // the corresponding INVALID_*_KEY status, rather than stored as a permissionless key.
+                // Every role key accepts the empty-KeyList sentinel at create and stores it verbatim.
                 // Sign explicitly (payer + treasury): the sentinel key has no signature control, and role
                 // keys are not signing requirements for a creation anyway.
-                tokenCreate("wipeT")
+                tokenCreate("allEmptyRolesT")
                         .treasury(TREASURY)
+                        .initialSupply(1_000L)
                         .wipeKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_WIPE_KEY),
-                tokenCreate("supplyT")
-                        .treasury(TREASURY)
                         .supplyKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_SUPPLY_KEY),
-                tokenCreate("kycT")
-                        .treasury(TREASURY)
                         .kycKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_KYC_KEY),
-                tokenCreate("freezeT")
-                        .treasury(TREASURY)
                         .freezeKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_FREEZE_KEY),
-                tokenCreate("pauseT")
-                        .treasury(TREASURY)
                         .pauseKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_PAUSE_KEY),
-                tokenCreate("feeT")
-                        .treasury(TREASURY)
                         .feeScheduleKey(EMPTY_KEY)
-                        .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_CUSTOM_FEE_SCHEDULE_KEY),
-                tokenCreate("metaT")
-                        .treasury(TREASURY)
                         .metadataKey(EMPTY_KEY)
                         .signedBy(DEFAULT_PAYER, TREASURY)
-                        .hasKnownStatus(INVALID_METADATA_KEY));
+                        .hasKnownStatus(SUCCESS),
+                getTokenInfo("allEmptyRolesT")
+                        .hasEmptyWipeKey()
+                        .hasEmptySupplyKey()
+                        .hasEmptyKycKey(),
+
+                // An empty role key counts as "no key": the corresponding function is disabled. A token
+                // with empty wipe + supply keys rejects mint (supply) and wipe with TOKEN_HAS_NO_*_KEY
+                // rather than allowing the operation with no signature.
+                tokenCreate("disabledT")
+                        .treasury(TREASURY)
+                        .initialSupply(1_000L)
+                        .wipeKey(EMPTY_KEY)
+                        .supplyKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasKnownStatus(SUCCESS),
+                mintToken("disabledT", 1L).signedBy(DEFAULT_PAYER).hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY),
+                tokenAssociate(HOLDER, "disabledT"),
+                cryptoTransfer(moving(100L, "disabledT").between(TREASURY, HOLDER)),
+                wipeTokenAccount("disabledT", HOLDER, 50L)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY));
     }
 
     @HapiTest
