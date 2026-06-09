@@ -535,6 +535,101 @@ install_nmt_in_pod() {
 
   log "Running NMT installer in ${pod}"
   kexec "${pod}" sudo "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}" --accept -- -fg
+
+  # NMT preflight requires: awk, chmod, chown, comm, curl, cut, date, find,
+  # gunzip, gzip, head, jq, ln, readlink, rsync, sha256sum, sort, stat,
+  # systemctl, tar, unzip (source: extracted installer's
+  # tools/common/.../*.inc.sh PROGRAM_NAME constants). The Solo
+  # consensus-node image ships everything except jq, rsync, and the systemd
+  # package (the daemon won't run in the container but the systemctl binary
+  # satisfies the version check; NMT only invokes systemctl in code paths
+  # we skip — namely the nmt-ics.service registration, which we replace
+  # with `nmt watch` started manually by start_nmt_watcher()).
+  log "Installing NMT preflight prerequisites (jq, rsync, systemd, docker-ce, hashdeep) in ${pod}"
+  # docker-ce + hashdeep are NMT-required executables (preflight checks for
+  # them by exact name; the Debian-tree consensus-node image only carries
+  # docker.io, which NMT rejects). Add the upstream Docker apt repo, install
+  # everything we need in one shot.
+  kexec "${pod}" sudo bash -c "
+    set -e
+    apt-get update -qq
+    apt-get install -y -qq ca-certificates curl gnupg lsb-release
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable' > /etc/apt/sources.list.d/docker.list
+    apt-get update -qq
+    apt-get install -y -qq jq rsync systemd docker-ce docker-ce-cli containerd.io hashdeep gettext-base
+  "
+
+  # The Solo consensus-node image is Debian 13 (trixie), but NMT v1.3.4's
+  # OS-flavor detector only recognises Ubuntu/CentOS/RHEL/SUSE/Oracle (see
+  # tools/common/detect/detect_os_osr_support.inc.sh in the extracted
+  # installer). Preflight exits with EX_UNAVAILABLE (69) on unrecognised
+  # flavor. Debian and Ubuntu are functionally identical for what NMT does
+  # next (apt-based package management, glibc, systemd) so the simplest
+  # fix is to spoof /etc/os-release to read as Ubuntu. The kind pod is
+  # ephemeral so we don't bother backing up the original.
+  kexec "${pod}" sudo bash -c "cat > /etc/os-release <<'EOF'
+NAME=\"Ubuntu\"
+VERSION=\"24.04 LTS (Noble Numbat)\"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME=\"Ubuntu 24.04 LTS\"
+VERSION_ID=\"24.04\"
+VERSION_CODENAME=noble
+UBUNTU_CODENAME=noble
+EOF"
+
+  # NMT's snapshot/rotation model requires /opt/hgcapp/services-hedera/HapiApp2.0
+  # to be a SYMLINK to a timestamped real directory (production layout: when
+  # NMT installs a new version it renames the old target, creates a new
+  # timestamped dir, and re-points the symlink — that's how rollback works).
+  # The Solo consensus-node pod ships HapiApp2.0 as a regular directory, which
+  # makes NMT's "remove the existing symlink" step in the backup phase fail
+  # with FATAL "System Snapshot: Full System Backup Failed" (exit 70).
+  # Convert it once per pod before nmt preflight.
+  kexec "${pod}" sudo bash -c "
+    if [ ! -L /opt/hgcapp/services-hedera/HapiApp2.0 ]; then
+      mv /opt/hgcapp/services-hedera/HapiApp2.0 /opt/hgcapp/services-hedera/HapiApp2.0-init
+      ln -snf /opt/hgcapp/services-hedera/HapiApp2.0-init /opt/hgcapp/services-hedera/HapiApp2.0
+    fi
+  "
+
+  # NMT preflight walks a canonical directory layout that production setup
+  # populates via the (skipped-here) systemd integration + launch-node.sh.
+  # On a fresh non-systemd install we have to create them by hand.
+  #
+  # Source: extracted installer's tools/config/system_folders.lst and
+  # system_folders.jrs.lst (paths are relative to /opt/hgcapp).
+  kexec "${pod}" sudo mkdir -p \
+    "${NMT_DIR}/state" \
+    "${NMT_DIR}/logs" \
+    "${HGCAPP_DIR}/accountBalances" \
+    "${HGCAPP_DIR}/accountBalances/archive" \
+    "${HGCAPP_DIR}/accountBalancesOriginal" \
+    "${HGCAPP_DIR}/eventsStreams" \
+    "${HGCAPP_DIR}/eventsStreams/archive" \
+    "${HGCAPP_DIR}/eventStreamRecover" \
+    "${HGCAPP_DIR}/recordStreams" \
+    "${HGCAPP_DIR}/recordStreams/archive" \
+    "${HGCAPP_DIR}/blockStreams" \
+    "${HGCAPP_DIR}/blockStreams/archive" \
+    "${HAPI_PATH}/data/config" \
+    "${HAPI_PATH}/data/diskFs" \
+    "${HAPI_PATH}/data/jdb" \
+    "${HAPI_PATH}/data/keys" \
+    "${HAPI_PATH}/data/lifecycle" \
+    "${HAPI_PATH}/data/onboard" \
+    "${HAPI_PATH}/data/saved" \
+    "${HAPI_PATH}/data/stats" \
+    "${HAPI_PATH}/data/upgrade" \
+    "${HAPI_PATH}/data/upgrade/current" \
+    "${HAPI_PATH}/data/upgrade/previous" \
+    "${HAPI_PATH}/data/upgrade/pending" \
+    "${HAPI_PATH}/logs" \
+    "${HAPI_PATH}/output"
+  kexec "${pod}" sudo chown -R hedera:hedera "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
 }
 
 install_platform_via_nmt() {
