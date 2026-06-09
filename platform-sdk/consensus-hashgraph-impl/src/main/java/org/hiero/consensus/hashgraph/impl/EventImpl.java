@@ -547,6 +547,15 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
+     * Returns the coin value of this event.
+     *
+     * @return the coin value
+     */
+    public long getCoin() {
+        return getPlatformEvent().getEventCore().coin();
+    }
+
+    /**
      * Get the consensus sequence number of this event, which indicates the order in which this event was processed in consensus.
      *
      * @return the sequence number of this event

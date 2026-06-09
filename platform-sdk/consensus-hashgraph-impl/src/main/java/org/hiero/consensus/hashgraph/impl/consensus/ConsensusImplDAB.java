@@ -181,8 +181,8 @@ public class ConsensusImplDAB implements Consensus {
     private final long transactionOffsetNanos;
 
     private HashgraphInfo hashgraphInfo = new HashgraphInfo();
+    private RoundInfoPrev roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
     private RoundInfo roundInfo;
-    private RoundInfoPrev roundInfoPrev;
 
     /** When fully dynamic address book is implemented, this will be a configurable value. It is the number of rounds
      * between a roster being known (as a result of handling a round's transactions or the execution layer requesting
@@ -316,7 +316,7 @@ public class ConsensusImplDAB implements Consensus {
                     event.getCreatorId().id(),
                     event.getTimeCreated(),
                     event.getBirthRound(),
-                    0, // TODO copy the actual coin value from the original signed event to here
+                    (int) event.getCoin(),
                     parentEventInfos);
             event.setEventInfo(eventInfo);
             recentEvents.add(event);
