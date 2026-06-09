@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
@@ -46,7 +46,12 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
             @NonNull final ReconnectConfig reconnectConfig) {
-        super(out, workGroup, reconnectConfig);
+        super(
+                out,
+                workGroup,
+                reconnectConfig.asyncStreamBufferSize(),
+                reconnectConfig.asyncOutputStreamFlush(),
+                reconnectConfig.asyncStreamTimeout());
 
         // Note that we use randomSeed and -randomSeed for the two fuzzers
         // to ensure that they don't end up returning the exact same
@@ -65,7 +70,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * simulating slow disk reads.
      */
     @Override
-    public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
+    public void sendAsync(@NonNull final byte @NonNull [] messageBytes) throws InterruptedException {
         sleepMicros(delayStorageMicrosecondsFuzzer.next());
         super.sendAsync(messageBytes);
     }
@@ -77,7 +82,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * simulating slow network I/O.
      */
     @Override
-    protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
+    protected void writeMessage(@NonNull final byte @NonNull [] messageBytes) throws IOException {
         sleepMicros(delayNetworkMicrosecondsFuzzer.next());
         super.writeMessage(messageBytes);
     }

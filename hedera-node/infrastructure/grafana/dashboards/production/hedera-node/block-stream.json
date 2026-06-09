@@ -4232,7 +4232,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4276,7 +4276,7 @@
           "useBackend": false
         }
       ],
-      "title": "BlockHeader Sent <-> BlockEnd Sent (ms)",
+      "title": "BlockHeader Sent <-> BlockEnd Sent (µs)",
       "type": "timeseries"
     },
     {
@@ -4284,7 +4284,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "The time in ms from producing the BlockHeader to receiving the BlockAcknowledgement",
+      "description": "The time in µs from producing the BlockHeader to receiving the BlockAcknowledgement",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4338,7 +4338,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4382,7 +4382,7 @@
           "useBackend": false
         }
       ],
-      "title": "BlockHeader Produced <-> BlockAcknowledgement (ms)",
+      "title": "BlockHeader Produced <-> BlockAcknowledgement (µs)",
       "type": "timeseries"
     },
     {
@@ -4390,7 +4390,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "The time in ms from sending the BlockHeader to receiving the BlockAcknowledgement",
+      "description": "The time in µs from sending the BlockHeader to receiving the BlockAcknowledgement",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4444,7 +4444,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4488,7 +4488,7 @@
           "useBackend": false
         }
       ],
-      "title": "BlockHeader Sent <-> BlockAcknowledgement (ms)",
+      "title": "BlockHeader Sent <-> BlockAcknowledgement (µs)",
       "type": "timeseries"
     },
     {
@@ -4550,7 +4550,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4594,7 +4594,7 @@
           "useBackend": false
         }
       ],
-      "title": "Block Closed <-> BlockAcknowledgement (ms)",
+      "title": "Block Closed <-> BlockAcknowledgement (µs)",
       "type": "timeseries"
     },
     {
@@ -4602,7 +4602,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "The time in ms from sending the BlockEnd to receiving the BlockAcknowledgement",
+      "description": "The time in µs from sending the BlockEnd to receiving the BlockAcknowledgement",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4656,7 +4656,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4700,7 +4700,7 @@
           "useBackend": false
         }
       ],
-      "title": "BlockEnd Sent <-> BlockAcknowledgement (ms)",
+      "title": "BlockEnd Sent <-> BlockAcknowledgement (µs)",
       "type": "timeseries"
     },
     {
@@ -4762,7 +4762,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "µs"
         },
         "overrides": []
       },
@@ -4806,7 +4806,7 @@
           "useBackend": false
         }
       ],
-      "title": "PublishStreamRequest Latency Mean (ms) (1m)",
+      "title": "PublishStreamRequest Latency Mean (µs) (1m)",
       "type": "timeseries"
     },
     {

@@ -50,6 +50,14 @@ public interface StartupNetworks {
     void archiveStartupNetworks();
 
     /**
+     * Clears any parsed network information cached while startup assets may be read by multiple services.
+     * Maybe a no-op.
+     */
+    default void clearCachedNetworks() {
+        // No-op
+    }
+
+    /**
      * Called by a node at an upgrade boundary that finds itself with an empty Roster service state, and is
      * thus at the migration boundary for adoption of the roster proposal.
      *

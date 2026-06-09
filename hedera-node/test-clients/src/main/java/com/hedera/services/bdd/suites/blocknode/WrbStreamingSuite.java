@@ -47,7 +47,7 @@ public class WrbStreamingSuite {
                             "blockStream.streamMode", "BOTH",
                             // writerMode=FILE is the production WRB topology (preview blocks to
                             // disk, only WRBs over gRPC); see #24775.
-                            "blockStream.writerMode", "FILE",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "true",
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             // Forces votingBlockNumInitialized() so WRB emission fires without

@@ -13,7 +13,6 @@ mainModuleInfo {
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
-    runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.helidon.webclient.http2")
@@ -171,8 +170,10 @@ tasks.register<JavaExec>("run") {
     dependsOn(tasks.assemble)
     dependsOn(generateNodeKeys)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
-    mainClass.set("com.hedera.node.app.ServicesMain")
+    classpath =
+        nodeWorkingDir.get().dir("data/apps").asFileTree +
+            nodeWorkingDir.get().dir("data/lib").asFileTree
+    mainModule = "com.hedera.node.app"
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
@@ -199,43 +200,4 @@ tasks.clean { dependsOn(cleanRun) }
 tasks.register("showHapiVersion") {
     inputs.property("version", project.version)
     doLast { println(inputs.properties["version"]) }
-}
-
-var updateDockerEnvTask =
-    tasks.register<Exec>("updateDockerEnv") {
-        description =
-            "Creates the .env file in the docker folder that contains environment variables for docker"
-        group = "docker"
-
-        workingDir(layout.projectDirectory.dir("../docker"))
-        commandLine("./update-env.sh", project.version)
-    }
-
-dependencies { api(project(":config")) }
-
-tasks.register<Exec>("createDockerImage") {
-    description = "Creates the docker image of the services based on the current version"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask, tasks.assemble)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("./docker-build.sh", project.version, layout.projectDirectory.dir("..").asFile)
-}
-
-tasks.register<Exec>("startDockerContainers") {
-    description = "Starts docker containers of the services based on the current version"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("docker-compose", "up")
-}
-
-tasks.register<Exec>("stopDockerContainers") {
-    description = "Stops running docker containers of the services"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("docker-compose", "stop")
 }
