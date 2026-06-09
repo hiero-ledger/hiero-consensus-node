@@ -55,7 +55,7 @@ fi
 
 LANG=C.utf8
 APP_HOME=/opt/hgcapp/services-hedera/HapiApp2.0
-JAVA_CLASS_PATH=data/lib/*:data/apps/*
+JAVA_MODULE_PATH=data/lib:data/apps
 JAVA_OPTS="-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g \
 -XX:MaxDirectMemorySize=64g \
 -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log \
@@ -66,9 +66,9 @@ HOME=/home/hedera
 JAVA_HEAP_MIN=32g
 JAVA_HEAP_MAX=118g
 JAVA_HEAP_OPTS="-Xms${JAVA_HEAP_MIN} -Xmx${JAVA_HEAP_MAX}"
-JAVA_MAIN_CLASS=com.hedera.node.app.ServicesMain
+JAVA_MAIN_MODULE=com.hedera.node.app
 LOGNAME=hedera
 PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 cd ${APP_HOME}
-nohup /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" -local ${node_id} > node.log 2>&1 &
+nohup /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" -local ${node_id} > node.log 2>&1 &
