@@ -47,6 +47,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
@@ -265,6 +266,24 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .get(fungibleTokenId)
                 .copyBuilder()
                 .adminKey((Key) null)
+                .build();
+        writableTokenStore.put(copyToken);
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        txn = new TokenUpdateBuilder().build();
+        given(preHandleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_IS_IMMUTABLE));
+    }
+
+    @Test
+    void failsIfTokenHasEmptyKeyListAdminKey() {
+        // An empty key list admin key (the HIP-540 removal sentinel) means the token is effectively
+        // immutable; an admin-gated update must fail rather than require no signature.
+        final var copyToken = writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
                 .build();
         writableTokenStore.put(copyToken);
         given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);

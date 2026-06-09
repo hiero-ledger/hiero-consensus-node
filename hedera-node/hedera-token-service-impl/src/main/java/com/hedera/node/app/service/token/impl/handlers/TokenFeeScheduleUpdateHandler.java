@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
@@ -151,7 +152,9 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
             @NonNull final WritableTokenStore tokenStore,
             @NonNull final TokensConfig config) {
         var token = TokenHandlerHelper.getIfUsable(op.tokenIdOrElse(TokenID.DEFAULT), tokenStore);
-        validateTrue(token.hasFeeScheduleKey(), TOKEN_HAS_NO_FEE_SCHEDULE_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the fee schedule function is
+        // disabled; it must be treated as "no fee schedule key" rather than requiring no signature.
+        validateTrue(!isEmpty(token.feeScheduleKey()), TOKEN_HAS_NO_FEE_SCHEDULE_KEY);
         validateTrue(op.customFees().size() <= config.maxCustomFeesAllowed(), CUSTOM_FEES_LIST_TOO_LONG);
         return token;
     }

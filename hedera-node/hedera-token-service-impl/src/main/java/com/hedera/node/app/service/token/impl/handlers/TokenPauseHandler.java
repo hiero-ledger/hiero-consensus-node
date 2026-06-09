@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -68,7 +69,9 @@ public class TokenPauseHandler implements TransactionHandler {
         final var tokenStore = context.storeFactory().writableStore(WritableTokenStore.class);
         var token = tokenStore.get(op.tokenOrElse(TokenID.DEFAULT));
         validateTrue(token != null, INVALID_TOKEN_ID);
-        validateTrue(token.hasPauseKey(), TOKEN_HAS_NO_PAUSE_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the pause function is disabled; it
+        // must be treated as "no pause key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.pauseKey()), TOKEN_HAS_NO_PAUSE_KEY);
         validateFalse(token.deleted(), TOKEN_WAS_DELETED);
 
         final var copyBuilder = token.copyBuilder();

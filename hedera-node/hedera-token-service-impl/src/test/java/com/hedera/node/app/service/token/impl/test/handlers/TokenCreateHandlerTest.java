@@ -685,6 +685,19 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void failsForSentinelWipeKey() {
+        // The empty-KeyList sentinel is a TokenUpdate-only key-removal marker; on TokenCreate it is not
+        // a valid wipe key and must be rejected (otherwise the wipe function becomes permissionless).
+        setUpTxnContext();
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        txn = new TokenCreateBuilder().withWipeKey(IMMUTABILITY_SENTINEL_KEY).build();
+        given(handleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_WIPE_KEY));
+    }
+
+    @Test
     void failsForInvalidFreezeKey() {
         setUpTxnContext();
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);

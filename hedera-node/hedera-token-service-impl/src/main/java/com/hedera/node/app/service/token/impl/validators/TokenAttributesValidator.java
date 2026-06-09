@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.Key;
@@ -94,9 +94,11 @@ public class TokenAttributesValidator {
     }
 
     /**
-     * Validates the token keys, if it is exists and is not empty or not too long.
-     * For token admin key, allows empty {@link KeyList} to be set. It is used for removing keys.
-     * This method is both used in TokenCreate and TokenUpdate.
+     * Validates the token keys for TokenCreate, ensuring each supplied key is structurally valid.
+     * The empty {@link KeyList} sentinel ({@code IMMUTABILITY_SENTINEL_KEY}) is a key-removal marker
+     * that is only meaningful for TokenUpdate, so it is rejected for every role key here (TokenCreate
+     * has no key to remove). The admin key is the sole exception: the sentinel is allowed there to
+     * create an immutable token. TokenUpdate performs its own key validation.
      *
      * @param hasAdminKey whether the token has an admin key
      * @param adminKey the token admin key to validate
@@ -132,28 +134,35 @@ public class TokenAttributesValidator {
             @Nullable final Key pauseKey,
             final boolean hasMetadataKey,
             @Nullable final Key metadataKey) {
-        if (hasAdminKey && !isKeyRemoval(adminKey)) {
+        // The admin key may be set to the IMMUTABILITY_SENTINEL_KEY (empty KeyList) on TokenCreate to
+        // create an immutable token; a token with a sentinel admin key is treated as immutable by
+        // TokenUpdate, so it cannot be exploited.
+        if (hasAdminKey && !isImmutableKey(adminKey)) {
             validateTrue(isValid(adminKey), INVALID_ADMIN_KEY);
         }
-        if (hasKycKey && !isKeyRemoval(kycKey)) {
+        // For all role keys, the empty-KeyList sentinel is a TokenUpdate-only "remove this key" marker.
+        // On TokenCreate there is nothing to remove, so it must be rejected rather than stored verbatim:
+        // otherwise the downstream signing pipeline silently drops the empty key and the role function
+        // ends up requiring no signature (i.e. becomes permissionless).
+        if (hasKycKey) {
             validateTrue(isValid(kycKey), INVALID_KYC_KEY);
         }
-        if (hasWipeKey && !isKeyRemoval(wipeKey)) {
+        if (hasWipeKey) {
             validateTrue(isValid(wipeKey), INVALID_WIPE_KEY);
         }
-        if (hasSupplyKey && !isKeyRemoval(supplyKey)) {
+        if (hasSupplyKey) {
             validateTrue(isValid(supplyKey), INVALID_SUPPLY_KEY);
         }
-        if (hasFreezeKey && !isKeyRemoval(freezeKey)) {
+        if (hasFreezeKey) {
             validateTrue(isValid(freezeKey), INVALID_FREEZE_KEY);
         }
-        if (hasFeeScheduleKey && !isKeyRemoval(feeScheduleKey)) {
+        if (hasFeeScheduleKey) {
             validateTrue(isValid(feeScheduleKey), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
         }
-        if (hasPauseKey && !isKeyRemoval(pauseKey)) {
+        if (hasPauseKey) {
             validateTrue(isValid(pauseKey), INVALID_PAUSE_KEY);
         }
-        if (hasMetadataKey && !isKeyRemoval(metadataKey)) {
+        if (hasMetadataKey) {
             validateTrue(isValid(metadataKey), INVALID_METADATA_KEY);
         }
     }

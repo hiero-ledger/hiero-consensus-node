@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -193,7 +194,9 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         validator.validateBurn(fungibleBurnCount, nftSerialNums, tokensConfig);
 
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the supply function is disabled; it
+        // must be treated as "no supply key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.supplyKey()), TOKEN_HAS_NO_SUPPLY_KEY);
 
         final var treasuryAcctId = token.treasuryAccountId();
         final var treasuryRel = TokenHandlerHelper.getIfUsable(treasuryAcctId, tokenId, tokenRelStore);
@@ -204,5 +207,6 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         return ownerID == null;
     }
 
-    private record ValidationResult(@NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
+    private record ValidationResult(
+            @NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
 }

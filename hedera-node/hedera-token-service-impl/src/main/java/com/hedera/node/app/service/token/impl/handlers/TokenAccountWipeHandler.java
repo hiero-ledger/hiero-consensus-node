@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep.removeFromList;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -247,7 +248,9 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         validator.validateWipe(fungibleWipeCount, nftSerialNums, tokensConfig);
 
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.wipeKey() != null, ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the wipe function is disabled; it
+        // must be treated as "no wipe key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.wipeKey()), ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY);
 
         final var accountRel = TokenHandlerHelper.getIfUsable(account.accountIdOrThrow(), tokenId, tokenRelStore);
         if (token.hasKycKey()) {
@@ -261,5 +264,7 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
     }
 
     private record ValidationResult(
-            @NonNull Account account, @NonNull Token token, @NonNull TokenRelation accountTokenRel) {}
+            @NonNull Account account,
+            @NonNull Token token,
+            @NonNull TokenRelation accountTokenRel) {}
 }
