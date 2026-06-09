@@ -59,6 +59,13 @@ public interface BlockHashSigner {
     boolean isReady();
 
     /**
+     * Notifies the signer that a new block has started.
+     *
+     * @param blockNumber the block number being started
+     */
+    default void onBlockStarted(final long blockNumber) {}
+
+    /**
      * Returns an attempt to sign the given block hash.
      * @param blockHash the block hash
      * @param request the type of signature being requested
