@@ -784,8 +784,8 @@ public final class HashgraphInfo {
                 }
                 EventInfo v = h.candEventInfo[bestIndex];
                 boolean s = (bestStake > h.supermajorityThreshold);
-
                 //end of topVote, continuing vote
+
                 boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
                 if (!q) { //if not a coin round, vote whatever vote had the majority collected
                     voteE[m] = v;
