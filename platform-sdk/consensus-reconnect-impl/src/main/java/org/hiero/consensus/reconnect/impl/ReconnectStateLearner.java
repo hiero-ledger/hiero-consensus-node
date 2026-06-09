@@ -246,8 +246,7 @@ public class ReconnectStateLearner {
         statistics.incrementReceiverStartTimes();
 
         final DataInputStream in = new DataInputStream(connection.getDis());
-        final DataOutputStream out =
-                new DataOutputStream(connection.getDos());
+        final DataOutputStream out = new DataOutputStream(connection.getDos());
 
         connection.getDis().byteCounter().getAndReset();
 
