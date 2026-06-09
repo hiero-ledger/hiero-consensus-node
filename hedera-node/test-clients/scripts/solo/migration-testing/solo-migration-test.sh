@@ -542,12 +542,17 @@ install_platform_via_nmt() {
   log "Copying platform build to ${pod}"
   kcp "${PLATFORM_INSTALLER_PATH}" "${pod}" "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}"
 
+  # Use the legacy shell wrapper (node-mgmt-tool) for preflight/install/start/
+  # stop. The newer Go binary at ${NMT_DIR}/bin/nmt has a different command
+  # set (watch, upgrade dispatch, ...) and rejects these subcommands with
+  # `unknown command "preflight" for "nmt"`. We use the Go binary later in
+  # start_nmt_watcher() for `nmt watch`, which IS one of its commands.
   log "nmt preflight in ${pod}"
-  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV preflight \
+  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV preflight \
     -j "${OPENJDK_VERSION}" -df -i "${NMT_PROFILE}" -k 256m -m 512m
 
   log "nmt install in ${pod} (platform ${DEPLOY_RELEASE_TAG})"
-  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV install \
+  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV install \
     -p "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}" \
     -n "${node}" \
     -x "${DEPLOY_RELEASE_TAG}"
@@ -587,7 +592,7 @@ start_nmt_watcher() {
 start_consensus_node_via_nmt() {
   local pod="$1"
   log "nmt start in ${pod}"
-  kexec "${pod}" "${NMT_DIR}/bin/nmt" -VV start
+  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV start
 
   local attempts=0
   while (( attempts < 60 )); do
@@ -618,7 +623,31 @@ wait_for_node_active() {
   return 1
 }
 
+# Fail fast if the pod can't actually run x86-64 binaries. Catches the
+# case where DOCKER_DEFAULT_PLATFORM wasn't propagated, Rosetta-for-Linux
+# is off in Docker Desktop, or the host is Linux on aarch64 without
+# binfmt_misc — before we waste time downloading 200+ MB into a doomed pod.
+verify_pod_arch_supports_nmt() {
+  local pod_arch
+  pod_arch="$(kexec "$(iterate_pods | head -n 1)" uname -m 2>/dev/null | tr -d '\r')"
+  if [[ "${pod_arch}" != "x86_64" ]]; then
+    cat >&2 <<EOF
+Pod arch is '${pod_arch}', but NMT is x86-64-only. Aborting before NMT install.
+
+On Apple Silicon: enable "Use Rosetta for x86/amd64 emulation" in Docker
+Desktop (Settings -> General), then re-run. The script already exports
+DOCKER_DEFAULT_PLATFORM=linux/amd64 in that environment, but the existing
+Kind cluster was created without it; tear it down first:
+
+  kind delete cluster -n ${SOLO_CLUSTER_NAME}
+EOF
+    return 1
+  fi
+  log "Pod arch ${pod_arch} OK for NMT"
+}
+
 bring_up_consensus_via_nmt() {
+  verify_pod_arch_supports_nmt
   prep_address_book_and_configs
   local node nodes=()
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
