@@ -36,8 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -443,7 +443,7 @@ public class ProofControllerImpl implements ProofController {
         // PROOF_VOTES state change that breaks block-stream/record parity (they are purged at
         // handoff regardless).
         if (tssConfig.wrapsEnabled() != isWrapsExtensible(proof)) {
-            historyStore.clearProofVotes(constructionId(), Set.copyOf(votes.keySet()));
+            historyStore.clearProofVotes(constructionId(), new TreeSet<>(votes.keySet()));
         }
         votes.clear();
     }
