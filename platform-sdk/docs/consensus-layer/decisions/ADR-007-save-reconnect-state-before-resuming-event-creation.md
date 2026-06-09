@@ -73,7 +73,7 @@ has made itself crash resilient again, which means **writing the learned state t
 This is a **rule**, not an invariant: the protocol does not *require* that only crash-resilient nodes create events — a
 correct reimplementation could instead backfill the PCES gap from gossip and resume event creation immediately (see
 [Alternatives Considered](#alternatives-considered)). It is a deliberate property of the current implementation,
-cataloged as [RUL-003](../rules/RUL-003-persist-reconnect-state-before-event-creation.md).
+cataloged as [RUL-003](../rules/RUL-003-consensus-contributors-independently-restartable.md).
 
 ## Decision
 

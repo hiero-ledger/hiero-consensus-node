@@ -1,6 +1,6 @@
 ---
 id: RUL-003
-title: A reconnected node must write the learned state to disk before it resumes creating events
+title: Every node contributing to consensus is independently restartable
 class: state-machine
 topics: [reconnect, event-creator, restart-and-pces, signed-state-management]
 components:
@@ -19,16 +19,14 @@ provenance: adr-007
 curated_by: Kelly Greco (@poulok)
 ---
 
-# RUL-003 — A reconnected node must write the learned state to disk before it resumes creating events
+# RUL-003 — Every node contributing to consensus is independently restartable
 
 ## Statement
 
-After a reconnect, a node does not resume creating events until the learned
-(reconnect) state has been written to disk. Until that write completes the node
-stays in `RECONNECT_COMPLETE` — gossiping, but not creating events — so any node
-that is contributing to consensus by creating events is also crash resilient:
-it holds an on-disk state it can restart from, with no gap in its Preconsensus
-Event Stream (PCES) above it.
+Every node that is contributing to the advancement of consensus — i.e. that is
+creating events — is independently restartable: it holds an on-disk state it can
+restart from on its own, with no gap in its Preconsensus Event Stream (PCES)
+above it.
 
 ## Context
 
