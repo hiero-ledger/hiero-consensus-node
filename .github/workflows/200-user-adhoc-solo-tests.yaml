@@ -24,7 +24,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
       cluster-target:
-        description: "Where to run the scenario. kind = ephemeral Kind cluster on the runner (supported by every scenario). remote-sdlt-n6 = pre-allocated remote cluster solo-sdlt-n6 via Teleport, supported ONLY by the jumpstart-075 scenario; selecting it for any other scenario fails fast (see the Validate Inputs job)."
+        description: "Where to run. kind = ephemeral cluster on the runner (all scenarios); remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport, jumpstart-075 only (others fail fast)."
         required: true
         type: choice
         default: "kind"
@@ -35,22 +35,22 @@ on:
       # The blank-default differs by scenario and is resolved in the job's env below: the upgrade tag
       # defaults to the local build for jumpstart, and to v0.75.0-rc.3 for jumpstart-075.
       jumpstart-starting-tag:
-        description: "[Jumpstart / Jumpstart-075] Consensus-node release tag for the initial network deployment. Leave blank to default to v0.74.0."
+        description: "[Jumpstart(-075)] Consensus-node release tag for the initial network deploy. Blank → v0.74.0."
         required: false
         type: string
         default: ""
       jumpstart-upgrade-tag:
-        description: "[Jumpstart / Jumpstart-075] Consensus-node release tag to upgrade the network to. Leave blank to default to the local build from the checked-out ref (jumpstart) or v0.75.0-rc.3 (jumpstart-075)."
+        description: "[Jumpstart(-075)] Consensus-node release tag to upgrade to. Blank → local build (jumpstart) / v0.75.0-rc.3 (075)."
         required: false
         type: string
         default: ""
       streaming-tag:
-        description: "[Streaming] Consensus-node release tag for the WRB streaming network deploy (e.g. v0.74.0-rc.1). Leave blank to deploy from the local build instead."
+        description: "[Streaming] Consensus-node release tag for the WRB streaming network deploy (e.g. v0.74.0-rc.1). Blank → local build."
         required: false
         type: string
         default: ""
       cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Leave blank to default to v0.75.0-rc.3."
+        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.3."
         required: false
         type: string
         default: ""
