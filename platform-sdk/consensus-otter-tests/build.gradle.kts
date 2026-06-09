@@ -65,11 +65,6 @@ extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
-// Fix testcontainers module system access to commons libraries
-// testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-// We need to grant it access to the commons modules via JVM arguments
-// Note: automatic modules are named from their package names (org.apache.commons.io for commons-io
-// JAR)
 // This is applied to all Test tasks to work across all execution methods (local, CI, etc.)
 tasks.withType<Test>().configureEach { maxHeapSize = "8g" }
 
