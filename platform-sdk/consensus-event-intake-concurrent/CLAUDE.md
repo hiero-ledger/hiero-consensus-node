@@ -11,6 +11,17 @@ classes, and methods.
 - [`architecture/topics/wiring-framework.md`](../docs/consensus-layer/architecture/topics/wiring-framework.md) — how the concurrent intake stages are wired and backpressured.
 - [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md), [`concepts/branching.md`](../docs/consensus-layer/concepts/branching.md), [`concepts/birth-round.md`](../docs/consensus-layer/concepts/birth-round.md) — the mental models intake depends on.
 
+**Dependency Rules.** Category: **functional-impl** (alternate concurrent implementation of
+`consensus-event-intake`).
+
+Allowed consensus-layer dependencies: `consensus-event-intake` (its API); supporting modules
+`consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-roster`,
+`consensus-utility`.
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

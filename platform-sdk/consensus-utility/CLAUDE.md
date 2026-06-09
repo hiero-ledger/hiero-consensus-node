@@ -10,6 +10,17 @@ implementation as canonical, anchored to specific files, classes, and methods.
 - [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md) — where this module's helpers sit in the module map and which topics consume them.
 - [`glossary.md`](../docs/consensus-layer/glossary.md) and [`concepts/`](../docs/consensus-layer/concepts/) — vocabulary the helpers operate on.
 
+**Dependency Rules.** Category: **supporting**.
+
+Allowed consensus-layer dependencies: `consensus-model`, `consensus-concurrent`,
+`consensus-metrics`, `consensus-roster`.
+
+Prohibited: all functional-api modules (`consensus-gossip`, `consensus-hashgraph`,
+`consensus-event-creator`, `consensus-event-intake`, `consensus-pces`, `consensus-reconnect`),
+all `*-impl` modules (including `swirlds-*-impl`).
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

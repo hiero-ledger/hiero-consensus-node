@@ -10,6 +10,15 @@ implementation as canonical, anchored to specific files, classes, and methods.
 - [`architecture/topics/hashgraph.md`](../docs/consensus-layer/architecture/topics/hashgraph.md) — the consensus rounds and ordered events this module serializes.
 - [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md) — what an event carries once it reaches consensus.
 
+**Dependency Rules.** Category: **supporting**.
+
+Allowed consensus-layer dependencies: `consensus-model`, `consensus-concurrent`,
+`consensus-metrics`, `consensus-utility`.
+
+Prohibited: all functional-api modules, all `*-impl` modules (including `swirlds-*-impl`).
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

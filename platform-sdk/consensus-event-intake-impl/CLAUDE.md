@@ -10,6 +10,16 @@ classes, and methods.
 - [`architecture/topics/event-intake.md`](../docs/consensus-layer/architecture/topics/event-intake.md) — validation, deduplication, topological ordering, branch detection, birth-round filtering, and emission downstream.
 - [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md), [`concepts/branching.md`](../docs/consensus-layer/concepts/branching.md), [`concepts/stale-events.md`](../docs/consensus-layer/concepts/stale-events.md), [`concepts/birth-round.md`](../docs/consensus-layer/concepts/birth-round.md) — the mental models intake depends on.
 
+**Dependency Rules.** Category: **functional-impl**.
+
+Allowed consensus-layer dependencies: `consensus-event-intake` (its API); supporting modules
+`consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-roster`,
+`consensus-utility`.
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

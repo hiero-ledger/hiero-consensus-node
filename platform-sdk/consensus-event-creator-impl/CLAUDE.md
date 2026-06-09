@@ -11,6 +11,16 @@ classes, and methods.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — how the creator pulls transactions via `getTransactionsForEvent` and reports health.
 - [`concepts/birth-round.md`](../docs/consensus-layer/concepts/birth-round.md), [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md).
 
+**Dependency Rules.** Category: **functional-impl**.
+
+Allowed consensus-layer dependencies: `consensus-event-creator` (its API); supporting modules
+`consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-roster`,
+`consensus-utility`.
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

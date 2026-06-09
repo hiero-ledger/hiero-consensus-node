@@ -13,6 +13,10 @@ current implementation as canonical, anchored to specific files, classes, and me
 - [`architecture/topics/event-creator.md`](../docs/consensus-layer/architecture/topics/event-creator.md) and [`architecture/topics/gossip.md`](../docs/consensus-layer/architecture/topics/gossip.md) — the subsystems most of the experiments stress.
 - [`architecture/topics/health-monitor-and-backpressure.md`](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md) — the flow-control behavior under load that performance work observes.
 
+**Dependency Rules.** Category: **tooling** — a performance experiment framework; not part of
+the runtime module graph. Dependency rules are relaxed: tooling may depend on any
+consensus-layer module including impl modules. Keep impl dependencies confined to test sources.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

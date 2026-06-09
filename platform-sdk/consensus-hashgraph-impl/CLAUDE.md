@@ -10,6 +10,16 @@ classes, and methods.
 - [`architecture/topics/hashgraph.md`](../docs/consensus-layer/architecture/topics/hashgraph.md) — the consensus algorithm, round production with judges and timestamps, roster-and-config changes carried as round metadata.
 - The concepts the algorithm rests on: [`hashgraph-dag.md`](../docs/consensus-layer/concepts/hashgraph-dag.md), [`rounds-and-witnesses.md`](../docs/consensus-layer/concepts/rounds-and-witnesses.md), [`strongly-seeing.md`](../docs/consensus-layer/concepts/strongly-seeing.md), [`judges.md`](../docs/consensus-layer/concepts/judges.md), [`voting.md`](../docs/consensus-layer/concepts/voting.md), [`coin-rounds.md`](../docs/consensus-layer/concepts/coin-rounds.md), [`birth-round.md`](../docs/consensus-layer/concepts/birth-round.md).
 
+**Dependency Rules.** Category: **functional-impl**.
+
+Allowed consensus-layer dependencies: `consensus-hashgraph` (its API); supporting modules
+`consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-roster`,
+`consensus-utility`.
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

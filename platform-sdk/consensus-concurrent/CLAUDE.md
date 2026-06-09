@@ -11,6 +11,18 @@ methods.
 - [`architecture/topics/wiring-framework.md`](../docs/consensus-layer/architecture/topics/wiring-framework.md) — how components, wires, and soldering compose the runtime and where backpressure is applied.
 - [`architecture/topics/health-monitor-and-backpressure.md`](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md) — keeping the consensus layer bounded under load.
 
+**Dependency Rules.** Category: **supporting**.
+
+Allowed consensus-layer dependencies: `consensus-model`.
+
+Prohibited: `consensus-metrics`, `consensus-utility`, `consensus-roster`, all functional-api
+modules (`consensus-gossip`, `consensus-hashgraph`, `consensus-event-creator`,
+`consensus-event-intake`, `consensus-pces`, `consensus-reconnect`), all `*-impl` modules
+(including `swirlds-*-impl`). Supporting modules form a strict DAG; concurrent sits one level
+above model and must not pull in higher-level helpers.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

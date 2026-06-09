@@ -12,6 +12,10 @@ as canonical, anchored to specific files, classes, and methods.
 - [`concepts/`](../docs/consensus-layer/concepts/) — the mental models (hashgraph DAG, rounds and witnesses, judges, birth-round, event lifecycle) a simulation must respect.
 - [`scenarios/`](../docs/consensus-layer/scenarios/) and [`symptoms.md`](../docs/consensus-layer/symptoms.md) — edge cases and observable signatures worth reproducing or asserting against.
 
+**Dependency Rules.** Category: **tooling** — a simulation harness; not part of the runtime
+module graph. Dependency rules are relaxed: tooling may depend on any consensus-layer module
+including impl modules. Keep impl dependencies confined to test sources.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); properties to preserve in

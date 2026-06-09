@@ -10,6 +10,19 @@ classes, and methods.
 - [`architecture/topics/reconnect.md`](../docs/consensus-layer/architecture/topics/reconnect.md) — recovering a node that has fallen too far behind for gossip to catch it up. The orchestration entry point lives in `swirlds-platform-core`.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — `StateLifecycleManager` calls (`createStateFrom`, `initWithState`) exercised during reconnect.
 
+**Dependency Rules.** Category: **functional-impl**.
+
+Allowed consensus-layer dependencies: `consensus-reconnect` (its API); functional-api modules
+`consensus-gossip`, `consensus-event-creator`, `consensus-event-intake`, `consensus-hashgraph`,
+`consensus-pces`; structural-transitional modules `consensus-state`, `consensus-platformstate`;
+all supporting modules.
+
+Prohibited: other `consensus-*-impl` modules.
+
+Known violation — `requires transitive org.hiero.consensus.gossip.impl`: reconnect must wire
+directly into gossip's internal networking layer; no consensus-layer abstraction for that
+exists yet. Do not add further impl dependencies without equivalent justification.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

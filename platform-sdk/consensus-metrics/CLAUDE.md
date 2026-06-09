@@ -10,6 +10,15 @@ implementation as canonical, anchored to specific files, classes, and methods.
 - [`architecture/topics/health-monitor-and-backpressure.md`](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md) — the health and flow-control signals many of these metrics observe.
 - [`tunables.md`](../docs/consensus-layer/tunables.md) — thresholds and parameters the metrics relate to.
 
+**Dependency Rules.** Category: **supporting**.
+
+Allowed consensus-layer dependencies: `consensus-model`, `consensus-concurrent`.
+
+Prohibited: `consensus-utility`, `consensus-roster`, all functional-api modules, all `*-impl`
+modules (including `swirlds-*-impl`).
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

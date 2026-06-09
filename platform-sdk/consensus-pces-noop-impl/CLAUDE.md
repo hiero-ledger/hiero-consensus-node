@@ -9,6 +9,14 @@ implementation as canonical, anchored to specific files, classes, and methods.
 
 - [`architecture/topics/restart-and-pces.md`](../docs/consensus-layer/architecture/topics/restart-and-pces.md) — Pre-Consensus Event Stream durability and replay; understand what behavior this no-op variant omits.
 
+**Dependency Rules.** Category: **functional-impl** (no-op variant).
+
+Allowed consensus-layer dependencies: `consensus-pces` (its API).
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

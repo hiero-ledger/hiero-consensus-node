@@ -10,6 +10,15 @@ classes, and methods.
 - [`architecture/topics/restart-and-pces.md`](../docs/consensus-layer/architecture/topics/restart-and-pces.md) — Pre-Consensus Event Stream durability and replay across restarts.
 - [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md) — where PCES sits in an event's life.
 
+**Dependency Rules.** Category: **functional-impl**.
+
+Allowed consensus-layer dependencies: `consensus-pces` (its API); `consensus-state`; supporting
+modules `consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-utility`.
+
+Prohibited: other `consensus-*-impl` modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

@@ -11,6 +11,15 @@ classes, and methods.
 - [`architecture/topics/signed-state-management.md`](../docs/consensus-layer/architecture/topics/signed-state-management.md) — platform-state structures carried in signed state.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — shared state fields crossing the boundary.
 
+**Dependency Rules.** Category: **structural-transitional** — treated like an impl module until
+this code moves to the execution layer. Nothing except test code and tooling may depend on it.
+
+Allowed consensus-layer dependencies: `consensus-model`.
+
+Prohibited: any `consensus-*-impl` module; all functional-api modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

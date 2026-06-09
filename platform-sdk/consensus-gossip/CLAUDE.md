@@ -11,6 +11,15 @@ classes, and methods.
 - [`architecture/topics/reasons-not-to-gossip.md`](../docs/consensus-layer/architecture/topics/reasons-not-to-gossip.md) — the conditions under which a node refuses to gossip events.
 - [`architecture/topics/health-monitor-and-backpressure.md`](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md) — keeping the consensus layer bounded under load.
 
+**Dependency Rules.** Category: **functional-api**.
+
+Allowed consensus-layer dependencies: `consensus-model`, `consensus-state`, `consensus-utility`.
+
+Prohibited: all other functional-api modules (API modules must not depend on each other); any
+`*-impl` module.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

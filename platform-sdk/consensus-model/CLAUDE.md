@@ -12,6 +12,16 @@ implementation as canonical, anchored to specific files, classes, and methods.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — many of these types are the payloads that travel across the consensus / execution boundary.
 - [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md) — how the model underpins all eleven topics.
 
+**Dependency Rules.** Category: **supporting** (foundation — lowest in the dependency hierarchy).
+
+Allowed consensus-layer dependencies: none. `consensus-model` defines the shared data model
+consumed by all other modules; it must stay free of upstream consensus deps to remain importable
+anywhere in the layer.
+
+Prohibited: any other `consensus-*` module.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

@@ -10,6 +10,16 @@ current implementation as canonical, anchored to specific files, classes, and me
 - [`architecture/topics/signed-state-management.md`](../docs/consensus-layer/architecture/topics/signed-state-management.md) — round signing, state hashing, signature collection.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — how state structures are shared across the boundary. Note: the proposed design moves state under the execution layer; this module sits on the consensus side today.
 
+**Dependency Rules.** Category: **structural-transitional** — treated like an impl module until
+this code moves to the execution layer. Nothing except test code and tooling may depend on it.
+
+Allowed consensus-layer dependencies: `consensus-model`, `consensus-metrics`,
+`consensus-platformstate`, `consensus-roster`.
+
+Prohibited: any `consensus-*-impl` module; all functional-api modules.
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in

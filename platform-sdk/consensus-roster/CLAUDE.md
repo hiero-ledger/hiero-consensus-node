@@ -10,6 +10,16 @@ classes, and methods.
 - [`architecture/topics/hashgraph.md`](../docs/consensus-layer/architecture/topics/hashgraph.md) — rosters are carried as round metadata so every module agrees which roster applies to which round.
 - [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — where rosters cross the boundary (carried in state and as round metadata).
 
+**Dependency Rules.** Category: **supporting** (transitional — will eventually move to the
+execution layer).
+
+Allowed consensus-layer dependencies: `consensus-model`.
+
+Prohibited: `consensus-concurrent`, `consensus-metrics`, `consensus-utility`, all functional-api
+modules, all `*-impl` modules (including `swirlds-*-impl`).
+
+No known violations.
+
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
 [`concepts/`](../docs/consensus-layer/concepts/); rationale in
