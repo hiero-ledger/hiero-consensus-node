@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 
+import com.swirlds.config.api.validation.annotation.Max;
+import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -59,6 +61,11 @@ import java.util.HashMap;
  * calls to {@link EventInfo#update update()} in the next round.
  */
 public final class HashgraphInfo {
+    /** for round 1 (the genesis round) use this as the RoundInfoPrev. */
+    public final RoundInfoPrev firstRoundInfoPrev
+            = new RoundInfoPrev(1,false,new EventInfo[0],
+            false,0,0,0);
+
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long pendingRound;
     private int numNodes;
@@ -162,21 +169,21 @@ public final class HashgraphInfo {
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
     public record RoundInfo(
-            long pendingRound, // this record is the round information for this round number
+            @Min(1L) @Max(Long.MAX_VALUE) long pendingRound, // info used in this round
             @NonNull long[] nodes, // NodeID for each node
             @NonNull long[] stake,
-            int coinInterval,
+            @Min(1) @Max(Integer.MAX_VALUE) int coinInterval, // how often coin flips happen. 10 is a good value.
             boolean firstVotingRoundSee,
             boolean judgeCon1,
-            int targetNumRoundsNonAncient,
-            int numRoundsAddressBook) {}
+            @Min(1) @Max(Integer.MAX_VALUE) int targetNumRoundsNonAncient,
+            @Min(1) @Max(Integer.MAX_VALUE) int numRoundsAddressBook) {}
 
     /**
      * Info about a round that is only available when the previous round reaches consensus. No element can be null.
      * For the first round (round 1) the parameters should be {1,false,[],false,0,0,0}, where [] is an empty array.
      */
     public record RoundInfoPrev(
-            long pendingRound, // this record is the round information for this round number, regarding the one before
+            @Min(1L) @Max(Long.MAX_VALUE) long pendingRound, // info used in this round, describing the previous round
             boolean prevJudgeCon1,
             @NonNull EventInfo[] prevJudges,
             boolean prevJudgesCopied,
@@ -407,7 +414,7 @@ public final class HashgraphInfo {
                                 + " or " + (h.pendingRound + 1) + ", not " + roundInfo.pendingRound);
             }
 
-            // If this is the first time update has ever been called on an event for this hashgraph.
+            // If this is the first time update has ever been called on this hashgraph.
             if (h.pendingRound == 0) {
                 h.pendingRound = r.pendingRound;
                 h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
@@ -417,6 +424,12 @@ public final class HashgraphInfo {
             if (h.pendingRound != r.pendingRound) {
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
+
+                // if the numbers of nodes changed this round (or it's the first time called), prep cand data structures
+                if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length)) {
+                    h.candIndex = new ArrayList<ArrayList<Integer>>(h.numNodes);
+
+                }
 
                 // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
                 h.nodesChanged = false;
