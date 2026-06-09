@@ -58,6 +58,7 @@ import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -90,6 +91,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase {
     private static final Bytes LEGACY_RECORD_FILE_HASH = Bytes.wrap("legacy-record-file-hash");
@@ -2133,6 +2135,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var migrationPrevHash = Bytes.fromHex("ab".repeat(48));
             final var migrationResult = new WrappedRecordBlockHashMigration.Result(
                     migrationPrevHash, List.of(Bytes.fromHex("cd".repeat(48))), 2L);
+            final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2145,7 +2148,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     () -> mock(BlockItemWriter.class),
                     NO_OP_BLOCK_HASH_SIGNER,
                     InitTrigger.RECONNECT,
-                    migrationResult)) {
+                    migrationResult,
+                    lifecycle)) {
                 // construction triggers seeding branch
             }
 
@@ -2178,6 +2182,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             final var migrationResult =
                     new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+            final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2190,7 +2195,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     () -> mock(BlockItemWriter.class),
                     NO_OP_BLOCK_HASH_SIGNER,
                     InitTrigger.RECONNECT,
-                    migrationResult)) {
+                    migrationResult,
+                    lifecycle)) {
                 // construction triggers seed + replay
             }
 
@@ -2220,6 +2226,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             final var migrationResult =
                     new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+            final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2232,7 +2239,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     () -> mock(BlockItemWriter.class),
                     NO_OP_BLOCK_HASH_SIGNER,
                     InitTrigger.RECONNECT,
-                    migrationResult)) {
+                    migrationResult,
+                    lifecycle)) {
                 // votingComplete=true → seed branch skipped
             }
 
@@ -2316,6 +2324,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final WrappedRecordBlockHashMigration.Result migrationResult) {
         final var controller = new QuiescenceController(
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var lifecycle = Mockito.mock(BlockRecordManager.Lifecycle.class);
         return new BlockRecordManagerImpl(
                 app.configProvider(),
                 state,
@@ -2327,7 +2336,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RECONNECT,
-                migrationResult);
+                migrationResult,
+                lifecycle);
     }
 
     private static void closeVotingBlock(final BlockRecordManagerImpl mgr, final State state, final long seconds) {
