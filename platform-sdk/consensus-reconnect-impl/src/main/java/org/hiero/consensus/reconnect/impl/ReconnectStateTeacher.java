@@ -17,9 +17,11 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.sync.TeacherTreeView;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.Socket;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.Objects;
@@ -28,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
@@ -57,6 +60,9 @@ public class ReconnectStateTeacher {
     private final Configuration configuration;
 
     private final ReconnectMetrics statistics;
+
+    private int originalSendBufferSize;
+    private int originalReceiveBufferSize;
 
     /**
      * After reconnect is finished, restore the socket timeout to the original value.
@@ -127,6 +133,48 @@ public class ReconnectStateTeacher {
         }
     }
 
+    private void increaseSocketBuffers() {
+        // Empirical test: raise socket buffers for the reconnect bulk transfer.
+        // Post-connect SO_SNDBUF takes effect on Linux for the send buffer.
+        // SO_RCVBUF post-connect has limited effect on the advertised window (already
+        // negotiated at SYN), but can help the kernel buffer incoming data on this side.
+        // Log first so we know what we started from.
+        final Socket socket = ((SocketConnection) connection).getSocket();
+        try {
+            originalSendBufferSize = socket.getSendBufferSize();
+            originalReceiveBufferSize = socket.getReceiveBufferSize();
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers BEFORE: sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+            socket.setSendBufferSize(4 * 1024 * 1024); // 4 MB
+            socket.setReceiveBufferSize(4 * 1024 * 1024);
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers AFTER:  sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void resetSocketBuffers() {
+        final Socket socket = ((SocketConnection) connection).getSocket();
+        try {
+            socket.setSendBufferSize(originalSendBufferSize);
+            socket.setReceiveBufferSize(originalReceiveBufferSize);
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers reset: sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Reset socketTimeout to original value
      *
@@ -167,6 +215,7 @@ public class ReconnectStateTeacher {
             return;
         }
         increaseSocketTimeout();
+        increaseSocketBuffers();
 
         try {
             sendSignatures();
@@ -179,6 +228,7 @@ public class ReconnectStateTeacher {
             throw new ReconnectStateException(e);
         } finally {
             resetSocketTimeout();
+            resetSocketBuffers();
         }
         logReconnectFinish();
     }
@@ -219,11 +269,19 @@ public class ReconnectStateTeacher {
         connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+
+        // Reconnect sends ~tens of millions of small messages through a single writer thread.
+        // connection.getDos() is the gossip SyncOutputStream with a small (8KB) buffer shared with
+        // gossip config; wrap it in a large reconnect-only buffer so small writes coalesce into
+        // large socket writes WITHOUT changing the system-wide socket.bufferSize. This wrapper lives
+        // only for the duration of this reconnect.
+        final int reconnectBufferBytes = 1 << 20; // 1 MiB
+
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
                 time,
                 threadManager,
                 new DataInputStream(connection.getDis()),
-                new DataOutputStream(connection.getDos()),
+                new DataOutputStream(new BufferedOutputStream(connection.getDos(), reconnectBufferBytes)),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
