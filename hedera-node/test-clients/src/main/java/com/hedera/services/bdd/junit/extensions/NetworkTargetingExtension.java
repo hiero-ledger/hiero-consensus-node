@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.extensions;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.buildRsaBootstrapJson;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -30,6 +31,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -148,6 +150,11 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     }
                 }
 
+                final boolean hasRealBlockNode =
+                        Arrays.stream(annotation.blockNodeConfigs()).anyMatch(c -> c.mode() == BlockNodeMode.REAL);
+                if (hasRealBlockNode) {
+                    targetBlockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(targetNetwork.getNodeKeys()));
+                }
                 targetBlockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 targetNetwork.start();

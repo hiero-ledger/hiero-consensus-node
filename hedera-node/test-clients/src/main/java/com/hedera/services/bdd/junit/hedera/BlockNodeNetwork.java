@@ -42,6 +42,8 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
+    private String rsaBootstrapJson;
+
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
     private static final int MAX_START_ATTEMPTS = 4;
     private static final long CONTAINER_START_BACKOFF_MS = 1000L;
@@ -225,7 +227,7 @@ public class BlockNodeNetwork {
             final int port = findAvailablePort();
             BlockNodeContainer container = null;
             try {
-                container = new BlockNodeContainer(id, port);
+                container = new BlockNodeContainer(id, port, rsaBootstrapJson);
                 container.start();
                 blockNodeContainerById.put(id, container);
                 logger.info("Started real block node container {} @ {}", id, container);
@@ -376,5 +378,13 @@ public class BlockNodeNetwork {
 
     public Map<Long, Boolean> getBlockNodeHighLatencyById() {
         return blockNodeHighLatencyById;
+    }
+
+    public void setRsaBootstrapJson(@NonNull final String rsaBootstrapJson) {
+        this.rsaBootstrapJson = rsaBootstrapJson;
+    }
+
+    public String getRsaBootstrapJson() {
+        return rsaBootstrapJson;
     }
 }

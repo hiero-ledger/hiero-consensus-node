@@ -77,8 +77,7 @@ class DataSourceHashChunkPreloaderTest {
     }
 
     @Test
-    @DisplayName(
-            "Concurrent apply() calls for the same path return the same instance and load from datasource only once")
+    @DisplayName("Concurrent cache hit with single datasource read")
     void concurrentApplyReturnsSameInstance() throws Exception {
         final int threadCount = 50;
         final long chunkPath = 0L;

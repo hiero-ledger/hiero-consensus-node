@@ -330,14 +330,14 @@ public class TipsetEventCreator implements EventCreator {
                 if (!contains(chosenBestParents, selflessParent)) {
                     // otherwise, replace the least important parent with one we have chosen to reduce selfishness
                     // please note in case of single-parent events, this will replace the only parent
-                    chosenBestParents[chosenBestParents.length - 1] = selflessParent;
+                    chosenBestParents[0] = selflessParent;
                     replacedBestParentForSelfishness = true;
                 }
             }
         }
 
         for (int i = 0; i < chosenBestParents.length; i++) {
-            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
+            if (replacedBestParentForSelfishness && i == 0) {
                 tipsetMetrics
                         .getPityParentMetric(chosenBestParents[i].getCreatorId())
                         .cycle();
