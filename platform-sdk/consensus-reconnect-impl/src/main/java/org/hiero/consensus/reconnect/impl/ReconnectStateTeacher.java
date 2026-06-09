@@ -270,18 +270,11 @@ public class ReconnectStateTeacher {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
-        // Reconnect sends ~tens of millions of small messages through a single writer thread.
-        // connection.getDos() is the gossip SyncOutputStream with a small (8KB) buffer shared with
-        // gossip config; wrap it in a large reconnect-only buffer so small writes coalesce into
-        // large socket writes WITHOUT changing the system-wide socket.bufferSize. This wrapper lives
-        // only for the duration of this reconnect.
-        final int reconnectBufferBytes = 1 << 20; // 1 MiB
-
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
                 time,
                 threadManager,
                 new DataInputStream(connection.getDis()),
-                new DataOutputStream(new BufferedOutputStream(connection.getDos(), reconnectBufferBytes)),
+                new DataOutputStream(connection.getDos()),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
