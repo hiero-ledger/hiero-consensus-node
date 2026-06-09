@@ -23,22 +23,22 @@ import java.util.HashMap;
  * WARNING: For arrays passed to the constructors, the caller must never change any array elements. The arrays must
  * be treated as immutable objects.
  * <p>
- * There are constructors and getters, but no setters. Other than that, there are only 3 public methods:
- * the static method {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()},
+ * There are constructors and getters, but no setters, and no public fields. Other than that, there are only 3 public
+ * methods: the static method {@link HashgraphInfo#minNonAncientRound HashgraphInfo.minNonAncientRound()},
  * which gives the minimum birth round that is not ancient,
  * {@link EventInfo#update EventInfo.update()}, which updates an event with the consensus calculations, and
  * {@link EventInfo#clear EventInfo.clear()}, which erases references in it when it is time to discard it.
  * This file implements the equations from the tech report Swirlds-TR-2026-01. Search this file for "/-" to
- * find all the equations from that paper that are implemented.
+ * find all the function equations from that paper that are implemented.
  * <p>
  * A single {@link HashgraphInfo HashgraphInfo} should be instantiated for the hashgraph. If several hashgraphs
  * exist, such as for a simulation of multiple nodes, then there should be one per hashgraph.
  * <p>
- * An {@link EventInfo EventInfo} should be instantiated for each event. The update method is called on all the events
- * to calculate consensus. At some time after an event becomes
- * ancient, it should have its {@link EventInfo#clear EventInfo.clear()} method called to clean up memory by erasing
- * all its references to older events. This can happen immediately after it becomes ancient, or
- * many rounds later when it expires, or at any other time after becoming ancient.
+ * An {@link EventInfo EventInfo} should be instantiated for each event. The
+ * {@link EventInfo#update EventInfo.update()} method is called on all the events to calculate consensus. At some
+ * time after an event becomes ancient, it should have its {@link EventInfo#clear EventInfo.clear()} method called to
+ * clean up memory by erasing all its references to older events. This can happen immediately after it becomes
+ * ancient, or many rounds later when it expires, or at any other time after becoming ancient.
  * <p>
  * For a larger program to use the Hashgraph consensus algorithm, it should include this class.
  * It should instantiate a {@link RoundInfo RoundInfo} and {@link RoundInfoPrev RoundInfoPrev} for the pending round
@@ -73,6 +73,11 @@ public final class HashgraphInfo {
     private int currMark = 0;
     private boolean roundDecided;
     private long supermajorityThreshold; // stake more than this is a supermajority
+    //the following are used for tracking candidates for judge in the current round (to speed up topVote & stakeAgrees)
+    private int candCount; // how many candidates found so far during the pending round
+    private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
+    private EventInfo[] candEventInfo; // for each node, the list of candidate events
+    private long[] candStake; // the total stake of all votes for each candidate event
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
     /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
@@ -90,6 +95,9 @@ public final class HashgraphInfo {
     public int getCurrMark() {return currMark;}
     public boolean getRoundDecided() {return roundDecided;}
     public long getSupermajorityThreshold() {return supermajorityThreshold;}
+    public ArrayList<ArrayList<Integer>> getCandIndex(){return candIndex};
+    public EventInfo[] getCandEventInfo(){return candEventInfo;}
+    public long[] getCandStake(){return candStake;};
     */
 
     /**
@@ -206,6 +214,7 @@ public final class HashgraphInfo {
         private Instant consensusTimestamp;
         private boolean prevJudge;
         private long maxJudgeRound;
+        private int candIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
@@ -326,15 +335,17 @@ public final class HashgraphInfo {
                 @NonNull RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
-         * This should be called for each event just after it is added to the hashgraph. When consensus is
-         * reached for a round, then switch to the round info for the next round. Using it, call update on
-         * all the judges that were just found, and their descendents. Stop updating them if one of those calls
-         * reaches consensus.
+         * This should be called for each event just after it is added to the hashgraph. If it returns a non-null
+         * result, then consensus has now been reached for that round. At that point, switch to the round info for the
+         * next round. Using it, call update on all the judges that were just found, and their descendents.
+         * Stop updating them if one of those calls reaches consensus.
          * <p>
          * When starting with an empty hashgraph after a reconnect or restart, there will be a period before all
          * the previous judges have been added to the hashgraph. Do not call this update function
-         * during that period. Once all the judges in {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges}
-         * have been added to the hashgraph, then call update on all the judges that were just added, and their
+         * during that period. Once all the previous round's judges have been added, it will be possible
+         * to instantiate the {@link RoundInfoPrev RoundInfoPrev} record, because all the references for
+         * {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges} will be known.
+         * At that point, call update() on all the judges that were just added, and their
          * descendents. Stop updating them if one of those calls reaches consensus.
          * <p>
          * This is sometimes called on a batch of events, because it is the start of a new round,
@@ -358,6 +369,8 @@ public final class HashgraphInfo {
          * must be passed a {@link RoundInfo RoundInfo} that either has the same
          * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} as in the previous call, or has a
          * {@link RoundInfo#pendingRound RoundInfoCore.pendingRound} that is one greater than in the previous call.
+         * A new hashgraph starting from scratch at genesis should be started with
+         * {@link RoundInfo#pendingRound RoundInfo.pendingRound} == 1.
          *
          * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
          * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
