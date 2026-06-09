@@ -3,8 +3,10 @@ package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -43,6 +45,7 @@ public class EmptyKeyListTokenKeyTest {
 
     private static final String EMPTY_KEY = "emptyKeyListSentinel";
     private static final String TREASURY = "treasury";
+    private static final String ATTACKER = "attacker";
 
     // The same value as KeyUtils.IMMUTABILITY_SENTINEL_KEY — duplicated here to avoid a
     // test-clients dependency on hapi-utils internals.
@@ -117,5 +120,32 @@ public class EmptyKeyListTokenKeyTest {
                         .name("renamed")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(TOKEN_IS_IMMUTABLE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> immutableTokenWithSentinelAdminKeyCannotBeDeletedByAnyone() {
+        return hapiTest(
+                withOpContext((spec, opLog) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
+                cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ATTACKER).balance(ONE_HUNDRED_HBARS),
+
+                // A token created with the empty-KeyList sentinel as its admin key is immutable.
+                tokenCreate("immutableT")
+                        .treasury(TREASURY)
+                        .adminKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasKnownStatus(SUCCESS),
+
+                // An attacker (no admin signature — the admin key is unsatisfiable) must NOT be able to
+                // delete it. TokenDelete must treat the empty-KeyList admin key as "no admin key" and
+                // reject with TOKEN_IS_IMMUTABLE, rather than dropping the unsatisfiable signature
+                // requirement and deleting the token.
+                tokenDelete("immutableT")
+                        .payingWith(ATTACKER)
+                        .signedBy(ATTACKER)
+                        .hasKnownStatus(TOKEN_IS_IMMUTABLE),
+
+                // The token must still exist after the unauthorized delete attempt.
+                getTokenInfo("immutableT"));
     }
 }

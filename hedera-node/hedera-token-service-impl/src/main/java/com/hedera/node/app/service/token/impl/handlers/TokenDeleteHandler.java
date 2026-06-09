@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -107,7 +108,9 @@ public class TokenDeleteHandler implements TransactionHandler {
     public Token validateSemantics(@NonNull final TokenID tokenId, @NonNull final ReadableTokenStore tokenStore) {
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
 
-        validateTrue(token.adminKey() != null, ResponseCodeEnum.TOKEN_IS_IMMUTABLE);
+        // An empty key list admin key (the HIP-540 removal sentinel) means the token is effectively
+        // immutable; deletion must be rejected rather than treated as needing no admin signature.
+        validateTrue(!isEmpty(token.adminKey()), ResponseCodeEnum.TOKEN_IS_IMMUTABLE);
 
         return token;
     }

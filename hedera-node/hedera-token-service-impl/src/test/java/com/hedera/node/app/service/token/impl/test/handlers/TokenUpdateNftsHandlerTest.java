@@ -286,19 +286,23 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void preHandle_WhenTokenHasEmptyKeyListMetadataKeySerialsOutsideTreasury() {
+        // Use a concrete Token whose metadata key is the empty-KeyList sentinel: a naive hasMetadataKey()
+        // check would treat it as present, but it must be treated as "no key" so the update is rejected.
+        // (Owner 0.0.1 differs from the treasury 0.0.2, so the serials are "outside treasury".)
+        final var tokenWithEmptyMetadataKey = Token.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .treasuryAccountId(AccountID.newBuilder().accountNum(2).build())
+                .metadataKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
         when(preHandleContext.body()).thenReturn(transactionBody);
         when(transactionBody.tokenUpdateNftsOrThrow()).thenReturn(tokenUpdateNftsTransactionBody);
         when(tokenUpdateNftsTransactionBody.tokenOrElse(TokenID.DEFAULT)).thenReturn(nonFungibleTokenId);
         when(tokenUpdateNftsTransactionBody.serialNumbers()).thenReturn(List.of(1L));
         when(preHandleContext.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(preHandleContext.createStore(ReadableNftStore.class)).thenReturn(readableNftStore);
-        when(readableTokenStore.get(nonFungibleTokenId)).thenReturn(token);
+        when(readableTokenStore.get(nonFungibleTokenId)).thenReturn(tokenWithEmptyMetadataKey);
         when(readableNftStore.get(nftIdSl1)).thenReturn(nft);
-        when(token.tokenIdOrThrow()).thenReturn(nonFungibleTokenId);
         when(nft.ownerId()).thenReturn(AccountID.newBuilder().accountNum(1).build());
-        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
-        when(token.metadataKey())
-                .thenReturn(Key.newBuilder().keyList(KeyList.DEFAULT).build());
 
         Assertions.assertThatThrownBy(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
