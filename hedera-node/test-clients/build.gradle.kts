@@ -70,9 +70,6 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
             "-XX:ActiveProcessorCount=$testProcessorCount",
             // Limit forked node JVM heap to avoid overcommitting container/runner memory
             "-Dhapi.spec.node.poolMib=$nodePoolMib",
-            // Pass remaining CPU budget to ProcessUtils, which divides by actual node count at
-            // runtime — mirrors the poolMib pattern so total logical CPUs stay ≤ physical CPUs
-            "-Dhapi.spec.node.processorBudget=${availableCpus - testProcessorCount}",
         )
     }
 }

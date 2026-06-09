@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -51,7 +50,7 @@ public class UnknownFunctionSelectorTest {
 
     @HapiTest
     final Stream<DynamicTest> callScheduleServiceWithUnknownSelector(@Account final SpecAccount receiver) {
-        fail("intentional failure for JFR collection");
+
         final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
         final String schedule = "testSchedule";
         return hapiTest(

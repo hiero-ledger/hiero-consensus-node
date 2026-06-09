@@ -26,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_HA
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -41,7 +40,6 @@ class UpgradeHashTest {
 
     @HapiTest
     final Stream<DynamicTest> mismatchedHashPreventsSuccessfulUpgrades() {
-        Assertions.fail("intentional failure for JFR collection");
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, 1000 * ONE_HBAR)),
                 buildUpgradeZipFrom(FAKE_ASSETS_LOC),

@@ -210,7 +210,8 @@ public class ProcessUtils {
                 .toAbsolutePath()
                 .resolve("jfr-node" + metadata.nodeId() + ".jfr");
         commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile
-                + ",settings=profile,disk=true,dumponexit=true,name=hapitest");
+                + ",settings=profile,disk=true,dumponexit=true,name=hapitest"
+                + ",jdk.InitialEnvironmentVariable#enabled=false");
         commandLine.addAll(List.of(
                 "--module-path",
                 // Use the same module path that started this process, excluding test-clients

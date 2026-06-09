@@ -60,13 +60,13 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     /**
      * How many milliseconds to wait between retrying a Prometheus status lookup.
      */
-    private static final long PROMETHEUS_BACKOFF_MS = 500L;
+    private static final long PROMETHEUS_BACKOFF_MS = 100L;
     /**
      * The maximum number of retries to make when looking up the status of a node via Prometheus
      * before resorting to scanning the application log. (Empirically, if Prometheus is not up
      * within a minute or so, it's not going to be; and we should fall back to log scanning.)
      */
-    private static final int MAX_PROMETHEUS_RETRIES = 200;
+    private static final int MAX_PROMETHEUS_RETRIES = 1000;
     /**
      * How many retries to make between checking if a bind exception has been thrown in the logs.
      */
