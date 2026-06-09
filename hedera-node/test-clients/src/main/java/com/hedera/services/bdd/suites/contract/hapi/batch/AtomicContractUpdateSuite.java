@@ -106,7 +106,7 @@ class AtomicContractUpdateSuite {
                 /* --- reset the staking account */
                 atomicBatch(contractUpdate(CONTRACT)
                                 .newDeclinedReward(false)
-                                .newStakedAccountId("0")
+                                .newStakedAccountId("0.0.0")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
                 getContractInfo(CONTRACT)

@@ -220,7 +220,7 @@ public class ContractCreateSuite {
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
-                        .stakedAccountId("0")
+                        .stakedAccountId("0.0.0")
                         .hasPrecheck(INVALID_STAKING_ID)
                         .refusingEthConversion(),
                 contractCreate(contract)

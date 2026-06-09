@@ -39,7 +39,7 @@ import org.apache.logging.log4j.Logger;
 
 public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
-    private static final String DEFAULT_NODE_ACCOUNT_ID = "0";
+    private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> innerOpsByTxnId = new HashMap<>();
     private final Map<TransactionID, Transaction> innerTnxsByTxnId = new HashMap<>();
