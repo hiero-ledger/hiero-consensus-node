@@ -63,6 +63,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -371,6 +372,23 @@ class WritableHistoryStoreImplTest {
                 state.getWritableStates(HistoryService.NAME)
                         .get(PROOF_KEY_SETS_STATE_ID)
                         .size());
+    }
+
+    @Test
+    void clearProofVotesRemovesPersistedVotesForGivenNodesOnly() {
+        // finishProof purges a construction's persisted votes on completion so a node rebuilding its
+        // controller during a WRAPS conversion does not reload now-superseded votes (which would
+        // make it skip the conversion vote as already counted and diverge ACTIVE_PROOF_CONSTRUCTION).
+        subject.addProofVote(0L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(1L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(0L, 456L, DEFAULT_VOTE);
+        assertEquals(2, subject.getVotes(123L, Set.of(0L, 1L)).size());
+
+        subject.clearProofVotes(123L, new TreeSet<>(List.of(0L, 1L)));
+
+        assertEquals(0, subject.getVotes(123L, Set.of(0L, 1L)).size());
+        // Votes for a different construction are untouched.
+        assertEquals(1, subject.getVotes(456L, Set.of(0L)).size());
     }
 
     private void givenARosterLookup() {

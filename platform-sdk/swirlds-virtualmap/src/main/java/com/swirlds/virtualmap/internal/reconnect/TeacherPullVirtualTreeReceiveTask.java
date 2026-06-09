@@ -11,6 +11,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
@@ -105,13 +106,9 @@ public class TeacherPullVirtualTreeReceiveTask {
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
-                final byte[] requestBytes = in.readAnticipatedMessage();
+                final byte[] requestBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (requestBytes == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                    break;
                 }
                 final PullVirtualTreeRequest request =
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));

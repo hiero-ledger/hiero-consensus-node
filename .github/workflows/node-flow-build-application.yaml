@@ -20,9 +20,19 @@ permissions:
   contents: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
+    needs:
+      - extract-jdk-version
     with:
       ref: ${{ github.ref }}
       enable-dependency-check: "true"
@@ -39,7 +49,7 @@ jobs:
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "25.0.2"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:
@@ -63,7 +73,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
           checkout-fetch-depth: "0"
 
       - name: Resolve Workflow Reference
@@ -226,7 +236,7 @@ jobs:
       - name: Create Rootly Alert
         id: create-rootly-alert
         if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}

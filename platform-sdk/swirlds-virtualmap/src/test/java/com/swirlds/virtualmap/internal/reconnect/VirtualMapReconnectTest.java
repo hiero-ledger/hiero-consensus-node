@@ -18,11 +18,11 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.sync.MerkleTestUtils;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -266,7 +266,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+        VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         assertEquals(DOG, afterMap.get(D_KEY, TestValueCodec.INSTANCE), "After sync, should have D_KEY available");
         assertNull(afterMap.get(C_KEY, TestValueCodec.INSTANCE), "After sync, should not have C_KEY anymore");
@@ -308,7 +308,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         final VirtualMap afterLearnerMap =
-                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         final VirtualMap afterCopy = afterLearnerMap.copy();
 

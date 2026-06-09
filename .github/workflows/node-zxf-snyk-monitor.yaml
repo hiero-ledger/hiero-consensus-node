@@ -12,8 +12,18 @@ permissions:
   security-events: write
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   snyk:
     name: Snyk Monitor
+    needs:
+      - extract-jdk-version
     runs-on: hl-cn-snyk-check-lin
 
     steps:
@@ -22,11 +32,11 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-fetch-depth: 1
-          checkout-token: "${{ github.token }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           setup-gradle: "true"
           setup-node: "true"
           node-version: "20"

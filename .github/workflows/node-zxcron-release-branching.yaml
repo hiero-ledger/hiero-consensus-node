@@ -31,11 +31,11 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read Trigger Time
         id: time
-        uses: mikefarah/yq@c59fa8de59f1f5a16fdbfd1e2a6e97a1b42a64b9 # v4.45.2
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
         with:
           cmd: yq '.release.branching.execution.time' '${{ env.WORKFLOW_CONFIG_FILE }}'
 
@@ -85,7 +85,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Branch Creation Check
         id: branch-creation
@@ -185,13 +185,21 @@ jobs:
                 ]
               }
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   create-tag:
     name: Create Release Tag
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
       - create-branch
-
+      - extract-jdk-version
     if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
     steps:
       - name: Prepare Runner
@@ -201,10 +209,10 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-          checkout-fetch-depth: 0
+          checkout-fetch-depth: "0"
           setup-java: "true"
           java-distribution: "temurin"
-          java-version: "25.0.2"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           setup-gradle: "true"
 
       - name: Install Semantic Version Tools

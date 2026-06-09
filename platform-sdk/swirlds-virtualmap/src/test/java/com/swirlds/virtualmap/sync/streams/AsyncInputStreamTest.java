@@ -6,387 +6,612 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.test.fixtures.sync.BlockingInputStream;
-import com.swirlds.virtualmap.test.fixtures.sync.BlockingOutputStream;
-import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
-import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
-@DisplayName("Async Stream Test")
+@Tag(TestComponentTags.RECONNECT)
 class AsyncInputStreamTest {
 
-    private final Configuration configuration = new TestConfigBuilder()
-            .withConfigDataType(ReconnectConfig.class)
-            .withValue(ReconnectConfig_.ASYNC_STREAM_BUFFER_SIZE, 100)
-            .withValue(ReconnectConfig_.ASYNC_OUTPUT_STREAM_FLUSH, "50ms")
-            .getOrCreateConfig();
-    private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+    /** Default queue size threshold used by tests that don't care about backpressure boundaries. */
+    private static final int DEFAULT_QUEUE_SIZE = 100;
 
-    /** Serialize a long value into a byte array. */
-    private static byte[] serializeLong(final long value) {
-        final byte[] bytes = new byte[Long.BYTES];
-        BufferedData.wrap(bytes).writeLong(value);
-        return bytes;
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
+
+    /**
+     * Tests to validate constructor, basic properties and methods without starting background thread
+     */
+    @Nested
+    class BasicsWithoutStart {
+
+        @Test
+        @DisplayName("Constructor rejects null inputStream")
+        @SuppressWarnings("DataFlowIssue")
+        void constructorRejectsNullInputStream() {
+            assertThrows(
+                    NullPointerException.class,
+                    () -> new AsyncInputStream(
+                            null, mock(StandardWorkGroup.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT));
+        }
+
+        @Test
+        @DisplayName("Constructor rejects null workGroup")
+        @SuppressWarnings("DataFlowIssue")
+        void constructorRejectsNullWorkGroup() {
+            assertThrows(
+                    NullPointerException.class,
+                    () -> new AsyncInputStream(mock(DataInputStream.class), null, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT));
+        }
+
+        @ParameterizedTest
+        @DisplayName("Constructor rejects non-positive queueSizeThreshold")
+        @ValueSource(ints = {-1, 0})
+        void constructorRejectsBadThreshold(int queueSizeThreshold) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class),
+                            mock(StandardWorkGroup.class),
+                            queueSizeThreshold,
+                            DEFAULT_TIMEOUT));
+        }
+
+        @Test
+        @DisplayName("Constructor rejects null timeout")
+        @SuppressWarnings("DataFlowIssue")
+        void constructorRejectsNullTimeout() {
+            assertThrows(
+                    NullPointerException.class,
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class), mock(StandardWorkGroup.class), DEFAULT_QUEUE_SIZE, null));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {-1L, 0L})
+        @DisplayName("Constructor rejects non-positive timeout")
+        void constructorRejectsBadTimeout(long timeoutMs) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new AsyncInputStream(
+                            mock(DataInputStream.class),
+                            mock(StandardWorkGroup.class),
+                            DEFAULT_QUEUE_SIZE,
+                            Duration.ofMillis(timeoutMs)));
+        }
+
+        @Test
+        @DisplayName("Status is NOT_STARTED and queue is empty before start")
+        void notStartedAndEmptyBeforeStart() {
+            final AsyncInputStream in = new AsyncInputStream(
+                    mock(DataInputStream.class), mock(StandardWorkGroup.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            assertEquals(AsyncInputStream.Status.NOT_STARTED, in.getStatus(), "status should be NOT_STARTED");
+            assertEquals(0, in.getQueueSize(), "queue size should be empty");
+        }
+
+        @ParameterizedTest
+        @EnumSource(YieldStrategy.class)
+        @DisplayName("read returns null on a stream that was never started")
+        void readReturnsNullOnNotStartedStream(final YieldStrategy yieldStrategy) {
+            final AsyncInputStream in = new AsyncInputStream(
+                    mock(DataInputStream.class), mock(StandardWorkGroup.class), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            assertNull(in.readOrWait(yieldStrategy), "Queue is empty and stream is not alive to return any message");
+        }
     }
 
-    /** Parse a long value from raw message bytes. */
+    /**
+     * Tests to validate normal work with single thread and no exceptions
+     */
+    @Nested
+    class SingleThreadBasics {
+
+        /**
+         * Create and start input stream reading data from predefined bytes array.
+         *
+         * @param data predefined data
+         * @param beforeDone test consuming async input stream to run before waiting for background thread to be done
+         * @param afterDone test consuming async input stream to run after background stream is done - must read all messages
+         */
+        private void createStreamAndTest(
+                final byte[] data,
+                final Consumer<AsyncInputStream> beforeDone,
+                final Consumer<AsyncInputStream> afterDone) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+            final AsyncInputStream in = new AsyncInputStream(
+                    new DataInputStream(new ByteArrayInputStream(data)),
+                    workGroup,
+                    DEFAULT_QUEUE_SIZE,
+                    DEFAULT_TIMEOUT);
+            in.start();
+
+            testAndAwaitTermination(workGroup, () -> {
+                beforeDone.accept(in);
+
+                // wait for background thread read all the data
+                assertEventuallyEquals(
+                        AsyncInputStream.Status.DONE,
+                        in::getStatus,
+                        Duration.ofSeconds(3),
+                        "Stream should not be alive after termination marker is read");
+
+                afterDone.accept(in);
+
+                assertNull(in.readOrWait(YieldStrategy.SPIN), "Stream should be drained after all messages");
+                assertEquals(0, in.getQueueSize(), "buffer size should be empty");
+            });
+
+            // verify not able to start after termination
+            assertThrows(IllegalStateException.class, in::start, "Should have thrown an exception");
+        }
+
+        @Test
+        @DisplayName("No messages correct behavior")
+        void emptyData() throws IOException {
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final DataOutputStream dataOut = new DataOutputStream(byteOut);
+            dataOut.writeInt(-1); // termination
+            dataOut.flush();
+
+            createStreamAndTest(byteOut.toByteArray(), _ -> {}, _ -> {});
+        }
+
+        @ParameterizedTest
+        @EnumSource(YieldStrategy.class)
+        @DisplayName("Less than queue size messages decoded in order under each YieldStrategy")
+        void lessMessagesThanQueueSize(final YieldStrategy yield) throws IOException {
+            final int count = DEFAULT_QUEUE_SIZE - 1;
+
+            createStreamAndTest(encodeLongs(count), _ -> {}, in -> {
+                assertEquals(count, in.getQueueSize(), "Input queue size should match number of messages");
+
+                for (int i = 0; i < count; i++) {
+                    final byte[] msg = in.readOrWait(yield);
+                    assertNotNull(msg, "Message " + i + " should be available");
+                    assertEquals(i, parseLong(msg), "Message " + i + " value should match");
+                }
+            });
+        }
+
+        @ParameterizedTest
+        @EnumSource(YieldStrategy.class)
+        @DisplayName("Full queue keep background stream running")
+        void fullQueueKeepsStreamRunning(final YieldStrategy yield) throws IOException {
+            createStreamAndTest(
+                    encodeLongs(DEFAULT_QUEUE_SIZE),
+                    in -> {
+                        assertEventuallyEquals(
+                                DEFAULT_QUEUE_SIZE,
+                                in::getQueueSize,
+                                Duration.ofSeconds(3),
+                                "Background message queue should fill up");
+                        assertEquals(
+                                AsyncInputStream.Status.RUNNING,
+                                in.getStatus(),
+                                "Stream should be alive since termination marker is not yet read due to full queue");
+
+                        // reading only one message should unblock background thread to read termination marker
+                        int i = 0;
+                        byte[] msg = in.readOrWait(yield);
+                        assertNotNull(msg, "Message " + i + " should be available");
+                        assertEquals(i, parseLong(msg), "Message " + i + " value should match");
+                    },
+                    in -> {
+                        // drain all other messages and verify
+                        for (int i = 1; i < DEFAULT_QUEUE_SIZE; i++) {
+                            byte[] msg = in.readOrWait(yield);
+                            assertNotNull(msg, "Message " + i + " should be available");
+                            assertEquals(i, parseLong(msg), "Message " + i + " value should match");
+                        }
+                    });
+        }
+
+        @Test
+        @DisplayName("Zero-length payload round-trips as an empty byte array")
+        void zeroLengthPayloadRoundTrips() throws IOException {
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final DataOutputStream dataOut = new DataOutputStream(byteOut);
+            dataOut.writeInt(0); // empty payload
+            dataOut.writeInt(-1); // termination
+            dataOut.flush();
+
+            createStreamAndTest(byteOut.toByteArray(), _ -> {}, in -> {
+                final byte[] msg = in.readOrWait(YieldStrategy.SPIN);
+                assertNotNull(msg, "Zero-length payload should still produce a (non-null) byte array");
+                assertEquals(0, msg.length, "Payload should be empty");
+            });
+        }
+
+        @Test
+        @DisplayName("Large message (1 MiB) round-trips byte-exact")
+        void largeMessageRoundTrip() throws IOException {
+            final byte[] payload = new byte[1 << 20]; // 1 MiB
+            for (int i = 0; i < payload.length; i++) {
+                payload[i] = (byte) (i & 0xFF);
+            }
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final DataOutputStream dataOut = new DataOutputStream(byteOut);
+            dataOut.writeInt(payload.length);
+            dataOut.write(payload);
+            dataOut.writeInt(-1);
+            dataOut.flush();
+
+            createStreamAndTest(byteOut.toByteArray(), _ -> {}, in -> {
+                final byte[] received = in.readOrWait(YieldStrategy.PARK);
+                assertNotNull(received, "Large message should arrive");
+                assertEquals(payload.length, received.length, "Large message length must match");
+                assertArrayEquals(payload, received, "Large message bytes must round-trip exactly");
+            });
+        }
+    }
+
+    /**
+     * Tests to validate exception handling and propagation.
+     */
+    @Nested
+    class Exceptions {
+
+        @Test
+        @DisplayName("Second start throws an exception")
+        void secondStartThrowsAnException() {
+            final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
+            final DataInputStream inputStream = mock(DataInputStream.class);
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            in.start();
+
+            assertEquals(AsyncInputStream.Status.RUNNING, in.getStatus(), "status should be RUNNING after start");
+            assertThrows(IllegalStateException.class, in::start, "Second start should throw an exception");
+
+            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verifyNoMoreInteractions(workGroup);
+            verifyNoInteractions(inputStream);
+        }
+
+        @Test
+        @DisplayName("Background thread failed to submit")
+        void backgroundReadThreadFailsToBeSubmitted() {
+            final RuntimeException cause = new RuntimeException();
+            final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
+            final DataInputStream inputStream = mock(DataInputStream.class);
+
+            doThrow(cause).when(workGroup).execute(eq("async-input-stream"), any(Runnable.class));
+
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            assertThrows(MerkleSynchronizationException.class, in::start, "Should have thrown an exception");
+            assertEquals(AsyncInputStream.Status.DONE, in.getStatus(), "status should be DONE after failed start");
+
+            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).handleError(cause);
+            verifyNoMoreInteractions(workGroup);
+            verifyNoInteractions(inputStream);
+        }
+
+        @Test
+        @DisplayName("Too big message read causes exception")
+        void tooBigMessageReadThrowsException() throws InterruptedException, IOException {
+            final byte[] payload = new byte[AsyncInputStream.MAX_MESSAGE_SIZE + 1];
+            for (int i = 0; i < payload.length; i++) {
+                payload[i] = (byte) (i & 0xFF);
+            }
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final DataOutputStream dataOut = new DataOutputStream(byteOut);
+            dataOut.writeInt(payload.length);
+            dataOut.write(payload);
+            dataOut.writeInt(-1);
+            dataOut.flush();
+
+            final ExceptionCapture exceptionCapture = new ExceptionCapture();
+            final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "test", null, exceptionCapture);
+            final DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            in.start();
+            workGroup.waitForTermination();
+
+            assertEquals(AsyncInputStream.Status.DONE, in.getStatus(), "Reader thread should be done");
+            assertTrue(workGroup.hasExceptions(), "Work group should have an exception");
+            assertEquals(1, exceptionCapture.getExceptions().size());
+            assertInstanceOf(
+                    MerkleSynchronizationException.class,
+                    exceptionCapture.getExceptions().peek());
+            assertTrue(
+                    exceptionCapture.getExceptions().peek().getMessage().contains("Message size exceeds maximum size"));
+
+            // verify not able to start after error
+            assertThrows(IllegalStateException.class, in::start, "Should have thrown an exception");
+        }
+
+        @Test
+        @DisplayName("EOFexception is propagated to work group")
+        void eofExceptionIsPropagatedToWorkGroup() throws InterruptedException {
+            final ExceptionCapture exceptionCapture = new ExceptionCapture();
+            final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "test", null, exceptionCapture);
+            final DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(new byte[0]));
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            in.start();
+            workGroup.waitForTermination();
+
+            assertEquals(AsyncInputStream.Status.DONE, in.getStatus(), "Reader thread should be done");
+            assertTrue(workGroup.hasExceptions(), "Work group should have an exception");
+            assertEquals(1, exceptionCapture.getExceptions().size());
+            assertInstanceOf(
+                    EOFException.class, exceptionCapture.getExceptions().peek());
+
+            // verify not able to start after error
+            assertThrows(IllegalStateException.class, in::start, "Should have thrown an exception");
+        }
+
+        @Test
+        @DisplayName("IOException is propagated to work group")
+        void ioExceptionIsPropagatedToWorkGroup() throws InterruptedException, IOException {
+            final String error = "broken stream";
+            final ExceptionCapture exceptionCapture = new ExceptionCapture();
+            final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "test", null, exceptionCapture);
+
+            final DataInputStream inputStream = mock(DataInputStream.class);
+            when(inputStream.readInt()).thenThrow(new IOException(error));
+
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            in.start();
+            workGroup.waitForTermination();
+
+            assertEquals(AsyncInputStream.Status.DONE, in.getStatus(), "Reader thread should be done");
+
+            assertTrue(workGroup.hasExceptions(), "Work group should have an exception");
+            assertEquals(1, exceptionCapture.getExceptions().size());
+            assertInstanceOf(IOException.class, exceptionCapture.getExceptions().peek());
+            assertEquals(error, exceptionCapture.getExceptions().peek().getMessage());
+        }
+
+        @Test
+        @DisplayName("Consumer timeout if no messages are available in stream")
+        void consumerTimeoutOnBlockingStream() throws IOException, InterruptedException {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "timeout", null);
+
+            final BlockingInputStream blockingIn = new BlockingInputStream(new ByteArrayInputStream(encodeLongs(1)));
+            blockingIn.lock();
+            final AsyncInputStream in = new AsyncInputStream(
+                    new DataInputStream(blockingIn), workGroup, DEFAULT_QUEUE_SIZE, Duration.ofMillis(100));
+            in.start();
+
+            assertThrows(
+                    MerkleSynchronizationException.class, () -> in.readOrWait(YieldStrategy.PARK), "Should time out");
+
+            blockingIn.unlock();
+            workGroup.waitForTermination();
+        }
+    }
+
+    /**
+     * Tests for concurrent consumption, blocking, interruption.
+     */
+    @Nested
+    class Concurrent {
+
+        @Test
+        @DisplayName("Concurrent starts throws an exception")
+        void concurrentStartsThrowsAnException() throws InterruptedException {
+            final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
+            final DataInputStream inputStream = mock(DataInputStream.class);
+            final AsyncInputStream in =
+                    new AsyncInputStream(inputStream, workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+
+            final int threadsCount = 10;
+            final AtomicInteger exceptionsCount = new AtomicInteger();
+            final CyclicBarrier barrier = new CyclicBarrier(threadsCount);
+            final CountDownLatch doneLatch = new CountDownLatch(threadsCount);
+
+            for (int i = 0; i < threadsCount; i++) {
+                new Thread(() -> {
+                            try {
+                                barrier.await();
+                                in.start();
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new RuntimeException("Interrupted", e);
+                            } catch (BrokenBarrierException e) {
+                                throw new RuntimeException(e);
+                            } catch (IllegalStateException e) {
+                                exceptionsCount.incrementAndGet();
+                            } finally {
+                                doneLatch.countDown();
+                            }
+                        })
+                        .start();
+            }
+
+            if (!doneLatch.await(1, TimeUnit.SECONDS)) {
+                throw new AssertionError("No all threads starting stream finished");
+            }
+            assertEquals(
+                    threadsCount - 1,
+                    exceptionsCount.get(),
+                    "Only one thread can start, others should throw an exception");
+            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verifyNoMoreInteractions(workGroup);
+            verifyNoInteractions(inputStream);
+        }
+
+        @ParameterizedTest
+        @EnumSource(YieldStrategy.class)
+        @DisplayName("read returns null when the calling thread is interrupted")
+        void readReturnsNullOnInterrupt(final YieldStrategy yieldStrategy) throws IOException {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "interrupted", null);
+            // Lock the underlying stream so the reader thread blocks inside readInt() and alive
+            // stays true - this forces read to exit via the interrupt branch, not !alive.
+            final BlockingInputStream blockingIn = new BlockingInputStream(new ByteArrayInputStream(encodeLongs(1)));
+            blockingIn.lock();
+            final AsyncInputStream in = new AsyncInputStream(
+                    new DataInputStream(blockingIn), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            in.start();
+
+            testAndAwaitTermination(workGroup, () -> {
+                assertEquals(AsyncInputStream.Status.RUNNING, in.getStatus(), "Reader thread should be running");
+
+                final CountDownLatch startLatch = new CountDownLatch(1);
+                final byte[][] result = new byte[1][];
+                final Thread caller = new Thread(() -> {
+                    startLatch.countDown();
+                    result[0] = in.readOrWait(yieldStrategy);
+                });
+                caller.setDaemon(true);
+                caller.start();
+
+                assertTrue(startLatch.await(3, TimeUnit.SECONDS), "Consumer thread should be started");
+                // Give the caller a moment to enter the spin loop, then interrupt it from outside.
+                MILLISECONDS.sleep(50);
+                caller.interrupt(); // interrupt waiting for a message
+                caller.join(2_000);
+
+                assertFalse(caller.isAlive(), "Caller thread should exit after interrupt");
+                assertNull(result[0], "read should return null when the caller is interrupted");
+
+                // Unblock so the reader thread can finish and the work group can terminate.
+                blockingIn.unlock();
+            });
+        }
+
+        @ParameterizedTest
+        @EnumSource(YieldStrategy.class)
+        @DisplayName("Concurrent read messages")
+        void concurrentReadMessages(final YieldStrategy yieldStrategy) throws IOException {
+            final int threadsCount = 10;
+            final int messageCount = DEFAULT_QUEUE_SIZE * threadsCount;
+
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+            final AsyncInputStream in = new AsyncInputStream(
+                    new DataInputStream(new ByteArrayInputStream(encodeLongs(messageCount))),
+                    workGroup,
+                    DEFAULT_QUEUE_SIZE,
+                    DEFAULT_TIMEOUT);
+            in.start();
+
+            final CyclicBarrier barrier = new CyclicBarrier(threadsCount);
+            final CountDownLatch doneLatch = new CountDownLatch(threadsCount);
+            final ConcurrentLinkedQueue<Long> received = new ConcurrentLinkedQueue<>();
+
+            testAndAwaitTermination(workGroup, () -> {
+                for (int i = 0; i < threadsCount; i++) {
+                    Thread thread = new Thread(() -> {
+                        try {
+                            barrier.await();
+                            while (true) {
+                                final byte[] msg = in.readOrWait(yieldStrategy);
+                                if (msg == null) {
+                                    return;
+                                }
+                                received.add(parseLong(msg));
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted", e);
+                        } catch (BrokenBarrierException e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    });
+                    thread.setDaemon(true);
+                    thread.start();
+                }
+
+                if (!doneLatch.await(3, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Not all consumer threads finished");
+                }
+            });
+
+            assertEquals(messageCount, received.size(), "Every message should have been delivered exactly once");
+            final Set<Long> distinct = new HashSet<>(received);
+            assertEquals(messageCount, distinct.size(), "No duplicate deliveries across consumers");
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
     private static long parseLong(final byte[] bytes) {
         return BufferedData.wrap(bytes).readLong();
     }
 
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Basic Operation")
-    void basicOperation() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
-
-            in.start();
-            out.start();
-
-            final int count = 100;
-
-            for (int i = 0; i < count; i++) {
-                out.sendAsync(serializeLong(i));
-                final byte[] message = in.readAnticipatedMessageSync();
-                assertNotNull(message);
-                assertEquals(i, parseLong(message), "message should match the value that was serialized");
-            }
-
-            out.done();
-            workGroup.waitForTermination();
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Pre-Anticipation")
-    void preAnticipation() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
-
-            in.start();
-            out.start();
-
-            final int count = 100;
-
-            for (int i = 0; i < count; i++) {
-                out.sendAsync(serializeLong(i));
-                final byte[] message = in.readAnticipatedMessageSync();
-                assertNotNull(message);
-                assertEquals(i, parseLong(message), "message should match the value that was serialized");
-            }
-
-            out.done();
-            workGroup.waitForTermination();
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Max Output Queue Size")
-    void maxOutputQueueSize() throws InterruptedException, IOException {
-
-        final int bufferSize = 100;
-        final int count = 1_000;
-
-        final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-        final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
-
-        // Block all bytes from this stream, data can only sit in async stream buffer
-        blockingOut.lock();
-
-        final AsyncOutputStream out =
-                new AsyncOutputStream(new DataOutputStream(blockingOut), workGroup, reconnectConfig);
-
-        out.start();
-
-        final AtomicInteger messagesSent = new AtomicInteger(0);
-        final Thread outputThread = new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 0; i < count; i++) {
-                        try {
-                            out.sendAsync(serializeLong(i));
-                            messagesSent.getAndIncrement();
-                        } catch (final InterruptedException ex) {
-                            Thread.currentThread().interrupt();
-                            ex.printStackTrace(System.err);
-                            break;
-                        }
-                    }
-                })
-                .setThreadName("output-thread")
-                .build();
-        outputThread.start();
-
-        // Sender will send until the sender buffer is full.
-        MILLISECONDS.sleep(100);
-
-        final int messageCount = messagesSent.get();
-        // The buffer will fill up, and one or more messages will be held by the sending thread (which is
-        // blocked), up to double buffer size
-        assertTrue(messageCount >= bufferSize + 1, "incorrect message count");
-        assertTrue(messageCount <= 2 * bufferSize, "incorrect message count");
-
-        // Unblock the buffer, allowing remaining messages to be sent
-        blockingOut.unlock();
-
-        assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should have been sent");
-
-        out.done();
-
-        workGroup.waitForTermination();
-
-        // Sanity check, make sure all the messages were written to the stream
-        final byte[] bytes = byteOut.toByteArray();
-        final DataInputStream dataIn = new DataInputStream(new ByteArrayInputStream(bytes));
-        for (int i = 0; i < count; i++) {
-            assertEquals(Long.BYTES, dataIn.readInt(), "message length should be Long.BYTES");
-            assertEquals(i, dataIn.readLong(), "deserialized value should match expected value");
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Max Input Queue Size")
-    void maxInputQueueSize() throws IOException, InterruptedException {
-
-        final int bufferSize = 100;
-        final int count = 1_000;
-        final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-        // Write messages in the async stream wire format: int32 length prefix + message bytes
+    /** Writes {@code count} long-valued messages followed by the termination marker. */
+    private static byte[] encodeLongs(final int count) throws IOException {
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         final DataOutputStream dataOut = new DataOutputStream(byteOut);
         for (int i = 0; i < count; i++) {
             dataOut.writeInt(Long.BYTES);
             dataOut.writeLong(i);
         }
-        // Write the termination marker
-        dataOut.writeInt(-1);
+        dataOut.writeInt(-1); // termination marker
         dataOut.flush();
-        MILLISECONDS.sleep(100);
-        final byte[] data = byteOut.toByteArray();
-
-        final BlockingInputStream blockingIn = new BlockingInputStream(new ByteArrayInputStream(data));
-
-        final AsyncInputStream in = new AsyncInputStream(new DataInputStream(blockingIn), workGroup, reconnectConfig);
-        in.start();
-
-        // Give the stream some time to accept as much data as it wants. Stream will stop accepting when queue fills up.
-        MILLISECONDS.sleep(100);
-
-        // Lock the stream, preventing further reads
-        blockingIn.lock();
-
-        final AtomicInteger messagesReceived = new AtomicInteger(0);
-        final Thread inputThread = new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 0; i < count; i++) {
-                        final byte[] message = in.readAnticipatedMessageSync();
-                        assertNotNull(message);
-                        assertEquals(i, parseLong(message), "value does not match expected");
-                        messagesReceived.getAndIncrement();
-                    }
-                })
-                .setThreadName("output-thread")
-                .build();
-        inputThread.start();
-
-        // Let the input thread read from the buffer
-        MILLISECONDS.sleep(100);
-
-        // The number of messages should equal the buffer size
-        // plus one message that was blocked from entering the buffer
-        assertEquals(bufferSize + 1, messagesReceived.get(), "incorrect number of messages received");
-
-        // Unblock the stream, remainder of messages should be read
-        blockingIn.unlock();
-
-        assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(5), "all messages should be read");
-
-        workGroup.waitForTermination();
+        return byteOut.toByteArray();
     }
 
-    /**
-     * This test verifies that a bug that once existed in AsyncInputStream has been fixed. This bug could cause the
-     * stream to deadlock during an abort.
-     */
-    @Test()
-    @Tag(TestComponentTags.MERKLE)
-    @DisplayName("AsyncInputStream Deadlock")
-    void asyncInputStreamAbortDeadlock() throws InterruptedException {
-        try (final PairedStreams pairedStreams = new PairedStreams()) {
-
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "input-stream-abort-deadlock", null);
-
-            final AsyncOutputStream teacherOut =
-                    new AsyncOutputStream(pairedStreams.getTeacherOutput(), workGroup, reconnectConfig);
-
-            final AsyncInputStream learnerIn =
-                    new AsyncInputStream(pairedStreams.getLearnerInput(), workGroup, reconnectConfig);
-
-            final Runnable reader = () -> {
-                try {
-                    final byte[] bytes = learnerIn.readAnticipatedMessageSync();
-                    // Force an error to simulate deserialization failure
-                    throw new RuntimeException("Intentional deserialization failure");
-                } catch (final Exception e) {
-                    workGroup.handleError(e);
-                }
-            };
-            workGroup.execute(reader);
-
-            learnerIn.start();
-            teacherOut.start();
-
-            // Send a dummy message to trigger the reader
-            teacherOut.sendAsync(serializeLong(42));
-            Thread.sleep(100);
-
+    private static void testAndAwaitTermination(StandardWorkGroup workGroup, ThrowingRunnable test) {
+        try {
+            test.run();
             workGroup.waitForTermination();
-            assertTrue(workGroup.hasExceptions(), "work group is expected to have an exception");
-
-            final Thread abortThread = new Thread(learnerIn::abort);
-
-            abortThread.start();
-            abortThread.join(1_000);
-            if (abortThread.isAlive()) {
-                abortThread.interrupt();
-                fail("abort should have finished");
-            }
-
-            abortThread.join();
-
-        } catch (final IOException e) {
-            e.printStackTrace(System.err);
-            fail("exception encountered", e);
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("readAnticipatedMessage returns null when queue is empty")
-    void readReturnsNullWhenEmpty() throws IOException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            // Don't start the background reader — queue stays empty
-            final byte[] msg = in.readAnticipatedMessage();
-            assertNull(msg, "Should return null when no messages are queued");
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("isAlive returns false after termination marker is received")
-    void isAliveAfterTermination() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
-
-            in.start();
-            out.start();
-
-            out.sendAsync(serializeLong(1));
-            out.done();
-
-            workGroup.waitForTermination();
-
-            // Drain the queue
-            in.readAnticipatedMessage();
-
-            assertTrue(!in.isAlive(), "Stream should not be alive after termination marker is received");
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Empty byte array message round-trips")
-    void emptyMessage() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
-
-            in.start();
-            out.start();
-
-            out.sendAsync(new byte[0]);
-            out.done();
-
-            workGroup.waitForTermination();
-
-            final byte[] result = in.readAnticipatedMessage();
-            assertNotNull(result);
-            assertEquals(0, result.length, "Empty message should have zero bytes");
-        }
-    }
-
-    @Test
-    @Tag(TestComponentTags.RECONNECT)
-    @DisplayName("Messages of different sizes are correctly delimited")
-    void parserReceivesBoundedData() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
-
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
-
-            in.start();
-            out.start();
-
-            // Send two messages of different sizes
-            final byte[] small = new byte[] {1, 2, 3};
-            final byte[] large = new byte[] {10, 20, 30, 40, 50};
-            out.sendAsync(small);
-            out.sendAsync(large);
-            out.done();
-
-            workGroup.waitForTermination();
-
-            // First message should have exactly 3 bytes
-            final byte[] read1 = in.readAnticipatedMessage();
-            assertNotNull(read1);
-            assertArrayEquals(small, read1);
-
-            // Second message should have exactly 5 bytes
-            final byte[] read2 = in.readAnticipatedMessage();
-            assertNotNull(read2);
-            assertArrayEquals(large, read2);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted", ex);
+        } catch (Exception ex) {
+            workGroup.handleError(ex); // cancel all submitted tasks in case of any error inside test (like assertion)
+            throw new RuntimeException(ex);
+        } catch (Throwable ex) {
+            workGroup.handleError(ex); // cancel all submitted tasks in case of any error inside test (like assertion)
+            throw ex;
         }
     }
 }

@@ -57,6 +57,16 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      enable-migration-testing-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Migration Testing Panel"
+      enable-hapi-tests-blocks-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -109,12 +119,22 @@ jobs:
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable HAPI Tests BLOCKS Suite: ${{ inputs.enable-hapi-tests-blocks-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
           echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
@@ -128,6 +148,7 @@ jobs:
     name: Execute XTS
     needs:
       - parameters
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -146,6 +167,9 @@ jobs:
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
+      enable-hapi-tests-blocks-suite: ${{ inputs.enable-hapi-tests-blocks-suite }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
