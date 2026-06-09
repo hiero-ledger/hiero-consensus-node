@@ -203,7 +203,7 @@ public class ProcessUtils {
             try {
                 final int processorBudget = Integer.parseInt(nodeProcessorBudgetProp);
                 final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
-                perNodeProcessorCount = Math.max(processorBudget / networkSize, 4);
+                perNodeProcessorCount = Math.max(processorBudget / networkSize, 6);
                 commandLine.add("-XX:ActiveProcessorCount=" + perNodeProcessorCount);
             } catch (NumberFormatException e) {
                 log.warn("Invalid hapi.spec.node.processorBudget value: {}", nodeProcessorBudgetProp);
