@@ -137,10 +137,11 @@ public interface BlockStreamModule {
             @NonNull final NodeFeeManager nodeFeeManager,
             @NonNull final StateBackedRegisteredNodeResolver registeredNodeResolver,
             @NonNull final RegisteredNodeChangeNotifier registeredNodeChangeNotifier,
-            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+            @NonNull final BlockNodeConfigService blockNodeConfigService,
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
         // Set by the inline RegisteredNodeChangeListener below; the listener runs on the consensus handle thread
-        // and is required to be cheap, so it just flips this boolean. The lifecycle drains it from onCloseBlock
-        // (off the handle thread, after the savepoint commit), where revalidating against committed state is safe.
+        // and is required to be cheap, so it just flips this boolean. The lifecycle reads it from onCloseBlock and,
+        // when set, submits the actual revalidation work to the blocking-I/O pool so the handle thread is not delayed.
         final AtomicBoolean pendingRevalidation = new AtomicBoolean(false);
         final AtomicBoolean firstCloseBlockSeen = new AtomicBoolean(false);
         registeredNodeChangeNotifier.register(() -> pendingRevalidation.set(true));
@@ -157,6 +158,8 @@ public interface BlockStreamModule {
             public void onCloseBlock(@NonNull final State state) {
                 nodeFeeManager.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
+                // Publish the latest committed state to the resolver before submitting the async revalidation task so
+                // that the task always reads the state that corresponds to this block close, not a later one.
                 registeredNodeResolver.updateState(state);
                 // revalidate registered-node-backed block-node entries when:
                 //  - this is the first block close (covers cold-start where the config was loaded before state was
@@ -165,12 +168,14 @@ public interface BlockStreamModule {
                 final boolean firstClose = firstCloseBlockSeen.compareAndSet(false, true);
                 final boolean pending = pendingRevalidation.compareAndSet(true, false);
                 if (firstClose || pending) {
-                    try {
-                        blockNodeConfigService.revalidateRegisteredNodes();
-                    } catch (final RuntimeException e) {
-                        LIFECYCLE_LOGGER.warn(
-                                "Error while re-resolving registered-node block-node configurations (ignoring)", e);
-                    }
+                    blockingIoExecutorSupplier.get().execute(() -> {
+                        try {
+                            blockNodeConfigService.revalidateRegisteredNodes();
+                        } catch (final RuntimeException e) {
+                            LIFECYCLE_LOGGER.warn(
+                                    "Error while re-resolving registered-node block-node configurations (ignoring)", e);
+                        }
+                    });
                 }
             }
         };
