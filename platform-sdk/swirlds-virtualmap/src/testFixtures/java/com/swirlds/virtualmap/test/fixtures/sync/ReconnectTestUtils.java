@@ -92,8 +92,8 @@ public final class ReconnectTestUtils {
             final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", streams::disconnect, true)) {
-                workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-                workGroup.execute(
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
                         "learning-synchronizer-main",
                         () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
 

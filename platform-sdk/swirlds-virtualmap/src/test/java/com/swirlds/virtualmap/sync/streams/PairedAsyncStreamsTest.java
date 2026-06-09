@@ -69,7 +69,7 @@ class PairedAsyncStreamsTest {
                 }
                 learnerOut.done();
             });
-            workGroup.execute("learner-sender", learnerRunnable);
+            workGroup.fork("learner-sender", learnerRunnable);
 
             final AtomicInteger messagesRead = new AtomicInteger();
             OutcomeRunnable teacherRunnable = new OutcomeRunnable(() -> {
@@ -85,7 +85,7 @@ class PairedAsyncStreamsTest {
                             "message should match the value that was serialized");
                 }
             });
-            workGroup.execute("teacher-receiver", teacherRunnable);
+            workGroup.fork("teacher-receiver", teacherRunnable);
 
             workGroup.join();
 
@@ -120,7 +120,7 @@ class PairedAsyncStreamsTest {
                 // second read blocks until the work group interrupts the task after EOF and marks stream as done
                 Thread.sleep(DEFAULT_TIMEOUT.toMillis());
             });
-            workGroup.execute("teacher-task", teacherRunnable);
+            workGroup.fork("teacher-task", teacherRunnable);
 
             learnerOut.sendAsync(serializeLong(1));
             assertTrue(
@@ -169,7 +169,7 @@ class PairedAsyncStreamsTest {
                     learnerOut.sendAsync(serializeLong(i));
                 }
             });
-            workGroup.execute(learnerRunnable);
+            workGroup.fork(learnerRunnable);
 
             try {
                 workGroup.join();

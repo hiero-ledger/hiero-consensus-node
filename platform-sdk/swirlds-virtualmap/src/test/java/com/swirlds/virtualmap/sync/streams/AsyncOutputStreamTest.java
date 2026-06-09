@@ -412,7 +412,7 @@ class AsyncOutputStreamTest {
             assertThrows(
                     IllegalStateException.class, () -> out.start(workGroup), "Second start should throw an exception");
 
-            verify(workGroup, times(1)).execute(eq("async-output-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-output-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
         }
 
@@ -423,7 +423,7 @@ class AsyncOutputStreamTest {
             final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
             final DataOutputStream outputStream = mock(DataOutputStream.class);
 
-            doThrow(cause).when(workGroup).execute(eq("async-output-stream"), any(Runnable.class));
+            doThrow(cause).when(workGroup).fork(eq("async-output-stream"), any(Runnable.class));
 
             final AsyncOutputStream out = newOut(outputStream);
 
@@ -435,7 +435,7 @@ class AsyncOutputStreamTest {
             }
             assertEquals(AsyncOutputStream.Status.DONE, out.getStatus(), "Stream should be done");
 
-            verify(workGroup, times(1)).execute(eq("async-output-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-output-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
         }
 
@@ -595,7 +595,7 @@ class AsyncOutputStreamTest {
                 throw new AssertionError("Not all starter threads finished");
             }
             assertEquals(threadsCount - 1, exceptionsCount.get(), "Only one thread can start, others should throw");
-            verify(workGroup, times(1)).execute(eq("async-output-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-output-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
         }
 

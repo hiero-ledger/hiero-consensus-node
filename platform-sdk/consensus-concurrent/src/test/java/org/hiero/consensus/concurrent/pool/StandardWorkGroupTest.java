@@ -56,16 +56,16 @@ class StandardWorkGroupTest {
         assertThat(subject.isShutdown()).isTrue();
 
         final AtomicInteger executedCount = new AtomicInteger();
-        assertThrows(RejectedExecutionException.class, () -> subject.execute(executedCount::incrementAndGet));
+        assertThrows(RejectedExecutionException.class, () -> subject.fork(executedCount::incrementAndGet));
         assertThat(executedCount.get()).isEqualTo(0);
     }
 
     @Test
-    void executeSingleTask() throws Exception {
+    void forkSingleTask() throws Exception {
         final AtomicInteger executedCount = new AtomicInteger();
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
 
-        subject.execute(() -> {
+        subject.fork(() -> {
             executedCount.incrementAndGet();
             try {
                 cyclicBarrier.await();
@@ -80,10 +80,10 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void executeTasksWithName() throws InterruptedException, ParallelExecutionException {
+    void forkTasksWithName() throws InterruptedException, ParallelExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
-            subject.execute("task-" + i, executedCount::incrementAndGet);
+            subject.fork("task-" + i, executedCount::incrementAndGet);
         }
         subject.join();
         assertThat(executedCount.get()).isEqualTo(10);
@@ -93,7 +93,7 @@ class StandardWorkGroupTest {
     void executesMultipleTasksNoExceptions() throws InterruptedException, ParallelExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
-            subject.execute(executedCount::incrementAndGet);
+            subject.fork(executedCount::incrementAndGet);
         }
         subject.join();
         assertThat(executedCount.get()).isEqualTo(10);
@@ -106,7 +106,7 @@ class StandardWorkGroupTest {
         final CountDownLatch tasksStarted = new CountDownLatch(tasksCount);
 
         for (int i = 0; i < tasksCount; i++) {
-            subject.execute(() -> {
+            subject.fork(() -> {
                 tasksStarted.countDown();
                 try {
                     Thread.sleep(Duration.ofSeconds(5).toMillis());
@@ -120,7 +120,7 @@ class StandardWorkGroupTest {
             throw new AssertionError("Not all tasks started");
         }
 
-        subject.execute(() -> {
+        subject.fork(() -> {
             throw new AssertionError("exception");
         });
 
@@ -139,7 +139,7 @@ class StandardWorkGroupTest {
         final CountDownLatch tasksStarted = new CountDownLatch(tasksCount);
 
         for (int i = 0; i < tasksCount; i++) {
-            subject.execute(() -> {
+            subject.fork(() -> {
                 tasksStarted.countDown();
                 try {
                     Thread.sleep(Duration.ofSeconds(5).toMillis());
@@ -184,7 +184,7 @@ class StandardWorkGroupTest {
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final AtomicBoolean interruptFlagAfterJoin = new AtomicBoolean(false);
 
-        subject.execute(() -> {
+        subject.fork(() -> {
             taskStarted.countDown();
             try {
                 Thread.sleep(Duration.ofSeconds(10).toMillis());
@@ -226,7 +226,7 @@ class StandardWorkGroupTest {
 
         for (int i = 0; i < 3; i++) {
             final RuntimeException error = new RuntimeException("error-" + i);
-            subject.execute(() -> {
+            subject.fork(() -> {
                 try {
                     allReady.await();
                 } catch (final Exception e) {
@@ -244,10 +244,10 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void executeWithNameThrowingTaskTriggersShutdown() {
+    void forkWithNameThrowingTaskTriggersShutdown() {
         final AtomicReference<String> threadNameDuringTask = new AtomicReference<>();
 
-        subject.execute("my-task", () -> {
+        subject.fork("my-task", () -> {
             threadNameDuringTask.set(Thread.currentThread().getName());
             throw new RuntimeException("named task error");
         });
@@ -266,9 +266,9 @@ class StandardWorkGroupTest {
         // InterruptedException is excluded from handleError — must not trigger shutdownNow().
         final AtomicInteger completedCount = new AtomicInteger();
 
-        subject.execute(() -> sneakyThrow(new InterruptedException("direct IE from task")));
-        subject.execute(completedCount::incrementAndGet);
-        subject.execute(completedCount::incrementAndGet);
+        subject.fork(() -> sneakyThrow(new InterruptedException("direct IE from task")));
+        subject.fork(completedCount::incrementAndGet);
+        subject.fork(completedCount::incrementAndGet);
 
         subject.join();
 
@@ -282,7 +282,7 @@ class StandardWorkGroupTest {
         final CountDownLatch tasksStarted = new CountDownLatch(tasksCount);
 
         for (int i = 0; i < tasksCount; i++) {
-            subject.execute(() -> {
+            subject.fork(() -> {
                 tasksStarted.countDown();
                 try {
                     Thread.sleep(Duration.ofSeconds(10).toMillis());
@@ -302,7 +302,7 @@ class StandardWorkGroupTest {
 
     @Test
     void closeIsIdempotent() throws InterruptedException, ParallelExecutionException {
-        subject.execute(() -> {});
+        subject.fork(() -> {});
         subject.join();
 
         subject.close();
@@ -316,14 +316,14 @@ class StandardWorkGroupTest {
         final AtomicInteger interruptedCount = new AtomicInteger();
 
         try (final StandardWorkGroup wg = new StandardWorkGroup(getStaticThreadManager(), "try-group")) {
-            wg.execute(() -> {
+            wg.fork(() -> {
                 try {
                     Thread.sleep(Duration.ofSeconds(10).toMillis());
                 } catch (final InterruptedException e) {
                     interruptedCount.incrementAndGet();
                 }
             });
-            wg.execute(() -> {
+            wg.fork(() -> {
                 throw new RuntimeException("trigger shutdown");
             });
 
@@ -343,7 +343,7 @@ class StandardWorkGroupTest {
         try (final StandardWorkGroup wg =
                 new StandardWorkGroup(getStaticThreadManager(), "abort-test", abortCount::incrementAndGet)) {
             for (int i = 0; i < 3; i++) {
-                wg.execute(() -> {
+                wg.fork(() -> {
                     try {
                         allReady.await();
                     } catch (final Exception ignored) {
@@ -364,8 +364,8 @@ class StandardWorkGroupTest {
 
         try (final StandardWorkGroup wg =
                 new StandardWorkGroup(getStaticThreadManager(), "abort-test", abortCount::incrementAndGet)) {
-            wg.execute(() -> {});
-            wg.execute(() -> {});
+            wg.fork(() -> {});
+            wg.fork(() -> {});
             wg.join();
         }
 

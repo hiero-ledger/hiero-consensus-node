@@ -82,7 +82,7 @@ public class TeacherPullVirtualTreeReceiveTask {
      */
     public void exec(final @NonNull StandardWorkGroup workGroup) {
         Objects.requireNonNull(workGroup, "workGroup must not be null");
-        workGroup.execute(NAME, this::run);
+        workGroup.fork(NAME, this::run);
     }
 
     /**

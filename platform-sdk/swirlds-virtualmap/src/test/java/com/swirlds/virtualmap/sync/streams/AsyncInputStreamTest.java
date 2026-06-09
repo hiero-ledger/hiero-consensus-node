@@ -299,7 +299,7 @@ class AsyncInputStreamTest {
             assertThrows(
                     IllegalStateException.class, () -> in.start(workGroup), "Second start should throw an exception");
 
-            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-input-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
             verifyNoInteractions(inputStream);
         }
@@ -311,7 +311,7 @@ class AsyncInputStreamTest {
             final StandardWorkGroup workGroup = mock(StandardWorkGroup.class);
             final DataInputStream inputStream = mock(DataInputStream.class);
 
-            doThrow(cause).when(workGroup).execute(eq("async-input-stream"), any(Runnable.class));
+            doThrow(cause).when(workGroup).fork(eq("async-input-stream"), any(Runnable.class));
 
             final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
             try {
@@ -323,7 +323,7 @@ class AsyncInputStreamTest {
 
             assertEquals(AsyncInputStream.Status.DONE, in.getStatus(), "status should be DONE after failed start");
 
-            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-input-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
             verifyNoInteractions(inputStream);
         }
@@ -482,7 +482,7 @@ class AsyncInputStreamTest {
                     threadsCount - 1,
                     exceptionsCount.get(),
                     "Only one thread can start, others should throw an exception");
-            verify(workGroup, times(1)).execute(eq("async-input-stream"), any(Runnable.class));
+            verify(workGroup, times(1)).fork(eq("async-input-stream"), any(Runnable.class));
             verifyNoMoreInteractions(workGroup);
             verifyNoInteractions(inputStream);
         }

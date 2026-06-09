@@ -103,8 +103,8 @@ public class MerkleBenchmarkUtils {
 
             try (final StandardWorkGroup workGroup =
                     new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", streams::disconnect)) {
-                workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-                workGroup.execute(
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
                         "learning-synchronizer-main",
                         () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
                 workGroup.join();

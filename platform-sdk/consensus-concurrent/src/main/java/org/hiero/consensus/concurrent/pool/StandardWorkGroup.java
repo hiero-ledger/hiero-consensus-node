@@ -25,9 +25,9 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  *   <li>When the task is finished, all worker threads terminate.</li>
  *   <li>If any worker thread throws an exception, all threads stop and the exception is delivered to the calling context.</li>
  * </ol>
- * <p>The API mirrors {@code StructuredTaskScope.ShutdownOnFailure} from JDK structured concurrency:
- * {@link #execute(Runnable)} ≈ {@code fork()}, {@link #join()} ≈ {@code join()} + {@code throwIfFailed()}.
+ * <p>The API mirrors {@code StructuredTaskScope} with {@code Joiner.awaitAllSuccessfulOrThrow()} preview feature from JDK structured concurrency.
  */
+// TODO move to {@code StructuredTaskScope} when that is available in a stable JDK release.
 public class StandardWorkGroup implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(StandardWorkGroup.class);
@@ -118,7 +118,7 @@ public class StandardWorkGroup implements AutoCloseable {
      * @param operation
      * 		the method to run on the thread
      */
-    public void execute(final Runnable operation) {
+    public void fork(final Runnable operation) {
         final Runnable safeOp = () -> {
             try {
                 operation.run();
@@ -148,7 +148,7 @@ public class StandardWorkGroup implements AutoCloseable {
      * @param operation
      * 		the method to run on the thread
      */
-    public void execute(final String taskName, final Runnable operation) {
+    public void fork(final String taskName, final Runnable operation) {
         final Runnable wrapper = () -> {
             final String originalThreadName = Thread.currentThread().getName();
             final String newThreadName = originalThreadName.replaceFirst(DEFAULT_TASK_NAME, taskName);
@@ -161,7 +161,7 @@ public class StandardWorkGroup implements AutoCloseable {
             }
         };
 
-        execute(wrapper);
+        fork(wrapper);
     }
 
     /**

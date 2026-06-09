@@ -119,7 +119,7 @@ public class AsyncInputStream {
         }
 
         try {
-            workGroup.execute(THREAD_NAME, this::run);
+            workGroup.fork(THREAD_NAME, this::run);
         } catch (Exception e) {
             status.set(Status.DONE);
             throw e;
