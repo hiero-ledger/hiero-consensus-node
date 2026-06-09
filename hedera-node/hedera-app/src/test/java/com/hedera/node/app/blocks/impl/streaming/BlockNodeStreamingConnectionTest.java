@@ -602,7 +602,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_blockNodeBehind_blockExists() {
         activateConnection();
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        streamingBlockNumber.set(5); // pretend we are currently streaming an earlier block
+        // We are ahead of the block node, streaming a block beyond the one it last verified (10).
+        streamingBlockNumber.set(15L);
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
@@ -1608,7 +1609,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
-        verify(requestPipeline).onComplete();
+        verify(requestCall).completeRequests();
     }
 
     // Tests BehindPublisher code with Long.MAX_VALUE edge case (should restart at block 0)

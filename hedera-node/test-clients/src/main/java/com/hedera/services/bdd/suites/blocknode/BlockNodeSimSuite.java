@@ -386,6 +386,7 @@ public class BlockNodeSimSuite {
     final Stream<DynamicTest> publisherHandshakeTooFarBehind() {
         // A single block node is used so it remains the active publisher target across the injections;
         // shortened cool-downs let it reconnect quickly after each TOO_FAR_BEHIND close.
+        final AtomicReference<Instant> resendInjectedAt = new AtomicReference<>();
         return hapiTest(
                 // Produce more blocks than the buffer can hold so the earliest blocks (incl. block 1) are pruned.
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
@@ -398,9 +399,20 @@ public class BlockNodeSimSuite {
                 waitUntilNextBlocks(3).withBackgroundTraffic(true),
 
                 // ResendBlock for an already-pruned block -> TOO_FAR_BEHIND.
+                doingContextual(spec -> resendInjectedAt.set(Instant.now())),
                 blockNode(0).sendResendBlockImmediately(0),
                 awaitBlockNodeCommsLogContainsText(
                         byNodeId(0), "that block does not exist; closing connection", Duration.ofSeconds(30)),
+                // Confirm the pruned-block ResendBlock specifically takes the TOO_FAR_BEHIND branch and not
+                // the INTERNAL_ERROR one ("that block does not exist" is logged on both branches). A timeframe
+                // assertion anchored just before this injection is required because the earlier BehindPublisher
+                // step already logged a TOO_FAR_BEHIND EndStream, which a whole-file text match would match.
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        resendInjectedAt::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(30),
+                        "Attempting to send EndStream (code: TOO_FAR_BEHIND")),
                 waitUntilNextBlocks(3).withBackgroundTraffic(true));
     }
 
