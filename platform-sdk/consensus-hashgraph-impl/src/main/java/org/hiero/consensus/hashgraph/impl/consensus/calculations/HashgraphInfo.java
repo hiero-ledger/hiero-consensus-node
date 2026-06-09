@@ -61,10 +61,10 @@ import java.util.HashMap;
  * calls to {@link EventInfo#update update()} in the next round.
  */
 public final class HashgraphInfo {
-    /** for round 1 (the genesis round) use this as the RoundInfoPrev. */
+    /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public final RoundInfoPrev firstRoundInfoPrev
-            = new RoundInfoPrev(1,false,new EventInfo[0],
-            false,0,0,0);
+            = new RoundInfoPrev(1, false, new EventInfo[0],
+            false, 0, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long pendingRound;
@@ -215,6 +215,7 @@ public final class HashgraphInfo {
         private EventInfo firstWitnessS;
         private EventInfo[] stronglySeeS1;
         private EventInfo[] voteE;
+        private int[] voteIndex; // index into h.candEventInfo of the candidate corresponding to voteE
         private boolean[] voteB;
         private boolean isConsensus;
         private long consensusOrder;
@@ -280,7 +281,7 @@ public final class HashgraphInfo {
         }
 
         // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
-        /* //for the moment, I'll comment these out, to ensure our integration doesn't accidentally rely on them
+        /* //for the moment, I'll comment these out to ensure our integration doesn't accidentally rely on them
         public HashgraphInfo getHashgraph() {return hashgraph;}
         public long getCreatorNodeID() {return creatorNodeID;}
         public Instant getTimeCreated() {return timeCreated;}
@@ -299,6 +300,7 @@ public final class HashgraphInfo {
         public EventInfo getFirstWitnessS() {return firstWitnessS;}
         public EventInfo[] getStronglySeeS1() {return stronglySeeS1;}
         public EventInfo[] getVoteE() {return voteE;}
+        public EventInfo[] getVoteIndex() {return getVoteIndex;}
         public boolean[] getVoteB() {return voteB;}
         public boolean getPrevJudge() {return prevJudge;}
         public long getMaxJudgeRound() {return maxJudgeRound;}
@@ -329,6 +331,7 @@ public final class HashgraphInfo {
             firstWitnessS = null;
             stronglySeeS1 = null;
             voteE = null;
+            voteIndex = null;
             voteB = null;
             consensusTimestamp = null;
             searchChild = null;
@@ -426,9 +429,18 @@ public final class HashgraphInfo {
                 h.numNodes = r.nodes.length;
 
                 // if the numbers of nodes changed this round (or it's the first time called), prep cand data structures
-                if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length)) {
+                if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
+                    h.candCount = h.numNodes; //start with all the null votes
                     h.candIndex = new ArrayList<ArrayList<Integer>>(h.numNodes);
-
+                    h.candEventInfo = new EventInfo[2 * h.numNodes];
+                    h.candStake = new long[2 * h.numNodes];
+                    for (int i = 0; i < h.numNodes; i++) {
+                        ArrayList<Integer> list = new ArrayList<Integer>(2);
+                        list.add(i);
+                        h.candIndex.add(list);
+                        h.candEventInfo[i] = null; // index m represents a vote that node m have a judge of null
+                        h.candStake[i] = 0L;
+                    }
                 }
 
                 // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
@@ -496,6 +508,9 @@ public final class HashgraphInfo {
             }
             if (voteE == null || voteE.length != h.numNodes) {
                 voteE = new EventInfo[h.numNodes];
+            }
+            if (voteIndex == null || voteIndex.length != h.numNodes) {
+                voteIndex = new int[h.numNodes];
             }
             if (voteB == null || voteB.length != h.numNodes) {
                 voteB = new boolean[h.numNodes];
@@ -689,28 +704,36 @@ public final class HashgraphInfo {
 
             // function witness /---------------------------------------------------------------------------------
             witness = (selfParent == null) || (votingRound > selfParent.votingRound);
+            // if this event is a judge candidate for this round, then give it a new index and remember it
+            if (witness && (h.pendingRound == r.pendingRound) && (creator >= 0)) {
+                h.candCount++; // a new candidate has been found
+                h.candIndex.get(creator).add(h.candCount);
+                if (h.candCount > h.candStake.length) { // if too big for arrays, then double their sizes
+                    h.candStake = Arrays.copyOf(h.candStake, h.candCount * 2);
+                    h.candEventInfo = Arrays.copyOf(h.candEventInfo, h.candCount * 2);
+                }
+                h.candEventInfo[h.candCount - 1] = this;
+            }
 
             // function stakeAgrees /-----------------------------------------------------------------------------
-            {
-                int m=0, mp=0; // TODO remove
-                long stakeAgrees = 0;
-                if (stronglySeeS1[mp] != null) {
-                    EventInfo mpVote = stronglySeeS1[mp].voteE[m];
-                    for (int mpp = 0; mpp < h.numNodes; mpp++) {
-                        stakeAgrees += ((stronglySeeS1[mpp] != null)
-                                && (mpVote == stronglySeeS1[mpp].voteE[m]))
-                                ? r.stake[mpp] : 0;
+            // Instead of using the stakeAgrees function from the paper, use h.cand* fields for more efficiency.
+            // Prepare for topVote by finding total stake for all votes for each candidate (including for null).
+            Arrays.fill(h.candStake, 0, h.candCount, 0L);
+            for (int voterCreator = 0; voterCreator < h.numNodes; voterCreator++) {
+                for (int candCreator = 0; candCreator < h.numNodes; candCreator++) {
+                    EventInfo voter = stronglySeeP[voterCreator];
+                    if (voter != null) {
+                        h.candStake[voter.voteIndex[candCreator]] += r.stake[candCreator];
                     }
                 }
             }
 
             // function vote /------------------------------------------------------------------------------------
-            // TODO finish vote
-            for (int m = 0; m < h.numNodes; m++) {
+            for (int m = 0; m < h.numNodes; m++) { // find which candidate created by m to vote for (or null for none)
                 long i = h.pendingRound + h.voteD;
+                voteE[m] = null; // default if not overridden before the "continue"
+                voteB[m] = false; // default if not overridden before the "continue"
                 if (!witness || votingRound < i) {
-                    voteE[m] = null;
-                    voteB[m] = false;
                     continue;
                 }
                 if (votingRound == i) {
@@ -747,16 +770,22 @@ public final class HashgraphInfo {
                         }
                     }
                     voteE[m] = firstVote;
-                    voteB[m] = false;
                     continue;
                 } // end of firstVote
 
                 // function topVote /---------------------------------------------------------------------------------
-                EventInfo v=null;
-                boolean s=false;
-                //TODO topVote
-                //end of topVote, continuing vote
+                int bestIndex = 0;
+                long bestStake = -1;
+                for (int index : h.candIndex.get(m)) {
+                    long stake = h.candStake[index];
+                    if (stake > bestStake) {
+                        bestStake = stake;
+                    }
+                }
+                EventInfo v = h.candEventInfo[bestIndex];
+                boolean s = (bestStake > h.supermajorityThreshold);
 
+                //end of topVote, continuing vote
                 boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
                 if (!q) { //if not a coin round, vote whatever vote had the majority collected
                     voteE[m] = v;
@@ -765,24 +794,22 @@ public final class HashgraphInfo {
                 }
                 if (s) { //if a coin round and collect a supermajority, vote that way, but don't decide
                     voteE[m] = v;
-                    voteB[m] = false;
                     continue;
                 }
                 int mp = coin;
                 if ((mp == h.numNodes) || (h.pendingRound != birthRound)) { // coin==h.numNodes means vote for null
-                    voteE[m] = null; // if the coin chose null then vote null. (Or if birth round isn't pending round)
-                    voteB[m] = false;
-                    continue;
+                    continue; // if the coin chose null then vote null. (Or if birth round isn't pending round)
                 }
                 EventInfo w = stronglySeeS1[mp];
-                if (w == null) {
-                    voteE[m] = null; // if the coin chose a voter that wasn't collected, then vote null
-                    voteB[m] = false;
+                if (w == null) { // if the coin chose a voter that wasn't collected, then vote null
                     continue;
                 }
                 voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
-                voteB[m] = false;
             }
+            for (int m = 0; m < h.numNodes; m++) {
+                voteIndex[m] = ((voteE[m] == null) ? m : voteE[m].voteIndex[m]);
+            }
+            //end vote
 
             // function roundDecided /----------------------------------------------------------------------------
             h.roundDecided = witness;
