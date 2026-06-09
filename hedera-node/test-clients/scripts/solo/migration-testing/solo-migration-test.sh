@@ -43,6 +43,46 @@ for d in \
 done
 export PATH
 
+# Apple Silicon: the NMT binary at /opt/hgcapp/node-mgmt-tools/bin/nmt is
+# x86-64-only (built dynamically against /lib64/ld-linux-x86-64.so.2). On an
+# arm64 macOS host, Solo by default deploys arm64 pods, which have neither
+# the x86-64 dynamic linker nor a translation layer — `nmt preflight` then
+# dies with `rosetta error: failed to open elf at /lib64/ld-linux-x86-64.so.2`
+# and exit 133. Forcing DOCKER_DEFAULT_PLATFORM=linux/amd64 makes Docker
+# Desktop pull amd64 images and translate everything through Rosetta-for-Linux
+# (or fall back to QEMU, which is slower but still works). Expect ~1.5-2x
+# wall time vs an amd64 host. Rosetta-for-Linux must be enabled in Docker
+# Desktop (Settings -> General).
+if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
+  if [[ "${DOCKER_DEFAULT_PLATFORM:-}" != "linux/amd64" ]]; then
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" \
+      "Apple Silicon detected; exporting DOCKER_DEFAULT_PLATFORM=linux/amd64 (NMT is x86-64-only)"
+    export DOCKER_DEFAULT_PLATFORM=linux/amd64
+  fi
+  # Fail fast if Docker Desktop is going to silently fall back to QEMU.
+  # QEMU "works" for trivial containers (uname -m prints x86_64) but
+  # kubelet hangs in wait-control-plane for 4 minutes before timing out.
+  # Rosetta-for-Linux registers a binfmt_misc handler named "rosetta" --
+  # if it's absent inside an amd64 container, the user hasn't enabled
+  # "Use Rosetta for x86/amd64 emulation" in Docker Desktop.
+  if ! docker run --rm --platform=linux/amd64 alpine \
+       test -e /proc/sys/fs/binfmt_misc/rosetta >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+Docker Desktop is falling back to QEMU for amd64 emulation on this arm64
+host. The kind cluster will hang in kubeadm wait-control-plane for 4
+minutes before timing out. Enable Rosetta first:
+
+  Docker Desktop -> Settings -> General
+    -> Virtual Machine Manager: Apple Virtualization framework
+    -> [x] Use Rosetta for x86/amd64 emulation on Apple Silicon
+    -> Apply & Restart
+
+Then re-run this script.
+EOF
+    exit 1
+  fi
+fi
+
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-migration}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-migration}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
@@ -262,7 +302,12 @@ create_cluster() {
   kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
 
   log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  # Pin Kubernetes v1.30 — kind's default (v1.35 today) hangs in
+  # wait-control-plane under Rosetta-for-Linux on Apple Silicon. v1.30.x
+  # is the last release confirmed to survive amd64 emulation reliably.
+  # Override via KIND_NODE_IMAGE if you're on amd64 and want the default.
+  kind create cluster -n "${SOLO_CLUSTER_NAME}" \
+    --image "${KIND_NODE_IMAGE:-kindest/node:v1.30.4}"
   CLUSTER_CREATED_THIS_RUN="true"
 }
 
