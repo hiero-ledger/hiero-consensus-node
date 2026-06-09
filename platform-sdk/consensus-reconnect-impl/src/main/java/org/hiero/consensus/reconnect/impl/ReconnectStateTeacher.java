@@ -17,7 +17,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.sync.TeacherTreeView;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
