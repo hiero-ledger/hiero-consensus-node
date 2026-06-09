@@ -134,7 +134,7 @@ public class ContractUpdateSuite {
                         .logged(),
 
                 /* --- reset the staking account */
-                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId("0.0.0"),
+                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId("0"),
                 getContractInfo(CONTRACT)
                         .has(contractWith()
                                 .isDeclinedReward(false)

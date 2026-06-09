@@ -2368,12 +2368,12 @@ class AtomicContractCallSuite {
 
     @HapiTest
     final Stream<DynamicTest> failsWithLessThanIntrinsicGas() {
-        final String randomContract = "0.0.1051";
         final String functionName = "name";
         final String contractName = "ERC721ABI";
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                withOpContext((spec, opLog) -> spec.registry().saveContractId(CONTRACT, asContract(randomContract))),
+                withOpContext((spec, opLog) ->
+                        spec.registry().saveContractId(CONTRACT, asContract(spec.shard(), spec.realm(), 1051L))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         atomicBatch(contractCallWithFunctionAbi(

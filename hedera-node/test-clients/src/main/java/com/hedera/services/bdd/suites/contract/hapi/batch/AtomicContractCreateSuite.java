@@ -209,7 +209,7 @@ class AtomicContractCreateSuite {
                 atomicBatch(contractCreate(contract)
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
-                                .stakedAccountId("0.0.0")
+                                .stakedAccountId("0")
                                 .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
