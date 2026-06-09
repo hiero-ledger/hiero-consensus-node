@@ -416,15 +416,6 @@ tasks.register<Test>("testSubprocess") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -586,14 +577,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -804,8 +787,9 @@ tasks.register<Test>("testRepeatable") {
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
-    providers.gradlePropertiesPrefixedBy("sysProp.").get()
-        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v) }
+    providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
+        systemProperty(k.removePrefix("sysProp."), v)
+    }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
