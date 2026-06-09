@@ -4,7 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
@@ -86,21 +86,25 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePbjItem(@NonNull BlockItem blockItem) {
         requireNonNull(blockItem, "blockItem must not be null");
-        blockBufferService.addItem(blockNumber, blockItem);
+        blockBufferService.addItem(
+                blockNumber,
+                BlockItem.PROTOBUF.toBytes(blockItem),
+                blockItem.item().kind());
     }
 
     /**
-     * Writes a protocol buffer formatted block item and its serialized bytes to the current block's state.
-     * Only the block item is used, the serialized bytes are ignored.
+     * Writes a protocol buffer formatted block item and its serialized bytes to the current block's state. The
+     * serialized bytes are stored directly in the buffer (the deserialized item is used only to determine the item
+     * type), avoiding a redundant re-serialization.
      *
      * @param item the block item to write
-     * @param bytes the serialized item to write (ignored in this implementation)
+     * @param bytes the serialized item to write
      */
     @Override
     public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
         requireNonNull(item, "item must not be null");
         requireNonNull(bytes, "bytes must not be null");
-        writePbjItem(item);
+        blockBufferService.addItem(blockNumber, bytes, item.item().kind());
     }
 
     /**
@@ -120,11 +124,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             logger.warn("Cannot flush pending block #{} because no block state is available", blockNumber);
             return;
         }
-        final var items = new ArrayList<BlockItem>(blockState.itemCount());
+        final var items = new ArrayList<Bytes>(blockState.itemCount());
         for (int i = 0; i < blockState.itemCount(); i++) {
-            final var item = blockState.blockItem(i);
+            final var item = blockState.bufferedItem(i);
             if (item != null) {
-                items.add(item);
+                items.add(item.serializedItem());
             }
         }
         if (items.isEmpty()) {
@@ -135,7 +139,8 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             Files.createDirectories(nodeScopedBlockDir);
             final var contentsPath = pendingContentsPath(nodeScopedBlockDir, blockNumber);
             try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
-                out.write(Block.PROTOBUF.toBytes(new Block(items)).toByteArray());
+                // BlockBytes is wire-identical to Block, so this file parses back as a Block on recovery.
+                out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
             }
             final var proofPath = pendingProofPath(nodeScopedBlockDir, blockNumber);
             Files.writeString(proofPath, PendingProof.JSON.toJSON(pendingProof));
