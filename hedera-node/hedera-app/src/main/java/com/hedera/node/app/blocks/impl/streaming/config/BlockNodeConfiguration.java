@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 
 /**
@@ -60,6 +61,10 @@ public class BlockNodeConfiguration {
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
         // default the service port to the streaming port
         final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
+        // default the service address to the streaming address if unset/blank
+        final String serviceAddress = (builder.serviceAddress == null || builder.serviceAddress.isBlank())
+                ? builder.address
+                : builder.serviceAddress;
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -86,7 +91,7 @@ public class BlockNodeConfiguration {
         }
 
         streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
-        serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
+        serviceEndpoint = new BlockNodeEndpoint(serviceAddress, servicePort);
     }
 
     public @NonNull BlockNodeEndpoint streamingEndpoint() {
@@ -189,19 +194,32 @@ public class BlockNodeConfiguration {
     public static @NonNull BlockNodeConfiguration from(
             @NonNull final BlockNodeConfig config, final long defaultHardLimitBytes) {
         requireNonNull(config, "config must be specified");
-
-        final Builder b = newBuilder();
-
-        b.address(config.address());
-        b.streamingPort(config.streamingPort());
-        b.servicePort(config.servicePortOrElse(-1));
-        b.priority(config.priority());
-        b.messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES));
-        b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));
-        b.clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(config.clientGrpcConfig()));
-        b.clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(config.clientHttpConfig()));
-
+        final Builder b = newBuilder()
+                .address(config.address())
+                .streamingPort(config.streamingPort())
+                .servicePort(config.servicePortOrElse(-1));
+        populateSharedFields(b, config, defaultHardLimitBytes);
         return b.build();
+    }
+
+    /**
+     * Populates the builder fields that are independent of address/port resolution: priority, soft/hard message size
+     * limits, and Helidon client configs. Used by both {@link #from(BlockNodeConfig, long)} and by callers that resolve
+     * address/port separately (e.g. {@code BlockNodeConfigService} when resolving a {@code registeredNodeId}).
+     *
+     * @param builder the builder to populate
+     * @param config the source config to read from
+     * @param defaultHardLimitBytes the default hard limit to apply if the config does not specify one
+     */
+    public static void populateSharedFields(
+            @NonNull final Builder builder, @NonNull final BlockNodeConfig config, final long defaultHardLimitBytes) {
+        requireNonNull(builder, "builder must not be null");
+        requireNonNull(config, "config must not be null");
+        builder.priority(config.priority())
+                .messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES))
+                .messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes))
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(config.clientGrpcConfig()))
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(config.clientHttpConfig()));
     }
 
     public static Builder newBuilder() {
@@ -210,6 +228,7 @@ public class BlockNodeConfiguration {
 
     public static class Builder {
         private String address;
+        private @Nullable String serviceAddress;
         private int streamingPort;
         private int servicePort = -1;
         private int priority;
@@ -223,8 +242,22 @@ public class BlockNodeConfiguration {
             // no-op
         }
 
+        /**
+         * Sets the address used for the streaming endpoint, and, unless {@link #serviceAddress(String)} is also
+         * called, for the service endpoint.
+         */
         public @NonNull Builder address(final String address) {
             this.address = address;
+            return this;
+        }
+
+        /**
+         * Optional override for the service endpoint's host. When unset (or blank), the service endpoint reuses the
+         * value passed to {@link #address(String)}. This makes it possible to model a registered node that advertises
+         * its PUBLISH and STATUS APIs on different hosts.
+         */
+        public @NonNull Builder serviceAddress(@Nullable final String serviceAddress) {
+            this.serviceAddress = serviceAddress;
             return this;
         }
 

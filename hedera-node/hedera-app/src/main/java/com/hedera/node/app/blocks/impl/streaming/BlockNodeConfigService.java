@@ -7,8 +7,6 @@ import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
-import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
-import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.RegisteredNodeEndpointResolver;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -82,6 +80,12 @@ public class BlockNodeConfigService {
      */
     private final AtomicReference<VersionedBlockNodeConfigurationSet> latestConfigRef = new AtomicReference<>();
     /**
+     * The most recent {@link BlockNodeConnectionInfo} that was successfully parsed from disk. Retained so that the
+     * service can re-resolve {@code registeredNodeId} entries against the latest state without re-reading the file.
+     * Null until the first successful disk load.
+     */
+    private final AtomicReference<BlockNodeConnectionInfo> latestSourceRef = new AtomicReference<>();
+    /**
      * Holder for the file watcher service to detect configuration file changes.
      */
     private final AtomicReference<WatchService> watchServiceRef = new AtomicReference<>();
@@ -125,6 +129,31 @@ public class BlockNodeConfigService {
      */
     public @Nullable VersionedBlockNodeConfigurationSet latestConfiguration() {
         return latestConfigRef.get();
+    }
+
+    /**
+     * Re-resolves any entries in the most recently loaded {@code block-nodes.json} that reference a
+     * {@code registeredNodeId}, using the current state via the configured resolver. If the resolution produces a
+     * different set of configurations from the one currently held, the version counter is bumped and the latest
+     * configuration reference is updated so that downstream consumers (e.g. the connection manager) can pick up the
+     * change.
+     *
+     * <p>This is intended to be called on a schedule by the block-stream connection monitor so that registered-node
+     * endpoint changes propagate without requiring an edit to {@code block-nodes.json}.
+     *
+     * @return {@code true} if the configuration was updated as a result of re-resolution, {@code false} otherwise
+     */
+    public boolean revalidateRegisteredNodes() {
+        final BlockNodeConnectionInfo source = latestSourceRef.get();
+        if (source == null || source.nodes().isEmpty()) {
+            return false;
+        }
+        // only do work if at least one entry actually uses a registered node id
+        final boolean anyHasRegisteredId = source.nodes().stream().anyMatch(n -> n.registeredNodeId() != null);
+        if (!anyHasRegisteredId) {
+            return false;
+        }
+        return rebuildAndMaybePublish(source, /* announceNoChange= */ false);
     }
 
     /**
@@ -179,6 +208,7 @@ public class BlockNodeConfigService {
         logger.info("Stopping block node configuration watcher...");
 
         latestConfigRef.set(null);
+        latestSourceRef.set(null);
         configVersionCounter.incrementAndGet();
 
         final WatchService watchService = watchServiceRef.getAndSet(null);
@@ -200,7 +230,6 @@ public class BlockNodeConfigService {
     private void loadConfiguration() {
         final Path path = configDirectory.resolve(BLOCK_NODES_FILE_NAME);
         final BlockNodeConnectionInfo connectionInfo;
-        final List<BlockNodeConfiguration> nodeConfigs = new ArrayList<>();
 
         try {
             if (!Files.exists(path)) {
@@ -215,6 +244,8 @@ public class BlockNodeConfigService {
             return;
         }
 
+        latestSourceRef.set(connectionInfo);
+
         if (connectionInfo.nodes().isEmpty()) {
             // there is nothing in the configuration file - treat this as a valid configuration that effectively
             // disables any and all active block nodes we already know about
@@ -226,14 +257,30 @@ public class BlockNodeConfigService {
             return;
         }
 
+        rebuildAndMaybePublish(connectionInfo, /* announceNoChange= */ true);
+    }
+
+    /**
+     * Walks the supplied source config, applying resolution, and either publishes a new
+     * {@link VersionedBlockNodeConfigurationSet} (when the result differs from the current one) or leaves the existing
+     * configuration in place.
+     *
+     * @param source the parsed source from disk to rebuild from
+     * @param announceNoChange if {@code true}, log a warning when no configurations could be successfully processed; if
+     *                         {@code false}, stay quiet (used by the re-resolve path where no change is normal)
+     * @return {@code true} if a new versioned configuration was published, {@code false} otherwise
+     */
+    private boolean rebuildAndMaybePublish(
+            @NonNull final BlockNodeConnectionInfo source, final boolean announceNoChange) {
         final long defaultHardLimitBytes = configProvider
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .defaultMessageHardLimitBytes();
         final RegisteredNodeEndpointResolver resolver = registeredNodeResolverRef.get();
 
+        final List<BlockNodeConfiguration> nodeConfigs = new ArrayList<>();
         final Map<String, AtomicInteger> hostCounters = new HashMap<>();
-        for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
+        for (final BlockNodeConfig nodeConfig : source.nodes()) {
             try {
                 final BlockNodeConfiguration cfg = buildConfiguration(nodeConfig, defaultHardLimitBytes, resolver);
                 if (cfg == null) {
@@ -251,8 +298,10 @@ public class BlockNodeConfigService {
         }
 
         if (nodeConfigs.isEmpty()) {
-            logger.warn("No block node configurations successfully processed; skipping configuration update");
-            return;
+            if (announceNoChange) {
+                logger.warn("No block node configurations successfully processed; skipping configuration update");
+            }
+            return false;
         }
 
         // check for duplicates
@@ -266,7 +315,13 @@ public class BlockNodeConfigService {
 
         if (duplicatesFound) {
             logger.warn("One or more block node hosts have duplicate configurations; skipping configuration update");
-            return;
+            return false;
+        }
+
+        // skip if the rebuild produced the same list of configurations as what we already have
+        final VersionedBlockNodeConfigurationSet existing = latestConfigRef.get();
+        if (existing != null && existing.configs().equals(nodeConfigs)) {
+            return false;
         }
 
         final long version = configVersionCounter.incrementAndGet();
@@ -290,6 +345,7 @@ public class BlockNodeConfigService {
 
             logger.info("{}", sb);
         }
+        return true;
     }
 
     /**
@@ -313,23 +369,34 @@ public class BlockNodeConfigService {
         final int explicitStreamingPort = nodeConfig.streamingPort();
         final Integer explicitServicePort = nodeConfig.servicePort();
 
-        final RegisteredNode registeredNode = resolver.isStateAvailable() ? resolver.resolve(registeredNodeId) : null;
-        final boolean stateConsulted = resolver.isStateAvailable();
+        final boolean stateAvailable = resolver.isStateAvailable();
+        final RegisteredNode registeredNode = stateAvailable ? resolver.resolve(registeredNodeId) : null;
 
-        String resolvedAddress = null;
+        String resolvedStreamingHost = null;
+        String resolvedServiceHost = null;
         Integer resolvedStreamingPort = null;
         Integer resolvedServicePort = null;
         if (registeredNode != null) {
             final Optional<RegisteredServiceEndpoint> publishEp = pickEndpoint(registeredNode, BlockNodeApi.PUBLISH);
             final Optional<RegisteredServiceEndpoint> statusEp = pickEndpoint(registeredNode, BlockNodeApi.STATUS);
+            resolvedStreamingHost =
+                    publishEp.map(BlockNodeConfigService::endpointHost).orElse(null);
+            resolvedServiceHost =
+                    statusEp.map(BlockNodeConfigService::endpointHost).orElse(null);
             resolvedStreamingPort =
                     publishEp.map(RegisteredServiceEndpoint::port).orElse(null);
             resolvedServicePort = statusEp.map(RegisteredServiceEndpoint::port).orElse(null);
-            resolvedAddress = publishEp
-                    .map(BlockNodeConfigService::endpointHost)
-                    .orElseGet(() ->
-                            statusEp.map(BlockNodeConfigService::endpointHost).orElse(null));
-        } else if (stateConsulted) {
+            if (resolvedStreamingHost != null
+                    && resolvedServiceHost != null
+                    && !resolvedStreamingHost.equals(resolvedServiceHost)) {
+                logger.info(
+                        "Registered node id {} advertises PUBLISH host '{}' and STATUS host '{}' separately; "
+                                + "using each for its respective endpoint",
+                        registeredNodeId,
+                        resolvedStreamingHost,
+                        resolvedServiceHost);
+            }
+        } else if (stateAvailable) {
             logger.info(
                     "Block node configuration references registered node id {} which is not in state; "
                             + "falling back to any explicit address/port values",
@@ -341,7 +408,14 @@ public class BlockNodeConfigService {
                     registeredNodeId);
         }
 
-        final String finalAddress = !explicitAddress.isBlank() ? explicitAddress : resolvedAddress;
+        // streaming host falls back to resolved PUBLISH host, then to resolved STATUS host
+        final String resolvedStreamingHostOrAny =
+                resolvedStreamingHost != null ? resolvedStreamingHost : resolvedServiceHost;
+        final String finalStreamingHost = !explicitAddress.isBlank() ? explicitAddress : resolvedStreamingHostOrAny;
+        // service host: explicit > resolved STATUS > resolved PUBLISH (fallback to whatever streaming uses)
+        final String resolvedServiceHostOrAny =
+                resolvedServiceHost != null ? resolvedServiceHost : resolvedStreamingHost;
+        final String finalServiceHost = !explicitAddress.isBlank() ? explicitAddress : resolvedServiceHostOrAny;
         final int finalStreamingPort = explicitStreamingPort > 0
                 ? explicitStreamingPort
                 : (resolvedStreamingPort != null ? resolvedStreamingPort : -1);
@@ -349,25 +423,28 @@ public class BlockNodeConfigService {
                 ? explicitServicePort
                 : (resolvedServicePort != null ? resolvedServicePort : -1);
 
-        if (finalAddress == null || finalAddress.isBlank() || finalStreamingPort <= 0) {
+        if (finalStreamingHost == null || finalStreamingHost.isBlank() || finalStreamingPort <= 0) {
             logger.info(
                     "Skipping block node configuration for registered node id {}: no usable address or streaming port "
-                            + "(explicit address='{}', explicit streamingPort={}, resolved address='{}', resolved streamingPort={})",
+                            + "(explicit address='{}', explicit streamingPort={}, resolved streamingHost='{}', "
+                            + "resolved streamingPort={})",
                     registeredNodeId,
                     explicitAddress,
                     explicitStreamingPort,
-                    resolvedAddress,
+                    resolvedStreamingHost,
                     resolvedStreamingPort);
             return null;
         }
 
         // log differences between explicit values and what the registered node advertised
-        if (resolvedAddress != null && !explicitAddress.isBlank() && !explicitAddress.equals(resolvedAddress)) {
+        if (!explicitAddress.isBlank()
+                && resolvedStreamingHostOrAny != null
+                && !explicitAddress.equals(resolvedStreamingHostOrAny)) {
             logger.info(
                     "Registered node id {} advertises address '{}' but block-nodes.json explicitly sets '{}'; "
                             + "using the explicit value",
                     registeredNodeId,
-                    resolvedAddress,
+                    resolvedStreamingHostOrAny,
                     explicitAddress);
         }
         if (resolvedStreamingPort != null
@@ -391,21 +468,14 @@ public class BlockNodeConfigService {
                     explicitServicePort);
         }
 
-        final long softLimit =
-                nodeConfig.messageSizeSoftLimitBytesOrElse(BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES);
-        final long hardLimit = nodeConfig.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes);
-
-        return BlockNodeConfiguration.newBuilder()
-                .address(finalAddress)
+        final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
+                .address(finalStreamingHost)
+                .serviceAddress(finalServiceHost)
                 .streamingPort(finalStreamingPort)
                 .servicePort(finalServicePort)
-                .priority(nodeConfig.priority())
-                .messageSizeSoftLimitBytes(softLimit)
-                .messageSizeHardLimitBytes(hardLimit)
-                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(nodeConfig.clientGrpcConfig()))
-                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(nodeConfig.clientHttpConfig()))
-                .registeredNodeId(registeredNodeId)
-                .build();
+                .registeredNodeId(registeredNodeId);
+        BlockNodeConfiguration.populateSharedFields(builder, nodeConfig, defaultHardLimitBytes);
+        return builder.build();
     }
 
     private static @NonNull Optional<RegisteredServiceEndpoint> pickEndpoint(
@@ -466,6 +536,7 @@ public class BlockNodeConfigService {
                                 final VersionedBlockNodeConfigurationSet newConfig =
                                         new VersionedBlockNodeConfigurationSet(newVersionNumber, List.of());
                                 latestConfigRef.set(newConfig);
+                                latestSourceRef.set(null);
                             } else {
                                 loadConfiguration();
                             }

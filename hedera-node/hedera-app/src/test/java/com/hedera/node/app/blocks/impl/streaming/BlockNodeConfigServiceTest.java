@@ -1007,6 +1007,106 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(config).isNull();
     }
 
+    @Test
+    void testLoadConfiguration_registeredNodeId_distinctPublishStatusHosts() throws Throwable {
+        // PUBLISH on host A, STATUS on host B -> streamingEndpoint and serviceEndpoint should have different hosts
+        final RegisteredNode registered = RegisteredNode.newBuilder()
+                .registeredNodeId(7L)
+                .serviceEndpoint(
+                        blockNodeEndpoint("publish.example.com", 9100, BlockNodeApi.PUBLISH),
+                        blockNodeEndpoint("status.example.com", 9200, BlockNodeApi.STATUS))
+                .build();
+        configService.setRegisteredNodeResolver(staticResolver(7L, registered));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "registeredNodeId": 7, "priority": 1 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.configs()).hasSize(1);
+        final BlockNodeConfiguration nodeConfig = config.configs().getFirst();
+        assertThat(nodeConfig.streamingEndpoint().host()).isEqualTo("publish.example.com");
+        assertThat(nodeConfig.streamingEndpoint().port()).isEqualTo(9100);
+        assertThat(nodeConfig.serviceEndpoint().host()).isEqualTo("status.example.com");
+        assertThat(nodeConfig.serviceEndpoint().port()).isEqualTo(9200);
+        assertThat(nodeConfig.registeredNodeId()).isEqualTo(7L);
+    }
+
+    @Test
+    void testRevalidateRegisteredNodes_picksUpEndpointChange() throws Throwable {
+        // initial registered node advertises port 9100
+        final RegisteredNode initial = registeredNodeWithEndpoints("blocknode.example.com", 9100, 9200);
+        final AtomicReference<RegisteredNode> currentRegistered = new AtomicReference<>(initial);
+        configService.setRegisteredNodeResolver(new RegisteredNodeEndpointResolver() {
+            @Override
+            public boolean isStateAvailable() {
+                return true;
+            }
+
+            @Override
+            public RegisteredNode resolve(final long registeredNodeId) {
+                return registeredNodeId == 7L ? currentRegistered.get() : null;
+            }
+        });
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "registeredNodeId": 7, "priority": 1 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet initialConfig = configService.latestConfiguration();
+        assertThat(initialConfig).isNotNull();
+        assertThat(initialConfig.configs().getFirst().streamingPort()).isEqualTo(9100);
+        final long initialVersion = initialConfig.versionNumber();
+
+        // re-resolving with the same registered node should be a no-op
+        assertThat(configService.revalidateRegisteredNodes()).isFalse();
+        assertThat(configService.latestConfiguration().versionNumber()).isEqualTo(initialVersion);
+
+        // simulate the registered node advertising new endpoints
+        currentRegistered.set(registeredNodeWithEndpoints("blocknode.example.com", 9999, 9200));
+
+        assertThat(configService.revalidateRegisteredNodes()).isTrue();
+        final VersionedBlockNodeConfigurationSet updatedConfig = configService.latestConfiguration();
+        assertThat(updatedConfig).isNotNull();
+        assertThat(updatedConfig.versionNumber()).isGreaterThan(initialVersion);
+        assertThat(updatedConfig.configs().getFirst().streamingPort()).isEqualTo(9999);
+    }
+
+    @Test
+    void testRevalidateRegisteredNodes_noopWhenNoRegisteredIdEntries() throws Throwable {
+        configService.setRegisteredNodeResolver(staticResolver(7L, registeredNodeWithEndpoints("h", 1234, 1234)));
+
+        writeConfig("""
+                {
+                    "nodes": [
+                        { "address": "localhost", "streamingPort": 9999, "priority": 1 }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+        assertThat(configService.revalidateRegisteredNodes()).isFalse();
+    }
+
+    @Test
+    void testRevalidateRegisteredNodes_noopWhenNoSourceLoaded() {
+        // never loaded a config -> revalidate should report no change
+        assertThat(configService.revalidateRegisteredNodes()).isFalse();
+    }
+
     // Utilities =========
 
     void invoke_loadConfiguration() throws Throwable {

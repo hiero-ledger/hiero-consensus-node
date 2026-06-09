@@ -27,6 +27,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -74,6 +75,8 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
     private ReadableRegisteredNodeStore readableRegisteredNodeStore;
 
     private RegisteredNodeUpdateHandler subject;
+    private RegisteredNodeChangeNotifier changeNotifier;
+    private java.util.concurrent.atomic.AtomicInteger listenerInvocations;
 
     private final long registeredNodeId = 1234L;
     private RegisteredNode existing;
@@ -81,7 +84,10 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new RegisteredNodeUpdateHandler(new AddressBookValidator());
+        changeNotifier = new RegisteredNodeChangeNotifier();
+        listenerInvocations = new java.util.concurrent.atomic.AtomicInteger(0);
+        changeNotifier.register(listenerInvocations::incrementAndGet);
+        subject = new RegisteredNodeUpdateHandler(new AddressBookValidator(), changeNotifier);
         existing = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)
                 .adminKey(key)
@@ -359,6 +365,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
                 .description(newDesc)
                 .build());
         givenHandleContextWithExisting(txn);
+        assertThat(listenerInvocations.get()).isZero();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
@@ -370,6 +377,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         assertEquals(existing.adminKey(), persisted.adminKey());
         assertEquals(existing.serviceEndpoint(), persisted.serviceEndpoint());
         assertEquals(registeredNodeId, persisted.registeredNodeId());
+        assertThat(listenerInvocations.get()).isEqualTo(1);
     }
 
     @Test

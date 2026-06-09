@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -33,10 +34,14 @@ import javax.inject.Singleton;
 @Singleton
 public class RegisteredNodeUpdateHandler implements TransactionHandler {
     private final AddressBookValidator addressBookValidator;
+    private final RegisteredNodeChangeNotifier changeNotifier;
 
     @Inject
-    public RegisteredNodeUpdateHandler(@NonNull final AddressBookValidator addressBookValidator) {
+    public RegisteredNodeUpdateHandler(
+            @NonNull final AddressBookValidator addressBookValidator,
+            @NonNull final RegisteredNodeChangeNotifier changeNotifier) {
         this.addressBookValidator = requireNonNull(addressBookValidator, "addressBookValidator must not be null");
+        this.changeNotifier = requireNonNull(changeNotifier, "changeNotifier must not be null");
     }
 
     @Override
@@ -86,6 +91,7 @@ public class RegisteredNodeUpdateHandler implements TransactionHandler {
 
         final var builder = updateRegisteredNode(op, existing);
         registeredNodeStore.put(builder.build());
+        changeNotifier.notifyChanged();
     }
 
     private RegisteredNode.Builder updateRegisteredNode(

@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -31,9 +32,11 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class RegisteredNodeDeleteHandler implements TransactionHandler {
+    private final RegisteredNodeChangeNotifier changeNotifier;
+
     @Inject
-    public RegisteredNodeDeleteHandler() {
-        // exists for injection
+    public RegisteredNodeDeleteHandler(@NonNull final RegisteredNodeChangeNotifier changeNotifier) {
+        this.changeNotifier = requireNonNull(changeNotifier, "changeNotifier must not be null");
     }
 
     @Override
@@ -88,6 +91,7 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         validateFalse(isAssociated, REGISTERED_NODE_STILL_ASSOCIATED);
 
         registeredNodeStore.remove(registeredNodeId);
+        changeNotifier.notifyChanged();
     }
 
     @NonNull

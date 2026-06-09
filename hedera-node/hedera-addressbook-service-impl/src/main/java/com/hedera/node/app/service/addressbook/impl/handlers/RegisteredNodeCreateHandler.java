@@ -10,6 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -31,10 +32,14 @@ import javax.inject.Singleton;
 @Singleton
 public class RegisteredNodeCreateHandler implements TransactionHandler {
     private final AddressBookValidator addressBookValidator;
+    private final RegisteredNodeChangeNotifier changeNotifier;
 
     @Inject
-    public RegisteredNodeCreateHandler(@NonNull final AddressBookValidator addressBookValidator) {
+    public RegisteredNodeCreateHandler(
+            @NonNull final AddressBookValidator addressBookValidator,
+            @NonNull final RegisteredNodeChangeNotifier changeNotifier) {
         this.addressBookValidator = requireNonNull(addressBookValidator, "addressBookValidator must not be null");
+        this.changeNotifier = requireNonNull(changeNotifier, "changeNotifier must not be null");
     }
 
     @Override
@@ -76,6 +81,7 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
                 .serviceEndpoint(op.serviceEndpoint())
                 .build();
         registeredNodeStore.putAndIncrement(node);
+        changeNotifier.notifyChanged();
 
         final var recordBuilder =
                 handleContext.savepointStack().getBaseBuilder(RegisteredNodeCreateStreamBuilder.class);

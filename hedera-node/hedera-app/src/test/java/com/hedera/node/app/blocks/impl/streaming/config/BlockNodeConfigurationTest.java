@@ -179,6 +179,43 @@ class BlockNodeConfigurationTest {
     }
 
     @Test
+    void testServiceAddressOverride() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("publish.example.com")
+                .serviceAddress("status.example.com")
+                .streamingPort(9100)
+                .servicePort(9200)
+                .priority(1)
+                .messageSizeSoftLimitBytes(2_000)
+                .messageSizeHardLimitBytes(3_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .build();
+
+        assertThat(config.streamingEndpoint().host()).isEqualTo("publish.example.com");
+        assertThat(config.streamingEndpoint().port()).isEqualTo(9100);
+        assertThat(config.serviceEndpoint().host()).isEqualTo("status.example.com");
+        assertThat(config.serviceEndpoint().port()).isEqualTo(9200);
+    }
+
+    @Test
+    void testServiceAddressDefaultsToStreamingAddress() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("shared.example.com")
+                .streamingPort(9100)
+                .servicePort(9200)
+                .priority(1)
+                .messageSizeSoftLimitBytes(2_000)
+                .messageSizeHardLimitBytes(3_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .build();
+
+        assertThat(config.streamingEndpoint().host()).isEqualTo("shared.example.com");
+        assertThat(config.serviceEndpoint().host()).isEqualTo("shared.example.com");
+    }
+
+    @Test
     void testRegisteredNodeIdRoundTrip() {
         final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
                 .address("localhost")

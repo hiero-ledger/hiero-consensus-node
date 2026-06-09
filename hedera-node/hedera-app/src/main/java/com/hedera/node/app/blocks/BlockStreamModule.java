@@ -11,6 +11,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.StateBackedRegisteredNodeResolver;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -25,12 +26,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Module
 public interface BlockStreamModule {
+    Logger LIFECYCLE_LOGGER = LogManager.getLogger(BlockStreamModule.class);
+
     @Provides
     @Singleton
     static BlockBufferService provideBlockBufferService(
@@ -129,7 +135,15 @@ public interface BlockStreamModule {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BoundaryStateChangeListener listener,
             @NonNull final NodeFeeManager nodeFeeManager,
-            @NonNull final StateBackedRegisteredNodeResolver registeredNodeResolver) {
+            @NonNull final StateBackedRegisteredNodeResolver registeredNodeResolver,
+            @NonNull final RegisteredNodeChangeNotifier registeredNodeChangeNotifier,
+            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+        // Set by the inline RegisteredNodeChangeListener below; the listener runs on the consensus handle thread
+        // and is required to be cheap, so it just flips this boolean. The lifecycle drains it from onCloseBlock
+        // (off the handle thread, after the savepoint commit), where revalidating against committed state is safe.
+        final AtomicBoolean pendingRevalidation = new AtomicBoolean(false);
+        final AtomicBoolean firstCloseBlockSeen = new AtomicBoolean(false);
+        registeredNodeChangeNotifier.register(() -> pendingRevalidation.set(true));
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
@@ -144,6 +158,20 @@ public interface BlockStreamModule {
                 nodeFeeManager.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
                 registeredNodeResolver.updateState(state);
+                // revalidate registered-node-backed block-node entries when:
+                //  - this is the first block close (covers cold-start where the config was loaded before state was
+                //    available), OR
+                //  - a RegisteredNode create/update/delete txn signaled a change in this block via the listener
+                final boolean firstClose = firstCloseBlockSeen.compareAndSet(false, true);
+                final boolean pending = pendingRevalidation.compareAndSet(true, false);
+                if (firstClose || pending) {
+                    try {
+                        blockNodeConfigService.revalidateRegisteredNodes();
+                    } catch (final RuntimeException e) {
+                        LIFECYCLE_LOGGER.warn(
+                                "Error while re-resolving registered-node block-node configurations (ignoring)", e);
+                    }
+                }
             }
         };
     }

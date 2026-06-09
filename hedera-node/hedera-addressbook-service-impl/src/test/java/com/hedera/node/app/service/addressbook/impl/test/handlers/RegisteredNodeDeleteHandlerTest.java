@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -74,13 +75,18 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     private FeeCalculator feeCalculator;
 
     private RegisteredNodeDeleteHandler subject;
+    private RegisteredNodeChangeNotifier changeNotifier;
+    private java.util.concurrent.atomic.AtomicInteger listenerInvocations;
 
     private final long registeredNodeId = 1234L;
     private RegisteredNode existing;
 
     @BeforeEach
     void setUp() {
-        subject = new RegisteredNodeDeleteHandler();
+        changeNotifier = new RegisteredNodeChangeNotifier();
+        listenerInvocations = new java.util.concurrent.atomic.AtomicInteger(0);
+        changeNotifier.register(listenerInvocations::incrementAndGet);
+        subject = new RegisteredNodeDeleteHandler(changeNotifier);
         existing = new RegisteredNode.Builder()
                 .registeredNodeId(registeredNodeId)
                 .adminKey(key)
@@ -238,9 +244,11 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
     void handleDeletesWhenUnreferenced() {
         givenHandleContext();
         given(readableNodeStore.keys()).willReturn(List.of());
+        assertThat(listenerInvocations.get()).isZero();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         verify(writableRegisteredNodeStore).remove(registeredNodeId);
+        assertThat(listenerInvocations.get()).isEqualTo(1);
     }
 
     @Test

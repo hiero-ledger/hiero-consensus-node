@@ -28,6 +28,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.addressbook.impl.RegisteredNodeChangeNotifier;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
@@ -77,10 +78,15 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
     private RegisteredNodeCreateStreamBuilder recordBuilder;
 
     private RegisteredNodeCreateHandler subject;
+    private RegisteredNodeChangeNotifier changeNotifier;
+    private java.util.concurrent.atomic.AtomicInteger listenerInvocations;
 
     @BeforeEach
     void setUp() {
-        subject = new RegisteredNodeCreateHandler(new AddressBookValidator());
+        changeNotifier = new RegisteredNodeChangeNotifier();
+        listenerInvocations = new java.util.concurrent.atomic.AtomicInteger(0);
+        changeNotifier.register(listenerInvocations::incrementAndGet);
+        subject = new RegisteredNodeCreateHandler(new AddressBookValidator(), changeNotifier);
     }
 
     @Test
@@ -280,6 +286,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
                 .build());
 
         givenHandleContext(txn, newId, stack, attributeValidator);
+        assertThat(listenerInvocations.get()).isZero();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
@@ -293,6 +300,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         assertEquals(List.of(endpoint), persisted.serviceEndpoint());
 
         verify(recordBuilder).registeredNodeID(newId);
+        assertThat(listenerInvocations.get()).isEqualTo(1);
     }
 
     @Test
