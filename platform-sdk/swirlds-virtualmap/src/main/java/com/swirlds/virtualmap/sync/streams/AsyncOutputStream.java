@@ -12,13 +12,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.jctools.queues.MpscArrayQueue;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -47,9 +46,12 @@ public class AsyncOutputStream {
     private final DataOutputStream outputStream;
 
     /**
-     * A queue that needs to be written to the output stream.
+     * A queue that needs to be written to the output stream. Multi-producer/single-consumer:
+     * the 16 sender tasks call {@code offer} concurrently; ONLY the single async-output-stream
+     * drain thread may call {@code poll}/{@code peek}. Violating the single-consumer invariant
+     * corrupts the queue silently.
      */
-    private final BlockingQueue<byte[]> streamQueue;
+    private final MpscArrayQueue<byte[]> streamQueue;
 
     /**
      * The time that has elapsed since the last flush was attempted.
@@ -117,7 +119,8 @@ public class AsyncOutputStream {
 
         this.outputStream = Objects.requireNonNull(outputStream, "outputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.streamQueue = new LinkedBlockingQueue<>(config.asyncStreamBufferSize());
+        // Capacity is rounded up to a power of two by MpscArrayQueue.
+        this.streamQueue = new MpscArrayQueue<>(config.asyncStreamBufferSize());
         this.timeSinceLastFlush = new StopWatch();
         this.timeSinceLastFlush.start();
         this.flushInterval = config.asyncOutputStreamFlush();
@@ -196,14 +199,21 @@ public class AsyncOutputStream {
      * @throws InterruptedException if interrupted while waiting to enqueue
      */
     public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
-        final boolean success = streamQueue.offer(messageBytes, timeout.toMillis(), TimeUnit.MILLISECONDS);
-        if (!success) {
-            try {
-                outputStream.close();
-            } catch (final IOException e) {
-                throw new MerkleSynchronizationException("Unable to close stream", e);
+        // MpscArrayQueue is bounded and non-blocking: offer() returns false immediately when
+        // full. Spin-wait for room, preserving the back-pressure that the bounded queue provides
+        // (producers wait for the single drain thread to catch up). A deadline derived from the
+        // configured timeout still aborts a genuinely stuck reconnect.
+        final long deadlineNanos = System.nanoTime() + timeout.toNanos();
+        while (!streamQueue.offer(messageBytes)) {
+            if (System.nanoTime() > deadlineNanos) {
+                try {
+                    outputStream.close();
+                } catch (final IOException e) {
+                    throw new MerkleSynchronizationException("Unable to close stream", e);
+                }
+                throw new MerkleSynchronizationException("Timed out waiting to send data");
             }
-            throw new MerkleSynchronizationException("Timed out waiting to send data");
+            Thread.onSpinWait();
         }
     }
 
