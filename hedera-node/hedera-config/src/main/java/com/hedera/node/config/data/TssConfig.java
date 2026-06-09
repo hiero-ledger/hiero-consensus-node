@@ -22,7 +22,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10s") @NetworkProperty
         Duration wrapsMessageGracePeriod,
 
-        @ConfigProperty(defaultValue = "60s") @NetworkProperty
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
         Duration bootstrapProofKeyGracePeriod,
 
         @ConfigProperty(defaultValue = "300s") @NetworkProperty

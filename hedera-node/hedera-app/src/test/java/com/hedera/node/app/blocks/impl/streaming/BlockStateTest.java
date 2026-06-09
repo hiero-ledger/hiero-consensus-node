@@ -28,7 +28,7 @@ class BlockStateTest {
         try {
             final Lookup lookup = MethodHandles.lookup();
             blockItemsHandle = MethodHandles.privateLookupIn(BlockState.class, lookup)
-                    .findVarHandle(BlockState.class, "blockItems", ConcurrentMap.class);
+                    .findVarHandle(BlockState.class, "bufferedItems", ConcurrentMap.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -172,7 +172,7 @@ class BlockStateTest {
     // Utilities
 
     @SuppressWarnings("unchecked")
-    private ConcurrentMap<Integer, BlockItem> blockItems() {
-        return (ConcurrentMap<Integer, BlockItem>) blockItemsHandle.get(block);
+    private ConcurrentMap<Integer, BlockState.BufferedItem> blockItems() {
+        return (ConcurrentMap<Integer, BlockState.BufferedItem>) blockItemsHandle.get(block);
     }
 }
