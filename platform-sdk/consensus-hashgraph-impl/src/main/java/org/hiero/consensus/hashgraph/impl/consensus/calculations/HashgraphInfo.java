@@ -68,6 +68,7 @@ public final class HashgraphInfo {
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private boolean lastUpdateUsedCoin; // true iff the last round to reach consensus used a coin round
+    private long[] benchmarks = new long[NUM_BENCHMARKS]; // total nanoseconds spent in various code sections
     private long pendingRound;
     private int numNodes;
     private long[] nodeIDs;
@@ -87,10 +88,34 @@ public final class HashgraphInfo {
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
     private long[] candStake; // the total stake of all votes for each candidate event
 
+    //these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
+    public static final int NUM_BENCHMARKS = 1; // number of elements in long[] getBenchmarks()
+    private static final int BENCHMARK_UPDATE = 0; //time spent in update()
+    private static final int BENCHMARK_SEARCH = 1; //time spent in graphSearch()
 
     /** true iff the last round to reach consensus used a coin round */
     public boolean getLastUpdateUsedCoin() {
         return lastUpdateUsedCoin;
+    }
+
+    /**
+     * Total nanoseconds spent in various code sections since the last resetBenchmarks.
+     * The exact length and meaning of the array elements may change in future versions. But there
+     * will always be at least 1 element. And the first element is always the total time spent
+     * in {@link EventInfo#update EventInfo.update()}.
+     */
+    public long[] getBenchmarks() {
+        return benchmarks;
+    }
+
+    /** Reset the benchmark timers, so {@link HashgraphInfo#getBenchmarks HashgraphInfo.getBenchmarks()}
+     *  only returns time spent since the last resetBencharks(). */
+    void resetBenchmarks() {
+        if (benchmarks == null) {
+            benchmarks = new long[NUM_BENCHMARKS];
+        } else {
+            Arrays.fill(benchmarks, 0L);
+        }
     }
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
@@ -195,6 +220,7 @@ public final class HashgraphInfo {
         int firstMark = currMark + 1;
         // events reach consensus when they are an ancestor of this many judges
         int targetCount = judgeCon1 ? 1 : judges.length;
+        benchmarks[BENCHMARK_SEARCH] -= System.nanoTime();
         for (int m = 0; m < judges.length; m++) { // depth-first search starting from each judge
             EventInfo x = judges[m], nextX;
             boolean judgeSelfAncestor = true; // true iff x is a self-ancestor of judge
@@ -240,6 +266,7 @@ public final class HashgraphInfo {
         }
         // for greater consensus order randomness, could generate a random permutation each round, and for all i do:
         // consensusEvents.get(i).searchOrder = perm[i]
+        benchmarks[BENCHMARK_SEARCH] += System.nanoTime();
     }
 
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
@@ -590,6 +617,7 @@ public final class HashgraphInfo {
             boolean witness;
             boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
 
+            h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
             }
@@ -1014,6 +1042,7 @@ public final class HashgraphInfo {
                 }
             }
             if (!h.roundDecided) {
+                h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
                 return null;
             }
 
@@ -1120,6 +1149,7 @@ public final class HashgraphInfo {
                 minJudgeBirthRound = Math.max(minJudgeBirthRound, judge.birthRound);
             }
 
+            h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
             return new UpdateResults(
                     consensusEventsArray, // consensusEvents
                     new RoundInfoPrev(
