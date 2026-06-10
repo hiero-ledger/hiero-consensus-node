@@ -203,6 +203,7 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
         env:
           INPUT_TEST_OUTCOMES: ${{ steps.run-rpc-relay-tests.outcome }}
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
