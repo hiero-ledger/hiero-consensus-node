@@ -219,7 +219,7 @@ public class ContractCallLocalSuite {
                 contractCallLocalWithFunctionAbi(invalidContract, functionAbi)
                         .nodePayment(1_234_567)
                         .hasAnswerOnlyPrecheck(INVALID_CONTRACT_ID),
-                contractCallLocalWithFunctionAbi("0", functionAbi)
+                contractCallLocalWithFunctionAbi("0.0.0", functionAbi)
                         .nodePayment(1_234_567)
                         .hasAnswerOnlyPrecheck(INVALID_CONTRACT_ID));
     }
