@@ -47,7 +47,6 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.otter.fixtures.app.OtterApp;
@@ -143,7 +142,7 @@ public class ConsensusNodeManager {
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
         OtterStateUtils.commitState(state);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,

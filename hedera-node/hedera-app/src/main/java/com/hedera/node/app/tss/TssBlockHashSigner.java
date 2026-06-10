@@ -94,6 +94,13 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        if (hintsService != null) {
+            hintsService.onBlockStarted(blockNumber);
+        }
+    }
+
+    @Override
     public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
         requireNonNull(request);

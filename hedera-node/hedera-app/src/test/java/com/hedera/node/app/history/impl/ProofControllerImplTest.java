@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
@@ -848,6 +849,58 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
         verify(historyService).onFinished(eq(writableHistoryStore), any(), any());
+    }
+
+    @Test
+    void finishingProofPurgesPersistedVotesSoReconstructionDoesNotReloadStaleVotes() {
+        // Regression for a SELF_ISS observed when a node restarted (OOM) mid-WRAPS-proof
+        // construction. finishProof clears the IN-MEMORY votes map so the network can vote again to
+        // convert a freshly built proof into a WRAPS-extensible one, but the persisted PROOF_VOTES
+        // were left in state (purged only on construction handoff). A node rebuilding its controller
+        // during the conversion window (ProofControllers#getOrCreateFor -> constructor) reloaded
+        // those now-superseded persisted votes and then treated the later conversion vote from the
+        // same node as already counted (addProofVote's containsKey short-circuit), so it never wrote
+        // the WRAPS-extensible target proof -- diverging ACTIVE_PROOF_CONSTRUCTION from the live
+        // nodes. The fix mirrors the in-memory clear by purging the construction's persisted votes
+        // on completion, so a reconstructed controller starts from the same (empty) vote set.
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        // This is the conversion case: wrapsEnabled=true with a not-yet-WRAPS-extensible proof, so
+        // the network must vote again. Only then do we purge the PERSISTED votes on completion, to
+        // keep a reconstructed controller from reloading stale votes.
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
+        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(new TreeSet<>(List.of(SELF_ID))));
+    }
+
+    @Test
+    void finishingProofDoesNotPurgePersistedVotesWhenNoConversionFollows() {
+        // No-conversion case: the completed proof is already adequate for the WRAPS setting
+        // (wrapsEnabled == isWrapsExtensible -- here both false), so the network does NOT vote
+        // again. Purging the persisted votes here would write a redundant PROOF_VOTES removal into
+        // the block stream (they are purged at construction handoff anyway) and that extra state
+        // change breaks record/block-stream parity for the completing HistoryProofVote receipt.
+        // So clearProofVotes must NOT be called in this case.
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
+        verify(writableHistoryStore, never()).clearProofVotes(anyLong(), any());
     }
 
     @Test
