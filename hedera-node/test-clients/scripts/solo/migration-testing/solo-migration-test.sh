@@ -639,30 +639,36 @@ install_nmt_in_pod() {
     set -e
     snapdir=/tmp/hgcapp-snap
     rm -rf \$snapdir && mkdir -p \$snapdir
+    # manifest.txt pairs each tar with its original mountpoint. We can't
+    # encode the path in the tar filename — paths like /opt/hgcapp/services-
+    # hedera/... contain hyphens, so a slashes-to-dashes encoding is not
+    # reversible (services-hedera becomes services/hedera and the restore
+    # lands in a phantom dir). Use a parallel manifest instead and key each
+    # tar by a stable hash of the path.
+    manifest=\$snapdir/manifest.txt
+    : > \$manifest
     # sort -r so we umount deepest-first (children before parents).
     for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
       # Skip empty mounts — saves several tar invocations per pod and keeps
       # the restore loop cheap. find -mindepth 1 -quit short-circuits on the
       # first entry, so this is O(1) for empty dirs.
       if [ -n \"\$(find \"\$mp\" -mindepth 1 -print -quit 2>/dev/null)\" ]; then
-        # Each mount gets its own tar; the path is sanitised to a flat name
-        # (slashes -> dashes) so we can pair tar <-> mountpoint after umount.
-        safe=\$(echo \"\$mp\" | sed 's|^/||; s|/|-|g')
+        safe=\$(printf '%s' \"\$mp\" | md5sum | cut -d' ' -f1)
         tar -cf \"\$snapdir/\$safe.tar\" -C \"\$mp\" . 2>/dev/null || true
+        printf '%s\\t%s\\n' \"\$safe\" \"\$mp\" >> \$manifest
       fi
       umount -l \"\$mp\" 2>/dev/null || true
     done
-    # Restore the snapshots into the now-detached directories. The
-    # directories are still there (umount just detaches the mount, the
-    # underlying image-baked dir is unchanged), so we extract back into
-    # them. Re-derive the mountpoint from the safe name.
-    for tarball in \"\$snapdir\"/*.tar; do
+    # Restore the snapshots into the now-detached directories. umount only
+    # uncovers what's beneath the mount; the underlying image-baked tree is
+    # still there, so we just extract back into the original path. Order
+    # doesn't matter — all restore paths are independent post-umount.
+    while IFS=\$'\\t' read -r safe mp; do
+      tarball=\"\$snapdir/\$safe.tar\"
       [ -f \"\$tarball\" ] || continue
-      base=\$(basename \"\$tarball\" .tar)
-      mp=/\$(echo \"\$base\" | sed 's|-|/|g')
       mkdir -p \"\$mp\"
       tar -xf \"\$tarball\" -C \"\$mp\"
-    done
+    done < \$manifest
     rm -rf \$snapdir
   "
 
