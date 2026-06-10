@@ -56,7 +56,7 @@ on:
         type: string
         default: ""
       tss-starting-tag:
-        description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.0-rc.4."
+        description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.0-rc.5."
         required: false
         type: string
         default: ""
@@ -572,7 +572,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.tss-starting-tag || 'v0.75.0-rc.4' }}" \
+              DEPLOY_RELEASE_TAG="${{ inputs.tss-starting-tag || 'v0.75.0-rc.5' }}" \
               UPGRADE_TAG="${{ inputs.tss-upgrade-tag }}" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/075-to-076-tss-script.log"
 

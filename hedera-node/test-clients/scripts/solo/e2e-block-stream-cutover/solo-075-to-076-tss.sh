@@ -8,7 +8,7 @@
 # cannot start directly at 0.76. Instead we deploy a published 0.75 baseline
 # and upgrade in place to the local 0.76 build:
 #
-#   1. Deploy a baseline CN network at the published v0.75.0-rc.4 release tag
+#   1. Deploy a baseline CN network at the published v0.75.0-rc.5 release tag
 #      with resources/0.75/application.properties.
 #   2. Deploy a mirror node (with --pinger, so it keeps submitting transactions and the
 #      network keeps producing blocks) + explorer UI on top of the 0.75 baseline (importer
@@ -47,7 +47,7 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.4}"
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.5}"
 
 # Target version for the 0.76 upgrade.
 #   Blank (default): upgrade in place to the LOCAL build at LOCAL_BUILD_PATH
