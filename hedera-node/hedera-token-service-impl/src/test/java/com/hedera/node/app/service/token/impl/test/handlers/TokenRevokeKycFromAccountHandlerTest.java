@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.MISC_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -124,6 +125,29 @@ class TokenRevokeKycFromAccountHandlerTest {
                             null, sentinel, null, null, null, null, null, null, false, ACCOUNT_100, 2));
 
             assertThrowsPreCheck(() -> subject.preHandle(context), TOKEN_HAS_NO_KYC_KEY);
+        }
+
+        @Test
+        @DisplayName("A non-empty KYC key is required and added as a signing requirement")
+        void preHandleAcceptsValidKycKey() throws Exception {
+            final var txn = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
+                    .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
+                            .token(TOKEN_10)
+                            .account(ACCOUNT_100)
+                            .build())
+                    .build();
+            final var context = mock(PreHandleContext.class);
+            final var tokenStore = mock(ReadableTokenStore.class);
+            given(context.body()).willReturn(txn);
+            given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+            given(tokenStore.getTokenMeta(TOKEN_10))
+                    .willReturn(new ReadableTokenStore.TokenMetadata(
+                            null, A_COMPLEX_KEY, null, null, null, null, null, null, false, ACCOUNT_100, 2));
+
+            subject.preHandle(context);
+
+            verify(context).requireKey(A_COMPLEX_KEY);
         }
     }
 

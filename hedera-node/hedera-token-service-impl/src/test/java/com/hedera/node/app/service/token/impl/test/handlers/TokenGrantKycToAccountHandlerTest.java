@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -109,6 +110,29 @@ class TokenGrantKycToAccountHandlerTest extends TokenHandlerTestBase {
                         null, sentinel, null, null, null, null, null, null, false, TREASURY_ACCOUNT_9876, 2));
 
         assertThrowsPreCheck(() -> subject.preHandle(context), TOKEN_HAS_NO_KYC_KEY);
+    }
+
+    @Test
+    void preHandleAcceptsValidKycKey() throws Exception {
+        final var txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(TEST_DEFAULT_PAYER))
+                .tokenGrantKyc(TokenGrantKycTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .account(AccountID.newBuilder().accountNum(1L))
+                        .build())
+                .build();
+        final var context = mock(PreHandleContext.class);
+        final var tokenStore = mock(ReadableTokenStore.class);
+        given(context.body()).willReturn(txn);
+        given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+        // A non-empty KYC key is required and is added as a signing requirement.
+        given(tokenStore.getTokenMeta(tokenId))
+                .willReturn(new ReadableTokenStore.TokenMetadata(
+                        null, A_COMPLEX_KEY, null, null, null, null, null, null, false, TREASURY_ACCOUNT_9876, 2));
+
+        subject.preHandle(context);
+
+        verify(context).requireKey(A_COMPLEX_KEY);
     }
 
     private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
