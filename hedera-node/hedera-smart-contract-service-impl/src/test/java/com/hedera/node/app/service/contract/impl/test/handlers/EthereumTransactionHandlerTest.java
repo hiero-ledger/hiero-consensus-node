@@ -2,6 +2,12 @@
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
+import static com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler.adminKeyMatchesEcdsaPubKey;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_SECP256K1_KEY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_SECP256K1_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
@@ -25,11 +31,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
@@ -57,6 +67,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -103,6 +114,9 @@ class EthereumTransactionHandlerTest {
 
     @Mock
     private ReadableFileStore fileStore;
+
+    @Mock
+    private ReadableAccountStore accountStore;
 
     @Mock
     private TransactionComponent component;
@@ -445,11 +459,188 @@ class EthereumTransactionHandlerTest {
                 TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
         given(preHandleContext.body()).willReturn(body);
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
+                .willReturn(EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS));
+        given(accountStore.getAliasedAccountById(any())).willReturn(null);
         subject.preHandle(preHandleContext);
         verify(ethereumSignatures).computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS);
+    }
+
+    @Test
+    void preHandleSkipsKeyMatchForHollowAccount() throws PreCheckException {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var hollowAccount = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(EMPTY_KEY_LIST)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(hollowAccount);
+
+        subject.preHandle(preHandleContext);
+    }
+
+    @Test
+    void preHandleRejectsMismatchedEcdsaAdminKey() {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var account = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(B_SECP256K1_KEY)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(account);
+
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_SIGNATURE);
+    }
+
+    @Test
+    void preHandleAcceptsMatchingEcdsaAdminKey() throws PreCheckException {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var matchingKey =
+                Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(ethSigs.publicKey())).build();
+        final var account = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(matchingKey)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(account);
+
+        subject.preHandle(preHandleContext);
+    }
+
+    @Test
+    void preHandleRejectsForThresholdAdminKey() throws PreCheckException {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var body =
+                TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var ethSigs = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        final var thresholdKey = Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .threshold(1)
+                        .keys(KeyList.newBuilder().keys(A_SECP256K1_KEY, B_SECP256K1_KEY)))
+                .build();
+        final var account = Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(1234L).build())
+                .key(thresholdKey)
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(ethSigs);
+        given(accountStore.getAliasedAccountById(any())).willReturn(account);
+
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_SIGNATURE);
+    }
+
+    @Test
+    void maybeEthTxSigsForReturnsSigsWhenHydrationSucceeds() {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var expected = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(expected);
+
+        assertSame(expected, subject.maybeEthTxSigsFor(ethTxn, fileStore, DEFAULT_CONFIG));
+    }
+
+    @Test
+    void maybeEthTxSigsForReturnsNullWhenHydrationFails() {
+        final var ethTxn =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.failureFrom(INVALID_ETHEREUM_TRANSACTION));
+
+        assertNull(subject.maybeEthTxSigsFor(ethTxn, fileStore, DEFAULT_CONFIG));
+        verifyNoInteractions(ethereumSignatures);
+    }
+
+    @Test
+    void maybeEthTxSigsForReturnsNullWhenSignatureComputationFails() {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
+        given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
+                .willThrow(new IllegalStateException("bad sig"));
+
+        assertNull(subject.maybeEthTxSigsFor(ethTxn, fileStore, DEFAULT_CONFIG));
+    }
+
+    @Test
+    void adminKeyMatchesEcdsaPubKeyReturnsTrueForMatchingKeys() {
+        final var compressedPubKey = A_SECP256K1_KEY.ecdsaSecp256k1OrThrow().toByteArray();
+
+        assertTrue(adminKeyMatchesEcdsaPubKey(A_SECP256K1_KEY, compressedPubKey));
+    }
+
+    @Test
+    void adminKeyMatchesEcdsaPubKeyReturnsFalseForNonEcdsaKey() {
+        assertFalse(adminKeyMatchesEcdsaPubKey(EMPTY_KEY_LIST, new byte[33]));
+    }
+
+    @Test
+    void adminKeyMatchesEcdsaPubKeyReturnsFalseForMismatchedLength() {
+        final var compressedPubKey = A_SECP256K1_KEY.ecdsaSecp256k1OrThrow().toByteArray();
+        final var shortKey =
+                Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(new byte[32])).build();
+
+        assertFalse(adminKeyMatchesEcdsaPubKey(shortKey, compressedPubKey));
+    }
+
+    @Test
+    void adminKeyMatchesEcdsaPubKeyReturnsFalseForMismatchedBytes() {
+        final var compressedPubKey = A_SECP256K1_KEY.ecdsaSecp256k1OrThrow().toByteArray();
+
+        assertFalse(adminKeyMatchesEcdsaPubKey(B_SECP256K1_KEY, compressedPubKey));
     }
 
     @Test
@@ -466,7 +657,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
                 .willThrow(new IllegalStateException("Oops"));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
     }
 
     @Test
@@ -479,8 +670,8 @@ class EthereumTransactionHandlerTest {
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
-                .willReturn(HydratedEthTxData.failureFrom(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION));
-        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+                .willReturn(HydratedEthTxData.failureFrom(INVALID_ETHEREUM_TRANSACTION));
+        assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);
         verifyNoInteractions(ethereumSignatures);
     }
 
@@ -541,7 +732,7 @@ class EthereumTransactionHandlerTest {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         PreCheckException exception =
                 assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
     }
 
     @Test
@@ -554,7 +745,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(new byte[20]);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS, exception.responseCode());
+            assertEquals(INVALID_SOLIDITY_ADDRESS, exception.responseCode());
         }
     }
 
@@ -570,7 +761,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(ResponseCodeEnum.INVALID_CONTRACT_ID, exception.responseCode());
+            assertEquals(INVALID_CONTRACT_ID, exception.responseCode());
         }
     }
 
@@ -588,7 +779,7 @@ class EthereumTransactionHandlerTest {
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
+            assertEquals(INSUFFICIENT_GAS, exception.responseCode());
         }
     }
 
@@ -604,7 +795,7 @@ class EthereumTransactionHandlerTest {
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, exception.responseCode());
+            assertEquals(INSUFFICIENT_GAS, exception.responseCode());
         }
     }
 

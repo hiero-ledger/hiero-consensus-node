@@ -106,10 +106,32 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
-export SOLO_CLUSTER_NAME="cutover-e2e-testing"
-export SOLO_NAMESPACE="solo"
-export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
-export SOLO_DEPLOYMENT="solo-deployment"
+# Shared remote-cluster helpers (default StorageClass, deployment re-establish after destroy,
+# toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
+# shellcheck source=../remote-cluster-helpers.sh
+source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+
+export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-cutover-e2e-testing}"
+export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
+export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
+export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+
+# Cluster target: "kind" (default, ephemeral local cluster) or "remote" (pre-allocated cluster
+# reached via an already-current kubectl context, e.g. Teleport). On remote, adopt the CITR
+# conventions so this lands on the shared cluster the same way the longevity tooling does.
+CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
+  CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
+  export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
+elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
+  CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
+else
+  echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
+  exit 1
+fi
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
     3) NODE_ALIASES="node1,node2,node3" ;;
@@ -394,6 +416,10 @@ run_step() {
 cleanup() {
   local exit_code=$?
 
+  # Stop the remote toleration patcher first (no-op on kind / when never started), regardless of
+  # exit status or KEEP_NETWORK, so no background loop survives the script.
+  stop_remote_toleration_patcher
+
   # Always restore MinIO regardless of exit status / KEEP_NETWORK. Step 9's
   # disconnect helper sets MINIO_DISCONNECTED_OWNER_* when it scales MinIO to
   # zero; if Step 9 aborts after the scale-down, the next steps (or a re-run)
@@ -434,7 +460,10 @@ cleanup() {
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
   fi
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  # Never delete the shared remote cluster; only an ephemeral kind cluster is torn down here.
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
 
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
 }
@@ -3304,7 +3333,7 @@ deploy_block_node_for_cutover() {
   local add_args=(
     solo block node add
     --deployment "${SOLO_DEPLOYMENT}"
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+    --cluster-ref "${CLUSTER_REF}"
     --quiet-mode
   )
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
@@ -3555,7 +3584,10 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
-require_cmd kind
+# kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  require_cmd kind
+fi
 require_cmd kubectl
 require_cmd solo
 require_cmd npm
@@ -3601,21 +3633,32 @@ if should_run_step 1; then
   # recreating the cluster (prevents back-to-back accumulation of forwards/watchdogs/FDs).
   preflight_kill_stale_port_forwards
   print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
   cleanup_record_stream_files_only
   rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
 
-  run_step "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
-    kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    run_step "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
+      kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  fi
 
-  run_step "Connecting Solo to kind cluster" \
-    solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+  run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
+    solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
   solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_step "Attaching cluster to deployment" \
-    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-  if [[ "${ENABLE_MONITORING}" == "true" ]]; then
+    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    # Mark local-path default, tear down any prior network, re-establish the deployment config the
+    # destroy removes, and run cluster-ref setup only if missing (shared helper). Then start the
+    # toleration patcher so the mirror/block-node/shared-resources pods can schedule on the tainted
+    # nodes throughout the multi-step flow; cleanup() stops it.
+    remote_reset_and_prepare_deployment
+    start_remote_toleration_patcher
+  elif [[ "${ENABLE_MONITORING}" == "true" ]]; then
     run_step "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
     ensure_grafana_port_forward
@@ -3640,8 +3683,17 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
+  # On remote, pass the scheduling/storage value overrides and deploy without PVCs (emptyDir); kind keeps PVCs.
+  cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}")
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    cutover_deploy+=(--pvcs false --values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+  else
+    cutover_deploy+=(--pvcs true)
+  fi
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
-    solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor "${service_monitor_flag}" --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
+    "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
     solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
   run_step "Starting consensus nodes" \

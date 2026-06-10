@@ -218,6 +218,54 @@ All paths above are under `swirlds-platform-core/src/main/java/com/swirlds/platf
 registers `ReconnectCompleteListener`, `StateWriteToDiskCompleteListener`, `AsyncFatalIssListener`, and
 `StateHashedListener` and unregisters them at teardown.
 
+## Boundary-wide contracts
+
+Most entries above are a single method on a single interface. A few boundary guarantees are
+*emergent* — upheld by several consensus-layer classes and the wires between them, belonging to no
+single entry. This section collects them.
+
+### Every pre-handled event reaches consensus or goes stale
+
+**The contract.** Every event the consensus layer hands to `onPreHandle` is reported back **exactly
+once** — as a consensus event (in a round to `onHandleConsensusRound`) or a stale event (to the
+`staleEventConsumer` of [`ApplicationCallbacks`](#applicationcallbacks)), never both, never neither.
+This lets the execution layer keep a balanced count of in-flight transactions.
+
+**Where it is implemented.** No single class owns the contract:
+
+- `DefaultConsensusEngine#addEvent`
+  (`consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java`)
+  — the chokepoint: one call admits an event, emits it to prehandle, produces consensus rounds, and
+  partitions aged-out events into those that reached consensus (no action) and `!isConsensus()` (stale).
+- `PlatformWiring` (`swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java`)
+  — solders the three outputs to `TransactionPrehandler::prehandleApplicationTransactions`,
+  `TransactionHandler::handleConsensusRound`, and the `staleEventConsumer`; its comment records the
+  contract: *"the consensus engine ensures that all pre-consensus events either reach consensus or
+  become stale."*
+- The endpoints in `swirlds-platform-core/.../eventhandling/`:
+  `DefaultTransactionPrehandler#prehandleApplicationTransactions` calls `onPreHandle`,
+  `DefaultTransactionHandler#handleConsensusRound` calls `onHandleConsensusRound`.
+
+**Normal operation.** The guarantee is structural: an admitted event stays in the hashgraph until it
+reaches consensus or its birth round goes ancient (reported stale). An event ancient on arrival is
+dropped before prehandle and needs no report — the pre- vs post-admission asymmetry of
+[`stale-events.md`](../../concepts/stale-events.md).
+
+**Restart.** Every validated event is persisted to the
+[preconsensus event stream](../topics/restart-and-pces.md) before consensus sees it, so no admitted
+event is lost across a crash. Replay reruns the same pipeline; while the engine re-derives the
+snapshot's judges (`waitingForInitJudges`) it withholds its pre-consensus output, so events that
+already reached consensus pre-crash are not pre-handled again. Once the last init judge is found,
+only the genuinely pending events are emitted to prehandle, and replay drives each to consensus or
+stale deterministically. Execution rebuilds its count from the loaded state, signalled by
+`onStateInitialized(InitTrigger.RESTART)`.
+
+**Reconnect.** Reconnect resets both sides of the count at once rather than honouring it
+event-by-event. The node discards its in-flight pipeline — including events pre-handled but not yet
+resolved — and installs a peer's state (`StateLifecycleManager.createStateFrom` / `initWithState`,
+then `onStateInitialized(InitTrigger.RECONNECT)`). Those events are never individually reported; the
+execution layer re-anchors its bookkeeping to the new baseline.
+
 ## Adjacent: types that are *not* part of the boundary
 
 Two types are easy to mistake for boundary interfaces. They are documented here only to disambiguate them.
@@ -276,6 +324,8 @@ These data types appear in the signatures above and travel across the seam:
    `reportUnhealthyDuration`, fires notification listeners as events occur, and submits state signature
    transactions via `ExecutionLayer.submitStateSignature()`. The execution layer submits them with
    its own transactions into its pool (surfaced again to the consensus layer at `getTransactionsForEvent`).
+   Every event pushed through `onPreHandle` is eventually reported back as consensus or stale — see
+   [Boundary-wide contracts](#boundary-wide-contracts).
 6. **Reconnect / restart.** `StateLifecycleManager.initWithState(...)` / `loadSnapshot(...)` swap the state;
    `snapshotOverrideConsumer` and `ReconnectCompleteListener` fire.
 7. **Destroy.** The execution layer calls `Platform.destroy()`. The handle is then unusable.
@@ -288,9 +338,12 @@ These data types appear in the signatures above and travel across the seam:
     health via `reportUnhealthyDuration` and reads `PlatformStatus`.
   - [Hashgraph](../topics/hashgraph.md) — produces the consensus rounds and stale events that drive
     `onHandleConsensusRound` and `staleEventConsumer`.
-  - [Quiescence](../topics/quiescence.md) — driven by `Platform.quiescenceCommand`.
+  - [Quiescence](../topics/quiescence.md) — driven by `Platform.quiescenceCommand`; relies on the
+    [Boundary-wide contracts](#boundary-wide-contracts) pre-handle guarantee.
   - [Freeze and upgrade](../topics/freeze-and-upgrade.md) — freeze-period checks and `PlatformStatus`
     transitions across the seam.
   - [Restart and PCES](../topics/restart-and-pces.md) — `StateLifecycleManager.loadSnapshot` and
     `onStateInitialized` with `InitTrigger.RESTART`.
+  - [Reconnect](../topics/reconnect.md) — `StateLifecycleManager.createStateFrom` / `initWithState`
+    and `onStateInitialized` with `InitTrigger.RECONNECT`; resets the pre-handle contract baseline.
 - Invariants / Decisions: _(TBD: catalogs not yet populated)_.
