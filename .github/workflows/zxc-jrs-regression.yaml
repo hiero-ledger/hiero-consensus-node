@@ -558,7 +558,8 @@ jobs:
         if: ${{ always() }}
         run: |
           echo "checking for the script"
-          if [ -e ".github/workflows/support/scripts/set-failure-mode.sh" ]; then
+          echo "Current working directory: $(pwd)"                                  # Print current directory (should be ${GITHUB_WORKSPACE})
+          if [ -e ".github/workflows/support/scripts/set-failure-mode.sh" ]; then   # Might need to set the working dirctory here and in the next step `${{ github.workspace }}/<path>`
             echo "File exists"
           else
             echo "File does not exist"
