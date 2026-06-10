@@ -79,27 +79,27 @@ public class SimpleFeesFreeScheduleTest {
                 withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
                 withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesNormal())),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        newKeyNamed(ADMIN_KEY),
-                        uploadInitCode(CONTRACT),
-                        contractCreate(CONTRACT)
-                                .adminKey(ADMIN_KEY)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .gas(200_000L)
-                                .via("createTxn"),
-                        withOpContext((spec, op) -> gasUsedRef.set(getGasUsedForContractCreate(spec, "createTxn"))),
-                        validateChargedUsdWithinWithTxnSize(
-                                "createTxn",
-                                txnSize -> {
-                                    var ret = expectedContractCreateSimpleFeesUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 1L,
-                                            PROCESSING_BYTES, (long) txnSize));
-                                    ret += gasUsedRef.get() * GAS_FEE_USD;
-                                    return ret;
-                                },
-                                0.01),
-                        withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
+                newKeyNamed(ADMIN_KEY),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT)
+                        .adminKey(ADMIN_KEY)
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, ADMIN_KEY)
+                        .gas(200_000L)
+                        .via("createTxn"),
+                withOpContext((spec, op) -> gasUsedRef.set(getGasUsedForContractCreate(spec, "createTxn"))),
+                validateChargedUsdWithinWithTxnSize(
+                        "createTxn",
+                        txnSize -> {
+                            var ret = expectedContractCreateSimpleFeesUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize));
+                            ret += gasUsedRef.get() * GAS_FEE_USD;
+                            return ret;
+                        },
+                        0.01),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
     }
 
     @HapiTest
@@ -194,9 +194,7 @@ public class SimpleFeesFreeScheduleTest {
 
     private static void swapSimpleFeeSchedule(HapiSpec spec, ByteString newFeeSchedule) {
         allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, newFeeSchedule));
-        assertTrue(
-                spec.tryReinitializingFees(),
-                "Failed to reinitialize fees after overriding simple fee schedule");
+        assertTrue(spec.tryReinitializingFees(), "Failed to reinitialize fees after overriding simple fee schedule");
     }
 
     private static void saveFeeSchedule(HapiSpec spec, AtomicReference<ByteString> originalSimpleFeeSchedule) {
