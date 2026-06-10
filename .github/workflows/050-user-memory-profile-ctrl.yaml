@@ -54,7 +54,7 @@ on:
         description: 'Transactions Per Second'
       versions:
         required: true
-        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; ONE_SHOT_WITH_BLOCK_NODE=true; export SOLO_SKIP_METALLB=1; ONE_SHOT_USE_EDGE=false;"
+        default: "export CONSENSUS_NODE_VERSION=v0.75.0-rc.5; ONE_SHOT_WITH_BLOCK_NODE=true; export SOLO_SKIP_METALLB=1; export ONE_SHOT_USE_EDGE=false;"
         type: string
         description: 'Versions of containers'
 defaults:
