@@ -317,6 +317,7 @@ public class ConsensusImplDAB implements Consensus {
                     event.getTimeCreated(),
                     event.getBirthRound(),
                     (int) event.getCoin(),
+                    new byte[48], //TODO put the event's hash here. There's an exception if two events have the same.
                     parentEventInfos);
             event.setEventInfo(eventInfo);
             recentEvents.add(event);

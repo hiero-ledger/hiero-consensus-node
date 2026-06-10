@@ -214,6 +214,7 @@ public final class HashgraphInfo {
         private EventInfo[] parentsSigned;
         private EventInfo selfParent; // self-parent or null if not a descendent of judges in the previous round
         private final int coin;
+        private final byte[] eventHash;
         private int creator; // index into the nodes array of this event's creator
         private final long birthRound;
         private boolean[] ancestorJudge;
@@ -262,6 +263,7 @@ public final class HashgraphInfo {
                 @NonNull Instant timeCreated,
                 long birthRound,
                 int coin,
+                byte[] eventHash,
                 @NonNull EventInfo[] parents) {
             this.hashgraph = hashgraph;
             this.creatorNodeID = creator;
@@ -269,6 +271,7 @@ public final class HashgraphInfo {
             this.birthRound = birthRound;
             this.parentsSigned = parents;
             this.coin = coin;
+            this.eventHash = eventHash;
             this.isConsensus = false;
         }
 
@@ -301,6 +304,7 @@ public final class HashgraphInfo {
         public EventInfo[] getParentsSigned() {return parentsSigned;}
         public EventInfo getSelfParent() {return selfParent;}
         public int coin() {return coin;}
+        public byte[] getEventHash() {return eventHash;}
         public int getCreator() {return creator;}
         public long getBirthRound() {return birthRound;}
         public boolean[] getAncestorJudge() {return ancestorJudge;}
