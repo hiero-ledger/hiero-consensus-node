@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 
 /**
@@ -63,7 +64,8 @@ import java.util.HashMap;
 public final class HashgraphInfo {
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
-            new RoundInfoPrev(1, false, new EventInfo[0], false, 0, 0, 0);
+            new RoundInfoPrev(1, false, new EventInfo[0], false,
+                    0, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long pendingRound;
@@ -122,16 +124,19 @@ public final class HashgraphInfo {
 
     /**
      * Set isConsensus to true for each event in the hashgraph where it is false, and where the event is an ancestor
-     * of all the given judges (or of at least one judge, if judgeCons1 is true). Add them to consensusEvents
-     * (if consensusEvents is not null).
+     * of all the given judges (or of at least one judge, if judgeCon1 is true). Add them to consensusEvents
+     * (if consensusEvents is not null). Put the creation times of the event where it reaches each judge into
+     * x.receivedTime[].
      */
     private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
         // mark used while searching from the first judge (later judges' marks are greater)
         int firstMark = currMark + 1;
         // events reach consensus when they are an ancestor of this many judges
         int targetCount = judgeCon1 ? 1 : judges.length;
-        for (EventInfo judge : judges) { // depth-first search starting from each judge
-            EventInfo x = judge, nextX;
+        for (int m = 0; m < judges.length; m++) { // depth-first search starting from each judge
+            EventInfo x = judges[m], nextX;
+            boolean judgeSelfAncestor = true; //true iff x is a self-ancestor of judge
+            Instant lowestTime = x.timeCreated; // created time for lowest self-ancestor on current search path
             if (x.isConsensus) {
                 continue;
             }
@@ -141,11 +146,13 @@ public final class HashgraphInfo {
                 // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                 x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
                 x.searchMark = currMark;
+                x.searchSelfAncestor = judgeSelfAncestor;
                 x.searchParent = -1; // descend through the first parent first (index 0)
                 if (x.searchCount == targetCount) {
                     x.isConsensus = true;
                     if (consensusEvents != null) {
                         consensusEvents.add(x);
+                        x.receivedTime[m] = lowestTime;
                     }
                 }
                 nextX = null;
@@ -157,11 +164,14 @@ public final class HashgraphInfo {
                                 || nextX.isConsensus)) {
                     while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
                         x = x.searchChild; // backtrack up until an event is found with an unexplored parent
+                        judgeSelfAncestor = (x != null) && x.searchSelfAncestor;
                     }
                     if (x != null) {
                         x.searchParent++;
+                        judgeSelfAncestor = false;
                     }
                     nextX = (x == null) ? null : x.parentsSigned[x.searchParent];
+
                 }
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
             }
@@ -218,17 +228,19 @@ public final class HashgraphInfo {
         private EventInfo[] voteE;
         private int[] voteIndex; // index into h.candEventInfo of the candidate corresponding to voteE
         private boolean[] voteB;
+        private Instant[] receivedTime; // when each judge is reached. numNodes array elements, but only numJudges are used
         private boolean isConsensus;
         private long consensusOrder;
         private Instant consensusTimestamp;
         private boolean prevJudge;
         private long maxJudgeRound;
-        private int candIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
+        private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
         // the following are used for graph searches in the hashgraph
         private long searchMark; // mark visited events so depth-first search backtracks when revisiting it
         private int searchCount; // number of judges that are descendents of this event
         private int searchParent; // index of the parent of this event currently being searched
         private EventInfo searchChild; // the child of this event through which it was reached
+        private boolean searchSelfAncestor; // true iff this is a self-ancestor of the judge currently being searched
 
         /**
          * Constructor for the {@link EventInfo EventInfo} object for an event. The parents array should contain the
@@ -303,6 +315,7 @@ public final class HashgraphInfo {
         public EventInfo[] getVoteE() {return voteE;}
         public EventInfo[] getVoteIndex() {return getVoteIndex;}
         public boolean[] getVoteB() {return voteB;}
+        public Instant[] getReceivedTime() {return receivedTime;}
         public boolean getPrevJudge() {return prevJudge;}
         public long getMaxJudgeRound() {return maxJudgeRound;}
         public long getSearchMark() {return searchMark;}
@@ -334,6 +347,7 @@ public final class HashgraphInfo {
             voteE = null;
             voteIndex = null;
             voteB = null;
+            receivedTime = null;
             consensusTimestamp = null;
             searchChild = null;
         }
@@ -430,11 +444,11 @@ public final class HashgraphInfo {
                 // if the numbers of nodes changed this round (or it's the first time called), prep cand data structures
                 if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
                     h.candCount = h.numNodes; // start with all the null votes
-                    h.candIndex = new ArrayList<ArrayList<Integer>>(h.numNodes);
+                    h.candIndex = new ArrayList<>(h.numNodes);
                     h.candEventInfo = new EventInfo[2 * h.numNodes];
                     h.candStake = new long[2 * h.numNodes];
                     for (int i = 0; i < h.numNodes; i++) {
-                        ArrayList<Integer> list = new ArrayList<Integer>(2);
+                        ArrayList<Integer> list = new ArrayList<>(2);
                         list.add(i);
                         h.candIndex.add(list);
                         h.candEventInfo[i] = null; // index m represents a vote that node m have a judge of null
@@ -516,6 +530,9 @@ public final class HashgraphInfo {
             }
             if (voteB == null || voteB.length != h.numNodes) {
                 voteB = new boolean[h.numNodes];
+            }
+            if (receivedTime == null || receivedTime.length != h.numNodes) {
+                receivedTime = new Instant[h.numNodes];
             }
 
             // function parents  /--------------------------------------------------------------------------------
@@ -673,8 +690,7 @@ public final class HashgraphInfo {
                 }
             }
 
-            // function firstSelfWitnessS /-----------------------------------------------------------------------
-            {
+            { // function firstSelfWitnessS /---------------------------------------------------------------------
                 EventInfo p = selfParent;
                 if (p == null || votingRound > p.votingRound) {
                     firstSelfWitnessS = this;
@@ -709,12 +725,13 @@ public final class HashgraphInfo {
             // if this event is a judge candidate for this round, then give it a new index and remember it
             if (witness && (h.pendingRound == r.pendingRound) && (creator >= 0)) {
                 h.candCount++; // a new candidate has been found
-                h.candIndex.get(creator).add(h.candCount);
+                eventCandIndex = h.candCount - 1; // the event remembers its index
+                h.candIndex.get(creator).add(eventCandIndex);
                 if (h.candCount > h.candStake.length) { // if too big for arrays, then double their sizes
                     h.candStake = Arrays.copyOf(h.candStake, h.candCount * 2);
                     h.candEventInfo = Arrays.copyOf(h.candEventInfo, h.candCount * 2);
                 }
-                h.candEventInfo[h.candCount - 1] = this;
+                h.candEventInfo[eventCandIndex] = this;
             }
 
             // function stakeAgrees /-----------------------------------------------------------------------------
@@ -738,7 +755,7 @@ public final class HashgraphInfo {
                 if (!witness || votingRound < i) {
                     continue;
                 }
-                if (votingRound == i) {
+                if (votingRound == i) { // this is the first round of voting
                     // function firstVote
                     // /-------------------------------------------------------------------------------
                     EventInfo firstVote;
@@ -774,45 +791,44 @@ public final class HashgraphInfo {
                     }
                     voteE[m] = firstVote;
                     continue;
-                } // end of firstVote
-
-                // function topVote /---------------------------------------------------------------------------------
-                int bestIndex = 0;
-                long bestStake = -1;
-                for (int index : h.candIndex.get(m)) {
-                    long stake = h.candStake[index];
-                    if (stake > bestStake) {
-                        bestStake = stake;
+                } else { // not the first round of voting. (end of firstVote, continuing vote)
+                    // function topVote /---------------------------------------------------------------------------------
+                    int bestIndex = 0;
+                    long bestStake = -1;
+                    for (int index : h.candIndex.get(m)) {
+                        long stake = h.candStake[index];
+                        if (stake > bestStake) {
+                            bestStake = stake;
+                        }
                     }
-                }
-                EventInfo v = h.candEventInfo[bestIndex];
-                boolean s = (bestStake > h.supermajorityThreshold);
-                // end of topVote, continuing vote
+                    EventInfo v = h.candEventInfo[bestIndex];
+                    boolean s = (bestStake > h.supermajorityThreshold);
+                    // end of topVote, continuing vote
 
-                boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
-                if (!q) { // if not a coin round, vote whatever vote had the majority collected
-                    voteE[m] = v;
-                    voteB[m] = s;
-                    continue;
+                    boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
+                    if (!q) { // if not a coin round, vote whatever vote had the majority collected
+                        voteE[m] = v;
+                        voteB[m] = s;
+                        continue;
+                    }
+                    if (s) { // if a coin round and collect a supermajority, vote that way, but don't decide
+                        voteE[m] = v;
+                        continue;
+                    }
+                    int mp = coin;
+                    if ((mp == h.numNodes) || (h.pendingRound != birthRound)) { // coin==h.numNodes means vote for null
+                        continue; // if the coin chose null then vote null. (Or if birth round isn't pending round)
+                    }
+                    EventInfo w = stronglySeeS1[mp];
+                    if (w == null) { // if the coin chose a voter that wasn't collected, then vote null
+                        continue;
+                    }
+                    voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
                 }
-                if (s) { // if a coin round and collect a supermajority, vote that way, but don't decide
-                    voteE[m] = v;
-                    continue;
+                for (int mm = 0; mm < h.numNodes; mm++) {
+                    voteIndex[mm] = ((voteE[mm] == null) ? mm : voteE[mm].eventCandIndex);
                 }
-                int mp = coin;
-                if ((mp == h.numNodes) || (h.pendingRound != birthRound)) { // coin==h.numNodes means vote for null
-                    continue; // if the coin chose null then vote null. (Or if birth round isn't pending round)
-                }
-                EventInfo w = stronglySeeS1[mp];
-                if (w == null) { // if the coin chose a voter that wasn't collected, then vote null
-                    continue;
-                }
-                voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
-            }
-            for (int m = 0; m < h.numNodes; m++) {
-                voteIndex[m] = ((voteE[m] == null) ? m : voteE[m].voteIndex[m]);
-            }
-            // end vote
+            } // end vote
 
             // function roundDecided /----------------------------------------------------------------------------
             h.roundDecided = witness;
@@ -846,24 +862,64 @@ public final class HashgraphInfo {
             }
             roundJudgesArray = roundJudges.toArray(new EventInfo[0]);
 
-            // function receivedEvents /--------------------------------------------------------------------------
-
             // function isReceived /------------------------------------------------------------------------------
-
             // function reachedCon /------------------------------------------------------------------------------
-
-            // function timeCon /---------------------------------------------------------------------------------
-
-            // function before /----------------------------------------------------------------------------------
-
+            // function receivedEvents /--------------------------------------------------------------------------
             // function isConsensus /-----------------------------------------------------------------------------
+            // graphSearch finds each new event that reaches consensus (so isReceived and reachedCon are true),
+            // sets isConsensus for it, finds all its receivedEvents, and sets its receivedTim[] to be the
+            // times from those received events.
             consensusEvents = new ArrayList<>();
             h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
             consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
-            // function consensusOrder /--------------------------------------------------------------------------
+            // function timeCon /---------------------------------------------------------------------------------
+            // timeCon is either gen (if judgeCon1 is true) or the extended median of sorted receivedTime (if false)
+            for (EventInfo e : consensusEvents) {
+                Arrays.sort(e.receivedTime, Instant::compareTo); // sort times in ascending order
+            }
 
+            // function before /----------------------------------------------------------------------------------
+            // function consensusOrder /--------------------------------------------------------------------------
             // function consensusTimestamp /----------------------------------------------------------------------
+            // Do these 3 functions combined by sorting receivedTime and setting consensusOrder and consensusTimestamp.
+            // The sort breaks ties according to the f(x)<=f(y) from the last line of the before function in the paper.
+            // If judgeCon1 is true, then f is just comparing the whitened hashes.
+            // If judgeCon1 is false, then f first compares the extended medians, then the whitened hashes.
+            if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
+                Instant roundTime;/**/
+                Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
+                roundTime = roundJudgesArray[roundJudgesArray.length / 2].timeCreated;
+                Arrays.sort(consensusEventsArray, (e1, e2) -> {
+                    if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
+                    if (e1.gen < e2.gen) {return -1;}
+                    if (e1.gen > e2.gen) {return 1;}
+                    return 0; // TODO compare whitened hashes (-1 if e1 is less, 1 if greater, exception otherwise)
+                });
+                for (int i = 0; i < consensusEventsArray.length; i++) {
+                    consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
+                    consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
+                }
+            } else { // each new consensus event is an ancestor of all judges
+                int m = roundJudgesArray.length / 2; //median position in the array of times received by judges
+                Arrays.sort(consensusEventsArray, (e1, e2) -> {
+                    if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
+                    for (int i = 1; i <= consensusEventsArray.length; i++) { //compare extended median
+                        int k = m - ((i % 2) * 2 - 1) * ((i + 1) / 2); // k is m, m-1, m+1, m-2, m+2, m-3, m+3, ...
+                        Instant t1 = consensusEventsArray[k].consensusTimestamp;
+                        Instant t2 = consensusEventsArray[k].consensusTimestamp;
+                        if (t1.isBefore(t2)) {return -1;}
+                        if (t1.isAfter(t2)) {return 1;}
+                    }
+                    return 0; // TODO compare whitened hashes (-1 if e1 is less, 1 if greater, exception otherwise)
+                });
+                for (int i = 0; i < consensusEventsArray.length; i++) {
+                    consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
+                    consensusEventsArray[i].consensusTimestamp =
+                            consensusEventsArray[i].receivedTime[m];
+                }
+            }
+
 
             // the round reached consensus, so set the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
