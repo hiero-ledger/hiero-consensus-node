@@ -145,7 +145,7 @@ public class LearningSynchronizer {
             // FUTURE WORK: configurable number of tasks
             for (int i = 0; i < 16; i++) {
                 final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
-                        new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, input, exchanger);
+                        new LearnerPullVirtualTreeReceiveTask(workGroup, input, exchanger);
                 learnerReceiveTask.exec();
             }
 
@@ -161,8 +161,13 @@ public class LearningSynchronizer {
             // when all send tasks done, output can be closed, which signals the teacher that no more requests will be
             // sent.
             // This allows the teacher to complete and close its input stream, which allows the receive tasks to finish.
-            sendTasksDone.await();
-            output.done();
+            try {
+                sendTasksDone.await();
+            } catch (final InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            } finally {
+                output.done(); // always signal the peer, even on interrupt
+            }
 
             workGroup.waitForTermination();
         } catch (final InterruptedException ie) {

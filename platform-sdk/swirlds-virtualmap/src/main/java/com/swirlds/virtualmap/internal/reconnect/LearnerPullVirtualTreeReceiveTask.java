@@ -2,12 +2,10 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -36,10 +34,7 @@ public class LearnerPullVirtualTreeReceiveTask {
      * 		the exchanger used to callback on tree node received
      */
     public LearnerPullVirtualTreeReceiveTask(
-            final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final LearnerTreeExchanger treeExchanger) {
+            final StandardWorkGroup workGroup, final AsyncInputStream in, final LearnerTreeExchanger treeExchanger) {
         this.workGroup = workGroup;
         this.in = in;
         this.treeExchanger = treeExchanger;
@@ -67,8 +62,9 @@ public class LearnerPullVirtualTreeReceiveTask {
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
 
-                assert response.path() != Path.INVALID_PATH : "Invalid path received from teacher: " + response.path();
-
+                if (response.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + response.path());
+                }
                 treeExchanger.responseReceived(response);
             }
         } catch (final Exception ex) {

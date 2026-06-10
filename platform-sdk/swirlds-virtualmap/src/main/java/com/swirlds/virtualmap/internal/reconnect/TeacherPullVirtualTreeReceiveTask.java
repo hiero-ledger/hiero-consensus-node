@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
@@ -117,7 +116,9 @@ public class TeacherPullVirtualTreeReceiveTask {
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
 
-                assert request.path() != Path.INVALID_PATH : "Invalid path received from learner: " + request.path();
+                if (request.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + request.path());
+                }
 
                 final long path = request.path();
                 final Hash learnerHash = request.hash();

@@ -134,8 +134,13 @@ public class TeachingSynchronizer {
             // when all receive tasks done, output can be closed, which signals the learner that no more responses will
             // be sent.
             // This allows the learner to complete and close its input stream.
-            tasksDone.await();
-            output.done();
+            try {
+                tasksDone.await();
+            } catch (final InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            } finally {
+                output.done(); // always signal the peer, even on interrupt
+            }
 
             workGroup.waitForTermination();
         } catch (final InterruptedException ie) {
