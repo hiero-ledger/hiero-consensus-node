@@ -2003,6 +2003,53 @@ class BlockStreamManagerImplTest {
         verify(aWriter, never()).closeCompleteBlock();
     }
 
+    @Test
+    void lateBlockSignatureAfterTriageFlushDoesNotReprocessBlock() {
+        // A block is pending (closed, awaiting its proof) when the platform reaches catastrophic failure. The triage
+        // flush drains it from the queue and flushes it to disk. If its signature then arrives late,
+        // finishProofWithSignature must find the block already gone and leave the (now flushed) writer untouched —
+        // i.e. no double close and no racing the flush on the same non-thread-safe writer.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    // Capture the signature callback so we can invoke it *after* the triage flush
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        // Catastrophic failure drains and flushes the pending block to disk for triage
+        subject.awaitFatalShutdown(Duration.ofSeconds(5));
+        verify(aWriter).flushPendingBlock(any());
+
+        // The block's signature now arrives late; since the block was already drained, the proof path must be a no-op
+        // on the writer (no proof write, no second close)
+        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter).flushPendingBlock(any());
+    }
+
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
