@@ -132,12 +132,13 @@ public class CustomGasCharging {
             if (context.shouldChargeGasFees()) {
                 return new GasCharges(intrinsicGas, allowanceUsed);
             }
-            return new GasCharges(intrinsicGas, 0L);
+            return GasCharges.NONE;
         } else {
             if (context.shouldChargeGasFees()) {
                 chargeWithOnlySender(sender, context, worldUpdater, transaction);
+                return new GasCharges(intrinsicGas, 0L);
             }
-            return new GasCharges(intrinsicGas, 0L);
+            return GasCharges.NONE;
         }
     }
 

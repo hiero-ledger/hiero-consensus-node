@@ -54,6 +54,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 import org.hiero.hapi.fees.FeeScheduleUtils;
+import org.hiero.hapi.support.fees.Extra;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
@@ -77,7 +78,16 @@ public interface TransactionModule {
     static TinybarValues provideTinybarValues(
             @TopLevelResourcePrices @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
-            @NonNull final ExchangeRate exchangeRate) {
+            @NonNull final ExchangeRate exchangeRate,
+            @NonNull final HandleContext context) {
+        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesEnabled()) {
+            final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
+            if (gasExtra != null) {
+                return TinybarValues.forSimpleFeesTransactionWith(
+                        exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
+            }
+        }
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 

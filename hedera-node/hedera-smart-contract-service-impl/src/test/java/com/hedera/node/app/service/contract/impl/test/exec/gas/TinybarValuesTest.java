@@ -73,11 +73,64 @@ class TinybarValuesTest {
         assertThrows(IllegalStateException.class, subject::childTransactionTinybarGasPrice);
     }
 
+    @Test
+    void simpleFeesGasPriceOverridesTopLevelTinybarGasPrice() {
+        withSimpleFeesSubject(852L);
+        // 852 tinycents / 7 cents-per-hbar = 121 tinybars
+        assertEquals(852L / CENTS_PER_HBAR, subject.topLevelTinybarGasPrice());
+    }
+
+    @Test
+    void simpleFeesGasPriceOverridesTopLevelTinybarGasPriceFullPrecision() {
+        withSimpleFeesSubject(852L);
+        assertEquals(852L / CENTS_PER_HBAR, subject.topLevelTinybarGasPriceFullPrecision());
+    }
+
+    @Test
+    void simpleFeesGasPriceOverridesTopLevelTinycentGasPrice() {
+        withSimpleFeesSubject(852L);
+        assertEquals(852L, subject.topLevelTinycentGasPrice());
+    }
+
+    @Test
+    void simpleFeesGasPriceOverridesChildTransactionTinybarGasPrice() {
+        // override applies even when childTransactionResourcePrices is null
+        withSimpleFeesSubject(852L);
+        assertEquals(852L / CENTS_PER_HBAR, subject.childTransactionTinybarGasPrice());
+    }
+
+    @Test
+    void simpleFeesGasPriceOverridesChildTransactionTinycentGasPrice() {
+        withSimpleFeesSubject(852L);
+        assertEquals(852L, subject.childTransactionTinycentGasPrice());
+    }
+
+    @Test
+    void simpleFeesZeroGasPriceGivesZeroForAllGasMethods() {
+        withSimpleFeesSubject(0L);
+        assertEquals(0L, subject.topLevelTinybarGasPrice());
+        assertEquals(0L, subject.topLevelTinybarGasPriceFullPrecision());
+        assertEquals(0L, subject.topLevelTinycentGasPrice());
+        assertEquals(0L, subject.childTransactionTinybarGasPrice());
+        assertEquals(0L, subject.childTransactionTinycentGasPrice());
+    }
+
+    @Test
+    void simpleFeesRbhPriceIsUnaffectedByGasOverride() {
+        withSimpleFeesSubject(852L);
+        // RBH still comes from topLevelResourcePrices (congestionMultiplier=1)
+        assertEquals(RBH_FEE_SCHEDULE_PRICE, subject.topLevelTinycentRbhPrice());
+    }
+
     private void withTransactionSubject() {
         subject = TinybarValues.forTransactionWith(RATE_TO_USE, resourcePrices, childResourcePrices);
     }
 
     private void withQuerySubject() {
         subject = TinybarValues.forQueryWith(RATE_TO_USE);
+    }
+
+    private void withSimpleFeesSubject(long gasPriceTinycents) {
+        subject = TinybarValues.forSimpleFeesTransactionWith(RATE_TO_USE, gasPriceTinycents, resourcePrices, null);
     }
 }
