@@ -57,8 +57,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final FreezeRoundController freezeRoundController;
 
-    // TODO turn this into a configuration
-    private final boolean useDABConsensusAlgorithm = true;
     /**
      * Constructor
      *
@@ -80,7 +78,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final long transactionOffsetNanos) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
-        if (useDABConsensusAlgorithm) {
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        if (consensusConfig.useDABConsensusAlgorithm()) {
             consensus = new ConsensusImplDAB(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
         } else {
             consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
