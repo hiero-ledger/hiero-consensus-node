@@ -556,6 +556,7 @@ jobs:
 
       - name: Look for script
         if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
         run: |
           echo "checking for the script"
           echo "Current working directory: $(pwd)"                                  # Print current directory (should be ${GITHUB_WORKSPACE})
@@ -567,6 +568,7 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
         env:
           INPUT_TEST_OUTCOMES: ${{ steps.run-jrs-regression.outcome }}
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
