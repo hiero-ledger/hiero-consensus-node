@@ -584,19 +584,23 @@ VERSION_CODENAME=noble
 UBUNTU_CODENAME=noble
 EOF"
 
-  # NMT's snapshot/rotation model requires /opt/hgcapp/services-hedera/HapiApp2.0
-  # to be a SYMLINK to a timestamped real directory (production layout: when
-  # NMT installs a new version it renames the old target, creates a new
-  # timestamped dir, and re-points the symlink — that's how rollback works).
-  # The Solo consensus-node pod ships HapiApp2.0 as a regular directory, which
-  # makes NMT's "remove the existing symlink" step in the backup phase fail
-  # with FATAL "System Snapshot: Full System Backup Failed" (exit 70).
-  # Convert it once per pod before nmt preflight.
+  # Solo's network-node StatefulSet template bind-mounts per-subdir paths
+  # from the kind node's /dev/vda1 under /opt/hgcapp/ (HapiApp2.0/{data/*,
+  # output,state} plus blockStreams, eventsStreams, recordStreams). NMT's
+  # snapshot/rotation logic (bkp_folder_enable_snapshot_support in
+  # tools/common/backup/backup_folder.inc.sh) does `rm -rf` of the whole
+  # HapiApp2.0 tree, which fails with EBUSY on every mount point.
+  # `--pvcs false` doesn't help — the mounts are part of the pod template,
+  # not the PVC machinery. Detach them with lazy umount before nmt preflight
+  # runs. We're inside a privileged container with full CAP_SYS_ADMIN, so
+  # umount succeeds; the directories become empty regular dirs on the pod's
+  # container filesystem. The consensus-node JVM isn't running yet (NMT
+  # hasn't started it), so nothing's holding files open in those mounts.
+  log "Detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod} (NMT snapshot needs the tree umounted)"
   kexec "${pod}" sudo bash -c "
-    if [ ! -L /opt/hgcapp/services-hedera/HapiApp2.0 ]; then
-      mv /opt/hgcapp/services-hedera/HapiApp2.0 /opt/hgcapp/services-hedera/HapiApp2.0-init
-      ln -snf /opt/hgcapp/services-hedera/HapiApp2.0-init /opt/hgcapp/services-hedera/HapiApp2.0
-    fi
+    for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
+      umount -l \"\$mp\" 2>/dev/null || true
+    done
   "
 
   # NMT preflight walks a canonical directory layout that production setup
