@@ -89,7 +89,7 @@ public final class HashgraphInfo {
     private long[] candStake; // the total stake of all votes for each candidate event
 
     //these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
-    public static final int NUM_BENCHMARKS = 1; // number of elements in long[] getBenchmarks()
+    public static final int NUM_BENCHMARKS = 2; // number of elements in long[] getBenchmarks()
     private static final int BENCHMARK_UPDATE = 0; //time spent in update()
     private static final int BENCHMARK_SEARCH = 1; //time spent in graphSearch()
 
