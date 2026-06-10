@@ -43,13 +43,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
@@ -304,7 +304,7 @@ class AtomicContractCallSuite {
         final var account = "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(TEST_CONTRACT, numAsHeadlongAddress(spec, 2), BigInteger.ONE)
                                 .balance(ONE_HBAR))),
@@ -602,7 +602,7 @@ class AtomicContractCallSuite {
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -650,7 +650,7 @@ class AtomicContractCallSuite {
         return hapiTest(
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, WHITELISTER, literalInitcodeFor("Whitelister"))),
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, CREATOR, literalInitcodeFor("Creator"))),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(WHITELISTER).payingWith(DEFAULT_PAYER).gas(GAS_TO_OFFER),
                         contractCreate(CREATOR)
@@ -658,7 +658,7 @@ class AtomicContractCallSuite {
                                 .gas(GAS_TO_OFFER)
                                 .via(creationTxn))),
                 captureChildCreate2MetaFor(1, 0, "setup", creationTxn, childMirror, childEip1014),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(
                                         contractCall(
@@ -703,14 +703,14 @@ class AtomicContractCallSuite {
         return hapiTest(
                 cryptoCreate("Treasury"),
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, ASSOCIATOR, literalInitcodeFor("Associator"))),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(ASSOCIATOR)
                                 .payingWith(DEFAULT_PAYER)
                                 .bytecode(ASSOCIATOR)
                                 .gas(GAS_TO_OFFER)
                                 .via(creationTxn))),
-                withOpContext((spec, op) -> {
+                doingContextual(spec -> {
                     allRunFor(
                             spec,
                             captureChildCreate2MetaFor(1, 0, "setup", creationTxn, childMirror, childEip1014),
@@ -762,7 +762,7 @@ class AtomicContractCallSuite {
         final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
         return hapiTest(
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
-                withOpContext((spec, opLog) -> defaultPayerMirror.set((unhex(
+                doingContextual(spec -> defaultPayerMirror.set((unhex(
                         spec.registry().getAccountInfo(DEFAULT_CONTRACT_SENDER).getContractAccountID())))),
                 uploadInitCode(addressBook, jurisdictions),
                 // refusingEthConversion because the minters contract has placeholders that the
@@ -850,7 +850,7 @@ class AtomicContractCallSuite {
         return hapiTest(
                 uploadInitCode(rateAware),
                 contractCreate(rateAware, BigInteger.valueOf(minPriceToAccessGatedMethod)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var rates = spec.ratesProvider().rates();
                     minValueToAccessGatedMethodAtCurrentRate.set(minPriceToAccessGatedMethod
                             * TINY_PARTS_PER_WHOLE
@@ -945,7 +945,7 @@ class AtomicContractCallSuite {
                                 .gas(1_000_000)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var getErcResult = getTxnRecord(viaErc721TokenURI);
                     final var getHtsResult = getTxnRecord(viaHtsNftInfo);
                     CustomSpecAssert.allRunFor(spec, getErcResult, getHtsResult);
@@ -1269,7 +1269,7 @@ class AtomicContractCallSuite {
         return hapiTest(
                 uploadInitCode(PAY_RECEIVABLE_CONTRACT),
                 contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     for (int i = 0; i < 10; i++) {
                         final var subOp1 = balanceSnapshot("payerBefore", PAY_RECEIVABLE_CONTRACT);
                         final var subOp2 = atomicBatch(contractCall(
@@ -1382,7 +1382,7 @@ class AtomicContractCallSuite {
         return hapiTest(
                 uploadInitCode(SIMPLE_STORAGE_CONTRACT),
                 cryptoCreate(civilian).balance(ONE_MILLION_HBARS).payingWith(GENESIS),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore0", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(0)
@@ -1397,7 +1397,7 @@ class AtomicContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore0", -delta));
                     allRunFor(spec, subop3);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore1", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(100_000_000_000L)
@@ -1413,7 +1413,7 @@ class AtomicContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore1", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore2", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(0L)
@@ -1429,7 +1429,7 @@ class AtomicContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore2", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore3", civilian);
                     final var subop2 = atomicBatch(
                                     contractCall(SIMPLE_STORAGE_CONTRACT, "set", BigInteger.valueOf(999_999L))
@@ -1449,7 +1449,7 @@ class AtomicContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore3", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore4", civilian);
                     final var subop2 = atomicBatch(
                                     contractCall(SIMPLE_STORAGE_CONTRACT, "set", BigInteger.valueOf(999_999L))
@@ -1465,7 +1465,7 @@ class AtomicContractCallSuite {
                     final var subop4 = getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore4", 0));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore5", civilian);
                     final var subop2 = atomicBatch(contractCall(SIMPLE_STORAGE_CONTRACT, "get")
                                     .payingWith(civilian)
@@ -1501,7 +1501,7 @@ class AtomicContractCallSuite {
                 contractCreate(contract),
                 getContractInfo(contract)
                         .exposingEvmAddress(cb -> tokenCreateContractAddress.set(asHeadlongAddress(cb))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var subop1 = atomicBatch(contractCall(contract, DEPOSIT, BigInteger.valueOf(1_000L))
                                     .payingWith(PAYER)
                                     .gas(300_000L)
@@ -1564,7 +1564,7 @@ class AtomicContractCallSuite {
                 getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT).savingSnapshot(RECEIVABLE_SIG_REQ_ACCOUNT_INFO),
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).gas(1_000_000L).balance(5000L),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountAddress = spec.registry()
                             .getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT_INFO)
                             .getContractAccountID();
@@ -1592,7 +1592,7 @@ class AtomicContractCallSuite {
                                 .via(CALL_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CALL_TX).saveTxnRecordToRegistry(CALL_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -1614,7 +1614,7 @@ class AtomicContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT).saveToRegistry(CONTRACT_FROM),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     final var transferCall = atomicBatch(contractCall(
@@ -1674,7 +1674,7 @@ class AtomicContractCallSuite {
                 getContractInfo(subLevelContract).saveToRegistry(SCINFO),
 
                 /* sub-level non-payable contract call */
-                assertionsHold((spec, log) -> {
+                assertionsHold((spec, _) -> {
                     final var subLevelSolidityAddr =
                             spec.registry().getContractInfo(SCINFO).getContractAccountID();
                     final var cc = atomicBatch(contractCall(
@@ -1692,7 +1692,7 @@ class AtomicContractCallSuite {
                 getAccountBalance(subLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE),
 
                 /* sub-level payable contract call */
-                assertionsHold((spec, log) -> {
+                assertionsHold((spec, _) -> {
                     final var subLevelSolidityAddr =
                             spec.registry().getContractInfo(SCINFO).getContractAccountID();
                     final var cc = atomicBatch(contractCall(
@@ -1725,7 +1725,7 @@ class AtomicContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT).saveToRegistry(CONTRACT_FROM),
                 getContractInfo(TRANSFERRING_CONTRACT + to).saveToRegistry("contract_to"),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var cto = asSolidityAddress(
                             spec.registry().getContractInfo("contract_to").getContractID());
                     var transferCall = atomicBatch(contractCall(
@@ -1760,7 +1760,7 @@ class AtomicContractCallSuite {
                         .payingWith(ACC)
                         .balance(ONE_HUNDRED_HBARS)
                         .via("createContract"),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var acc = spec.registry().getAccountInfo(ACC_INFO).getContractAccountID();
                     final var withoutReceiverSignature = atomicBatch(contractCall(
                                             TRANSFERRING_CONTRACT,
@@ -1815,7 +1815,7 @@ class AtomicContractCallSuite {
                         .balance(10)
                         .adminKey(KEY_LIST)
                         .refusingEthConversion(),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var acc = spec.registry().getAccountInfo(ACC_INFO).getContractAccountID();
                     final var assertionWithOnlyOneKey = atomicBatch(contractCall(
                                             TRANSFERRING_CONTRACT,
@@ -1854,7 +1854,7 @@ class AtomicContractCallSuite {
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L).payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     var transferCall = atomicBatch(contractCall(
@@ -1887,7 +1887,7 @@ class AtomicContractCallSuite {
                 getAccountInfo(RECEIVER_1).savingSnapshot(RECEIVER_1_INFO),
                 getAccountInfo(RECEIVER_2).savingSnapshot(RECEIVER_2_INFO),
                 getAccountInfo(RECEIVER_3).savingSnapshot(RECEIVER_3_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiver1Addr =
                             spec.registry().getAccountInfo(RECEIVER_1_INFO).getContractAccountID();
                     var receiver2Addr =
@@ -1928,7 +1928,7 @@ class AtomicContractCallSuite {
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -1970,7 +1970,7 @@ class AtomicContractCallSuite {
                 contractCustomCreate(NESTED_TRANSFER_CONTRACT, "2")
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(
                                         NESTED_TRANSFERRING_CONTRACT,
@@ -1998,7 +1998,7 @@ class AtomicContractCallSuite {
     @HapiTest
     final Stream<DynamicTest> sendHbarsToCallerFromDifferentAddresses() {
         return hapiTest(
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var keyCreation = newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE);
                     if (!spec.isUsingEthCalls()) {
                         final var sender = "sender";
@@ -2044,7 +2044,7 @@ class AtomicContractCallSuite {
                             transfer2,
                             saveSnapshot);
                 }),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(
                                         NESTED_TRANSFERRING_CONTRACT,
@@ -2073,7 +2073,7 @@ class AtomicContractCallSuite {
                         getAccountInfo(DEFAULT_CONTRACT_RECEIVER)
                                 .savingSnapshot(ACCOUNT_INFO_AFTER_CALL)
                                 .payingWith(GENESIS))),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var callRecord = spec.registry().getTransactionRecord("txn");
                     final var fee = spec.registry().getTransactionRecord("txn").getTransactionFee();
                     final var accountBalanceBeforeCall =
@@ -2109,7 +2109,7 @@ class AtomicContractCallSuite {
                 getAccountInfo(RECEIVER_1).savingSnapshot(RECEIVER_1_INFO),
                 getAccountInfo(RECEIVER_2).savingSnapshot(RECEIVER_2_INFO),
                 getAccountInfo(RECEIVER_3).savingSnapshot(RECEIVER_3_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiver1Addr =
                             spec.registry().getAccountInfo(RECEIVER_1_INFO).getContractAccountID();
                     var receiver2Addr =
@@ -2161,7 +2161,7 @@ class AtomicContractCallSuite {
                         .payingWith(ACCOUNT)
                         .refusingEthConversion(),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     var transferCall = atomicBatch(contractCall(
@@ -2200,7 +2200,7 @@ class AtomicContractCallSuite {
                 // Adding refusingEthConversion() due to fee differences
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L).refusingEthConversion(),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -2220,7 +2220,7 @@ class AtomicContractCallSuite {
 
                     allRunFor(spec, transferCall, saveContractInfo);
                 }),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var contractBalanceAfterCall =
                             spec.registry().getContractInfo(CONTRACT_FROM).getBalance();
 
@@ -2265,7 +2265,7 @@ class AtomicContractCallSuite {
                 atomicBatch(contractCall(contract, "callSomebody").via(txn).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
                 getTxnRecord(txn).logged(),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var op = getTxnRecord(txn);
                     allRunFor(spec, op);
                     final var record = op.getResponseRecord();
@@ -2372,9 +2372,9 @@ class AtomicContractCallSuite {
         final String contractName = "ERC721ABI";
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                withOpContext((spec, opLog) ->
+                doingContextual(spec ->
                         spec.registry().saveContractId(CONTRACT, asContract(spec.shard(), spec.realm(), 1051L))),
-                withOpContext((spec, ctxLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCallWithFunctionAbi(
                                                 CONTRACT, getABIFor(FUNCTION, functionName, contractName))
@@ -2406,7 +2406,7 @@ class AtomicContractCallSuite {
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(contractCreateTx).gas(1_000_000L),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCall(contract, deployParentContractFn)
                                         .payingWith(payer)
@@ -2415,7 +2415,7 @@ class AtomicContractCallSuite {
                                         .hasKnownStatus(SUCCESS)
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     /** 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
                     final var opCreateTxRecord = getTxnRecord(contractCreateTx);
                     allRunFor(spec, opCreateTxRecord);
@@ -2500,9 +2500,9 @@ class AtomicContractCallSuite {
         final var BAD_EVM_ADDRESS_CONTRACT = "badEvmAddressContract";
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry()
+                doingContextual(spec -> spec.registry()
                         .saveContractId(BAD_EVM_ADDRESS_CONTRACT, spec, ByteString.copyFrom(unhex(BAD_EVM_ADDRESS)))),
-                withOpContext((spec, ctxLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCallWithFunctionAbi(
                                                 BAD_EVM_ADDRESS_CONTRACT, getABIFor(FUNCTION, NAME, ERC_721_ABI))
