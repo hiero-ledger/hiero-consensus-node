@@ -13,7 +13,7 @@
 ARG SOLO_BASE_IMAGE=ghcr.io/hashgraph/solo-containers/ubi8-s6-java25:0.43.0
 ARG NMT_VERSION=v1.3.4
 ARG NMT_INSTALLER_BASENAME=node-mgmt-tools-installer-v1.3.4-efea0dd4.run
-ARG NMT_INSTALLER_URL=https://builds.hedera.com/nmt/${NMT_INSTALLER_BASENAME}
+ARG NMT_INSTALLER_URL=https://builds.hedera.com/node/mgmt-tools/v1.3/${NMT_INSTALLER_BASENAME}
 ARG HGCAPP_DIR=/opt/hgcapp
 ARG NMT_DIR=/opt/hgcapp/node-mgmt-tools
 ARG HAPI_PATH=/opt/hgcapp/services-hedera/HapiApp2.0
@@ -35,12 +35,17 @@ USER root
 # ships most coreutils + java but not jq/rsync/hashdeep/docker. The docker-ce
 # package is required by name (preflight rejects the distro `docker.io`/`podman`
 # substitutes). procps-ng + iproute are needed by NMT's start/stop scripts.
-RUN dnf -y install --setopt=install_weak_deps=False \
+# EPEL has to come first — hashdeep is not in UBI8's default appstream/baseos
+# repos. UBI doesn't ship epel-release either, so install it from the
+# Fedora project's signed RPM. Pinned to epel-release-latest-8 (track-of-
+# floats but EPEL 8 metadata is stable enough for a test image).
+RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
+    && dnf -y install --setopt=install_weak_deps=False \
         ca-certificates \
         curl \
         dnf-plugins-core \
         gettext \
-        hashdeep \
+        md5deep \
         iproute \
         jq \
         procps-ng \
@@ -66,11 +71,40 @@ RUN dnf -y install --setopt=install_weak_deps=False \
 # defensive spoof. NMT only reads ID / VERSION_ID from it.
 COPY os-release /etc/os-release
 
+# --- hedera user → docker group + passwordless sudo ---------------------------
+# NMT runs all compose calls via `sudo -u hedera`. docker.sock is 0660
+# root:docker. Without group membership, every hedera-side `docker compose`
+# silently fails and NMT misreports success. We also ship a passwordless
+# sudoers entry so that any kubectl-exec invocation that lands as uid 2000
+# (Solo's non-root pod template) can still escalate without PAM:
+RUN usermod -aG docker hedera \
+    && install -m 0440 /dev/null /etc/sudoers.d/90-hedera-nopasswd \
+    && printf 'hedera ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/90-hedera-nopasswd
+
+# --- NMT v1.3.4 installer (run at image-build time) ---------------------------
+# The installer is a Makeself self-extracting bash archive. It registers a
+# systemd nmt-ics.service unit (no-op in a container — we replace it with a
+# manual `nmt watch` from start_nmt_watcher() in the test script) and lays
+# down the bash modules + Go binary under ${NMT_DIR}. Running this at build
+# time burns it into the image layer instead of via runtime kubectl-exec.
+#
+# Order matters: the installer's "Restoring Existing State Files" probe
+# (bkp_folder_restore in tools/common/backup/) bails with exit 1 if any of
+# its managed dirs (${NMT_DIR}/state, logs, cache) already exist when the
+# installer runs. So the canonical /opt/hgcapp tree is materialised *after*
+# this step.
+ADD --chown=hedera:hedera --chmod=0755 ${NMT_INSTALLER_URL} /tmp/${NMT_INSTALLER_BASENAME}
+RUN /tmp/${NMT_INSTALLER_BASENAME} --accept -- -fg \
+    && rm /tmp/${NMT_INSTALLER_BASENAME}
+
 # --- Canonical /opt/hgcapp folder tree ----------------------------------------
 # Source: extracted NMT installer's tools/config/system_folders.lst and
 # system_folders.jrs.lst. Production puts these in place via systemd unit
-# launches; in our container we have to materialise them at image-build time
-# so NMT preflight's mkdir/chown probes pass.
+# launches (launch-node.sh); in our container we have to materialise them at
+# image-build time so NMT preflight's mkdir/chown probes pass.
+#
+# install -d is idempotent: any subdir the installer already created with the
+# right ownership stays untouched; the rest get added.
 RUN install -d -o hedera -g hedera \
         ${NMT_DIR}/state \
         ${NMT_DIR}/logs \
@@ -98,30 +132,8 @@ RUN install -d -o hedera -g hedera \
         ${HAPI_PATH}/data/upgrade/previous \
         ${HAPI_PATH}/data/upgrade/pending \
         ${HAPI_PATH}/logs \
-        ${HAPI_PATH}/output
-
-# --- hedera user → docker group + passwordless sudo ---------------------------
-# NMT runs all compose calls via `sudo -u hedera`. docker.sock is 0660
-# root:docker. Without group membership, every hedera-side `docker compose`
-# silently fails and NMT misreports success. We also ship a passwordless
-# sudoers entry so that any kubectl-exec invocation that lands as uid 2000
-# (Solo's non-root pod template) can still escalate without PAM:
-RUN usermod -aG docker hedera \
-    && install -m 0440 /dev/null /etc/sudoers.d/90-hedera-nopasswd \
-    && printf 'hedera ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/90-hedera-nopasswd
-
-# --- NMT v1.3.4 installer (run at image-build time) ---------------------------
-# The installer is a Makeself self-extracting bash archive. It registers a
-# systemd nmt-ics.service unit (no-op in a container — we replace it with a
-# manual `nmt watch` from start_nmt_watcher() in the test script) and lays
-# down the bash modules + Go binary under ${NMT_DIR}. Running this at build
-# time burns it into the image layer instead of via runtime kubectl-exec.
-ADD --chown=hedera:hedera --chmod=0755 ${NMT_INSTALLER_URL} /tmp/${NMT_INSTALLER_BASENAME}
-RUN /tmp/${NMT_INSTALLER_BASENAME} --accept -- -fg \
-    && rm /tmp/${NMT_INSTALLER_BASENAME}
-
-# Re-assert ownership: the installer occasionally chowns paths back to root.
-RUN chown -R hedera:hedera ${NMT_DIR}/state ${NMT_DIR}/logs ${HGCAPP_DIR}/services-hedera
+        ${HAPI_PATH}/output \
+    && chown -R hedera:hedera ${HGCAPP_DIR}/services-hedera
 
 # Preserve the base image's entrypoint / cmd / user — Solo's chart expects
 # the stock s6 init to run as PID 1 so its readiness probes work. We just
