@@ -1214,19 +1214,31 @@ public class UtilVerbs {
         return sourcingContextual(spec -> {
             // Match TssBlockHashSigner's gating: TSS only runs when history is enabled AND the block stream is
             // active (streamMode != RECORDS); otherwise the "Externalizing ledger id" log never appears.
-            // Read from the node's actual application.properties first so that overrides written by
-            // copyBootstrapAssets() (e.g. configuration/dev) take precedence over spec.startupProperties().
+            //
+            // tss.historyEnabled is read via inPriorityOrder(node application.properties,
+            // spec.startupProperties()) so that overrides written by copyBootstrapAssets() (e.g.
+            // configuration/dev tss.historyEnabled=false) take precedence over spec defaults.
+            //
+            // blockStream.streamMode is read exclusively from spec.startupProperties() because it is
+            // a test-framework-level override (e.g. blockStream.streamMode=RECORDS for hapiTestMiscRecords)
+            // passed as a system property and NOT written to application.properties by copyBootstrapAssets().
+            // Using inPriorityOrder for streamMode would cause application.properties' bootstrap default
+            // of BOTH to override the spec's RECORDS setting, incorrectly enabling the wait.
             final boolean isSubProcess = spec.targetNetworkOrThrow() instanceof SubProcessNetwork;
-            final var effectiveProperties = isSubProcess
-                    ? inPriorityOrder(
-                            new JutilPropertySource(((SubProcessNetwork) spec.targetNetworkOrThrow())
-                                    .getRequiredNode(NodeSelector.byNodeId(0))
-                                    .getExternalPath(APPLICATION_PROPERTIES)),
-                            spec.startupProperties())
-                    : spec.startupProperties();
+            final boolean historyEnabled;
+            if (isSubProcess) {
+                final var nodeProps = inPriorityOrder(
+                        new JutilPropertySource(((SubProcessNetwork) spec.targetNetworkOrThrow())
+                                .getRequiredNode(NodeSelector.byNodeId(0))
+                                .getExternalPath(APPLICATION_PROPERTIES)),
+                        spec.startupProperties());
+                historyEnabled = nodeProps.getBoolean("tss.historyEnabled");
+            } else {
+                historyEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+            }
             final boolean waitForExternalization = isSubProcess
-                    && effectiveProperties.getBoolean("tss.historyEnabled")
-                    && !"RECORDS".equals(effectiveProperties.get("blockStream.streamMode"));
+                    && historyEnabled
+                    && !"RECORDS".equals(spec.startupProperties().get("blockStream.streamMode"));
             if (waitForExternalization) {
                 return exposeExternalizedLedgerIdFromHgcaaLogTo(
                         NodeSelector.byNodeId(0),
