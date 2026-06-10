@@ -3,9 +3,15 @@
 # test.sh. The image is tagged locally and side-loaded into kind, so
 # pullPolicy=Never is required (no registry).
 #
-# Key path source: solo-deployment chart 0.63.3 values.yaml -> hedera.root.image
+# Key path: the chart's network-node-statefulset.yaml computes the root image
+# via:
+#   $rootImage := ($node.root).image | default $.Values.defaults.root.image
+# i.e. `defaults.root.image` is the chart-wide default, applied to every node
+# that doesn't set its own `hedera.nodes[].root.image`. We override the
+# default since all three migration-test nodes use the same image.
+#
 # Issue: hiero-ledger/hiero-consensus-node#25736
-hedera:
+defaults:
   root:
     image:
       registry: "localhost"
