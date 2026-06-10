@@ -64,8 +64,7 @@ import java.util.HashMap;
 public final class HashgraphInfo {
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
-            new RoundInfoPrev(1, false, new EventInfo[0], false,
-                    0, 0, 0);
+            new RoundInfoPrev(1, false, new EventInfo[0], false, 0, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long pendingRound;
@@ -76,13 +75,13 @@ public final class HashgraphInfo {
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>(); // used as scratchpad during update of an event
-    private int parentsMaxSize = 0; // largest parents has ever been (used to recover from massive branching)
+    private int parentsMaxSize = 0; // capacity requested for parents list (it might actually be more than requested)
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
     private boolean roundDecided;
     private long supermajorityThreshold; // stake more than this is a supermajority
     private final boolean[] whitened = {false}; // for lambda in sort in vote function: true iff hashes are whitened
-    private final byte[] whitening = new byte[48]; // for lambda in sort in vote function: the whitening bytes
+    private byte[] whitening; // for lambda in sort in vote function: the whitening bytes
     // the following are used for tracking candidates for judge in the current round (to speed up topVote & stakeAgrees)
     private int candCount; // how many candidates found so far during the pending round
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
@@ -121,6 +120,27 @@ public final class HashgraphInfo {
         return Math.max(
                 roundInfoPrev.prevMinNonAncientRound,
                 roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
+    }
+
+    /** Ensure that the hashes of all events in roundJudgesArray and consensusEventsArray have been whitened. */
+    private void ensureHashesWhitened(EventInfo[] roundJudgesArray, EventInfo[] consensusEventsArray) {
+        if (!whitened[0]) { // only do it once
+            whitened[0] = true;
+            if (whitening==null || whitening.length != consensusEventsArray[0].eventHash.length) {
+                whitening = new byte[consensusEventsArray[0].eventHash.length];
+            }
+            Arrays.fill(whitening, (byte) 0);
+            for (EventInfo judge : roundJudgesArray) {
+                for (int i = 0; i < whitening.length; i++) {
+                    whitening[i] ^= judge.eventHash[i];
+                }
+            }
+            for (EventInfo event : consensusEventsArray) {
+                for (int i = 0; i < whitening.length; i++) {
+                    event.eventHash[i] ^= whitening[i];
+                }
+            }
+        }
     }
 
     /**
@@ -175,23 +195,6 @@ public final class HashgraphInfo {
 
                 }
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
-            }
-        }
-    }
-    /** Ensure that the hashes of all events in roundJudgesArray and consensusEventsArray have been whitened. */
-    private void ensureHashesWhitened(EventInfo[] roundJudgesArray, EventInfo[] consensusEventsArray) {
-        if (!whitened[0]) { // only do it once
-            whitened[0] = true;
-            Arrays.fill(whitening, (byte) 0);
-            for (EventInfo judge : roundJudgesArray) {
-                for (int i = 0; i < whitening.length; i++) {
-                    whitening[i] ^= judge.eventHash[i];
-                }
-            }
-            for (EventInfo event : consensusEventsArray) {
-                for (int i = 0; i < whitening.length; i++) {
-                    event.eventHash[i] ^= whitening[i];
-                }
             }
         }
     }
@@ -479,6 +482,12 @@ public final class HashgraphInfo {
                     }
                 }
 
+                if ((h.parents == null) || (h.parentsMaxSize > h.numNodes)) {
+                    // initialize h.parents the first time, and shrink to recover after massive branching in last round
+                    h.parents = new ArrayList<>(h.numNodes);
+                    h.parentsMaxSize = h.numNodes;
+                }
+
                 // function minNonAncientRound /------------------------------------------------------------------
                 h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
 
@@ -545,11 +554,6 @@ public final class HashgraphInfo {
 
             // function parents  /--------------------------------------------------------------------------------
             // put in the h.parents list only parents that are non-ancient descendents of judges in the prev round
-            if (h.parentsMaxSize > h.numNodes && parentsSigned.length < h.numNodes) {
-                // shrink to recover after branching
-                h.parents = new ArrayList<>(h.numNodes);
-                h.parentsMaxSize = 0;
-            }
             h.parents.clear();
             for (EventInfo parent : parentsSigned) {
                 if (parent != null && parent.prevJudgeDesc) {
@@ -898,7 +902,6 @@ public final class HashgraphInfo {
             h.whitened[0] = false; // delay whitening until it's actually needed
             if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
                 Instant roundTime;
-                h.whitened[0] = false;
                 Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
                 roundTime = roundJudgesArray[roundJudgesArray.length / 2].timeCreated;
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
@@ -913,7 +916,6 @@ public final class HashgraphInfo {
                     consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
                 }
             } else { // each new consensus event is an ancestor of all judges
-                h.whitened[0] = false;
                 final int m = roundJudgesArray.length / 2; //median position in the array of times received by judges
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
@@ -924,10 +926,7 @@ public final class HashgraphInfo {
                         if (t1.isBefore(t2)) {return -1;}
                         if (t1.isAfter(t2)) {return 1;}
                     }
-                    if (!h.whitened[0]) {
-                        h.whitened[0] = true;
-                        h.ensureHashesWhitened(roundJudgesArray, consensusEventsArray);
-                    }
+                    h.ensureHashesWhitened(roundJudgesArray, consensusEventsArray);
                     return Arrays.compare(e1.eventHash, e2.eventHash);
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
