@@ -89,24 +89,24 @@ public final class HashgraphInfo {
     private long[] candStake; // the total stake of all votes for each candidate event
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
-//    public long getPendingRound() {return pendingRound;}
-//    public int getNumNodes() {return numNodes;}
-//    public long[] getNodeIDs() {return nodeIDs;}
-//    public HashMap<Long, Integer> getNodeIdToIndex() {return nodeIdToIndex;}
-//    public long getTotalStake() {return totalStake;}
-//    public long getMinNonAncientRound() {return minNonAncientRound;}
-//    public int getVoteD() {return voteD;}
-//    public ArrayList<EventInfo> getParents() {return parents;}
-//    public int getParentsMaxSize() {return parentsMaxSize;}
-//    public boolean getNodesChanged() {return nodesChanged;}
-//    public int getCurrMark() {return currMark;}
-//    public boolean getRoundDecided() {return roundDecided;}
-//    public long getSupermajorityThreshold() {return supermajorityThreshold;}
-//    public boolean[] getWhitened() {return whitened;}
-//    public byte[] getWhitening() {return whitening;}
-//    public ArrayList<ArrayList<Integer>> getCandIndex(){return candIndex;};
-//    public EventInfo[] getCandEventInfo(){return candEventInfo;}
-//    public long[] getCandStake(){return candStake;};
+    public long getPendingRound() {return pendingRound;}
+    public int getNumNodes() {return numNodes;}
+    public long[] getNodeIDs() {return nodeIDs;}
+    public HashMap<Long, Integer> getNodeIdToIndex() {return nodeIdToIndex;}
+    public long getTotalStake() {return totalStake;}
+    public long getMinNonAncientRound() {return minNonAncientRound;}
+    public int getVoteD() {return voteD;}
+    public ArrayList<EventInfo> getParents() {return parents;}
+    public int getParentsMaxSize() {return parentsMaxSize;}
+    public boolean getNodesChanged() {return nodesChanged;}
+    public int getCurrMark() {return currMark;}
+    public boolean getRoundDecided() {return roundDecided;}
+    public long getSupermajorityThreshold() {return supermajorityThreshold;}
+    public boolean getWhitened() {return whitened;}
+    public byte[] getWhitening() {return whitening;}
+    public ArrayList<ArrayList<Integer>> getCandIndex(){return candIndex;};
+    public EventInfo[] getCandEventInfo(){return candEventInfo;}
+    public long[] getCandStake(){return candStake;};
 
     /**
      * the minimum birth round that counts as non-ancient, during the time when these two infos
@@ -306,33 +306,33 @@ public final class HashgraphInfo {
         public Instant getConsensusTimestamp() {return consensusTimestamp;}
 
         // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
-//        public HashgraphInfo getHashgraph() {return hashgraph;}
-//        public long getCreatorNodeID() {return creatorNodeID;}
-//        public Instant getTimeCreated() {return timeCreated;}
-//        public EventInfo[] getParentsSigned() {return parentsSigned;}
-//        public EventInfo getSelfParent() {return selfParent;}
-//        public int coin() {return coin;}
-//        public byte[] getEventHash() {return eventHash;}
-//        public int getCreator() {return creator;}
-//        public long getBirthRound() {return birthRound;}
-//        public boolean[] getAncestorJudge() {return ancestorJudge;}
-//        public boolean getPrevJudgeDesc() {return prevJudgeDesc;}
-//        public long getGen() { return gen;}
-//        public EventInfo[] getLastSee() {return lastSee;}
-//        public EventInfo[] getStronglySeeP() {return stronglySeeP;}
-//        public EventInfo getFirstSelfWitnessS() {return firstSelfWitnessS;}
-//        public long getVotingRound() {return votingRound;}
-//        public EventInfo getFirstWitnessS() {return firstWitnessS;}
-//        public EventInfo[] getStronglySeeS1() {return stronglySeeS1;}
-//        public EventInfo[] getVoteE() {return voteE;}
-//        public boolean[] getVoteB() {return voteB;}
-//        public Instant[] getReceivedTime() {return receivedTime;}
-//        public boolean getPrevJudge() {return prevJudge;}
-//        public long getMaxJudgeRound() {return maxJudgeRound;}
-//        public long getSearchMark() {return searchMark;}
-//        public int getSearchCount() {return searchCount;}
-//        public int getSearchParent() {return searchParent;}
-//        public EventInfo getSearchChild() {return searchChild;}
+        public HashgraphInfo getHashgraph() {return hashgraph;}
+        public long getCreatorNodeID() {return creatorNodeID;}
+        public Instant getTimeCreated() {return timeCreated;}
+        public EventInfo[] getParentsSigned() {return parentsSigned;}
+        public EventInfo getSelfParent() {return selfParent;}
+        public int coin() {return coin;}
+        public byte[] getEventHash() {return eventHash;}
+        public int getCreator() {return creator;}
+        public long getBirthRound() {return birthRound;}
+        public boolean[] getAncestorJudge() {return ancestorJudge;}
+        public boolean getPrevJudgeDesc() {return prevJudgeDesc;}
+        public long getGen() { return gen;}
+        public EventInfo[] getLastSee() {return lastSee;}
+        public EventInfo[] getStronglySeeP() {return stronglySeeP;}
+        public EventInfo getFirstSelfWitnessS() {return firstSelfWitnessS;}
+        public long getVotingRound() {return votingRound;}
+        public EventInfo getFirstWitnessS() {return firstWitnessS;}
+        public EventInfo[] getStronglySeeS1() {return stronglySeeS1;}
+        public EventInfo[] getVoteE() {return voteE;}
+        public boolean[] getVoteB() {return voteB;}
+        public Instant[] getReceivedTime() {return receivedTime;}
+        public boolean getPrevJudge() {return prevJudge;}
+        public long getMaxJudgeRound() {return maxJudgeRound;}
+        public long getSearchMark() {return searchMark;}
+        public int getSearchCount() {return searchCount;}
+        public int getSearchParent() {return searchParent;}
+        public EventInfo getSearchChild() {return searchChild;}
 
         /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
