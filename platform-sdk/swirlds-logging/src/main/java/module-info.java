@@ -2,6 +2,7 @@
 import com.swirlds.logging.api.extensions.handler.LogHandlerFactory;
 import com.swirlds.logging.api.extensions.provider.LogProviderFactory;
 import com.swirlds.logging.console.ConsoleHandlerFactory;
+import com.swirlds.logging.console.ImmediateConsoleHandlerFactory;
 import com.swirlds.logging.file.FileHandlerFactory;
 
 module com.swirlds.logging {
@@ -37,5 +38,6 @@ module com.swirlds.logging {
 
     provides LogHandlerFactory with
             ConsoleHandlerFactory,
+            ImmediateConsoleHandlerFactory,
             FileHandlerFactory;
 }
