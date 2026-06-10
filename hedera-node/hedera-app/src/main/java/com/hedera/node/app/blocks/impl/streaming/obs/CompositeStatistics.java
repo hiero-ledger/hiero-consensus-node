@@ -11,6 +11,19 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * A {@link Statistics} that combines multiple component {@link Statistics} objects into a single
+ * population-level aggregate.
+ *
+ * <p>The combined standard deviation is computed via the parallel-groups formula:
+ * <pre>
+ *   combinedStdDev = sqrt( sum_i( n_i * (stdDev_i² + (avg_i - combinedAvg)²) ) / N )
+ * </pre>
+ * where {@code N} is the total sample count across all components.
+ *
+ * <p>{@link #add(Statistics)} is {@code synchronized}; the aggregate is recomputed eagerly on
+ * every call.
+ */
 public class CompositeStatistics implements Statistics {
 
     private final ObsUnit unit;
@@ -47,6 +60,7 @@ public class CompositeStatistics implements Statistics {
 
         if (BigInteger.ZERO.equals(numSamples)) {
             compositeStatsRef.set(FixedStatistics.NIL);
+            return;
         }
 
         final BigDecimal avg = new BigDecimal(sum).divide(new BigDecimal(numSamples), MATH_CONTEXT_10);
@@ -55,8 +69,10 @@ public class CompositeStatistics implements Statistics {
         // Calculate the combined standard deviation
         // Note: this is a population-based standard deviation, NOT a sample-based one
         for (final Statistics stats : componentStatistics) {
-            final BigDecimal bd1 = new BigDecimal(stats.numSamples()).multiply(stats.stdDev().pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
-            final BigDecimal bd2 = new BigDecimal(stats.numSamples()).multiply(stats.avg().subtract(avg, MATH_CONTEXT_10).pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
+            final BigDecimal bd1 = new BigDecimal(stats.numSamples())
+                    .multiply(stats.stdDev().pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
+            final BigDecimal bd2 = new BigDecimal(stats.numSamples())
+                    .multiply(stats.avg().subtract(avg, MATH_CONTEXT_10).pow(2, MATH_CONTEXT_10), MATH_CONTEXT_10);
 
             stdDev = stdDev.add(bd1, MATH_CONTEXT_10).add(bd2, MATH_CONTEXT_10);
         }

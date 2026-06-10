@@ -12,6 +12,17 @@ import java.math.RoundingMode;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * A metric accumulator that collects every individual sample and computes full statistics —
+ * including population standard deviation — when {@link #aggregate()} is called.
+ *
+ * <p>More memory-intensive than {@link BasicProbe} because it stores every raw value until
+ * aggregation. After {@link #aggregate()} is called the internal queue is nullified to reclaim
+ * memory.
+ *
+ * <p>Once {@link #aggregate()} has been called the probe is sealed; further {@link #add} calls
+ * throw {@link IllegalStateException}.
+ */
 public class StatisticsProbe {
 
     private final String name;
@@ -33,6 +44,11 @@ public class StatisticsProbe {
         return unit;
     }
 
+    /**
+     * Records {@code value}. Thread-safe via {@link ConcurrentLinkedQueue}.
+     *
+     * @throws IllegalStateException if {@link #aggregate()} has already been called
+     */
     public void add(final long value) {
         if (isClosed) {
             throw new IllegalStateException("Probe is already aggregated; cannot add more values");
@@ -41,10 +57,17 @@ public class StatisticsProbe {
         values.add(value);
     }
 
+    /** Returns the aggregated statistics, or {@code null} if {@link #aggregate()} has not yet been called. */
     public @Nullable Statistics statistics() {
         return statistics;
     }
 
+    /**
+     * Seals the probe, computes statistics (including stdDev), and releases the internal value
+     * queue to allow GC. Idempotent after the first call.
+     *
+     * @return {@link FixedStatistics#NIL} if no samples were recorded
+     */
     public @NonNull Statistics aggregate() {
         if (statistics != null) {
             return statistics;
@@ -84,7 +107,8 @@ public class StatisticsProbe {
             stdDev = stdDev.add(bd1.pow(2));
         }
 
-        stdDev = stdDev.divide(new BigDecimal(numSamples), 10, RoundingMode.HALF_EVEN).sqrt(MATH_CONTEXT_10);
+        stdDev = stdDev.divide(new BigDecimal(numSamples), 10, RoundingMode.HALF_EVEN)
+                .sqrt(MATH_CONTEXT_10);
         statistics = new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev);
 
         values = null; // clear values to reclaim memory

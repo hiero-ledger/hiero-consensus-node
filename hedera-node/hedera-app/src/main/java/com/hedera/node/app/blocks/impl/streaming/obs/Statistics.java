@@ -5,6 +5,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 
+/**
+ * Read-only view of aggregated statistics for a single measurement probe.
+ * All implementations must be immutable once returned to callers.
+ */
 public interface Statistics {
 
     ObsUnit unit();
@@ -19,6 +23,11 @@ public interface Statistics {
 
     BigDecimal avg();
 
+    /**
+     * Population standard deviation of the recorded values.
+     * {@code BasicProbe} always returns {@link BigDecimal#ZERO} here; use {@code StatisticsProbe}
+     * when accurate stdDev is required.
+     */
     BigDecimal stdDev();
 
     static String toString(final Statistics stats) {

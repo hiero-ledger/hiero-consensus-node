@@ -26,6 +26,20 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Central singleton for enhanced block-streaming observability.
+ *
+ * <p>Tracks the full lifecycle of every block from initialisation through acknowledgement, as well
+ * as per-item buffering and send timing. Data is aggregated and logged at {@code INFO} level every
+ * {@value #PERIOD_SECONDS} seconds by an internal scheduled task.
+ *
+ * <p>All public methods are no-ops when
+ * {@link com.hedera.node.config.data.BlockStreamConfig#enhancedObservabilityEnabled()} is
+ * {@code false}, so the feature has negligible performance impact when disabled.
+ *
+ * <p>The feature flag is re-read on every periodic cycle, allowing dynamic enable/disable without
+ * restart. Disabling mid-run clears all accumulated data immediately.
+ */
 @Singleton
 public class BlockStreamingObs {
 
@@ -59,6 +73,7 @@ public class BlockStreamingObs {
                 .enhancedObservabilityEnabled();
     }
 
+    /** Called when a block is first created by {@code BlockStreamManagerImpl}; opens the block stats entry. */
     public void onBlockInit(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -67,6 +82,7 @@ public class BlockStreamingObs {
         blockStatistics.put(blockNumber, new BlockStats(blockNumber, nanosTick));
     }
 
+    /** Called when a block transitions to the open/buffered state in {@code BlockBufferService}. */
     public void onBlockOpen(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -78,6 +94,10 @@ public class BlockStreamingObs {
         }
     }
 
+    /**
+     * Called when a block item is added to the buffer. {@code sizeInBytes} is used to compute
+     * per-second byte throughput and the per-item size distribution.
+     */
     public void onBlockItemAdd(
             final long blockNumber, final int itemIndex, final long nanosTick, final int sizeInBytes) {
         if (!isEnabled) {
@@ -90,6 +110,10 @@ public class BlockStreamingObs {
         }
     }
 
+    /**
+     * Called when a range of block items [{@code itemIndexStart}, {@code itemIndexEnd}] have been
+     * written to the gRPC stream. Records idle time (buffered-to-send) and send latency per item.
+     */
     public void onBlockItemsSend(
             final long blockNumber,
             final int itemIndexStart,
@@ -138,6 +162,10 @@ public class BlockStreamingObs {
         }
     }
 
+    /**
+     * Called when a block is acknowledged by the block node. Triggers per-block aggregation so
+     * that per-item probes can be computed before the periodic gather task runs.
+     */
     public void onBlockAcknowledge(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -304,9 +332,12 @@ public class BlockStreamingObs {
         final BigDecimal seconds = BigDecimal.valueOf(numberOfSeconds);
 
         // calculate per-second throughput data
-        final BigDecimal itemsCreatedPerSecondCount = new BigDecimal(totalItemsCreated.numSamples).divide(seconds, MATH_CONTEXT_10);
-        final BigDecimal itemsCreatedPerSecondBytes = new BigDecimal(totalItemsCreated.sum).divide(seconds, MATH_CONTEXT_10);
-        final BigDecimal itemsSentPerSecondCount = new BigDecimal(totalItemsSent.numSamples).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsCreatedPerSecondCount =
+                new BigDecimal(totalItemsCreated.numSamples).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsCreatedPerSecondBytes =
+                new BigDecimal(totalItemsCreated.sum).divide(seconds, MATH_CONTEXT_10);
+        final BigDecimal itemsSentPerSecondCount =
+                new BigDecimal(totalItemsSent.numSamples).divide(seconds, MATH_CONTEXT_10);
         final BigDecimal itemsSentPerSecondBytes = new BigDecimal(totalItemsSent.sum).divide(seconds, MATH_CONTEXT_10);
 
         // spotless:off

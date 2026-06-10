@@ -10,11 +10,23 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * A lightweight, lock-free metric accumulator that tracks count, sum, min, and max via
+ * compare-and-swap loops. Use this for high-frequency call sites where allocating a queue per
+ * sample would be too expensive.
+ *
+ * <p>Trade-off: {@code stdDev} is always {@link java.math.BigDecimal#ZERO}. Use
+ * {@link StatisticsProbe} when accurate standard deviation is required.
+ *
+ * <p>Once {@link #aggregate()} has been called the probe is sealed; further {@link #add} calls
+ * throw {@link IllegalStateException}.
+ */
 public class BasicProbe {
 
     private final String name;
     private final ObsUnit unit;
-    private final AtomicReference<DataHolder> dataRef = new AtomicReference<>(new DataHolder(BigInteger.ZERO, BigInteger.ZERO, Long.MAX_VALUE, Long.MIN_VALUE));
+    private final AtomicReference<DataHolder> dataRef =
+            new AtomicReference<>(new DataHolder(BigInteger.ZERO, BigInteger.ZERO, Long.MAX_VALUE, Long.MIN_VALUE));
     private final AtomicReference<Statistics> statsRef = new AtomicReference<>();
 
     public BasicProbe(@NonNull final String name, @NonNull final ObsUnit unit) {
@@ -30,6 +42,12 @@ public class BasicProbe {
         return unit;
     }
 
+    /**
+     * Records {@code value}. Thread-safe; uses a CAS loop so multiple threads may call this
+     * concurrently without locking.
+     *
+     * @throws IllegalStateException if {@link #aggregate()} has already been called
+     */
     public void add(final long value) {
         if (statsRef.get() != null) {
             throw new IllegalStateException("Probe is already aggregated; cannot add more values");
@@ -49,10 +67,12 @@ public class BasicProbe {
         }
     }
 
+    /** Returns the aggregated statistics, or {@code null} if {@link #aggregate()} has not yet been called. */
     public @Nullable Statistics statistics() {
         return statsRef.get();
     }
 
+    /** Seals the probe and computes the final statistics. Idempotent after the first call. */
     public @NonNull Statistics aggregate() {
         Statistics stats = statsRef.get();
         if (stats != null) {
@@ -62,7 +82,14 @@ public class BasicProbe {
         final DataHolder data = dataRef.get();
         final BigDecimal avg = new BigDecimal(data.sum).divide(new BigDecimal(data.numSamples), MATH_CONTEXT_10);
 
-        stats = new FixedStatistics(unit, data.numSamples, data.sum, BigInteger.valueOf(data.min), BigInteger.valueOf(data.max), avg, BigDecimal.ZERO);
+        stats = new FixedStatistics(
+                unit,
+                data.numSamples,
+                data.sum,
+                BigInteger.valueOf(data.min),
+                BigInteger.valueOf(data.max),
+                avg,
+                BigDecimal.ZERO);
         statsRef.set(stats);
         return stats;
     }
@@ -80,5 +107,5 @@ public class BasicProbe {
         return s;
     }
 
-    private record DataHolder(BigInteger sum, BigInteger numSamples, long min, long max) { }
+    private record DataHolder(BigInteger sum, BigInteger numSamples, long min, long max) {}
 }
