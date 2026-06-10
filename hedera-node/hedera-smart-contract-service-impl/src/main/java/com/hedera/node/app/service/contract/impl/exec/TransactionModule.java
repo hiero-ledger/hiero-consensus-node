@@ -185,7 +185,8 @@ public interface TransactionModule {
     }
 
     private static boolean shouldChargeSimpleFees(HandleContext context, HederaFunctionality functionality) {
-        if (context.configuration().getConfigData(FeesConfig.class).simpleFeesAreFree()) {
+        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesEnabled() && feesConfig.simpleFeesAreFree()) {
             return false;
         }
         final var feeSchedule = context.simpleFeesSchedule();
