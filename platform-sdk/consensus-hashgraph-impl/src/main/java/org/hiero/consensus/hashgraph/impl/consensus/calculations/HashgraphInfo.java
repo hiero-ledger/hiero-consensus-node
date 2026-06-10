@@ -653,7 +653,7 @@ public final class HashgraphInfo {
                     }
                 }
 
-                if ((h.parents == null) || (h.parentsMaxSize > h.numNodes)) {
+                if ((h.parents == null) || (h.parentsMaxSize > 2 * h.numNodes)) {
                     // initialize h.parents the first time, and shrink to recover after massive branching in last round
                     h.parents = new ArrayList<>(h.numNodes);
                     h.parentsMaxSize = h.numNodes;
@@ -697,30 +697,32 @@ public final class HashgraphInfo {
                 }
             }
 
+            final int numNodes = h.numNodes; // make the (possibly updated) value a local constant from here down
+
             // instantiate fields if they are null, or the array is the wrong size.
-            if (ancestorJudge == null || ancestorJudge.length != h.numNodes) {
-                ancestorJudge = new boolean[h.numNodes]; // only the first rp.prevJudges.length elements will be used
+            if (ancestorJudge == null || ancestorJudge.length != numNodes) {
+                ancestorJudge = new boolean[numNodes]; // only the first rp.prevJudges.length elements will be used
             }
-            if (lastSee == null || lastSee.length != h.numNodes) {
-                lastSee = new EventInfo[h.numNodes];
+            if (lastSee == null || lastSee.length != numNodes) {
+                lastSee = new EventInfo[numNodes];
             }
-            if (stronglySeeP == null || stronglySeeP.length != h.numNodes) {
-                stronglySeeP = new EventInfo[h.numNodes];
+            if (stronglySeeP == null || stronglySeeP.length != numNodes) {
+                stronglySeeP = new EventInfo[numNodes];
             }
-            if (stronglySeeS1 == null || stronglySeeS1.length != h.numNodes) {
-                stronglySeeS1 = new EventInfo[h.numNodes];
+            if (stronglySeeS1 == null || stronglySeeS1.length != numNodes) {
+                stronglySeeS1 = new EventInfo[numNodes];
             }
-            if (voteE == null || voteE.length != h.numNodes) {
-                voteE = new EventInfo[h.numNodes];
+            if (voteE == null || voteE.length != numNodes) {
+                voteE = new EventInfo[numNodes];
             }
-            if (voteIndex == null || voteIndex.length != h.numNodes) {
-                voteIndex = new int[h.numNodes];
+            if (voteIndex == null || voteIndex.length != numNodes) {
+                voteIndex = new int[numNodes];
             }
-            if (voteB == null || voteB.length != h.numNodes) {
-                voteB = new boolean[h.numNodes];
+            if (voteB == null || voteB.length != numNodes) {
+                voteB = new boolean[numNodes];
             }
-            if (receivedTime == null || receivedTime.length != h.numNodes) {
-                receivedTime = new Instant[h.numNodes];
+            if (receivedTime == null || receivedTime.length != numNodes) {
+                receivedTime = new Instant[numNodes];
             }
 
             // function parents  /--------------------------------------------------------------------------------
@@ -775,7 +777,7 @@ public final class HashgraphInfo {
             }
 
             // function lastSee /---------------------------------------------------------------------------------
-            for (int m = 0; m < h.numNodes; m++) {
+            for (int m = 0; m < numNodes; m++) {
                 if (m == creator) {
                     lastSee[m] = this;
                 } else {
@@ -818,7 +820,7 @@ public final class HashgraphInfo {
             }
 
             // function stronglySeeP /----------------------------------------------------------------------------
-            for (int m = 0; m < h.numNodes; m++) {
+            for (int m = 0; m < numNodes; m++) {
                 EventInfo y, z, p = selfParent;
                 // y = seeThru(r,x,m,m)
                 if (creator == m) {
@@ -833,7 +835,7 @@ public final class HashgraphInfo {
                 } else {
                     long s = 0;
                     h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] -= System.nanoTime();
-                    for (int mp = 0; mp < h.numNodes; mp++) {
+                    for (int mp = 0; mp < numNodes; mp++) {
                         EventInfo yp;
                         // function seeThru /---------------------------------------------------------------------
                         // yp = seeThru(r,x,m,mp)
@@ -908,7 +910,7 @@ public final class HashgraphInfo {
             if (firstWitnessS == null) {
                 Arrays.fill(stronglySeeS1, null);
             } else {
-                System.arraycopy(stronglySeeP, 0, stronglySeeS1, 0, h.numNodes);
+                System.arraycopy(stronglySeeP, 0, stronglySeeS1, 0, numNodes);
             }
 
             // function witness /---------------------------------------------------------------------------------
@@ -929,9 +931,9 @@ public final class HashgraphInfo {
             // Instead of using the stakeAgrees function from the paper, use h.cand* fields for more efficiency.
             // Prepare for topVote by finding total stake for all votes for each candidate (including for null).
             Arrays.fill(h.candStake, 0, h.candCount, 0L);
-            for (int voterCreator = 0; voterCreator < h.numNodes; voterCreator++) {
+            for (int voterCreator = 0; voterCreator < numNodes; voterCreator++) {
                 h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] -= System.nanoTime();
-                for (int candCreator = 0; candCreator < h.numNodes; candCreator++) {
+                for (int candCreator = 0; candCreator < numNodes; candCreator++) {
                     EventInfo voter = stronglySeeP[voterCreator];
                     if (voter != null) {
                         h.candStake[voter.voteIndex[candCreator]] += r.stake[candCreator];
@@ -941,7 +943,7 @@ public final class HashgraphInfo {
             }
 
             // function vote /------------------------------------------------------------------------------------
-            for (int m = 0; m < h.numNodes; m++) { // find which candidate created by m to vote for (or null for none)
+            for (int m = 0; m < numNodes; m++) { // find which candidate created by m to vote for (or null for none)
                 long i = h.pendingRound + h.voteD;
                 voteE[m] = null; // default if not overridden before the "continue"
                 voteB[m] = false; // default if not overridden before the "continue"
@@ -955,7 +957,7 @@ public final class HashgraphInfo {
                     if (h.voteD == 2) { // vote for any witness strongly seen by a witness that you strongly see.
                         firstVote = null;
                         h.benchmarks[HashgraphInfo.BENCHMARK_LOOP6] -= System.nanoTime();
-                        for (int mp = 0; mp < h.numNodes; mp++) {
+                        for (int mp = 0; mp < numNodes; mp++) {
                             EventInfo t = stronglySeeS1[mp];
                             if (t != null) {
                                 EventInfo s = t.stronglySeeS1[m];
@@ -995,6 +997,7 @@ public final class HashgraphInfo {
                         long stake = h.candStake[index];
                         if (stake > bestStake) {
                             bestStake = stake;
+                            bestIndex = index;
                         }
                     }
                     EventInfo v = h.candEventInfo[bestIndex];
@@ -1013,7 +1016,7 @@ public final class HashgraphInfo {
                         continue;
                     }
                     int mp = coin;
-                    if ((mp == h.numNodes) || (h.pendingRound != birthRound)) { // coin==h.numNodes means vote for null
+                    if ((mp == numNodes) || (h.pendingRound != birthRound)) { // coin==numNodes means vote for null
                         continue; // if the coin chose null then vote null. (Or if birth round isn't pending round)
                     }
                     EventInfo w = stronglySeeS1[mp];
@@ -1022,14 +1025,14 @@ public final class HashgraphInfo {
                     }
                     voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
                 }
-                for (int mm = 0; mm < h.numNodes; mm++) {
+                for (int mm = 0; mm < numNodes; mm++) {
                     voteIndex[mm] = ((voteE[mm] == null) ? mm : voteE[mm].eventCandIndex);
                 }
             } // end vote
 
             // function roundDecided /----------------------------------------------------------------------------
             h.roundDecided = witness;
-            for (int m = 0; m < h.numNodes; m++) {
+            for (int m = 0; m < numNodes; m++) {
                 h.roundDecided = h.roundDecided && voteB[m];
                 if (!h.roundDecided) {
                     break;
@@ -1043,7 +1046,7 @@ public final class HashgraphInfo {
             // function roundJudges /-----------------------------------------------------------------------------
             roundJudges = new ArrayList<>();
             long s = 0; // total stake of all the elected judges
-            for (int m = 0; m < h.numNodes; m++) {
+            for (int m = 0; m < numNodes; m++) {
                 if (voteE[m] != null) {
                     roundJudges.add(voteE[m]);
                     s += r.stake[voteE[m].creator];
