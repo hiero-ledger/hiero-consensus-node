@@ -155,9 +155,9 @@ APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.e
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
-UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.3}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.3}"
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.3}"
+UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.5}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.5}"
+UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.5}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -3683,14 +3683,19 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
-  # On remote, pass the scheduling/storage value overrides and deploy without PVCs (emptyDir); kind keeps PVCs.
+  # Deploy with PVCs on BOTH targets. Step 10 (run_076_upgrade) injects the WRAPS env via
+  # `kubectl set env`, which rolls the consensus StatefulSets BEFORE Solo's upgrade fires. With the
+  # old remote `--pvcs false` (emptyDir), that roll wiped the local-build jars, so the rolled pod
+  # could not restart and Solo's upgrade SDK-ping failed (its retries never found a serving node).
+  # On remote we now use PVCs backed by the local-path StorageClass (made default in
+  # remote_reset_and_prepare_deployment): local-path PVs are node-pinned, so the rolled pod
+  # reschedules to the same node and its data survives the roll. Remote also needs the
+  # scheduling/storage value overrides.
   cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
     --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
-    --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}")
+    --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}" --pvcs true)
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-    cutover_deploy+=(--pvcs false --values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
-  else
-    cutover_deploy+=(--pvcs true)
+    cutover_deploy+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
   fi
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
     "${cutover_deploy[@]}"
