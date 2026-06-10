@@ -44,6 +44,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
@@ -365,5 +366,12 @@ class HandleHederaNativeOperationsTest {
         given(context.keyVerifier()).willReturn(keyVerifier);
         given(keyVerifier.authorizingSimpleKeys()).willReturn(keys);
         assertSame(keys, subject.authorizingSimpleKeys());
+    }
+
+    @Test
+    void ledgerId_delegatesToContext() {
+        final var expected = Bytes.fromHex("deadbeef");
+        given(context.ledgerId()).willReturn(expected);
+        assertEquals(expected, subject.ledgerId());
     }
 }

@@ -27,6 +27,8 @@ import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletion
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -64,6 +67,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
@@ -119,6 +123,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -937,6 +943,27 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void category_isChild_forFeeChargingContext() {
         assertThat(subject.category()).isEqualTo(CHILD);
+    }
+
+    @Test
+    void ledgerId_returnsExternalizedLedgerIdWhenPresent(
+            @Mock(strictness = Mock.Strictness.LENIENT) ReadableStates historyStates,
+            @Mock ReadableSingletonState<ProtoBytes> ledgerIdSingleton) {
+        final var externalizedId = Bytes.fromHex("deadbeef");
+        given(baseState.getReadableStates(HistoryService.NAME)).willReturn(historyStates);
+        doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
+        given(ledgerIdSingleton.get()).willReturn(new ProtoBytes(externalizedId));
+        assertEquals(externalizedId, subject.ledgerId());
+    }
+
+    @Test
+    void ledgerId_fallsBackToConfigWhenNotExternalized(
+            @Mock(strictness = Mock.Strictness.LENIENT) ReadableStates historyStates,
+            @Mock ReadableSingletonState<ProtoBytes> ledgerIdSingleton) {
+        given(baseState.getReadableStates(HistoryService.NAME)).willReturn(historyStates);
+        doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
+        given(ledgerIdSingleton.get()).willReturn(ProtoBytes.DEFAULT);
+        assertEquals(Bytes.fromHex("00"), subject.ledgerId());
     }
 
     private void mockNeeded() {
