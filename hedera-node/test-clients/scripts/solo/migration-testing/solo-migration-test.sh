@@ -377,14 +377,42 @@ deploy_baseline() {
   # `--pvcs true` is required because step 3 uses `consensus network upgrade
   # --local-build-path`, which stages new JARs through persistent volumes that
   # must survive the upgrade-driven pod restarts.
-  # `--values-file` substitutes hedera.root.image.* with the local NMT-baked
+  # `--values-file` substitutes defaults.root.image.* with the local NMT-baked
   # image (imagePullPolicy=Never; side-loaded into kind by build_and_load_nmt_image).
-  solo consensus network deploy \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --pvcs true \
-    --values-file "${NMT_IMAGE_VALUES_FILE}" \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
+  #
+  # The deploy is wrapped in a diagnostic harness: solo's own pod-ready check
+  # times out at 900 attempts (~15min). If Solo gives up, an EXIT trap on the
+  # subshell dumps `kubectl get pods/events/describe` so the CI log shows
+  # *why* the root-container never started (image pull, volume mount, etc.)
+  # instead of just a generic "phases: Running not found" error.
+  (
+    diag_dump() {
+      ec=$?
+      [[ ${ec} -eq 0 ]] && return
+      local pod_ns="${SOLO_NAMESPACE}"
+      echo "===== diagnostic dump after solo deploy exit ${ec} ====="
+      kubectl -n "${pod_ns}" get pods -o wide 2>&1 | head -20
+      echo "----- events (last 40) -----"
+      kubectl -n "${pod_ns}" get events --sort-by=.lastTimestamp 2>&1 | tail -40
+      for pod in $(iterate_pods); do
+        echo "----- describe ${pod} -----"
+        kubectl -n "${pod_ns}" describe pod "${pod}" 2>&1 \
+          | awk '/^Status:|^Init Containers:|^Containers:|^Conditions:|^Volumes:|^Events:/{flag=1} flag' \
+          | head -80
+      done
+      echo "----- crictl images on kind node -----"
+      docker exec "${SOLO_CLUSTER_NAME}-control-plane" \
+        crictl images 2>&1 | grep -E 'solo-nmt|REPOSITORY' | head -10
+      echo "===== end diagnostic dump ====="
+    }
+    trap diag_dump EXIT
+    solo consensus network deploy \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${NODE_ALIASES}" \
+      --pvcs true \
+      --values-file "${NMT_IMAGE_VALUES_FILE}" \
+      --release-tag "${DEPLOY_RELEASE_TAG}"
+  )
 
   wait_for_consensus_pods_ready 600
 
