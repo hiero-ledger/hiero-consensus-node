@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Consumer;
 
 /**
@@ -72,7 +73,7 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param constructionId the construction ID
      * @param nodeIds the IDs of the nodes whose votes should be removed
      */
-    void clearProofVotes(long constructionId, @NonNull Set<Long> nodeIds);
+    void clearProofVotes(long constructionId, @NonNull SortedSet<Long> nodeIds);
 
     /**
      * Adds a node's signature on a particular assembled history proof for the given construction.
