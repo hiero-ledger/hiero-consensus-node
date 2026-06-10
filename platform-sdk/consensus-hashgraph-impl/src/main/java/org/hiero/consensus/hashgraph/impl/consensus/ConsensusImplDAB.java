@@ -230,6 +230,7 @@ public class ConsensusImplDAB implements Consensus {
 
         this.noSuperMajorityLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.noJudgeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        this.roundInfo = createNewRosterInfo(ConsensusConstants.ROUND_FIRST);
     }
 
     /**
@@ -255,13 +256,20 @@ public class ConsensusImplDAB implements Consensus {
             minimumJudgeStorage.add(minimumJudgeInfo.round(), minimumJudgeInfo);
         }
 
+        roundInfo = createNewRosterInfo(snapshot.round() + 1);
+
+        numConsensus = snapshot.nextConsensusNumber();
+        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
+    }
+
+    private RoundInfo createNewRosterInfo(final long pendingRound) {
         final List<RosterEntry> rosterEntries = rosterLookup.getRoster().rosterEntries();
         final long[] nodeIds =
                 rosterEntries.stream().mapToLong(RosterEntry::nodeId).toArray();
         final long[] weights =
                 rosterEntries.stream().mapToLong(RosterEntry::weight).toArray();
-        roundInfo = new RoundInfo(
-                snapshot.round() + 1,
+        return new RoundInfo(
+                pendingRound,
                 nodeIds,
                 weights,
                 config.coinFreq(),
@@ -269,9 +277,6 @@ public class ConsensusImplDAB implements Consensus {
                 false,
                 config.roundsNonAncient(),
                 NUM_ROUNDS_ROSTER);
-
-        numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /**
@@ -357,7 +362,7 @@ public class ConsensusImplDAB implements Consensus {
 
             final List<ConsensusRound> rounds = new ArrayList<>();
             while (results != null) {
-                final ConsensusRound consensusRound = roundDecided(results);
+                final ConsensusRound consensusRound = createConsensusRound(results);
                 rounds.add(consensusRound);
                 results = updateRecentEvents();
             }
@@ -401,7 +406,7 @@ public class ConsensusImplDAB implements Consensus {
     }
 
     /**
-     * This round has been decided, this means that the fame of all known witnesses in that round
+     * A new round has reached consensus, this means that the fame of all known witnesses in that round
      * has been decided.
      *
      * <p>Since fame for this round is now decided, it is now possible to decide consensus and time
@@ -411,26 +416,26 @@ public class ConsensusImplDAB implements Consensus {
      * @param results the round information of the decided round
      * @return the consensus round
      */
-    private @NonNull ConsensusRound roundDecided(@NonNull final UpdateResults results) {
+    private @NonNull ConsensusRound createConsensusRound(@NonNull final UpdateResults results) {
         final List<EventImpl> judges = Arrays.stream(results.nextRoundInfoPrev().prevJudges())
                 .map(memosEventMap::get)
                 .toList();
-        final long decidedRoundNumber = roundInfo.pendingRound();
+        final long consensusRoundNum = roundInfo.pendingRound();
 
         // Check for no judges or super majority conditions.
-        logJudgeErrors(judges, decidedRoundNumber);
+        logJudgeErrors(judges, consensusRoundNum);
 
         final List<PlatformEvent> consensusEvents = Arrays.stream(results.consensusEvents())
-                .map(this::finalizeConsensusData)
+                .map(eventInfo -> finalizeConsensusData(eventInfo, consensusRoundNum))
                 .toList();
 
         // all rounds before this round are now decided, and appropriate events marked consensus
-        consensusMetrics.consensusReachedOnRound(decidedRoundNumber);
+        consensusMetrics.consensusReachedOnRound(consensusRoundNum);
 
         // Before calculating the new expired threshold, update the minimum judge storage
         final RoundInfoPrev decidedRoundInfo = results.nextRoundInfoPrev();
         final MinimumJudgeInfo minimumJudgeInfo = MinimumJudgeInfo.newBuilder()
-                .round(decidedRoundNumber)
+                .round(consensusRoundNum)
                 .minimumJudgeBirthRound(decidedRoundInfo.prevMinJudgeBirthRound())
                 .build();
         updateMinimumJudgeInfo(minimumJudgeInfo);
@@ -464,13 +469,13 @@ public class ConsensusImplDAB implements Consensus {
                 rosterLookup.getRoster(),
                 consensusEvents,
                 new EventWindow(
-                        decidedRoundNumber,
+                        consensusRoundNum,
                         // by default, we set the birth round for new events to the pending round
-                        decidedRoundNumber + 1,
+                        consensusRoundNum + 1,
                         nonAncientThreshold,
                         nonExpiredThreshold),
                 new ConsensusSnapshot(
-                        decidedRoundNumber,
+                        consensusRoundNum,
                         minimumJudgeInfos,
                         numConsensus,
                         toPbjTimestamp(lastConsensusTime),
@@ -484,10 +489,11 @@ public class ConsensusImplDAB implements Consensus {
      * PlatformEvent with the consensus data populated.
      *
      * @param eventInfo the eventInfo for an event that just reached consensus
+     * @param consensusRoundNum the round number of the round that just reached consensus
      * @return the finalized PlatformEvent for the given eventInfo
      */
     @NonNull
-    private PlatformEvent finalizeConsensusData(@NonNull final EventInfo eventInfo) {
+    private PlatformEvent finalizeConsensusData(@NonNull final EventInfo eventInfo, final long consensusRoundNum) {
         final EventImpl e = memosEventMap.get(eventInfo);
         if (e == null) {
             throw new IllegalStateException("Could not find event in memos map for consensus event");
@@ -509,6 +515,7 @@ public class ConsensusImplDAB implements Consensus {
                 .consensusTimestamp(toPbjTimestamp(finalConsensusTimestamp))
                 .build();
         e.getPlatformEvent().setConsensusData(consensusData);
+        e.setRoundReceived(consensusRoundNum);
 
         lastConsensusTime = EventUtils.getLastTransTime(e.getPlatformEvent(), transactionOffsetNanos);
         consensusMetrics.consensusReached(e);

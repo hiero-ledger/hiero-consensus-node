@@ -135,6 +135,9 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     public boolean isWitness() {
+        if (eventInfo != null) {
+            return eventInfo.getFirstWitnessS().equals(eventInfo);
+        }
         return isWitness;
     }
 
@@ -143,6 +146,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     public boolean isFamous() {
+        // TODO
         return isFamous;
     }
 
@@ -154,6 +158,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return is this both a witness and the fame election is over?
      */
     public boolean isFameDecided() {
+        // TODO
         return isFameDecided;
     }
 
@@ -168,6 +173,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return true if this event is a judge
      */
     public boolean isJudge() {
+        // TODO
         return isJudge;
     }
 
@@ -195,7 +201,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * calculation, this field may or may not store the final consensus time.
      */
     public @Nullable Instant getPreliminaryConsensusTimestamp() {
-        return preliminaryConsensusTimestamp;
+        return eventInfo == null ? preliminaryConsensusTimestamp : eventInfo.getConsensusTimestamp();
     }
 
     /**
@@ -344,7 +350,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     public long getRoundCreated() {
-        return roundCreated;
+        return eventInfo == null ? roundCreated : eventInfo.getVotingRound();
     }
 
     public void setRoundCreated(final long roundCreated) {
@@ -371,6 +377,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return true if it's a YES vote, false if it's a NO vote
      */
     public boolean getVote(@NonNull final CandidateWitness witness) {
+        // TODO
         return votes != null && votes.length > witness.getElectionIndex() && votes[witness.getElectionIndex()];
     }
 
@@ -381,6 +388,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return true if it's a YES vote, false if it's a NO vote
      */
     public boolean getVote(final int electionIndex) {
+        // TODO
         return votes != null && votes.length > electionIndex && votes[electionIndex];
     }
 
@@ -390,6 +398,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return the number of elements in the votes array. If the votes array is null, returns 0.
      */
     public int getVotesSize() {
+        // TODO
         return votes == null ? 0 : votes.length;
     }
 
@@ -533,6 +542,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @see DeGen
      */
     public int getDeGen() {
+        // TODO
         return deGen;
     }
 

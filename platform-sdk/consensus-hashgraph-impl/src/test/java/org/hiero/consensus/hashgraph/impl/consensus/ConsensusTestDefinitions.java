@@ -64,11 +64,21 @@ public final class ConsensusTestDefinitions {
                 new OutputEventsEqualityValidation(),
                 OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
 
-        OrchestratorBuilder.builder()
-                .setTestInput(input)
-                .build()
-                .generateAllEvents()
-                .validateAndClear(consensusOutputValidator);
+        final ConsensusTestOrchestrator orchestrator =
+                OrchestratorBuilder.builder().setTestInput(input).build();
+
+        // Leemon - this single line will generate 10,000 events and feed them into two instances of consensus
+        //        orchestrator.generateAllEvents();
+
+        // This line will generate the first 1,000 events, feed them into consensus, and stop
+        orchestrator.generateEvents(0.1);
+        // This will bring up the GUI and all events generated thus far will be available to view
+        ConsensusTestDebugGui.runGui(orchestrator);
+        // This generates the remaining 9,000
+        orchestrator.generateEvents(0.9);
+
+        // This line verifies the output of the two consensus instances
+        orchestrator.validateAndClear(consensusOutputValidator);
     }
 
     /** Send an ancient event to consensus and check if it is marked stale. */
