@@ -322,7 +322,7 @@ public final class HashgraphInfo {
         private boolean isConsensus;
         private long consensusOrder;
         private Instant consensusTimestamp;
-        private boolean prevJudge;
+        private boolean prevJudge; // true of judges in previous round (updated when round reaches consensus)
         private long maxJudgeRound;
         private int eventCandIndex; // index into h.cand* for candidate events (can be anything for non-candidates)
         // the following are used for graph searches in the hashgraph
@@ -1070,7 +1070,7 @@ public final class HashgraphInfo {
             // graphSearch finds each new event that reaches consensus (so isReceived and reachedCon are true),
             // sets isConsensus for it, finds all its receivedEvents, and sets its receivedTim[] to be the
             // times from those received events.
-            consensusEvents = new ArrayList<>();
+            consensusEvents = new ArrayList<>(3 * numNodes);
             h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
             consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
