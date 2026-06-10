@@ -67,6 +67,7 @@ public final class HashgraphInfo {
             new RoundInfoPrev(1, false, new EventInfo[0], false, 0, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
+    private boolean lastUpdateUsedCoin; // true iff the last round to reach consensus used a coin round
     private long pendingRound;
     private int numNodes;
     private long[] nodeIDs;
@@ -85,6 +86,12 @@ public final class HashgraphInfo {
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
     private long[] candStake; // the total stake of all votes for each candidate event
+
+
+    /** true iff the last round to reach consensus used a coin round */
+    public boolean getLastUpdateUsedCoin() {
+        return lastUpdateUsedCoin;
+    }
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
     public long getPendingRound() {
@@ -149,6 +156,18 @@ public final class HashgraphInfo {
 
     public long[] getCandStake() {
         return candStake;
+    }
+
+    public boolean isNodesChanged() {
+        return nodesChanged;
+    }
+
+    public boolean isRoundDecided() {
+        return roundDecided;
+    }
+
+    public int getCandCount() {
+        return candCount;
     }
 
     /**
@@ -334,6 +353,7 @@ public final class HashgraphInfo {
         }
 
         // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
+
         public HashgraphInfo getHashgraph() {
             return hashgraph;
         }
@@ -473,6 +493,7 @@ public final class HashgraphInfo {
         public boolean isSearchSelfAncestor() {
             return searchSelfAncestor;
         }
+
 
         /**
          * Erase all references from this event to its ancestor events. It should eventually be called on every event,
@@ -964,6 +985,7 @@ public final class HashgraphInfo {
                         voteB[m] = s;
                         continue;
                     }
+                    h.lastUpdateUsedCoin = true; // this is a coin round
                     if (s) { // if a coin round and collect a supermajority, vote that way, but don't decide
                         voteE[m] = v;
                         continue;
