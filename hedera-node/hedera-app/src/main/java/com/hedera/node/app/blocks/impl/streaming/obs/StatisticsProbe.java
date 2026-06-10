@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.MATH_CONTEXT_10;
-import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -23,41 +22,17 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * <p>Once {@link #aggregate()} has been called the probe is sealed; further {@link #add} calls
  * throw {@link IllegalStateException}.
  */
-public class StatisticsProbe {
+public class StatisticsProbe extends Probe {
 
-    private final String name;
-    private final ObsUnit unit;
     private volatile boolean isClosed = false;
     private Statistics statistics = null;
     private Queue<Long> values = new ConcurrentLinkedQueue<>();
 
     public StatisticsProbe(@NonNull final String name, @NonNull final ObsUnit unit) {
-        this.name = requireNonNull(name);
-        this.unit = requireNonNull(unit);
+        super(name, unit);
     }
 
-    public @NonNull String name() {
-        return name;
-    }
-
-    public @NonNull ObsUnit unit() {
-        return unit;
-    }
-
-    /**
-     * Records {@code value}. Thread-safe via {@link ConcurrentLinkedQueue}.
-     *
-     * @throws IllegalStateException if {@link #aggregate()} has already been called
-     */
-    public void add(final long value) {
-        if (isClosed) {
-            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
-        }
-
-        values.add(value);
-    }
-
-    /** Returns the aggregated statistics, or {@code null} if {@link #aggregate()} has not yet been called. */
+    @Override
     public @Nullable Statistics statistics() {
         return statistics;
     }
@@ -68,6 +43,7 @@ public class StatisticsProbe {
      *
      * @return {@link FixedStatistics#NIL} if no samples were recorded
      */
+    @Override
     public @NonNull Statistics aggregate() {
         if (statistics != null) {
             return statistics;
@@ -109,22 +85,21 @@ public class StatisticsProbe {
 
         stdDev = stdDev.divide(new BigDecimal(numSamples), 10, RoundingMode.HALF_EVEN)
                 .sqrt(MATH_CONTEXT_10);
-        statistics = new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev);
+        statistics = new FixedStatistics(unit(), numSamples, sum, min, max, avg, stdDev);
 
         values = null; // clear values to reclaim memory
 
         return statistics;
     }
 
+    /** Thread-safe via {@link ConcurrentLinkedQueue}. */
     @Override
-    public String toString() {
-        String s = name + " ";
+    protected void doAdd(final long value) {
+        values.add(value);
+    }
 
-        if (statistics == null) {
-            s += "{ <In Progress> }";
-        } else {
-            s += Statistics.toString(statistics);
-        }
-        return s;
+    @Override
+    protected boolean isAggregated() {
+        return isClosed;
     }
 }

@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import static com.hedera.node.app.blocks.impl.streaming.obs.ObsUtils.MATH_CONTEXT_10;
-import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,38 +20,54 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Once {@link #aggregate()} has been called the probe is sealed; further {@link #add} calls
  * throw {@link IllegalStateException}.
  */
-public class BasicProbe {
+public class BasicProbe extends Probe {
 
-    private final String name;
-    private final ObsUnit unit;
     private final AtomicReference<DataHolder> dataRef =
             new AtomicReference<>(new DataHolder(BigInteger.ZERO, BigInteger.ZERO, Long.MAX_VALUE, Long.MIN_VALUE));
     private final AtomicReference<Statistics> statsRef = new AtomicReference<>();
 
     public BasicProbe(@NonNull final String name, @NonNull final ObsUnit unit) {
-        this.name = requireNonNull(name);
-        this.unit = requireNonNull(unit);
+        super(name, unit);
     }
 
-    public @NonNull String name() {
-        return name;
+    @Override
+    public @Nullable Statistics statistics() {
+        return statsRef.get();
     }
 
-    public @NonNull ObsUnit unit() {
-        return unit;
+    /** Seals the probe and computes the final statistics. Idempotent after the first call. */
+    @Override
+    public @NonNull Statistics aggregate() {
+        Statistics stats = statsRef.get();
+        if (stats != null) {
+            return stats;
+        }
+
+        final DataHolder data = dataRef.get();
+        if (BigInteger.ZERO.equals(data.numSamples)) {
+            statsRef.set(FixedStatistics.NIL);
+            return FixedStatistics.NIL;
+        }
+
+        final BigDecimal avg = new BigDecimal(data.sum).divide(new BigDecimal(data.numSamples), MATH_CONTEXT_10);
+
+        stats = new FixedStatistics(
+                unit(),
+                data.numSamples,
+                data.sum,
+                BigInteger.valueOf(data.min),
+                BigInteger.valueOf(data.max),
+                avg,
+                BigDecimal.ZERO);
+        statsRef.set(stats);
+        return stats;
     }
 
     /**
-     * Records {@code value}. Thread-safe; uses a CAS loop so multiple threads may call this
-     * concurrently without locking.
-     *
-     * @throws IllegalStateException if {@link #aggregate()} has already been called
+     * Thread-safe via a CAS loop so multiple threads may call this concurrently without locking.
      */
-    public void add(final long value) {
-        if (statsRef.get() != null) {
-            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
-        }
-
+    @Override
+    protected void doAdd(final long value) {
         while (true) {
             final DataHolder old = dataRef.get();
             final DataHolder updated = new DataHolder(
@@ -67,44 +82,9 @@ public class BasicProbe {
         }
     }
 
-    /** Returns the aggregated statistics, or {@code null} if {@link #aggregate()} has not yet been called. */
-    public @Nullable Statistics statistics() {
-        return statsRef.get();
-    }
-
-    /** Seals the probe and computes the final statistics. Idempotent after the first call. */
-    public @NonNull Statistics aggregate() {
-        Statistics stats = statsRef.get();
-        if (stats != null) {
-            return stats;
-        }
-
-        final DataHolder data = dataRef.get();
-        final BigDecimal avg = new BigDecimal(data.sum).divide(new BigDecimal(data.numSamples), MATH_CONTEXT_10);
-
-        stats = new FixedStatistics(
-                unit,
-                data.numSamples,
-                data.sum,
-                BigInteger.valueOf(data.min),
-                BigInteger.valueOf(data.max),
-                avg,
-                BigDecimal.ZERO);
-        statsRef.set(stats);
-        return stats;
-    }
-
     @Override
-    public String toString() {
-        final Statistics stats = statsRef.get();
-        String s = name + " ";
-
-        if (stats == null) {
-            s += "{ <In Progress> }";
-        } else {
-            s += Statistics.toString(stats);
-        }
-        return s;
+    protected boolean isAggregated() {
+        return statsRef.get() != null;
     }
 
     private record DataHolder(BigInteger sum, BigInteger numSamples, long min, long max) {}

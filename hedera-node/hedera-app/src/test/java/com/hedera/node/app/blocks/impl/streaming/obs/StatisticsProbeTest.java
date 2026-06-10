@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.within;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 
 class StatisticsProbeTest {
@@ -86,6 +89,45 @@ class StatisticsProbeTest {
         probe.aggregate();
 
         assertThat(probe.statistics()).isNotNull();
+    }
+
+    @Test
+    void fractionalAverage() {
+        final StatisticsProbe probe = new StatisticsProbe("p", ObsUnit.NANOS);
+        probe.add(1L);
+        probe.add(2L);
+
+        assertThat(probe.aggregate().avg().doubleValue()).isEqualTo(1.5);
+    }
+
+    @Test
+    void concurrentAdds_allSamplesAccounted() {
+        final int threads = 8;
+        final int addsPerThread = 1_000;
+        final StatisticsProbe probe = new StatisticsProbe("p", ObsUnit.COUNT);
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(threads)) {
+            final CountDownLatch latch = new CountDownLatch(threads);
+
+            for (int i = 0; i < threads; i++) {
+                executor.submit(() -> {
+                    for (int j = 0; j < addsPerThread; j++) {
+                        probe.add(1L);
+                    }
+                    latch.countDown();
+                });
+            }
+
+            latch.await();
+            executor.shutdown();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        final Statistics stats = probe.aggregate();
+        final long expected = (long) threads * addsPerThread;
+        assertThat(stats.numSamples()).isEqualTo(BigInteger.valueOf(expected));
+        assertThat(stats.sum()).isEqualTo(BigInteger.valueOf(expected));
     }
 
     @Test
