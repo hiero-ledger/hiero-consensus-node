@@ -748,8 +748,16 @@ start_nmt_watcher() {
 # docker-compose.jrs.yml inside the pod.
 start_consensus_node_via_nmt() {
   local pod="$1"
-  log "nmt start in ${pod}"
-  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV start
+  # NMT's `nmt start` does `docker compose up --no-recreate`, which reuses
+  # the existing container if any — meaning .env edits from `nmt install`
+  # don't reach the container env. Use `docker compose up --force-recreate`
+  # directly so the new JAVA_MAIN_CLASS / JAVA_OPTS / JDK actually land.
+  log "docker compose up --force-recreate in ${pod} (bypassing nmt-start's --no-recreate)"
+  kexec "${pod}" sudo -u hedera bash -c "
+    cd ${NMT_DIR}/compose/network-node
+    docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
+      up -d --force-recreate 2>&1 | tail -10
+  "
 
   local attempts=0
   while (( attempts < 60 )); do
