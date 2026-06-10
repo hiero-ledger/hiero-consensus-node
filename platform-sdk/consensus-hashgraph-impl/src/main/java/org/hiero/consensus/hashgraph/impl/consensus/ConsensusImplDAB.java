@@ -317,7 +317,6 @@ public class ConsensusImplDAB implements Consensus {
                     event.getTimeCreated(),
                     event.getBirthRound(),
                     (int) event.getCoin(),
-                    event.getBaseHash().copyToByteArray(),
                     parentEventInfos);
             event.setEventInfo(eventInfo);
             recentEvents.add(event);
