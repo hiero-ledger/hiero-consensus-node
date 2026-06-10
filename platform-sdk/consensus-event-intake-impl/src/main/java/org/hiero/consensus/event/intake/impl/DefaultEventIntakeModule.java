@@ -21,6 +21,7 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.intake.config.EventIntakeConfig;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
 import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
@@ -35,7 +36,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -170,7 +170,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
         final boolean allowUnsigned =
-                configuration.getConfigData(PcesConfig.class).allowUnsignedPcesEvents();
+                configuration.getConfigData(EventIntakeConfig.class).allowUnsignedPcesEvents();
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
                 metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter, allowUnsigned);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);

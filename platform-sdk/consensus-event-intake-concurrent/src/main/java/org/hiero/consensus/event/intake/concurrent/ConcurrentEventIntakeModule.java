@@ -21,6 +21,7 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.intake.config.EventIntakeConfig;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.event.validation.EventFieldValidator;
@@ -30,7 +31,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -131,7 +131,7 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
         final EventFieldValidator eventFieldValidator =
                 new DefaultEventFieldValidator(metrics, time, transactionLimits);
         final boolean allowUnsigned =
-                configuration.getConfigData(PcesConfig.class).allowUnsignedPcesEvents();
+                configuration.getConfigData(EventIntakeConfig.class).allowUnsignedPcesEvents();
         final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
                 metrics,
                 time,

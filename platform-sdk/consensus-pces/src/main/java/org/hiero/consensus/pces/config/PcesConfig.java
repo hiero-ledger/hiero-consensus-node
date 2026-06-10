@@ -59,12 +59,6 @@ import java.time.Duration;
  * @param compactLastFileOnStartup             if true, then compact the last file's span on startup.
  * @param forceIgnorePcesSignatures            if true, then ignore the signatures on preconsensus events. Note: This is
  *                                             a TEST ONLY setting. It must never be enabled in production.
- * @param allowUnsignedPcesEvents              if true, allow unsigned events (empty signature) read from PCES files to
- *                                             pass through signature validation without verification. This is intended
- *                                             for replaying events reconstructed from the block stream, where the
- *                                             creator's GossipEvent.signature is not preserved. Trust derives from the
- *                                             block proof, not the per-event signature. Note: This is a TEST ONLY
- *                                             setting. It must never be enabled in production.
  * @param replayHealthThreshold                if the system is unhealthy (i.e. overloaded) for more than this amount of
  *                                             time, pause PCES replay until the system is able to catch up.
  * @param limitReplayFrequency                 if true, then directly limit the replay frequency of preconsensus events
@@ -91,7 +85,6 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
         @ConfigProperty(defaultValue = "false") boolean forceIgnorePcesSignatures,
-        @ConfigProperty(defaultValue = "false") boolean allowUnsignedPcesEvents,
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,
