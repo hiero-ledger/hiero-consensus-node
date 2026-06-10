@@ -1260,7 +1260,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final Path snapshotPath = dataSourceSnapshot();
             try {
                 final VirtualDataSource dataSourceCopy =
-                        dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
+                        dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
                 final VirtualNodeCache cacheSnapshot = cache.snapshot();
                 final int hashChunkHeight = dataSource.getHashChunkHeight();
                 return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
