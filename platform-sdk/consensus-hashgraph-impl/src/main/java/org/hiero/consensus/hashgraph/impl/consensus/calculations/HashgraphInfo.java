@@ -80,7 +80,7 @@ public final class HashgraphInfo {
     private int currMark = 0;
     private boolean roundDecided;
     private long supermajorityThreshold; // stake more than this is a supermajority
-    private final boolean[] whitened = {false}; // for lambda in sort in vote function: true iff hashes are whitened
+    private boolean whitened; // for lambda in sort in vote function: true iff hashes are whitened
     private byte[] whitening; // for lambda in sort in vote function: the whitening bytes
     // the following are used for tracking candidates for judge in the current round (to speed up topVote & stakeAgrees)
     private int candCount; // how many candidates found so far during the pending round
@@ -124,8 +124,8 @@ public final class HashgraphInfo {
 
     /** Ensure that the hashes of all events in roundJudgesArray and consensusEventsArray have been whitened. */
     private void ensureHashesWhitened(EventInfo[] roundJudgesArray, EventInfo[] consensusEventsArray) {
-        if (!whitened[0]) { // only do it once
-            whitened[0] = true;
+        if (!whitened) { // only do it once
+            whitened = true;
             if (whitening==null || whitening.length != consensusEventsArray[0].eventHash.length) {
                 whitening = new byte[consensusEventsArray[0].eventHash.length];
             }
@@ -899,7 +899,7 @@ public final class HashgraphInfo {
             // before function in the paper.
             // If judgeCon1 is true, then f is just comparing the whitened hashes.
             // If judgeCon1 is false, then f first compares the extended medians, then the whitened hashes.
-            h.whitened[0] = false; // delay whitening until it's actually needed
+            h.whitened = false; // delay whitening until it's actually needed
             if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
                 Instant roundTime;
                 Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
