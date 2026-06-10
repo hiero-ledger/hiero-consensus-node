@@ -637,6 +637,39 @@ EOF"
     "${HAPI_PATH}/logs" \
     "${HAPI_PATH}/output"
   kexec "${pod}" sudo chown -R hedera:hedera "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
+
+  # Add the hedera user to the docker group BEFORE we start dockerd. NMT
+  # runs all compose commands via `sudo -u hedera`, and docker.sock is
+  # root:docker 0660 by default. Without this, hedera's `docker compose up`
+  # calls silently fail and NMT misreports success.
+  kexec "${pod}" sudo usermod -aG docker hedera
+
+  # Start dockerd in the background. NMT install builds the swirlds-node and
+  # swirlds-haveged docker images (and `nmt start` later docker-compose-ups
+  # them); without a running daemon, install dies with "failed to connect to
+  # the docker API at unix:///var/run/docker.sock". The Solo container has
+  # no systemd PID 1, so we launch dockerd by hand. The container is
+  # privileged + full CAP_SYS_ADMIN, so DinD nesting works. --storage-driver=
+  # vfs is necessary because the kind node already uses overlayfs and overlay-
+  # on-overlay fails during image build.
+  log "Starting dockerd in ${pod} (NMT install needs the docker daemon)"
+  kexec "${pod}" sudo bash -c "
+    if ! pgrep -x dockerd >/dev/null; then
+      # --storage-driver=vfs: nested DinD doesn't stack overlay-on-overlay
+      # cleanly. The kind node already uses overlayfs; trying to do overlay
+      # again inside fails with 'mount source: overlay ... too many levels
+      # of symbolic links' during image build. vfs is much slower (no CoW)
+      # but works in any nested context.
+      (nohup dockerd --storage-driver=vfs > /var/log/dockerd.log 2>&1 &) </dev/null
+    fi
+    for i in \$(seq 1 30); do
+      [ -S /var/run/docker.sock ] && exit 0
+      sleep 1
+    done
+    echo 'dockerd did not start in 30s' >&2
+    tail -30 /var/log/dockerd.log >&2 || true
+    exit 1
+  "
 }
 
 install_platform_via_nmt() {
