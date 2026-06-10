@@ -42,16 +42,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      nlg-test:
+      solo-version:
         required: true
-        default: "CryptoTransferLoadTest"
+        default: "v0.77.0"
         type: string
-        description: 'Test name'
-      nlg-args:
-        required: true
-        default: "-c 1"
-        type: string
-        description: 'test arguments'
+        description: 'Solo version'
       nlg-tps:
         required: true
         default: "100"
@@ -59,7 +54,7 @@ on:
         description: 'Transactions Per Second'
       versions:
         required: true
-        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; export BLOCK_NODE_VERSION=v0.27.0; ONE_SHOT_WITH_BLOCK_NODE=false"
+        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; ONE_SHOT_WITH_BLOCK_NODE=true; export SOLO_SKIP_METALLB=1; ONE_SHOT_USE_EDGE=false;"
         type: string
         description: 'Versions of containers'
 defaults:
@@ -171,9 +166,9 @@ jobs:
           chmod a+rx "${HOME}"/solo
           sudo mv "${HOME}"/solo /usr/bin/solo
 
-          git clone https://github.com/timo0/solo.git solo
+          git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout fix-memory
+          git checkout ${{ inputs.solo-version }}
           task build:compile
           #npm run build
 
