@@ -8,11 +8,13 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -115,6 +117,7 @@ import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -1211,9 +1214,19 @@ public class UtilVerbs {
         return sourcingContextual(spec -> {
             // Match TssBlockHashSigner's gating: TSS only runs when history is enabled AND the block stream is
             // active (streamMode != RECORDS); otherwise the "Externalizing ledger id" log never appears.
-            final boolean waitForExternalization = spec.targetNetworkOrThrow() instanceof SubProcessNetwork
-                    && spec.startupProperties().getBoolean("tss.historyEnabled")
-                    && !"RECORDS".equals(spec.startupProperties().get("blockStream.streamMode"));
+            // Read from the node's actual application.properties first so that overrides written by
+            // copyBootstrapAssets() (e.g. configuration/dev) take precedence over spec.startupProperties().
+            final boolean isSubProcess = spec.targetNetworkOrThrow() instanceof SubProcessNetwork;
+            final var effectiveProperties = isSubProcess
+                    ? inPriorityOrder(
+                            new JutilPropertySource(((SubProcessNetwork) spec.targetNetworkOrThrow())
+                                    .getRequiredNode(NodeSelector.byNodeId(0))
+                                    .getExternalPath(APPLICATION_PROPERTIES)),
+                            spec.startupProperties())
+                    : spec.startupProperties();
+            final boolean waitForExternalization = isSubProcess
+                    && effectiveProperties.getBoolean("tss.historyEnabled")
+                    && !"RECORDS".equals(effectiveProperties.get("blockStream.streamMode"));
             if (waitForExternalization) {
                 return exposeExternalizedLedgerIdFromHgcaaLogTo(
                         NodeSelector.byNodeId(0),
