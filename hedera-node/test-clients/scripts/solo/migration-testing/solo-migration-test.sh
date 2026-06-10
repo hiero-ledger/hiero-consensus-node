@@ -101,6 +101,13 @@ NMT_INSTALLER_BASENAME="node-mgmt-tools-installer-v1.3.4-efea0dd4.run"
 NMT_INSTALLER_URL="https://builds.hedera.com/node/mgmt-tools/v1.3/${NMT_INSTALLER_BASENAME}"
 NMT_PROFILE="jrs"
 OPENJDK_VERSION="${OPENJDK_VERSION:-25.0.2}"
+# NMT-baked consensus-node image (built from nmt-image/Dockerfile, side-loaded
+# into kind, referenced by Solo via nmt-image/solo-values-override.yaml). Must
+# stay in sync with the image:tag literals in that values file.
+NMT_IMAGE_DIR="${SCRIPT_DIR}/nmt-image"
+NMT_IMAGE_REPO="${NMT_IMAGE_REPO:-solo-nmt-network-node}"
+NMT_IMAGE_TAG="${NMT_IMAGE_TAG:-v1.3.4-jdk25}"
+NMT_IMAGE_VALUES_FILE="${NMT_IMAGE_DIR}/solo-values-override.yaml"
 # Hedera CN v0.75+ JARs are compiled to class file v69 (JDK 25). NMT v1.3.4
 # defaults to JDK 21 in helper.sh but ships checksums for 25.0.2; we override.
 JAVA_MAIN_CLASS_OVERRIDE="${JAVA_MAIN_CLASS_OVERRIDE:-com.hedera.node.app.ServicesMain}"
@@ -348,6 +355,13 @@ setup_cluster_prereqs() {
 deploy_baseline() {
   log "Deploying baseline consensus network at ${DEPLOY_RELEASE_TAG}"
 
+  # Build + side-load the NMT-baked root-container image so Solo's StatefulSet
+  # picks it up via the values override below. Doing this here (instead of in
+  # bring_up_consensus_via_nmt) means it happens before solo helm-installs the
+  # network-node chart — once the StatefulSet exists, image changes require a
+  # rolling restart.
+  build_and_load_nmt_image
+
   solo keys consensus generate \
     --gossip-keys \
     --tls-keys \
@@ -357,10 +371,13 @@ deploy_baseline() {
   # `--pvcs true` is required because step 3 uses `consensus network upgrade
   # --local-build-path`, which stages new JARs through persistent volumes that
   # must survive the upgrade-driven pod restarts.
+  # `--values-file` substitutes hedera.root.image.* with the local NMT-baked
+  # image (imagePullPolicy=Never; side-loaded into kind by build_and_load_nmt_image).
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
     --pvcs true \
+    --values-file "${NMT_IMAGE_VALUES_FILE}" \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
   wait_for_consensus_pods_ready 600
@@ -445,6 +462,19 @@ upgrade_to_local() {
 # Real-NMT bring-up + freeze-upgrade flow, vendored/adapted from
 # solo-charts' .github/workflows/support/scripts/helper.sh.
 
+# Build the NMT-baked consensus-node image and side-load it into the kind
+# cluster so Solo can pull it with imagePullPolicy=Never. Replaces the
+# previous runtime `sudo apt-get install ... ; sudo /.../nmt-installer.run`
+# chain inside the pod — sudo was failing in ARC GitHub runners with
+# `PAM account management error` even when the root-container is uid 0.
+build_and_load_nmt_image() {
+  log "Building NMT-baked consensus-node image ${NMT_IMAGE_REPO}:${NMT_IMAGE_TAG} and side-loading into kind"
+  IMAGE_REPO="${NMT_IMAGE_REPO}" \
+  IMAGE_TAG="${NMT_IMAGE_TAG}" \
+  KIND_CLUSTER="${SOLO_CLUSTER_NAME}" \
+    "${NMT_IMAGE_DIR}/build.sh"
+}
+
 kexec() {
   local pod="$1"; shift
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- "$@"
@@ -527,62 +557,15 @@ prep_address_book_and_configs() {
   sed 's/^/  /' "${config_file}"
 }
 
-# kubectl cp + run the installer in the pod. The installer's systemd
-# registration of nmt-ics.service is a no-op in a Linux container (no
-# PID-1 systemd); start_nmt_watcher() takes over that role.
+# Prepare a Solo pod for an NMT install. The base image (see nmt-image/
+# Dockerfile) already ships NMT v1.3.4, the apt/dnf prereqs, the canonical
+# /opt/hgcapp layout, the Ubuntu /etc/os-release spoof, the hedera-in-docker
+# group, and a passwordless sudoers entry. This function only does the bits
+# that genuinely need runtime state from inside the pod: detach Solo's bind
+# mounts (so NMT's snapshot rm-rf doesn't EBUSY) and start dockerd by hand
+# (no systemd PID 1, so the daemon can't autostart).
 install_nmt_in_pod() {
   local pod="$1"
-  log "Copying NMT installer to ${pod}:${HEDERA_HOME_DIR}"
-  kcp "${NMT_INSTALLER_PATH}" "${pod}" "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}"
-  kexec "${pod}" chmod +x "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}"
-
-  log "Running NMT installer in ${pod}"
-  kexec "${pod}" sudo "${HEDERA_HOME_DIR}/${NMT_INSTALLER_BASENAME}" --accept -- -fg
-
-  # NMT preflight requires: awk, chmod, chown, comm, curl, cut, date, find,
-  # gunzip, gzip, head, jq, ln, readlink, rsync, sha256sum, sort, stat,
-  # systemctl, tar, unzip (source: extracted installer's
-  # tools/common/.../*.inc.sh PROGRAM_NAME constants). The Solo
-  # consensus-node image ships everything except jq, rsync, and the systemd
-  # package (the daemon won't run in the container but the systemctl binary
-  # satisfies the version check; NMT only invokes systemctl in code paths
-  # we skip — namely the nmt-ics.service registration, which we replace
-  # with `nmt watch` started manually by start_nmt_watcher()).
-  log "Installing NMT preflight prerequisites (jq, rsync, systemd, docker-ce, hashdeep) in ${pod}"
-  # docker-ce + hashdeep are NMT-required executables (preflight checks for
-  # them by exact name; the Debian-tree consensus-node image only carries
-  # docker.io, which NMT rejects). Add the upstream Docker apt repo, install
-  # everything we need in one shot.
-  kexec "${pod}" sudo bash -c "
-    set -e
-    apt-get update -qq
-    apt-get install -y -qq ca-certificates curl gnupg lsb-release
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-    echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable' > /etc/apt/sources.list.d/docker.list
-    apt-get update -qq
-    apt-get install -y -qq jq rsync systemd docker-ce docker-ce-cli containerd.io hashdeep gettext-base
-  "
-
-  # The Solo consensus-node image is Debian 13 (trixie), but NMT v1.3.4's
-  # OS-flavor detector only recognises Ubuntu/CentOS/RHEL/SUSE/Oracle (see
-  # tools/common/detect/detect_os_osr_support.inc.sh in the extracted
-  # installer). Preflight exits with EX_UNAVAILABLE (69) on unrecognised
-  # flavor. Debian and Ubuntu are functionally identical for what NMT does
-  # next (apt-based package management, glibc, systemd) so the simplest
-  # fix is to spoof /etc/os-release to read as Ubuntu. The kind pod is
-  # ephemeral so we don't bother backing up the original.
-  kexec "${pod}" sudo bash -c "cat > /etc/os-release <<'EOF'
-NAME=\"Ubuntu\"
-VERSION=\"24.04 LTS (Noble Numbat)\"
-ID=ubuntu
-ID_LIKE=debian
-PRETTY_NAME=\"Ubuntu 24.04 LTS\"
-VERSION_ID=\"24.04\"
-VERSION_CODENAME=noble
-UBUNTU_CODENAME=noble
-EOF"
 
   # Solo's network-node StatefulSet template bind-mounts per-subdir paths
   # from the kind node's /dev/vda1 under /opt/hgcapp/ (HapiApp2.0/{data/*,
@@ -597,52 +580,16 @@ EOF"
   # container filesystem. The consensus-node JVM isn't running yet (NMT
   # hasn't started it), so nothing's holding files open in those mounts.
   log "Detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod} (NMT snapshot needs the tree umounted)"
-  kexec "${pod}" sudo bash -c "
+  kexec "${pod}" bash -c "
     for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
       umount -l \"\$mp\" 2>/dev/null || true
     done
   "
 
-  # NMT preflight walks a canonical directory layout that production setup
-  # populates via the (skipped-here) systemd integration + launch-node.sh.
-  # On a fresh non-systemd install we have to create them by hand.
-  #
-  # Source: extracted installer's tools/config/system_folders.lst and
-  # system_folders.jrs.lst (paths are relative to /opt/hgcapp).
-  kexec "${pod}" sudo mkdir -p \
-    "${NMT_DIR}/state" \
-    "${NMT_DIR}/logs" \
-    "${HGCAPP_DIR}/accountBalances" \
-    "${HGCAPP_DIR}/accountBalances/archive" \
-    "${HGCAPP_DIR}/accountBalancesOriginal" \
-    "${HGCAPP_DIR}/eventsStreams" \
-    "${HGCAPP_DIR}/eventsStreams/archive" \
-    "${HGCAPP_DIR}/eventStreamRecover" \
-    "${HGCAPP_DIR}/recordStreams" \
-    "${HGCAPP_DIR}/recordStreams/archive" \
-    "${HGCAPP_DIR}/blockStreams" \
-    "${HGCAPP_DIR}/blockStreams/archive" \
-    "${HAPI_PATH}/data/config" \
-    "${HAPI_PATH}/data/diskFs" \
-    "${HAPI_PATH}/data/jdb" \
-    "${HAPI_PATH}/data/keys" \
-    "${HAPI_PATH}/data/lifecycle" \
-    "${HAPI_PATH}/data/onboard" \
-    "${HAPI_PATH}/data/saved" \
-    "${HAPI_PATH}/data/stats" \
-    "${HAPI_PATH}/data/upgrade" \
-    "${HAPI_PATH}/data/upgrade/current" \
-    "${HAPI_PATH}/data/upgrade/previous" \
-    "${HAPI_PATH}/data/upgrade/pending" \
-    "${HAPI_PATH}/logs" \
-    "${HAPI_PATH}/output"
-  kexec "${pod}" sudo chown -R hedera:hedera "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
-
-  # Add the hedera user to the docker group BEFORE we start dockerd. NMT
-  # runs all compose commands via `sudo -u hedera`, and docker.sock is
-  # root:docker 0660 by default. Without this, hedera's `docker compose up`
-  # calls silently fail and NMT misreports success.
-  kexec "${pod}" sudo usermod -aG docker hedera
+  # Re-assert ownership on the canonical NMT/HAPI dirs after umount — the
+  # umount uncovers the image-baked directories underneath, which already
+  # have the right ownership, but a defensive chown is cheap insurance.
+  kexec "${pod}" chown -R hedera:hedera "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
 
   # Start dockerd in the background. NMT install builds the swirlds-node and
   # swirlds-haveged docker images (and `nmt start` later docker-compose-ups
@@ -653,7 +600,7 @@ EOF"
   # vfs is necessary because the kind node already uses overlayfs and overlay-
   # on-overlay fails during image build.
   log "Starting dockerd in ${pod} (NMT install needs the docker daemon)"
-  kexec "${pod}" sudo bash -c "
+  kexec "${pod}" bash -c "
     if ! pgrep -x dockerd >/dev/null; then
       # --storage-driver=vfs: nested DinD doesn't stack overlay-on-overlay
       # cleanly. The kind node already uses overlayfs; trying to do overlay
@@ -696,7 +643,11 @@ install_platform_via_nmt() {
   # build the base ourselves with the matching JDK before nmt install can
   # build the jrs image on top. NMT v1.3.4 ships checksum files for jdk-25.0.2.
   log "Pre-building network-node-base:jdk-${OPENJDK_VERSION} (private gcr.io workaround)"
-  kexec "${pod}" sudo -u hedera bash -c "
+  # `runuser -u hedera` instead of `sudo -u hedera`: PAM is not consulted, so
+  # ARC runners (where /etc/shadow doesn't list uid 2000) don't fail with
+  # `PAM account management error`. The baked image puts hedera in the docker
+  # group already, so this docker build has socket access.
+  kexec "${pod}" runuser -u hedera -- bash -c "
     docker image inspect gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} >/dev/null 2>&1 || \
       docker build --tag gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} \
         --progress plain ${NMT_DIR}/images/network-node-base 2>&1 | tail -5
@@ -753,7 +704,9 @@ start_consensus_node_via_nmt() {
   # don't reach the container env. Use `docker compose up --force-recreate`
   # directly so the new JAVA_MAIN_CLASS / JAVA_OPTS / JDK actually land.
   log "docker compose up --force-recreate in ${pod} (bypassing nmt-start's --no-recreate)"
-  kexec "${pod}" sudo -u hedera bash -c "
+  # `runuser -u hedera` (not `sudo -u hedera`) — see install_platform_via_nmt
+  # for the PAM rationale.
+  kexec "${pod}" runuser -u hedera -- bash -c "
     cd ${NMT_DIR}/compose/network-node
     docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
       up -d --force-recreate 2>&1 | tail -10
