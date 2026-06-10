@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.jetbrains.annotations.TestOnly;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +82,8 @@ public final class HashgraphInfo {
     private int currMark = 0;
     private boolean roundDecided;
     private long supermajorityThreshold; // stake more than this is a supermajority
+    private final boolean[] whitened = {false}; // for lambda in sort in vote function: true iff hashes are whitened
+    private final byte[] whitening = new byte[48]; // for lambda in sort in vote function: the whitening bytes
     // the following are used for tracking candidates for judge in the current round (to speed up topVote & stakeAgrees)
     private int candCount; // how many candidates found so far during the pending round
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
@@ -103,6 +106,8 @@ public final class HashgraphInfo {
     public int getCurrMark() {return currMark;}
     public boolean getRoundDecided() {return roundDecided;}
     public long getSupermajorityThreshold() {return supermajorityThreshold;}
+    public boolean[] getWhitened() {return whitened;}
+    public byte[] getWhitening() {return whitening;}
     public ArrayList<ArrayList<Integer>> getCandIndex(){return candIndex};
     public EventInfo[] getCandEventInfo(){return candEventInfo;}
     public long[] getCandStake(){return candStake;};
@@ -893,38 +898,71 @@ public final class HashgraphInfo {
             // If judgeCon1 is false, then f first compares the extended medians, then the whitened hashes.
             if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
                 Instant roundTime;
+                h.whitened[0] = false;
                 Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
                 roundTime = roundJudgesArray[roundJudgesArray.length / 2].timeCreated;
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
                     if (e1.gen < e2.gen) {return -1;}
                     if (e1.gen > e2.gen) {return 1;}
-                    return Arrays.compare(e1.eventHash, e2.eventHash); // TODO whiten the hashes
+                    if (!h.whitened[0]) { // we need to whiten the hashes, it hasn't been done yet, so do it
+                        h.whitened[0] = true;
+                        Arrays.fill(h.whitening, (byte) 0);
+                        for (EventInfo judge : roundJudgesArray) {
+                            for (int i = 0; i < h.whitening.length; i++) {
+                                h.whitening[i] ^= judge.eventHash[i];
+                            }
+                        }
+                        for (EventInfo event : consensusEventsArray) {
+                            for (int i = 0; i < h.whitening.length; i++) {
+                                event.eventHash[i] ^= h.whitening[i];
+                            }
+                        }
+                    }
+                    return Arrays.compare(e1.eventHash, e2.eventHash);
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
                 }
             } else { // each new consensus event is an ancestor of all judges
-                int m = roundJudgesArray.length / 2; //median position in the array of times received by judges
+                h.whitened[0] = false;
+                final int m = roundJudgesArray.length / 2; //median position in the array of times received by judges
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
-                    for (int i = 1; i <= consensusEventsArray.length; i++) { //compare extended median
+                    for (int i = 0; i < roundJudgesArray.length; i++) { //compare extended median
                         int k = m - ((i % 2) * 2 - 1) * ((i + 1) / 2); // k is m, m-1, m+1, m-2, m+2, m-3, m+3, ...
-                        Instant t1 = consensusEventsArray[k].consensusTimestamp;
-                        Instant t2 = consensusEventsArray[k].consensusTimestamp;
+                        Instant t1 = e1.receivedTime[k];
+                        Instant t2 = e2.receivedTime[k];
                         if (t1.isBefore(t2)) {return -1;}
                         if (t1.isAfter(t2)) {return 1;}
                     }
-                    return Arrays.compare(e1.eventHash, e2.eventHash); // TODO whiten the hashes
+                    if (!h.whitened[0]) {
+                        h.whitened[0] = true;
+                        if (!h.whitened[0]) { // we need to whiten the hashes, it hasn't been done yet, so do it
+                            h.whitened[0] = true;
+                            Arrays.fill(h.whitening, (byte) 0);
+                            for (EventInfo judge : roundJudgesArray) {
+                                for (int i = 0; i < h.whitening.length; i++) {
+                                    h.whitening[i] ^= judge.eventHash[i];
+                                }
+                            }
+                            for (EventInfo event : consensusEventsArray) {
+                                for (int i = 0; i < h.whitening.length; i++) {
+                                    event.eventHash[i] ^= h.whitening[i];
+                                }
+                            }
+                        }
+                    }
+                    return Arrays.compare(e1.eventHash, e2.eventHash);
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp =
                             consensusEventsArray[i].receivedTime[m];
                 }
-            }
-
+            } // end of before, consensusOrder, consensusTimestamp
+            // Could undo whitening (if needed) here. But EventInfo.hash is private and never used again, so don't.
 
             // the round reached consensus, so set the old judges to false and the new to true
             for (EventInfo judge : rp.prevJudges) {
