@@ -18,6 +18,11 @@ on:
         type: string
         required: false
         default: "/opt/wraps-v1.0.0"
+  # workflow_dispatch only resolves workflows on the default branch, so also run on PRs
+  # that touch this file to allow validating runner pools before this workflow is merged
+  pull_request:
+    paths:
+      - ".github/workflows/zxf-adhoc-wraps-runner-smoke.yaml"
 
 defaults:
   run:
@@ -29,12 +34,12 @@ permissions:
 jobs:
   smoke-test:
     name: "WRAPS Artifacts Smoke Test"
-    runs-on: ${{ inputs.runner-label }}
+    runs-on: ${{ inputs.runner-label || 'hl-cn-hapi-wraps-lin-lg' }}
     timeout-minutes: 15
     steps:
       - name: Verify WRAPS proving-key artifacts
         env:
-          ARTIFACTS_PATH: ${{ inputs.artifacts-path }}
+          ARTIFACTS_PATH: ${{ inputs.artifacts-path || '/opt/wraps-v1.0.0' }}
         run: |
           status=0
           echo "Checking ${ARTIFACTS_PATH}"
