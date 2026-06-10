@@ -148,6 +148,7 @@ DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/app
 BASE_075_APP_PROPS_FILE="${BASE_075_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 # Remote-only Helm value overrides: scheduling tolerations/nodeSelector + MinIO storage class.
 REMOTE_NETWORK_VALUES_TEMPLATE="${REMOTE_NETWORK_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/network-values.yaml}"
+REMOTE_MIRROR_VALUES_TEMPLATE="${REMOTE_MIRROR_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/mirror-values.yaml}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
@@ -1263,7 +1264,15 @@ ensure_mirror_node() {
     return 0
   fi
   log "Deploying mirror node"
-  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
+  local mirror_add_args=(solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger)
+  # On the shared remote cluster, give the mirror sub-charts a blanket Exists toleration so they
+  # schedule on the tainted nodes immediately. The value matches the toleration patcher's, so the
+  # patcher never rolls these Deployments — which is what otherwise races Solo's "Check pods are
+  # ready" and crashes mirror node add with "Cannot read properties of undefined (reading 'labels')".
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    mirror_add_args+=(--values-file "${REMOTE_MIRROR_VALUES_TEMPLATE}")
+  fi
+  "${mirror_add_args[@]}"
   for _ in $(seq 1 60); do
     mirror_rest_service_exists && return 0
     sleep 5
