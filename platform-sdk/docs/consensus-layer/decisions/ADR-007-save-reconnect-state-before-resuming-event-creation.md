@@ -114,29 +114,27 @@ advancing consensus.
 - **Reuses existing machinery.** The status state machine, the saved-state controller, and the `StateWrittenToDiskAction`
   signal already exist; the guarantee is expressed as a status that withholds event creation until a disk write it
   already requested completes.
+- **The wait is exactly as long as the write takes.** Unlike `OBSERVING`, which exits after a fixed delay (see
+  [ADR-004](ADR-004-retain-observing-status-for-self-event-recovery.md)), `RECONNECT_COMPLETE` exits on a concrete
+  event — the reconnect state (or later) reaching disk — so the node resumes event creation the instant it is safe to,
+  with no arbitrary delay.
 
 ### Negative
 
 - **Added latency before a reconnected node creates events.** The node must complete a full state write to disk before
   leaving `RECONNECT_COMPLETE`. On large states this write is not instant, so there is a delay between finishing
   reconnect and resuming contribution to consensus.
-- **A persistence fault leaves a reconnected node stuck out of event creation.** If the disk write never succeeds (for
-  example, a full or failing disk), the node stays in `RECONNECT_COMPLETE` indefinitely — gossiping but never creating
-  events — because the `StateWrittenToDiskAction` that would advance it never arrives. Keeping such a node out of event
-  creation is intentional (the flip side of the crash-resilience guarantee above: a node that cannot make itself crash
-  resilient must not advance consensus). The write failure itself is not silent — `SignedStateFileWriter` logs it at
-  the `EXCEPTION` marker and rethrows — but nothing escalates the condition: the node neither resumes event creation nor
-  exits on its own, so clearing a stuck reconnected node requires operator intervention.
 
 ### Neutral
 
+- **A persistence fault holds the node in `RECONNECT_COMPLETE`.** If the disk write never succeeds (e.g. a full or
+  failing disk), the node never receives the `StateWrittenToDiskAction` that advances it, so it stays in
+  `RECONNECT_COMPLETE` — gossiping but not creating events — until the disk problem is resolved. The failure is logged
+  by `SignedStateFileWriter` at the `EXCEPTION` marker, so a node lingering in `RECONNECT_COMPLETE` is a useful signal
+  of a persistence problem.
 - **Gossip continues throughout `RECONNECT_COMPLETE`.** Withholding *event creation* does not withhold *gossip*; the
   node still helps distribute events while it waits for its own state write, so the pause does not isolate it from the
   network.
-- **The transition out is data-driven, not timed.** Unlike `OBSERVING`, which exits after a fixed delay
-  (see [ADR-004](ADR-004-retain-observing-status-for-self-event-recovery.md)), `RECONNECT_COMPLETE` exits on a concrete
-  event — the reconnect state (or later) reaching disk — so the wait is exactly as long as the write takes, no more and
-  no less.
 
 ## Alternatives Considered
 
@@ -160,8 +158,9 @@ existing on-disk state becomes a valid restart point again.
 
 **Rejected because:**
 
-- Those events may no longer be available from any peer, and fetching an arbitrary historical range is far more complex
-  and fragile than writing the state the node already holds in memory.
+- Those events are not served by gossip, which only exchanges recent (non-ancient) events. They still exist
+  in the teacher's on-disk PCES but pulling an arbitrary historical range would require a new
+  retrieval mechanism, far more complex and fragile than writing the state the node already holds in memory.
 - It optimizes to preserve an *old* on-disk state when the node already has a *newer*, complete state in hand. Persisting
   the learned state is simpler and yields a better (more recent) restart point.
 
