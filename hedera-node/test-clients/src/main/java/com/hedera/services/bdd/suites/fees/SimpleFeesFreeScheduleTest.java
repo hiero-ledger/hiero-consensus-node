@@ -37,6 +37,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -75,65 +76,40 @@ public class SimpleFeesFreeScheduleTest {
         final var gasUsedRef = new AtomicReference<>(0L);
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
         return hapiTest(
-                withOpContext((spec, opLog) -> {
-                    // save the original fee schedule
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    // upload a modified fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesNormal()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
+                withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesNormal())),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(ADMIN_KEY),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT)
-                        .adminKey(ADMIN_KEY)
-                        .payingWith(PAYER)
-                        .signedBy(PAYER, ADMIN_KEY)
-                        .gas(200_000L)
-                        .via("createTxn"),
-                withOpContext((spec, op) -> gasUsedRef.set(getGasUsedForContractCreate(spec, "createTxn"))),
-                validateChargedUsdWithinWithTxnSize(
-                        "createTxn",
-                        txnSize -> {
-                            var ret = expectedContractCreateSimpleFeesUsd(Map.of(
-                                    SIGNATURES, 2L,
-                                    KEYS, 1L,
-                                    PROCESSING_BYTES, (long) txnSize));
-                            ret += gasUsedRef.get() * GAS_FEE_USD;
-                            return ret;
-                        },
-                        0.01),
-                withOpContext((spec, opLog) -> {
-                    // restore the original fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, originalSimpleFeeSchedule.get()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }));
+                        newKeyNamed(ADMIN_KEY),
+                        uploadInitCode(CONTRACT),
+                        contractCreate(CONTRACT)
+                                .adminKey(ADMIN_KEY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .gas(200_000L)
+                                .via("createTxn"),
+                        withOpContext((spec, op) -> gasUsedRef.set(getGasUsedForContractCreate(spec, "createTxn"))),
+                        validateChargedUsdWithinWithTxnSize(
+                                "createTxn",
+                                txnSize -> {
+                                    var ret = expectedContractCreateSimpleFeesUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 1L,
+                                            PROCESSING_BYTES, (long) txnSize));
+                                    ret += gasUsedRef.get() * GAS_FEE_USD;
+                                    return ret;
+                                },
+                                0.01),
+                        withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
     }
 
     @HapiTest
     final Stream<DynamicTest> runContractCreateWithCheapGas() {
         final var gasUsedRef = new AtomicReference<>(0L);
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
+        final double CHEAP_GAS_FEE_USD = 0.000_000_010_0;
         return hapiTest(
-                withOpContext((spec, opLog) -> {
-                    // save the original fee schedule
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    // upload a modified fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesCheapGas()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
+                withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesCheapGas())),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(ADMIN_KEY),
                 uploadInitCode(CONTRACT),
@@ -151,18 +127,12 @@ public class SimpleFeesFreeScheduleTest {
                                     SIGNATURES, 2L,
                                     KEYS, 1L,
                                     PROCESSING_BYTES, (long) txnSize));
-                            ret += gasUsedRef.get() * 0.000_000_010_0;
-                            System.out.println("checking price: " + gasUsedRef.get() + " " + ret);
+                            ret += gasUsedRef.get() * CHEAP_GAS_FEE_USD;
                             return ret;
                         },
                         0.01),
-                withOpContext((spec, opLog) -> {
-                    // restore the original fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, originalSimpleFeeSchedule.get()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }));
+                // restore the original fee schedule
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
     }
 
     @HapiTest
@@ -170,18 +140,8 @@ public class SimpleFeesFreeScheduleTest {
         final var gasUsedRef = new AtomicReference<>(0.0);
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
         return hapiTest(
-                withOpContext((spec, opLog) -> {
-                    // save the original fee schedule
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    // upload a modified fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithEverythingFree()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
+                withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesWithEverythingFree())),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(ADMIN_KEY),
                 uploadInitCode(CONTRACT),
@@ -193,13 +153,8 @@ public class SimpleFeesFreeScheduleTest {
                         .via("createTxn"),
                 withOpContext((spec, op) -> gasUsedRef.set(getChargedGasForContractCreate(spec, "createTxn"))),
                 validateChargedUsdWithinWithTxnSize("createTxn", txnSize -> 0, 0.01),
-                withOpContext((spec, opLog) -> {
-                    // restore the original fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, originalSimpleFeeSchedule.get()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }));
+                // restore the original fee schedule
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesAreFree"})
@@ -222,18 +177,8 @@ public class SimpleFeesFreeScheduleTest {
     final Stream<DynamicTest> runFreeContractCreateAndPaidContractCall() {
         final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
         return hapiTest(
-                withOpContext((spec, opLog) -> {
-                    // save the original fee schedule
-                    allRunFor(
-                            spec,
-                            getFileContents(SIMPLE_FEE_SCHEDULE)
-                                    .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
-                    // upload a modified fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, simpleFeesWithContractCreateFree()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }),
+                withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesWithContractCreateFree())),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(ADMIN_KEY),
                 uploadInitCode(CONTRACT_CREATE),
@@ -243,13 +188,23 @@ public class SimpleFeesFreeScheduleTest {
                 validateChargedUsdWithinWithTxnSize("createTxn", txnSize -> 0.01993, 1),
                 contractCall(CONTRACT_CREATE, "create").gas(785_000).via("callTxn"),
                 validateChargedUsdWithinWithTxnSize("callTxn", txnSize -> 0, 0.01),
-                withOpContext((spec, opLog) -> {
-                    // restore the original fee schedule
-                    allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, originalSimpleFeeSchedule.get()));
-                    assertTrue(
-                            spec.tryReinitializingFees(),
-                            "Failed to reinitialize fees after overriding simple fee schedule");
-                }));
+                // restore the original fee schedule
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
+    }
+
+    private static void swapSimpleFeeSchedule(HapiSpec spec, ByteString newFeeSchedule) {
+        allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, newFeeSchedule));
+        assertTrue(
+                spec.tryReinitializingFees(),
+                "Failed to reinitialize fees after overriding simple fee schedule");
+    }
+
+    private static void saveFeeSchedule(HapiSpec spec, AtomicReference<ByteString> originalSimpleFeeSchedule) {
+        // save the original fee schedule
+        allRunFor(
+                spec,
+                getFileContents(SIMPLE_FEE_SCHEDULE)
+                        .consumedBy(bytes -> originalSimpleFeeSchedule.set(ByteString.copyFrom(bytes))));
     }
 
     private static ByteString simpleFeesNormal() {
