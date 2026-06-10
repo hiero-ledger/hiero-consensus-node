@@ -1,0 +1,14 @@
+# Override Solo's root-container image with our NMT-baked variant. Pulled in
+# via `solo consensus network deploy --values-file <this>` from solo-migration-
+# test.sh. The image is tagged locally and side-loaded into kind, so
+# pullPolicy=Never is required (no registry).
+#
+# Key path source: solo-deployment chart 0.63.3 values.yaml -> hedera.root.image
+# Issue: hiero-ledger/hiero-consensus-node#25736
+hedera:
+  root:
+    image:
+      registry: "localhost"
+      repository: "solo-nmt-network-node"
+      tag: "v1.3.4-jdk25"
+      pullPolicy: "Never"
