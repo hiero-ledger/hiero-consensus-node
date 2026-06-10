@@ -377,8 +377,15 @@ deploy_baseline() {
   # `--pvcs true` is required because step 3 uses `consensus network upgrade
   # --local-build-path`, which stages new JARs through persistent volumes that
   # must survive the upgrade-driven pod restarts.
-  # `--values-file` substitutes defaults.root.image.* with the local NMT-baked
-  # image (imagePullPolicy=Never; side-loaded into kind by build_and_load_nmt_image).
+  #
+  # Image override path: Solo CLI's `addRootImageValues()` injects per-node
+  # `hedera.nodes[N].root.image.{registry,repository,tag}` via helm `--set`,
+  # which beats anything we put in `--values-file` (per Helm precedence).
+  # The three SOLO_S6_NODE_IMAGE_* env vars override the defaults Solo uses
+  # in that --set, so they're the only way to redirect the root-container
+  # image at the per-node level. The `--values-file` still carries
+  # `pullPolicy: Never` (Solo doesn't --set pullPolicy, so the values-file
+  # wins for that one key).
   #
   # The deploy is wrapped in a diagnostic harness: solo's own pod-ready check
   # times out at 900 attempts (~15min). If Solo gives up, an EXIT trap on the
@@ -406,6 +413,9 @@ deploy_baseline() {
       echo "===== end diagnostic dump ====="
     }
     trap diag_dump EXIT
+    SOLO_S6_NODE_IMAGE_REGISTRY=localhost \
+    SOLO_S6_NODE_IMAGE_REPOSITORY="${NMT_IMAGE_REPO}" \
+    SOLO_S6_NODE_IMAGE_VERSION="${NMT_IMAGE_TAG}" \
     solo consensus network deploy \
       --deployment "${SOLO_DEPLOYMENT}" \
       --node-aliases "${NODE_ALIASES}" \

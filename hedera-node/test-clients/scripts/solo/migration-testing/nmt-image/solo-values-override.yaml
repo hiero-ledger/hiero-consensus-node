@@ -1,20 +1,24 @@
-# Override Solo's root-container image with our NMT-baked variant. Pulled in
-# via `solo consensus network deploy --values-file <this>` from solo-migration-
-# test.sh. The image is tagged locally and side-loaded into kind, so
-# pullPolicy=Never is required (no registry).
+# Helm values override pulled in via `solo consensus network deploy
+# --values-file <this>` from solo-migration-test.sh.
 #
-# Key path: the chart's network-node-statefulset.yaml computes the root image
-# via:
-#   $rootImage := ($node.root).image | default $.Values.defaults.root.image
-# i.e. `defaults.root.image` is the chart-wide default, applied to every node
-# that doesn't set its own `hedera.nodes[].root.image`. We override the
-# default since all three migration-test nodes use the same image.
+# Why only `pullPolicy` is here:
+#
+# Solo CLI's addRootImageValues() (see node_modules/@hashgraph/solo/dist/src/
+# core/helpers.js) injects per-node image refs via helm `--set`:
+#   --set hedera.nodes[N].root.image.registry=<X>
+#   --set hedera.nodes[N].root.image.repository=<Y>
+#   --set hedera.nodes[N].root.image.tag=<Z>
+# Helm `--set` beats `--values-file`, so any registry/repository/tag we put
+# here would be silently shadowed. The script overrides those three knobs
+# with SOLO_S6_NODE_IMAGE_{REGISTRY,REPOSITORY,VERSION} env vars (consumed
+# inside Solo CLI before the --set is built).
+#
+# `pullPolicy` is *not* set by Solo CLI, so values-file wins for that one
+# key — and we need pullPolicy=Never because the image is side-loaded into
+# kind, not pulled from a registry.
 #
 # Issue: hiero-ledger/hiero-consensus-node#25736
 defaults:
   root:
     image:
-      registry: "localhost"
-      repository: "solo-nmt-network-node"
-      tag: "v1.3.4-jdk25"
       pullPolicy: "Never"
