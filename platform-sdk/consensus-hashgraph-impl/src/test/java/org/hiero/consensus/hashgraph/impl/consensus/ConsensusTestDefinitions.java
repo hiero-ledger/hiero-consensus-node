@@ -67,7 +67,7 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
-        // Leemon - this single line will generate 10,000 events and feed them into two instances of consensus
+        // This single line will generate 10,000 events and feed them into two instances of consensus
         //        orchestrator.generateAllEvents();
 
         // This line will generate the first 1,000 events, feed them into consensus, and stop
