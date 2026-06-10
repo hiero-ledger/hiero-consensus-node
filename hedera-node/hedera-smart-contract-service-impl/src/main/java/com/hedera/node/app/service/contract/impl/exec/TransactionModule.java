@@ -84,7 +84,8 @@ public interface TransactionModule {
         if (feesConfig.simpleFeesEnabled()) {
             final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
             if (gasExtra != null) {
-                return TinybarValues.forSimpleFeesTransactionWith(exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
+                return TinybarValues.forSimpleFeesTransactionWith(
+                        exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
             }
         }
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
