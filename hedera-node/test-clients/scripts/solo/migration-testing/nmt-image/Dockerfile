@@ -59,6 +59,7 @@ RUN dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.n
         containerd.io \
         docker-ce \
         docker-ce-cli \
+        docker-buildx-plugin \
         docker-compose-plugin \
     && dnf clean all \
     && rm -rf /var/cache/dnf
