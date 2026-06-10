@@ -180,7 +180,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return is this part of the consensus order yet?
      */
     public boolean isConsensus() {
-        return isConsensus;
+        return eventInfo == null ? isConsensus : eventInfo.getIsConsensus();
     }
 
     /**

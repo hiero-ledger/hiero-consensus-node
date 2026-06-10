@@ -15,9 +15,11 @@ import com.swirlds.config.api.ConfigProperty;
  *                         and never have their transactions handled.
  * @param roundsExpired    Events this many rounds old are expired, and can be deleted from memory
  * @param coinFreq         a coin round happens every coinFreq rounds during an election (every other one is all true)
+ * @param useDABConsensusAlgorithm if true, use the DAB consensus algorithm
  */
 @ConfigData("consensus")
 public record ConsensusConfig(
         @ConfigProperty(defaultValue = "26") int roundsNonAncient,
         @ConfigProperty(defaultValue = "1000") int roundsExpired,
-        @ConfigProperty(defaultValue = "12") int coinFreq) {}
+        @ConfigProperty(defaultValue = "12") int coinFreq,
+        @ConfigProperty(defaultValue = "true") boolean useDABConsensusAlgorithm) {}
