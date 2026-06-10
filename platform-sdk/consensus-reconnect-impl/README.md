@@ -15,7 +15,7 @@ May depend on:
 - `consensus-reconnect` (its API), any supporting module
 - Functional-api modules: `consensus-gossip`, `consensus-event-creator`, `consensus-event-intake`,
 `consensus-hashgraph`, `consensus-pces`
-- Structural-transitional modules: `consensus-state`, `consensus-platformstate`
+- Structural-transitional module: `consensus-state`; supporting module: `consensus-platformstate`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
 `swirlds-component-framework`
 

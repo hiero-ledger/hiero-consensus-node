@@ -49,8 +49,10 @@ consumed across the layer. They form a strict DAG; no circular dependencies are 
 - `consensus-concurrent` — concurrency primitives; may depend on `consensus-model`.
 - `consensus-metrics` — metrics infrastructure; may depend on `consensus-model`,
   `consensus-concurrent`.
-- `consensus-roster` *(transitional — will eventually move to the execution layer)*; may
-  depend on `consensus-model`.
+- `consensus-roster` — roster data and lookup; may depend on `consensus-model`. Will
+  eventually move to the execution layer.
+- `consensus-platformstate` — `PlatformState` Merkle node; may depend on `consensus-model`.
+  Will eventually move to the execution layer.
 - `consensus-utility` — general-purpose helpers; may depend on `consensus-model`,
   `consensus-concurrent`, `consensus-metrics`, `consensus-roster`.
 - `consensus-event-stream` — event-stream file writing; may depend on `consensus-model`,
@@ -78,7 +80,6 @@ paired API and any supporting module. Must not depend on other impl modules:
 **Structural-transitional modules** — treated like impl modules (rule 3 applies) until they
 move to the execution layer:
 - `consensus-state`
-- `consensus-platformstate`
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
 - `consensus-gui`

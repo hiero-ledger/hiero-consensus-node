@@ -6,8 +6,9 @@ execution layer.
 
 ## Architecture
 
-A structural-transitional module — treated like an impl module until it moves to the execution
-layer. Production code should not depend on it directly. For the state fields it holds, see
+A passive data module — holds and exposes a well-defined slice of the Merkle tree state without
+orchestrating anything, analogous to `consensus-model` but scoped to platform state. For the
+fields it holds, see
 [freeze and upgrade](../docs/consensus-layer/architecture/topics/freeze-and-upgrade.md),
 [signed state management](../docs/consensus-layer/architecture/topics/signed-state-management.md),
 and the [consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
@@ -19,7 +20,7 @@ May depend on:
 - `swirlds-base`, `swirlds-config-api`, `swirlds-state-api`, `swirlds-state-impl`
 
 Must not depend on:
-- Any `consensus-*-impl` module or other structural-transitional module
+- Any `consensus-*-impl` module or structural-transitional module
 - Any functional-api module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
 - `swirlds-component-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
