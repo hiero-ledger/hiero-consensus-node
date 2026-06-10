@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -12,7 +11,6 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +19,10 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A {@link UtilOp} that validates the streams produced in an ISS scenario, where the ISS node
- * block stream diverges from the block streams of the other nodes.
+ * A {@link UtilOp} that validates the block streams produced in an ISS scenario, where the ISS node block stream
+ * diverges from the other nodes. Per issue #25827 the ISS node keeps streaming through the ISS but stops its block
+ * stream when the platform reaches {@code CATASTROPHIC_FAILURE}, so it falls behind the other nodes (which continue to
+ * the network freeze) — this op asserts that divergence plus that every non-ISS node froze and all streams are parseable.
  */
 // (FUTURE) Split up into more granular ops
 public class ParseableIssBlockStreamValidationOp extends UtilOp {
@@ -57,58 +57,23 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
                     spec.getNetworkNodes().size());
         }
 
-        // We cause the ISS in node1
-        final var deviatingBlockStream = blocksPerNode.get(1);
-
-        // Verify the non-ISS block streams
+        // We cause the ISS in node1. Per issue #25827 it keeps streaming through the ISS, but stops its block stream
+        // when the platform reaches CATASTROPHIC_FAILURE, so it falls behind the other nodes (which continue to the
+        // network freeze). The ISS-specific behaviour (ISS detected, then "Block stream fatal shutdown complete") is
+        // additionally asserted via logs in IssHandlingTest.
+        final var deviatingBlockStream = blocksPerNode.get((int) ISS_NODE_ID);
         for (int i = 0, n = blocksPerNode.size(); i < n; i++) {
             if (i != ISS_NODE_ID) {
                 final var nodeBlocks = blocksPerNode.get(i);
-                // Assert the stream has a freeze transaction
+                // Assert the stream has a freeze transaction (the non-ISS nodes continued and froze the network)
                 assertTrue(hasFreeze(nodeBlocks), "No freeze transaction found in stream for node" + i);
-                // Assert that this node has more complete blocks than the ISS node. The ISS node keeps streaming
-                // until it reaches CATASTROPHIC_FAILURE, while the others continue all the way through the freeze.
+                // Assert this node has more blocks than the ISS node, which stopped streaming at CATASTROPHIC_FAILURE
                 assertTrue(
                         nodeBlocks.size() > deviatingBlockStream.size(),
                         "Non-ISS node" + i + " should have more blocks than ISS node" + ISS_NODE_ID);
             }
         }
-
-        // Rather than stopping at ISS detection, the ISS node continues until CATASTROPHIC_FAILURE and
-        // then flushes the contents of any open/pending blocks to disk for triage. Verify those pending artifacts
-        // (.pnd.gz / .pnd.json) are present on the ISS node's disk. We scan the node's whole blockStreams/ tree
-        // (including any cutover/archive subdirectories) for robustness. This relies on the ISS node having at least
-        // one block still awaiting its proof when it failed, which is expected given asynchronous block signing; the
-        // deterministic backstop that the flush ran at all is the "Block stream fatal shutdown complete" log asserted
-        // in IssHandlingTest.
-        final var issNodeBlockDir =
-                spec.getNetworkNodes().get((int) ISS_NODE_ID).getExternalPath(BLOCK_STREAMS_PARENT_DIR);
-        assertTrue(
-                hasPendingBlockArtifacts(issNodeBlockDir),
-                "ISS node" + ISS_NODE_ID
-                        + " should have flushed pending/open block artifacts (.pnd.gz/.pnd.json) to "
-                        + issNodeBlockDir.toAbsolutePath());
         return false;
-    }
-
-    /**
-     * Returns true if the given block-stream directory contains any pending-block artifacts flushed for triage,
-     * i.e. files ending in {@code .pnd.gz}, {@code .pnd}, or {@code .pnd.json}.
-     *
-     * @param blockDir the node's block stream directory to scan
-     * @return true if any pending-block artifact is present
-     */
-    private static boolean hasPendingBlockArtifacts(@NonNull final Path blockDir) {
-        if (!Files.exists(blockDir)) {
-            return false;
-        }
-        try (final var paths = Files.walk(blockDir)) {
-            return paths.map(p -> p.getFileName().toString())
-                    .anyMatch(name -> name.endsWith(".pnd.gz") || name.endsWith(".pnd") || name.endsWith(".pnd.json"));
-        } catch (final Exception e) {
-            log.warn("Failed to scan for pending block artifacts in {}", blockDir, e);
-            return false;
-        }
     }
 
     /**

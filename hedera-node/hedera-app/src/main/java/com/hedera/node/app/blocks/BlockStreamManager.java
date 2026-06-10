@@ -189,10 +189,20 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
 
     /**
-     * Synchronous method invoked when the platform has reached a catastrophic failure (e.g. following an ISS).
-     * Flushes the contents of any open or pending blocks to local disk for triage before the node stops, bounded
-     * by the given timeout. The block stream manager is otherwise allowed to keep processing rounds normally up
-     * until this point.
+     * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that
+     * (a) stops the block stream from opening or mutating any further block state and (b) causes the next round
+     * boundary on the handler thread to flush the contents of any open and pending blocks to local disk for triage.
+     * Safe to call from any thread and idempotent; it does NOT itself flush. The block stream manager is otherwise
+     * allowed to keep processing rounds normally up until this point. Callers wait for the flush to finish via
+     * {@link #awaitFatalShutdown(Duration)}.
+     */
+    void notifyFatalEvent();
+
+    /**
+     * Synchronous method invoked, after {@link #notifyFatalEvent()}, when the platform has reached a catastrophic
+     * failure. Blocks until the handler-thread flush of any open and pending blocks has completed, bounded by the
+     * given timeout; if no further round boundary occurs within the timeout it flushes any already-closed pending
+     * blocks itself (a race-free fallback) and returns.
      *
      * @param timeout the maximum time to wait for the open/pending blocks to be flushed to disk
      */
