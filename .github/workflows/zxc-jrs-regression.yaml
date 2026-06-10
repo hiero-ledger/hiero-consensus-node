@@ -241,7 +241,7 @@ jobs:
           sudo chmod +x /usr/local/ping-exporter/ping_exporter
 
       - name: Execute Ping Exporter
-        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
+        uses: step-security/background-action@293c0fb4f7dc90ee6c7f99ef4e5afd2a68262160 # v1.0.9
         with:
           run: |
             sudo setcap cap_net_raw+ep /usr/local/ping-exporter/ping_exporter
@@ -253,7 +253,7 @@ jobs:
             http://localhost:9427/metrics
 
       - name: Execute Grafana Agent
-        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
+        uses: step-security/background-action@293c0fb4f7dc90ee6c7f99ef4e5afd2a68262160 # v1.0.9
         env:
           GRAFANA_AGENT_USERNAME: ${{ secrets.grafana-agent-username }}
           GRAFANA_AGENT_PASSWORD: ${{ secrets.grafana-agent-password }}
