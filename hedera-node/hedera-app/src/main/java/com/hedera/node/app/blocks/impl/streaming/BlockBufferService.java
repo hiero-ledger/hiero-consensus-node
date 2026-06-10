@@ -11,6 +11,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -310,23 +311,28 @@ public class BlockBufferService {
     }
 
     /**
-     * Adds a new block item to the streaming queue for the specified block.
+     * Adds a new block item, in its serialized form, to the streaming queue for the specified block.
      *
      * @param blockNumber the block number to add the block item to
-     * @param blockItem the block item to add
+     * @param serializedItem the full serialized bytes of the block item to add
+     * @param itemType the type of the block item being added
      * @throws IllegalStateException if no block is currently open
      */
-    public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
+    public void addItem(
+            final long blockNumber,
+            @NonNull final Bytes serializedItem,
+            @NonNull final BlockItem.ItemOneOfType itemType) {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
-        requireNonNull(blockItem, "blockItem must not be null");
+        requireNonNull(serializedItem, "serializedItem must not be null");
+        requireNonNull(itemType, "itemType must not be null");
         final BlockState blockState = getBlockState(blockNumber);
         if (blockState == null || blockState.isClosed()) {
             return;
         }
-        blockStreamMetrics.recordBlockItemBytes(blockItem.protobufSize());
-        blockState.addItem(blockItem);
+        blockStreamMetrics.recordBlockItemBytes((int) serializedItem.length());
+        blockState.addSerializedItem(serializedItem, itemType);
     }
 
     /**
@@ -517,7 +523,7 @@ public class BlockBufferService {
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
-            bufferedBlock.block().items().forEach(block::addItem);
+            bufferedBlock.block().items().forEach(block::addSerializedItem);
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
