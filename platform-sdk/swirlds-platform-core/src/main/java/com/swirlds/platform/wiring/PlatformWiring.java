@@ -9,7 +9,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -31,9 +30,11 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -57,7 +58,7 @@ public class PlatformWiring {
             @NonNull final PlatformContext platformContext,
             @NonNull final ExecutionLayer execution,
             @NonNull final PlatformComponents components,
-            @NonNull final ApplicationCallbacks callbacks) {
+            @Nullable final StaleEventConsumer staleEventConsumer) {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(execution);
         Objects.requireNonNull(components);
@@ -131,10 +132,10 @@ public class PlatformWiring {
                 .createdEventOutputWire()
                 .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
-        if (callbacks.staleEventConsumer() != null) {
+        if (staleEventConsumer != null) {
             final OutputWire<PlatformEvent> staleEvent =
                     components.hashgraphModule().staleEventOutputWire();
-            staleEvent.solderTo("staleEventCallback", "stale events", callbacks.staleEventConsumer());
+            staleEvent.solderTo("staleEventCallback", "stale events", staleEventConsumer::handleStaleEvent);
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
@@ -354,15 +355,6 @@ public class PlatformWiring {
                         INJECT);
 
         solderNotifier(components);
-
-        if (callbacks.preconsensusEventConsumer() != null) {
-            components
-                    .eventIntakeModule()
-                    .validatedEventsOutputWire()
-                    .solderTo(
-                            "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
-        }
-
         buildUnsolderedWires(components);
     }
 

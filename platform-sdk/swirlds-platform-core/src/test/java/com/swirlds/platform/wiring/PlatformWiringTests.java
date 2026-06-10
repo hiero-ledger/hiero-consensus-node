@@ -18,7 +18,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
@@ -108,13 +107,12 @@ class PlatformWiringTests {
                 pcesModule,
                 hashgraphModule,
                 gossipModule);
-        PlatformWiring.wire(
-                platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
+        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
-        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))

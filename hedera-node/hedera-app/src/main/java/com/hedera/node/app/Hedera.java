@@ -135,6 +135,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
@@ -177,7 +178,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -220,8 +220,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera
-        implements SwirldMain, AppContext.Gossip, Consumer<PlatformEvent>, ConsensusStateEventHandler {
+public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventConsumer, ConsensusStateEventHandler {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -666,7 +665,7 @@ public final class Hedera
     }
 
     @Override
-    public void accept(@NonNull final PlatformEvent event) {
+    public void handleStaleEvent(@NonNull final Event event) {
         requireNonNull(event);
         if (quiescenceEnabled) {
             final var app = requireNonNull(daggerApp);
