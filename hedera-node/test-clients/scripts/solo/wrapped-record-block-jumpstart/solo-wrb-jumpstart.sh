@@ -28,9 +28,9 @@ Environment:
   LOCAL_BUILD_UPGRADE_TAG       Placeholder upgrade-version Solo applies to a local-build upgrade
                                 (default: v0.75.0-rc.5)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
-                                (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
-  BASE_074_APP_PROPS_FILE       Base 0.74 properties used to generate temp upgrade file
                                 (default: wrapped-record-block-jumpstart/resources/0.74/application.properties)
+  BASE_075_APP_PROPS_FILE       Base 0.75 properties used to generate temp upgrade file
+                                (default: wrapped-record-block-jumpstart/resources/0.75/application.properties)
   LOG4J2_XML_PATH               log4j2 xml path (default: <repo>/hedera-node/configuration/dev/log4j2.xml)
   BLOCK_NODE_REPO_PATH          Path to hiero-block-node checkout (default: ../hiero-block-node)
   BLOCKS_WRAP_EXTRA_ARGS        Extra args appended to `blocks wrap ...`
@@ -144,8 +144,8 @@ LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.5}"
 USE_LOCAL_BUILD_FOR_UPGRADE="false"
 SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
-DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
-BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+BASE_075_APP_PROPS_FILE="${BASE_075_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 # Remote-only Helm value overrides: scheduling tolerations/nodeSelector + MinIO storage class.
 REMOTE_NETWORK_VALUES_TEMPLATE="${REMOTE_NETWORK_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/network-values.yaml}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
@@ -894,7 +894,7 @@ normalize_hash_list() {
 }
 
 create_temp_upgrade_properties() {
-  cp "${BASE_074_APP_PROPS_FILE}" "${TMP_UPGRADE_APP_PROPS}"
+  cp "${BASE_075_APP_PROPS_FILE}" "${TMP_UPGRADE_APP_PROPS}"
   {
     echo ""
     echo "# Added by solo-wrb-jumpstart.sh"
@@ -1369,7 +1369,7 @@ require_cmd java
 validate_block_node_repo
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
-[[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
+[[ -f "${BASE_075_APP_PROPS_FILE}" ]] || { echo "Base 0.75 application.properties not found: ${BASE_075_APP_PROPS_FILE}" >&2; exit 1; }
 if [[ -z "${UPGRADE_TAG}" ]]; then
   # Local-build upgrade from the checked-out branch.
   USE_LOCAL_BUILD_FOR_UPGRADE="true"

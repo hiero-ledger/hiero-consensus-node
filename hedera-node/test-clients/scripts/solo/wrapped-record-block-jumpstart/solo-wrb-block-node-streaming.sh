@@ -33,7 +33,7 @@ Environment:
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (default: <repo>/hedera-node/data)
   GENESIS_APP_PROPS_FILE        Base application.properties for genesis deploy
-                                (default: wrapped-record-block-jumpstart/resources/0.74/application.properties)
+                                (default: wrapped-record-block-jumpstart/resources/0.75/application.properties)
   LOG4J2_XML_PATH               log4j2 xml path (default: <repo>/hedera-node/configuration/dev/log4j2.xml)
   BLOCK_STREAM_MODE             blockStream.streamMode for genesis (default: BOTH)
   BLOCK_STREAM_WRITER_MODE      blockStream.writerMode for genesis (default: FILE_AND_GRPC)
@@ -141,7 +141,7 @@ RELEASE_TAG="${RELEASE_TAG:-v0.73.0-rc.5}"
 USE_LOCAL_BUILD="${USE_LOCAL_BUILD:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
-GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 BLOCK_STREAM_MODE="${BLOCK_STREAM_MODE:-BOTH}"
 BLOCK_STREAM_WRITER_MODE="${BLOCK_STREAM_WRITER_MODE:-FILE_AND_GRPC}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-}"

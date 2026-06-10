@@ -581,7 +581,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               RELEASE_TAG="v0.75.0-rc.5" \
-              BLOCK_NODE_RELEASE_TAG="v0.73.0" \
+              BLOCK_NODE_RELEASE_TAG="v0.75.0-rc.5" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
               USE_LOCAL_BUILD="false" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
