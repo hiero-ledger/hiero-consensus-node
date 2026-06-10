@@ -100,7 +100,10 @@ NMT_VERSION="${NMT_VERSION:-v1.3.4}"
 NMT_INSTALLER_BASENAME="node-mgmt-tools-installer-v1.3.4-efea0dd4.run"
 NMT_INSTALLER_URL="https://builds.hedera.com/node/mgmt-tools/v1.3/${NMT_INSTALLER_BASENAME}"
 NMT_PROFILE="jrs"
-OPENJDK_VERSION="${OPENJDK_VERSION:-21.0.1}"
+OPENJDK_VERSION="${OPENJDK_VERSION:-25.0.2}"
+# Hedera CN v0.75+ JARs are compiled to class file v69 (JDK 25). NMT v1.3.4
+# defaults to JDK 21 in helper.sh but ships checksums for 25.0.2; we override.
+JAVA_MAIN_CLASS_OVERRIDE="${JAVA_MAIN_CLASS_OVERRIDE:-com.hedera.node.app.ServicesMain}"
 HGCAPP_DIR="/opt/hgcapp"
 NMT_DIR="${HGCAPP_DIR}/node-mgmt-tools"
 HAPI_PATH="${HGCAPP_DIR}/services-hedera/HapiApp2.0"
@@ -646,11 +649,33 @@ install_platform_via_nmt() {
   kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV preflight \
     -j "${OPENJDK_VERSION}" -df -i "${NMT_PROFILE}" -k 256m -m 512m
 
-  log "nmt install in ${pod} (platform ${DEPLOY_RELEASE_TAG})"
+  # NMT v1.3.4 requires both -n <node_alias> and -g <node_id>. Solo's node
+  # aliases are node1/node2/node3; NMT's numeric ids are 0/1/2.
+  local node_id="${node#node}"
+  node_id=$((node_id - 1))
+
+  # NMT's jrs-network-node Dockerfile does `FROM gcr.io/swirlds-registry/
+  # network-node-base:jdk-X.Y.Z`. That registry is private, so we have to
+  # build the base ourselves with the matching JDK before nmt install can
+  # build the jrs image on top. NMT v1.3.4 ships checksum files for jdk-25.0.2.
+  log "Pre-building network-node-base:jdk-${OPENJDK_VERSION} (private gcr.io workaround)"
+  kexec "${pod}" sudo -u hedera bash -c "
+    docker image inspect gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} >/dev/null 2>&1 || \
+      docker build --tag gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} \
+        --progress plain ${NMT_DIR}/images/network-node-base 2>&1 | tail -5
+  "
+
+  log "nmt install in ${pod} (platform ${DEPLOY_RELEASE_TAG}, node ${node}/id=${node_id}, JDK ${OPENJDK_VERSION})"
+  # `-e <main_class>` forces the post-v0.40 entry point. Stock NMT defaults
+  # to com.swirlds.platform.Browser (removed in platform v0.40+), so without
+  # this the JVM exits with ClassNotFoundException on startup.
   kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV install \
     -p "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}" \
     -n "${node}" \
-    -x "${DEPLOY_RELEASE_TAG}"
+    -g "${node_id}" \
+    -x "${DEPLOY_RELEASE_TAG}" \
+    -j "${OPENJDK_VERSION}" \
+    -e "${JAVA_MAIN_CLASS_OVERRIDE}"
 }
 
 seed_node_config() {
