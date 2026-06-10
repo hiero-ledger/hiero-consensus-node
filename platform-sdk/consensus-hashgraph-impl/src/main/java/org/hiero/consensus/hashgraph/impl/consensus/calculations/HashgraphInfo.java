@@ -886,19 +886,20 @@ public final class HashgraphInfo {
             // function before /----------------------------------------------------------------------------------
             // function consensusOrder /--------------------------------------------------------------------------
             // function consensusTimestamp /----------------------------------------------------------------------
-            // Do these 3 functions combined by sorting receivedTime and setting consensusOrder and consensusTimestamp.
-            // The sort breaks ties according to the f(x)<=f(y) from the last line of the before function in the paper.
+            // These 3 functions are combined here by sorting receivedTime and setting consensusOrder and
+            // consensusTimestamp. The sort breaks ties according to the f(x)<=f(y) from the last line of the
+            // before function in the paper.
             // If judgeCon1 is true, then f is just comparing the whitened hashes.
             // If judgeCon1 is false, then f first compares the extended medians, then the whitened hashes.
             if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
-                Instant roundTime;/**/
+                Instant roundTime;
                 Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
                 roundTime = roundJudgesArray[roundJudgesArray.length / 2].timeCreated;
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if ( e1 == e2) {return 0;} // an event is <= itself (comparing the actual references)
                     if (e1.gen < e2.gen) {return -1;}
                     if (e1.gen > e2.gen) {return 1;}
-                    return 0; // TODO compare whitened hashes (-1 if e1 is less, 1 if greater, exception otherwise)
+                    return Arrays.compare(e1.eventHash, e2.eventHash); // TODO whiten the hashes
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
@@ -915,7 +916,7 @@ public final class HashgraphInfo {
                         if (t1.isBefore(t2)) {return -1;}
                         if (t1.isAfter(t2)) {return 1;}
                     }
-                    return 0; // TODO compare whitened hashes (-1 if e1 is less, 1 if greater, exception otherwise)
+                    return Arrays.compare(e1.eventHash, e2.eventHash); // TODO whiten the hashes
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
