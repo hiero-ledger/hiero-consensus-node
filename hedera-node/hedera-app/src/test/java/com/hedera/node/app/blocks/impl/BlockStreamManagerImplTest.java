@@ -1898,18 +1898,22 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void fatalShutdownClosesCurrentWriter() {
-        // Given a subject with a block that has been opened
+    void normalEndRoundDoesNotFlushPendingBlocksForTriage() {
+        // With the ISS-driven stop removed, a normal round closes its block via the usual proof path and must
+        // NOT flush any "pending" block to disk for triage; that only happens on catastrophic failure via
+        // awaitFatalShutdown().
         givenSubjectWith(
                 1,
-                2,
+                0,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        lenient().when(blockHashSigner.isReady()).thenReturn(true);
-        given(blockHashSigner.sign(any(), any()))
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
@@ -1919,17 +1923,84 @@ class BlockStreamManagerImplTest {
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
 
-        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
-
-        // Trigger fatal shutdown (simulating ISS detection)
-        subject.notifyFatalEvent();
-
-        // End the round — the fatalShutdownFuture check should close the current writer
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
         subject.endRound(state, ROUND_NO);
 
-        // Verify the current writer was prematurely closed during fatal shutdown
+        // Block closed normally through the proof path...
         verify(aWriter).closeCompleteBlock();
+        // ...with no triage flush during normal operation
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void awaitFatalShutdownClosesInProgressBlock() {
+        // Given a block that has been opened but not yet closed (no endRound)
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // When the platform reaches catastrophic failure
+        subject.awaitFatalShutdown(Duration.ofSeconds(5));
+
+        // The in-progress block's contents are flushed best-effort by closing its writer...
+        verify(aWriter).closeCompleteBlock();
+        // ...and there is no pending block to flush
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void awaitFatalShutdownFlushesPendingBlockToDisk() {
+        // Given a block that has closed but is still awaiting its proof signature (i.e. pending)
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    // Capture but never invoke the consumer, so the block stays pending
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        // The block is pending: its proof hasn't completed, so its writer hasn't been closed yet
+        verify(aWriter, never()).closeCompleteBlock();
+
+        // When the platform reaches catastrophic failure
+        subject.awaitFatalShutdown(Duration.ofSeconds(5));
+
+        // The pending block is flushed to disk for triage (and not closed as a complete block)
+        verify(aWriter).flushPendingBlock(any());
+        verify(aWriter, never()).closeCompleteBlock();
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

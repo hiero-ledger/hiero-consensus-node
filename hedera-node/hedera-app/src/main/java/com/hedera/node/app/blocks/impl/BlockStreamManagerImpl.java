@@ -215,12 +215,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
     /**
-     * If not null, a future to complete when the block manager's fatal shutdown process is done.
-     */
-    @Nullable
-    private volatile CompletableFuture<Void> fatalShutdownFuture = null;
-
-    /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
     private boolean hasCheckedForPendingBlocks = false;
@@ -428,10 +422,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public void startRound(@NonNull final Round round, @NonNull final State state) {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
-        }
-        if (fatalShutdownFuture != null) {
-            log.fatal("Ignoring round {} after fatal shutdown request", round.getRoundNum());
-            return;
         }
 
         // In case we hash this round, include a future for the end-of-round state hash
@@ -850,24 +840,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndexInBlock.clear();
             eventIndex = 0;
         }
-        if (fatalShutdownFuture != null) {
-            // Flush all pending blocks to local disk for triage (e.g. ISS diagnosis)
-            // before abandoning their incomplete proofs
-            pendingBlocks.forEach(block -> {
-                log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
-                try {
-                    block.writer().flushPendingBlock(block.asPendingProof());
-                } catch (final Exception e) {
-                    log.fatal("Failed to flush pending block #{}", block.number(), e);
-                }
-            });
-            if (writer != null) {
-                log.fatal("Prematurely closing block {}", blockNumber);
-                writer.closeCompleteBlock();
-                writer = null;
-            }
-            requireNonNull(fatalShutdownFuture).complete(null);
-        }
         return closesBlock;
     }
 
@@ -1033,9 +1005,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {
-        if (fatalShutdownFuture != null) {
-            return true;
-        }
         // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
@@ -1298,19 +1267,63 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void notifyFatalEvent() {
-        fatalShutdownFuture = new CompletableFuture<>();
-    }
-
-    @Override
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
-        log.fatal("Awaiting any in-progress round to be closed within {}", timeout);
-        Optional.ofNullable(fatalShutdownFuture)
-                .orElse(CompletableFuture.completedFuture(null))
-                .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
-                .join();
+        // Invoked on the platform status thread once the platform has reached CATASTROPHIC_FAILURE. At that point the
+        // platform is idle and no longer handling rounds, so reading the current writer/worker here does not race with
+        // round processing. The flush runs on the block-stream executor; the wait is bounded by the timeout so a hung
+        // flush cannot stall shutdown indefinitely (a timed-out flush is abandoned in place). This is strictly
+        // best-effort triage, so it must never throw.
+        log.fatal("Flushing open/pending blocks to disk for triage within {}", timeout);
+        try {
+            CompletableFuture.runAsync(this::flushBlocksForTriage, executor)
+                    .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
+                    .join();
+        } catch (final Exception e) {
+            log.fatal("Error while flushing blocks for triage", e);
+        }
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    /**
+     * Flushes the contents of any pending and in-progress blocks to local disk for triage (e.g. ISS diagnosis).
+     * Pending blocks (already closed and awaiting a proof) are flushed as recoverable pending blocks; the current
+     * in-progress block, which has no proof yet, is closed best-effort so its contents are preserved on disk.
+     * Every step is guarded so a single failure cannot prevent the rest of the contents from reaching disk.
+     * <p>
+     * Synchronized on the same monitor as {@link #finishProofWithSignature} so a late-arriving block signature cannot
+     * race this flush on a (non-thread-safe) block writer. Pending blocks are drained from {@code pendingBlocks} as
+     * they are flushed, so a proof that completes after this flush simply finds them gone.
+     */
+    private synchronized void flushBlocksForTriage() {
+        // Make sure any in-flight writes have been applied to the writer(s) before flushing
+        if (worker != null) {
+            try {
+                worker.sync();
+            } catch (final Exception e) {
+                log.fatal("Failed to sync in-flight block items before triage flush", e);
+            }
+        }
+        // Flush (and remove) all pending blocks to local disk before abandoning their incomplete proofs
+        PendingBlock block;
+        while ((block = pendingBlocks.poll()) != null) {
+            log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
+            try {
+                block.writer().flushPendingBlock(block.asPendingProof());
+            } catch (final Exception e) {
+                log.fatal("Failed to flush pending block #{}", block.number(), e);
+            }
+        }
+        // Best-effort dump of the current in-progress block's contents
+        if (writer != null) {
+            log.fatal("Prematurely closing in-progress block {}", blockNumber);
+            try {
+                writer.closeCompleteBlock();
+            } catch (final Exception e) {
+                log.fatal("Failed to close in-progress block {}", blockNumber, e);
+            }
+            writer = null;
+        }
     }
 
     @Override
