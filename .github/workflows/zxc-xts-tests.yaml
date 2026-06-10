@@ -232,6 +232,9 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
+      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
+      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
+      enable-hapi-tests-wraps: "false"
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
