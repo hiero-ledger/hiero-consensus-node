@@ -527,9 +527,10 @@ fetch_artifacts() {
 }
 
 # Generate JRS-style config.txt from real pod IPs. Adapted from
-# helper.sh::prep_address_book. log4j2-jrs.xml, settings.txt, and the
-# application/api-permission/bootstrap properties still need to be vendored
-# under scripts/.../nmt-config/ (TODO #25736).
+# helper.sh::prep_address_book. The other JRS configs (log4j2.xml,
+# settings.txt, application/api-permission/bootstrap.properties and
+# genesis-network.json) come from Solo's network-node-data-config-cm
+# ConfigMap via the snapshot+restore in install_nmt_in_pod.
 prep_address_book_and_configs() {
   local config_file="${WORK_DIR}/config.txt"
   local node_seq=0 account_id_seq=3
@@ -579,17 +580,55 @@ install_nmt_in_pod() {
   # umount succeeds; the directories become empty regular dirs on the pod's
   # container filesystem. The consensus-node JVM isn't running yet (NMT
   # hasn't started it), so nothing's holding files open in those mounts.
-  log "Detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod} (NMT snapshot needs the tree umounted)"
+  #
+  # Two of those mounts arrive pre-populated by Solo's init container
+  # (`cp -L /data/config/genesis-network.json ...` and the bind-mounted
+  # gossip key secret): data/config (genesis-network.json, application
+  # /api-permission/bootstrap.properties, settings.txt, log4j2.xml) and
+  # data/keys (the node's gossip + TLS keys). The JVM won't reach ACTIVE
+  # without them. Snapshot every non-empty mount to a tarball under /tmp
+  # *before* the lazy umount, then restore the contents to the (now
+  # detached) directory afterwards. Mounts that arrive empty (output,
+  # state, the *Streams dirs) are skipped — the tar is a no-op anyway.
+  log "Snapshotting + detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod}"
   kexec "${pod}" bash -c "
+    set -e
+    snapdir=/tmp/hgcapp-snap
+    rm -rf \$snapdir && mkdir -p \$snapdir
+    # sort -r so we umount deepest-first (children before parents).
     for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
+      # Skip empty mounts — saves several tar invocations per pod and keeps
+      # the restore loop cheap. find -mindepth 1 -quit short-circuits on the
+      # first entry, so this is O(1) for empty dirs.
+      if [ -n \"\$(find \"\$mp\" -mindepth 1 -print -quit 2>/dev/null)\" ]; then
+        # Each mount gets its own tar; the path is sanitised to a flat name
+        # (slashes -> dashes) so we can pair tar <-> mountpoint after umount.
+        safe=\$(echo \"\$mp\" | sed 's|^/||; s|/|-|g')
+        tar -cf \"\$snapdir/\$safe.tar\" -C \"\$mp\" . 2>/dev/null || true
+      fi
       umount -l \"\$mp\" 2>/dev/null || true
     done
+    # Restore the snapshots into the now-detached directories. The
+    # directories are still there (umount just detaches the mount, the
+    # underlying image-baked dir is unchanged), so we extract back into
+    # them. Re-derive the mountpoint from the safe name.
+    for tarball in \"\$snapdir\"/*.tar; do
+      [ -f \"\$tarball\" ] || continue
+      base=\$(basename \"\$tarball\" .tar)
+      mp=/\$(echo \"\$base\" | sed 's|-|/|g')
+      mkdir -p \"\$mp\"
+      tar -xf \"\$tarball\" -C \"\$mp\"
+    done
+    rm -rf \$snapdir
   "
 
   # Re-assert ownership on the canonical NMT/HAPI dirs after umount — the
   # umount uncovers the image-baked directories underneath, which already
   # have the right ownership, but a defensive chown is cheap insurance.
-  kexec "${pod}" chown -R hedera:hedera "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
+  # Also chown the just-restored data/config + data/keys so the JVM (running
+  # as hedera) can read them.
+  kexec "${pod}" chown -R hedera:hedera \
+    "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
 
   # Start dockerd in the background. NMT install builds the swirlds-node and
   # swirlds-haveged docker images (and `nmt start` later docker-compose-ups
@@ -672,9 +711,10 @@ seed_node_config() {
   kcp "${WORK_DIR}/config.txt" "${pod}" "${HAPI_PATH}/config.txt"
   kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/config.txt"
 
-  # TODO(#25736): seed log4j2.xml, settings.txt, application.properties,
-  # api-permission.properties, bootstrap.properties from a vendored
-  # nmt-config/. See helper.sh::copy_config_files for the canonical list.
+  # log4j2.xml, settings.txt, application.properties, api-permission.properties,
+  # bootstrap.properties and genesis-network.json arrive via the snapshot+restore
+  # path in install_nmt_in_pod (Solo's init container copies them into
+  # data/config before we kexec in, and we re-stage them across the umount).
 
   # gc.log workaround from helper.sh — JVM refuses to start without it.
   kexec "${pod}" touch "${HAPI_PATH}/gc.log"
