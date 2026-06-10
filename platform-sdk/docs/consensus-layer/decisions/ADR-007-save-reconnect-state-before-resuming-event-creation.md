@@ -120,12 +120,13 @@ advancing consensus.
 - **Added latency before a reconnected node creates events.** The node must complete a full state write to disk before
   leaving `RECONNECT_COMPLETE`. On large states this write is not instant, so there is a delay between finishing
   reconnect and resuming contribution to consensus.
-- **A persistence fault surfaces only as a node silently stuck out of event creation.** If the disk write never
-  succeeds (for example, a full or failing disk), the node stays in `RECONNECT_COMPLETE` indefinitely — gossiping but
-  never creating events — with no explicit error raised at the gate. Keeping such a node out of event creation is
-  intentional (the flip side of the crash-resilience guarantee above: a node that cannot make itself crash resilient
-  must not advance consensus), but the cost is that the fault is diagnosed only by noticing a node lingering in
-  `RECONNECT_COMPLETE`, rather than from a direct failure signal.
+- **A persistence fault leaves a reconnected node stuck out of event creation.** If the disk write never succeeds (for
+  example, a full or failing disk), the node stays in `RECONNECT_COMPLETE` indefinitely — gossiping but never creating
+  events — because the `StateWrittenToDiskAction` that would advance it never arrives. Keeping such a node out of event
+  creation is intentional (the flip side of the crash-resilience guarantee above: a node that cannot make itself crash
+  resilient must not advance consensus). The write failure itself is not silent — `SignedStateFileWriter` logs it at
+  the `EXCEPTION` marker and rethrows — but nothing escalates the condition: the node neither resumes event creation nor
+  exits on its own, so clearing a stuck reconnected node requires operator intervention.
 
 ### Neutral
 
@@ -149,7 +150,7 @@ persist a startable state eventually.
 - It permits exactly the network-wide unrecoverability scenario in **Context**. If reconnects cascade across the
   membership between state-save boundaries, every node ends up with a PCES gap above its last on-disk state, and a
   simultaneous crash leaves the network with no startable state anywhere.
-- It breaks the invariant that every node contributing to consensus is independently restartable. Crash resilience would
+- It breaks the rule that every node contributing to consensus is independently restartable. Crash resilience would
   then depend on timing (did a save happen to land before the next reconnect?) rather than being guaranteed.
 
 ### 2. Backfill the PCES gap from gossip instead of saving the state
