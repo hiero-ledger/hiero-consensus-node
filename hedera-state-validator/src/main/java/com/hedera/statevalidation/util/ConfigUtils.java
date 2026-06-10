@@ -121,7 +121,6 @@ public final class ConfigUtils {
                 .withConfigDataType(BlockRecordStreamConfig.class)
                 .withConfigDataType(BlockStreamJumpstartConfig.class)
                 .withConfigDataType(ModulesConfig.class)
-                .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
