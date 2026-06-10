@@ -323,7 +323,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final var assessedCustomFees = new ArrayList<AssessedCustomFee>();
 
         // 2. Dispatch each synthetic body
-        for (final var entry : syntheticBodies.entrySet()) {
+        for (final var entry : syntheticBodies) {
             final var syntheticBody = entry.getValue();
             final var cryptoTransferBody =
                     TransactionBody.newBuilder().cryptoTransfer(syntheticBody).build();
