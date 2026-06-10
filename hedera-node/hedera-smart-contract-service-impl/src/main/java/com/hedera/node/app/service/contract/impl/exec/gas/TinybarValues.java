@@ -124,7 +124,7 @@ public class TinybarValues {
      */
     public long topLevelTinybarGasPriceFullPrecision() {
         if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents);
+            return asTinybars(overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT);
         }
         return asTinybars(
                 topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
@@ -137,7 +137,7 @@ public class TinybarValues {
      */
     public long topLevelTinycentGasPrice() {
         if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents;
+            return overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT;
         }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                 * topLevelResourcePrices.congestionMultiplier();
@@ -170,7 +170,7 @@ public class TinybarValues {
      */
     public long childTransactionTinycentGasPrice() {
         if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents;
+            return overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT;
         }
         if (childTransactionResourcePrices == null) {
             throw new IllegalStateException("Cannot dispatch a child transaction from a query");

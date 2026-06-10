@@ -83,13 +83,15 @@ class TinybarValuesTest {
     @Test
     void simpleFeesGasPriceOverridesTopLevelTinybarGasPriceFullPrecision() {
         withSimpleFeesSubject(852L);
-        assertEquals(852L / CENTS_PER_HBAR, subject.topLevelTinybarGasPriceFullPrecision());
+        // override is in tinycents; full-precision method returns FSU scale (×1000), then converted to tinybars
+        assertEquals((852L * 1000) / CENTS_PER_HBAR, subject.topLevelTinybarGasPriceFullPrecision());
     }
 
     @Test
     void simpleFeesGasPriceOverridesTopLevelTinycentGasPrice() {
         withSimpleFeesSubject(852L);
-        assertEquals(852L, subject.topLevelTinycentGasPrice());
+        // method returns FSU scale (×1000) to match legacy callers that expect fee-schedule-units
+        assertEquals(852L * 1000, subject.topLevelTinycentGasPrice());
     }
 
     @Test
@@ -102,7 +104,8 @@ class TinybarValuesTest {
     @Test
     void simpleFeesGasPriceOverridesChildTransactionTinycentGasPrice() {
         withSimpleFeesSubject(852L);
-        assertEquals(852L, subject.childTransactionTinycentGasPrice());
+        // method returns FSU scale (×1000) to match legacy callers that expect fee-schedule-units
+        assertEquals(852L * 1000, subject.childTransactionTinycentGasPrice());
     }
 
     @Test
