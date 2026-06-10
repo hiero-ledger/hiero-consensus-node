@@ -118,6 +118,12 @@ UPGRADE_CURRENT_DIR="${HAPI_PATH}/data/upgrade/current"
 HEDERA_HOME_DIR="/home/hedera"
 CACHE_DIR="${CACHE_DIR:-${HOME}/.cache/hiero-migration}"
 YAHCLI_JAR="${YAHCLI_JAR:-}"
+# yahcli uses 0.0.58 (the system-files admin) as the operator for the
+# software-zip upload + PREPARE_UPGRADE + FREEZE_UPGRADE transactions. Solo
+# seeds the same well-known dev key onto that account, so OPERATOR_PRIVATE_KEY
+# below is the right input for generate_yahcli_creds.
+YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-58}"
+YAHCLI_KEY_PASSPHRASE="${YAHCLI_KEY_PASSPHRASE:-migration-test}"
 MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
 UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-900}"
 NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-900}"
@@ -846,17 +852,94 @@ ensure_yahcli() {
   }
 }
 
-# Run yahcli against the local port-forward, using a generated config dir
-# under WORK_DIR. TODO(#25736): generate localhost/keys/account58.{pem,pass}
-# and config.yml per yahcli/README.md before this can actually submit.
-yahcli_run() {
+# Build yahcli's localhost profile: encrypted PKCS#8 PEM for the operator
+# account (default 0.0.58, the system-files admin that PREPARE_UPGRADE and
+# FREEZE_UPGRADE require), the corresponding .pass file, and a config.yml
+# that points yahcli at our port-forwarded haproxy. Idempotent — skips if
+# the files already exist (e.g. between yahcli_run calls in the same step).
+#
+# OPERATOR_PRIVATE_KEY is the well-known genesis Ed25519 dev key Solo seeds
+# into every special-purpose account (0.0.2 .. 0.0.100) at deploy time, so
+# the same hex works for account 0.0.58. The hex is already an unencrypted
+# PKCS#8 DER (302e... header is Ed25519 OID 1.3.101.112 + 32-byte seed),
+# so we just base64-wrap it, then re-encrypt with openssl pkcs8 -topk8.
+generate_yahcli_creds() {
   local yahcli_dir="${WORK_DIR}/yahcli-config"
-  if [[ ! -d "${yahcli_dir}" ]]; then
-    mkdir -p "${yahcli_dir}/localhost/sysfiles" "${yahcli_dir}/localhost/keys"
-    [[ -n "${UPGRADE_ZIP_PATH}" ]] && \
-      cp "${UPGRADE_ZIP_PATH}" "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip"
+  local key_dir="${yahcli_dir}/localhost/keys"
+  local pem="${key_dir}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.pem"
+  local pass="${key_dir}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.pass"
+
+  mkdir -p "${key_dir}" "${yahcli_dir}/localhost/sysfiles"
+
+  if [[ -f "${pem}" && -f "${pass}" && -f "${yahcli_dir}/config.yml" ]]; then
+    return 0
   fi
-  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p 58 "$@")
+
+  # Find an openssl binary that actually supports Ed25519. macOS's
+  # /usr/bin/openssl is LibreSSL 3.x — it can read Ed25519 but pkcs8 -topk8
+  # bails with `unsupported private key algorithm: TYPE=Ed25519`. Real
+  # OpenSSL >= 1.1.1 works. Homebrew on macOS installs it as openssl@3.
+  local openssl_bin=""
+  for cand in \
+      "${OPENSSL_BIN:-}" \
+      /opt/homebrew/opt/openssl@3/bin/openssl \
+      /usr/local/opt/openssl@3/bin/openssl \
+      openssl ; do
+    [[ -z "${cand}" ]] && continue
+    if command -v "${cand}" >/dev/null 2>&1 \
+       && "${cand}" version 2>/dev/null | grep -q '^OpenSSL'; then
+      openssl_bin="${cand}"; break
+    fi
+  done
+  if [[ -z "${openssl_bin}" ]]; then
+    echo "generate_yahcli_creds: no real OpenSSL on PATH (LibreSSL can't" >&2
+    echo "  encrypt Ed25519 PKCS#8). Install via 'brew install openssl@3'" >&2
+    echo "  on macOS, or set OPENSSL_BIN to a real openssl >=1.1.1." >&2
+    return 1
+  fi
+
+  log "Generating yahcli creds for account 0.0.${YAHCLI_OPERATOR_ACCOUNT_NUM} under ${yahcli_dir} (openssl=${openssl_bin})"
+
+  # 1. Hex -> raw bytes -> base64 -> PEM (unencrypted PKCS#8).
+  local raw_pem="${WORK_DIR}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.raw.pem"
+  {
+    echo "-----BEGIN PRIVATE KEY-----"
+    printf '%s' "${OPERATOR_PRIVATE_KEY}" | xxd -r -p | base64
+    echo "-----END PRIVATE KEY-----"
+  } > "${raw_pem}"
+
+  # 2. .pass file (single line, no trailing newline — yahcli reads it raw).
+  printf '%s' "${YAHCLI_KEY_PASSPHRASE}" > "${pass}"
+
+  # 3. Re-encrypt with AES-256 so yahcli's standard "encrypted PEM + .pass"
+  # path picks it up. openssl reads the passphrase from the file we just
+  # wrote so the secret never lands on the process command line.
+  "${openssl_bin}" pkcs8 -topk8 -in "${raw_pem}" -v2 aes256 \
+    -passout "file:${pass}" -out "${pem}"
+  rm -f "${raw_pem}"
+
+  # 4. config.yml — minimal localhost profile. yahcli connects to the
+  # port-forwarded haproxy at 127.0.0.1:${CN_GRPC_LOCAL_PORT} (set up by
+  # start_yahcli_port_forward). node id 0 / account 0.0.3 is node1, which
+  # is the haproxy target we forward to.
+  cat > "${yahcli_dir}/config.yml" <<EOF
+defaultNetwork: localhost
+networks:
+  localhost:
+    nodes:
+      - { ipv4Addr: 127.0.0.1, account: 0.0.3, nodeId: 0 }
+    defaultPayer: ${YAHCLI_OPERATOR_ACCOUNT_NUM}
+EOF
+}
+
+# Run yahcli against the local port-forward, using a generated config dir
+# under WORK_DIR.
+yahcli_run() {
+  generate_yahcli_creds
+  local yahcli_dir="${WORK_DIR}/yahcli-config"
+  [[ -n "${UPGRADE_ZIP_PATH}" && ! -f "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip" ]] && \
+    cp "${UPGRADE_ZIP_PATH}" "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip"
+  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p "${YAHCLI_OPERATOR_ACCOUNT_NUM}" "$@")
 }
 
 start_yahcli_port_forward() {
