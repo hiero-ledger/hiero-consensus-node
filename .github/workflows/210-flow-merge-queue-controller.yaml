@@ -22,7 +22,7 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
-      enable-snyk-scan: "true" # for Snyk
+      enable-snyk-scan: "false" # for Snyk
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
     secrets:

@@ -50,7 +50,7 @@ permissions:
 jobs:
   publish-yahcli-image:
     name: ${{ inputs.custom-job-name || 'Publish Yahcli Image' }}
-    runs-on: hl-cn-default-lin-lg
+    runs-on: hg-cn-default-lin-lg
     outputs:
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/yahcli:${{ steps.resolve-version.outputs.version }}
       docker-image-tag: ${{ steps.resolve-version.outputs.version }}
