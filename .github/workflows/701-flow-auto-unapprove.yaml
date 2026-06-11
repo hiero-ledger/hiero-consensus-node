@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 080: [FLOW] Auto Unapprove PR"
+name: "701: [FLOW] Auto Unapprove PR"
 on:
   pull_request:
     types:
