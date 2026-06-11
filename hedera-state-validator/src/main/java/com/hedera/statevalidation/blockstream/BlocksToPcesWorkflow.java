@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
+import static com.hedera.statevalidation.gcp.GcpPathHelper.CONSOLE;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static java.util.Objects.requireNonNull;
 
@@ -94,8 +95,8 @@ public final class BlocksToPcesWorkflow {
                     }
                 });
                 final long count = blockCount.incrementAndGet();
-                if (count % 10_000 == 0) {
-                    log.info("Processed {} blocks, {} events so far ...", count, eventCount.get());
+                if (count % 5_000 == 0) {
+                    log.info(CONSOLE, "Processed {} blocks, {} events so far ...", count, eventCount.get());
                 }
             });
         }
