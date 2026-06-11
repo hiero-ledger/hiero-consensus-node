@@ -11,7 +11,7 @@ import org.hiero.consensus.model.event.Event;
 public interface StaleEventConsumer {
 
     /**
-     * Handles a stale event.
+     * Processes a stale event.
      *
      * @param event the stale event that needs to be processed
      */
