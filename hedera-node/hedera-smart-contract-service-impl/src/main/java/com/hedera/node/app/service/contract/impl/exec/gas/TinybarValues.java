@@ -108,8 +108,7 @@ public class TinybarValues {
      */
     public long topLevelTinybarGasPrice() {
         if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents
-                    * topLevelResourcePrices.congestionMultiplier());
+            return asTinybars(overrideGasPriceTinycents * topLevelResourcePrices.congestionMultiplier());
         }
         return asTinybars(
                 topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
@@ -125,7 +124,8 @@ public class TinybarValues {
      */
     public long topLevelTinybarGasPriceFullPrecision() {
         if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT
+            return asTinybars(overrideGasPriceTinycents
+                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
                     * topLevelResourcePrices.congestionMultiplier());
         }
         return asTinybars(
@@ -139,7 +139,8 @@ public class TinybarValues {
      */
     public long topLevelTinycentGasPrice() {
         if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT
+            return overrideGasPriceTinycents
+                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
                     * topLevelResourcePrices.congestionMultiplier();
         }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
@@ -158,8 +159,7 @@ public class TinybarValues {
             throw new IllegalStateException("Cannot dispatch a child transaction from a query");
         }
         if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents
-                    * childTransactionResourcePrices.congestionMultiplier());
+            return asTinybars(overrideGasPriceTinycents * childTransactionResourcePrices.congestionMultiplier());
         }
         return asTinybars(
                 childTransactionResourcePrices.basePrices().servicedataOrThrow().gas()
@@ -177,7 +177,8 @@ public class TinybarValues {
             throw new IllegalStateException("Cannot dispatch a child transaction from a query");
         }
         if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents * FEE_SCHEDULE_UNITS_PER_TINYCENT
+            return overrideGasPriceTinycents
+                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
                     * childTransactionResourcePrices.congestionMultiplier();
         }
         return childTransactionResourcePrices.basePrices().servicedataOrThrow().gas()
