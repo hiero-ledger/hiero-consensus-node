@@ -125,4 +125,4 @@ relevant entries, grouped by where they act:
 
 ## Future state (sidebar)
 
-The Consensus-Layer proposal at [../../../proposals/consensus-layer/Consensus-Layer.md](../../../proposals/consensus-layer/Consensus-Layer.md) (see *Slow Execution*, around lines 227–270) introduces a coarser, module-API-level backpressure: Execution drives the rate at which `nextRound` is called, and the Hashgraph module never advances faster than Execution requests. This is an overlay on top of the wire-level / queue-saturation mechanism described above — a per-round sliding window in addition to the per-queue health signal, not a replacement for it.
+The proposal introduces a coarser, module-API-level backpressure (the `nextRound` pull; see the [overview's Future state](../overview.md#future-state)): Execution drives the rate at which `nextRound` is called, and the Hashgraph module never advances faster than Execution requests. This is an overlay on top of the wire-level / queue-saturation mechanism described above — a per-round sliding window in addition to the per-queue health signal, not a replacement for it.

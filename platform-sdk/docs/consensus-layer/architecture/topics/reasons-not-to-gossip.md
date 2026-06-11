@@ -302,13 +302,9 @@ ranges are accurate at last review and may shift with refactors.
 
 ## Future state
 
-> **Future state.** The proposal introduces a separate **Sheriff** module
-> that aggregates misbehavior reports from Gossip and Event Intake and
-> decides when to "shun" or "welcome" a neighbor. No `Sheriff` module or
-> class exists in current code; the rules in this catalog are
-> distributed across the gossip protocol classes. Some rules — for
-> example "peer fallen behind" and parts of the broadcast-not-running
-> composite — may move under Sheriff once it lands; others are protocol
-> invariants that will not. This file describes current code only; the
-> proposal is in
-> [`Consensus-Layer.md`](../../../proposals/consensus-layer/Consensus-Layer.md).
+> **Future state.** The proposal's **Sheriff** module (described for the
+> whole layer in the [overview's Future state](../overview.md#future-state))
+> would absorb some peer-discipline rules. Of this catalog, "peer fallen
+> behind" and parts of the broadcast-not-running composite may move under
+> Sheriff once it lands; others are protocol invariants that will not. No
+> `Sheriff` exists in current code; this file describes current code only.

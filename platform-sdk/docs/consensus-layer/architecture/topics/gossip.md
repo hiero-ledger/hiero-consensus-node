@@ -123,4 +123,4 @@ Gossip permits, queue-overflow signalling, and the global health-monitor feedbac
 
 ## Future state (sidebar)
 
-The [Consensus-Layer proposal](../../../proposals/consensus-layer/Consensus-Layer.md) introduces a Sheriff module for peer discipline, layered above gossip rather than replacing any current mechanism. Sheriff is not present in current code; this topic intentionally does not assert peer-discipline semantics tied to it.
+The proposal's Sheriff module for peer discipline would layer *above* gossip rather than replace any current mechanism; it is absent from current code, so this topic does not assert peer-discipline semantics tied to it. Sheriff is described for the whole layer in the [overview's Future state](../overview.md#future-state).
