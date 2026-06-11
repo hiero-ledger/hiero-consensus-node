@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: [CITR] MATS Dry Run"
+name: "000: [USER] CITR MATS Dry Run"
 on:
   workflow_dispatch:
     inputs:

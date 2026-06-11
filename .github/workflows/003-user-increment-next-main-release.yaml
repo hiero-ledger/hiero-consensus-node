@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: [Release] Increment Version File"
+name: "003: [USER] Increment Main Rel"
 on:
   workflow_dispatch:
     inputs:
