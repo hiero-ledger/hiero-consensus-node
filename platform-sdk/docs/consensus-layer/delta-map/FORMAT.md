@@ -83,6 +83,15 @@ code alone, use the TBD marker rather than guessing. Keep rows to changes
 the proposal calls for — no tunable values (→ `../tunables.md`), no
 invariants (→ `../invariants/`), no implementation walkthrough.
 
+Scoring rules:
+
+- Consensus-internal restructuring — extracting code into its own module
+  that still lives in the consensus layer — is not **divergent**; score the
+  ownership change **not-started** until responsibility actually moves.
+- Where the team has permanently decided an end state that differs from the
+  proposal text (e.g., PCES remaining its own module), score against the
+  decided end state and note the decision in the row.
+
 ### `## Cross-references`
 
 - Topic: `../architecture/topics/<topic>.md`.

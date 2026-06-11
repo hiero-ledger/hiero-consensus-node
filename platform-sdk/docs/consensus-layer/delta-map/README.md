@@ -21,15 +21,15 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 |--------------------------------------|-------------|---------|
 | `wiring-framework.md`                | partial     | Framework internals match the proposal; the pulled module boundary has not begun. |
 | `gossip.md`                          | partial     | Extraction and sync behaviour done; Sheriff discipline not started. |
-| `event-intake.md`                    | partial     | Pipeline done; persistence and branch detection sit outside the intake module. |
+| `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection and the pre-handle API remain partial. |
 | `event-creator.md`                   | partial     | Tipset and transaction pull done; the public Consensus API surface is missing. |
 | `hashgraph.md`                       | partial     | Split and birth-round handling done; the `nextRound` pull API not started. |
 | `health-monitor-and-backpressure.md` | partial     | Wire-level monitoring done; the module-level overlay not started. |
 | `reasons-not-to-gossip.md`           | partial     | Existing gating rules in place; Sheriff verdicts not started. |
-| `signed-state-management.md`         | divergent   | Lifecycle still platform-owned; state types moved consensus-side, not execution-side. |
-| `restart-and-pces.md`                | divergent   | PCES done; restart ownership unchanged and ISS recovery conflicts with the proposed split. |
+| `signed-state-management.md`         | not-started | Execution ownership not begun; state types extracted within the consensus layer. |
+| `restart-and-pces.md`                | partial     | PCES done and permanently its own module by decision; restart and ISS ownership not yet moved. |
 | `freeze-and-upgrade.md`              | not-started | Freeze orchestration still consensus-side; only metadata handling is execution-side, and that predates the proposal. |
-| `reconnect.md`                       | divergent   | Tracks the reconnect-refactor proposal inside the consensus layer, not the proposed execution ownership. |
-| `iss-detection.md`                   | divergent   | Detection and response still platform-owned; the proposal implies they move with the state lifecycle. |
+| `reconnect.md`                       | partial     | Execution ownership not started; interim work tracks the reconnect-refactor proposal. |
+| `iss-detection.md`                   | not-started | Detection and response still platform-owned; the proposal implies they move with the state lifecycle. |
 | `quiescence.md`                      | divergent   | Postdates the proposal; the proposed public API has no quiescence operation. |
 | `sheriff.md`                         | partial     | Proposal-only module; nothing exists beyond precursors already in code (sender attribution, branch detection). |
