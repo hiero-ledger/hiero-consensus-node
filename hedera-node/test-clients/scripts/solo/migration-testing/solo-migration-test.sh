@@ -813,7 +813,13 @@ start_consensus_node_via_nmt() {
   return 1
 }
 
-# Poll HAPI_PATH/logs/hgcaa.log for "ACTIVE" — helper.sh::verify_network_state.
+# Poll for "ACTIVE" in the JVM's log. NMT runs swirlds-node as a docker
+# container inside the pod, with /opt/hgcapp/services-hedera/HapiApp2.0
+# bind-mounted in, so writes from the JVM appear at the pod-level path.
+# We grep that path; on timeout we dump `docker logs swirlds-node` from
+# inside the pod, which captures the JVM's stdout/stderr (including any
+# pre-log4j boot errors) — that's the diagnostic of last resort when no
+# hgcaa.log was produced at all.
 wait_for_node_active() {
   local pod="$1" timeout_secs="$2"
   local deadline=$((SECONDS + timeout_secs))
@@ -825,7 +831,16 @@ wait_for_node_active() {
     sleep 5
   done
   echo "${pod} never reached ACTIVE within ${timeout_secs}s" >&2
-  kexec "${pod}" tail -100 "${HAPI_PATH}/logs/hgcaa.log" >&2 || true
+  echo "=== docker ps in ${pod} ===" >&2
+  kexec "${pod}" docker ps -a >&2 2>&1 || true
+  echo "=== /opt/hgcapp/services-hedera/HapiApp2.0/{logs,output} listings ===" >&2
+  kexec "${pod}" bash -c "ls -la ${HAPI_PATH}/logs ${HAPI_PATH}/output 2>&1" >&2 || true
+  echo "=== docker logs swirlds-node (last 200 lines) ===" >&2
+  kexec "${pod}" docker logs --tail 200 swirlds-node >&2 2>&1 || true
+  echo "=== hgcaa.log tail (if present) ===" >&2
+  kexec "${pod}" tail -100 "${HAPI_PATH}/logs/hgcaa.log" >&2 2>&1 || true
+  echo "=== swirlds.log tail (if present) ===" >&2
+  kexec "${pod}" tail -100 "${HAPI_PATH}/output/swirlds.log" >&2 2>&1 || true
   return 1
 }
 
