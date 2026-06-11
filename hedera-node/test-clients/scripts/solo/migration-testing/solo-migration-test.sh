@@ -689,7 +689,11 @@ install_nmt_in_pod() {
       "${stage_dir}/data/${sub}/." "${pod}:${HAPI_PATH}/data/${sub}" 2>&1 \
       | (grep -v '^tar: Removing leading' || true) | head -5 || true
   done
-  rm -rf "${stage_dir}"
+  # Intentionally NOT deleting ${stage_dir} here — restage_data_config_in_pod()
+  # re-copies data/config after NMT preflight, which whitelists data/config
+  # to a pre-v0.75 set and deletes files it doesn't recognise (including
+  # genesis-network.json). Cleanup happens at the end of bring_up_consensus
+  # _via_nmt() once the JVM is up and can no longer lose the file.
 
   # Re-assert ownership on the canonical NMT/HAPI dirs after umount + restore.
   # The umount uncovers the image-baked directories underneath (already owned
@@ -898,6 +902,25 @@ EOF
   log "Pod arch ${pod_arch} OK for NMT"
 }
 
+# NMT v1.3.4's preflight whitelists which files may live in data/config and
+# silently deletes anything else (we see "PREFLIGHT Folder Check: Removed
+# Existing File [ fileName = 'genesis-network.json' ]" in nmt-install logs).
+# That whitelist predates v0.75 by a wide margin and doesn't include
+# genesis-network.json — which the v0.75 JVM REQUIRES (DiskStartupNetworks
+# .genesisNetworkOrThrow throws IllegalStateException otherwise). So after
+# `nmt install` runs preflight + extract, we re-copy our staged data/config
+# from the host back into the pod, repopulating the file(s) NMT just deleted.
+restage_data_config_in_pod() {
+  local pod="$1"
+  local stage_dir="${WORK_DIR}/snap-${pod}"
+  [[ -d "${stage_dir}/data/config" ]] || { log "  ${pod}: no staged data/config; skipping restage"; return 0; }
+  log "Re-staging data/config in ${pod} (NMT preflight deleted post-v0.75 files)"
+  kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+    "${stage_dir}/data/config/." "${pod}:${HAPI_PATH}/data/config" 2>&1 \
+    | (grep -v '^tar: Removing leading' || true) | head -5 || true
+  kexec "${pod}" chown -R hedera:hedera "${HAPI_PATH}/data/config" >/dev/null 2>&1 || true
+}
+
 bring_up_consensus_via_nmt() {
   verify_pod_arch_supports_nmt
   prep_address_book_and_configs
@@ -907,9 +930,14 @@ bring_up_consensus_via_nmt() {
     local pod="network-${node}-0"
     install_nmt_in_pod "${pod}"
     install_platform_via_nmt "${pod}" "${node}"
+    # Re-stage data/config AFTER preflight has had its way (it deletes
+    # genesis-network.json among other "non-whitelisted" files), but BEFORE
+    # the JVM container starts.
+    restage_data_config_in_pod "${pod}"
     seed_node_config "${pod}"
     start_nmt_watcher "${pod}"
     start_consensus_node_via_nmt "${pod}"
+    rm -rf "${WORK_DIR}/snap-${pod}"
   done
   log "Waiting for all consensus nodes to reach ACTIVE"
   local pod
