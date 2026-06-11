@@ -496,7 +496,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -508,7 +508,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
