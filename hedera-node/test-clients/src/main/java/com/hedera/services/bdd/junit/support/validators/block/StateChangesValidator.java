@@ -11,13 +11,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.*;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
@@ -59,6 +58,7 @@ import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.base.time.Time;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
@@ -262,10 +262,21 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
-        final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-        final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        // Read TSS config from the node's actual application.properties so that properties written
+        // by copyBootstrapAssets() (e.g. tss.wrapsEnabled=false from configuration/dev) are
+        // respected. Fall back to spec.startupProperties() for anything not explicitly in the file
+        // (e.g. @ConfigProperty annotation defaults such as tss.forceMockSignatures=true).
+        final var nodeStartupProperties = inPriorityOrder(
+                new JutilPropertySource(node0.getExternalPath(APPLICATION_PROPERTIES)), spec.startupProperties());
+        final boolean isHintsEnabled = nodeStartupProperties.getBoolean("tss.hintsEnabled");
+        final boolean isHistoryEnabled = nodeStartupProperties.getBoolean("tss.historyEnabled");
+        final boolean stateProofsEnabled = nodeStartupProperties.getBoolean("block.stateproof.verification.enabled");
         final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
+        // When forceMockSignatures=true, nodes emit SHA-384 hashes instead of real TSS signatures;
+        // the TSS libraries cannot verify these, so skip them unless adaptive checks are enabled
+        // (which detects and handles 48-byte mock signatures via assertMockSignature())
+        final boolean isForceMockSignatures = nodeStartupProperties.getBoolean("tss.forceMockSignatures");
+        final boolean useTssLibraries = !isForceMockSignatures || adaptiveChecksEnabled;
         // Detect if cutover executed by checking for preserved preview blocks on disk
         final Path preservedPreviewBlocksDir =
                 node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
@@ -274,9 +285,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
                 node0.getExternalPath(DATA_CONFIG_DIR),
-                (adaptiveChecksEnabled || isHintsEnabled) ? HintsEnabled.YES : HintsEnabled.NO,
-                (adaptiveChecksEnabled || isHistoryEnabled) ? HistoryEnabled.YES : HistoryEnabled.NO,
-                adaptiveChecksEnabled || spec.startupProperties().getBoolean("tss.wrapsEnabled"),
+                (useTssLibraries && (adaptiveChecksEnabled || isHintsEnabled)) ? HintsEnabled.YES : HintsEnabled.NO,
+                (useTssLibraries && (adaptiveChecksEnabled || isHistoryEnabled))
+                        ? HistoryEnabled.YES
+                        : HistoryEnabled.NO,
+                useTssLibraries && (adaptiveChecksEnabled || nodeStartupProperties.getBoolean("tss.wrapsEnabled")),
                 Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                         .map(Long::parseLong)
                         .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
