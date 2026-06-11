@@ -17,6 +17,7 @@ import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImplDAB;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
@@ -50,7 +51,9 @@ public class GuiEventStorage {
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
         this.configuration = Objects.requireNonNull(configuration);
-        this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+        // TODO switch these lines before merging
+//        this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+        this.consensus = new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 
