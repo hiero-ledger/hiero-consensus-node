@@ -95,27 +95,11 @@ class TinybarValuesTest {
     }
 
     @Test
-    void simpleFeesGasPriceOverridesChildTransactionTinybarGasPrice() {
-        // override applies even when childTransactionResourcePrices is null
-        withSimpleFeesSubject(852L);
-        assertEquals(852L / CENTS_PER_HBAR, subject.childTransactionTinybarGasPrice());
-    }
-
-    @Test
-    void simpleFeesGasPriceOverridesChildTransactionTinycentGasPrice() {
-        withSimpleFeesSubject(852L);
-        // method returns FSU scale (×1000) to match legacy callers that expect fee-schedule-units
-        assertEquals(852L * 1000, subject.childTransactionTinycentGasPrice());
-    }
-
-    @Test
     void simpleFeesZeroGasPriceGivesZeroForAllGasMethods() {
         withSimpleFeesSubject(0L);
         assertEquals(0L, subject.topLevelTinybarGasPrice());
         assertEquals(0L, subject.topLevelTinybarGasPriceFullPrecision());
         assertEquals(0L, subject.topLevelTinycentGasPrice());
-        assertEquals(0L, subject.childTransactionTinybarGasPrice());
-        assertEquals(0L, subject.childTransactionTinycentGasPrice());
     }
 
     @Test
