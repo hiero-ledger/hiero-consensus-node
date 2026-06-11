@@ -7,11 +7,7 @@ execution layer.
 ## Architecture
 
 A passive data module — holds and exposes a well-defined slice of the Merkle tree state without
-orchestrating anything, analogous to `consensus-model` but scoped to platform state. For the
-fields it holds, see
-[freeze and upgrade](../docs/consensus-layer/architecture/topics/freeze-and-upgrade.md),
-[signed state management](../docs/consensus-layer/architecture/topics/signed-state-management.md),
-and the [consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+orchestrating anything, analogous to `consensus-model` but scoped to platform state.
 
 ## Dependency Rules
 

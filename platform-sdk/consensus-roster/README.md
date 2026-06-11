@@ -6,10 +6,7 @@ Roster data and lookup for the consensus layer. Will eventually move to the exec
 
 A passive data module — holds and exposes the current and future roster structures without
 orchestrating anything, analogous to `consensus-model` but scoped to roster data. Rosters are
-carried as round metadata so every module agrees on which roster applies to which round. For
-context, see the [hashgraph topic](../docs/consensus-layer/architecture/topics/hashgraph.md)
-(round metadata) and the
-[consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+carried as round metadata so every module agrees on which roster applies to which round.
 
 ## Dependency Rules
 

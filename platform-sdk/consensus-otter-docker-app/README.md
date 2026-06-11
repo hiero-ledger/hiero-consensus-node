@@ -7,9 +7,7 @@ module graph.
 
 Tooling module — the Docker app that wires up and drives the consensus layer for Otter tests.
 For how the modules compose into a running platform, see the
-[architecture overview](../docs/consensus-layer/architecture/overview.md),
-[wiring-framework topic](../docs/consensus-layer/architecture/topics/wiring-framework.md), and
-the [consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
 
 ## Dependency Rules
 

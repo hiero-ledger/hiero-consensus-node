@@ -8,8 +8,7 @@ execution layer.
 
 Implements the [`consensus-event-creator`](../consensus-event-creator) API. Production code
 should depend on the API, not this module directly. For how the event creator works, see the
-[event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md) and
-[concepts/birth-round](../docs/consensus-layer/concepts/birth-round.md).
+[event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md).
 
 ## Dependency Rules
 

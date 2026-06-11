@@ -5,9 +5,7 @@ handling, orphan tracking, and monitoring utilities.
 
 ## Architecture
 
-The top of the supporting module DAG — sits above model, concurrent, metrics, and roster. For
-where these helpers fit in the layer, see the
-[architecture overview](../docs/consensus-layer/architecture/overview.md).
+The top of the supporting module DAG — sits above model, concurrent, metrics, and roster.
 
 ## Dependency Rules
 

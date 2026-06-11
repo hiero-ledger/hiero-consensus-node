@@ -5,10 +5,8 @@ Alternate concurrent implementation of event intake.
 ## Architecture
 
 Implements the [`consensus-event-intake`](../consensus-event-intake) API using a concurrent
-pipeline. Production code should depend on the API, not this module directly. For the
-concurrent wiring, see the
-[wiring-framework topic](../docs/consensus-layer/architecture/topics/wiring-framework.md) and
-[event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md).
+pipeline. Production code should depend on the API, not this module directly. For how intake
+works, see the [event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md).
 
 ## Dependency Rules
 

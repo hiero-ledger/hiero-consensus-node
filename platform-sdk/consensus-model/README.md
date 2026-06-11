@@ -10,11 +10,6 @@ This module is the foundation of the consensus layer — every other module depe
 To keep it importable anywhere without introducing circular dependencies, it has no
 consensus-layer dependencies of its own: only `base-*` modules and external libraries.
 
-For canonical definitions of these types, see the
-[glossary](../docs/consensus-layer/glossary.md),
-[concepts](../docs/consensus-layer/concepts/), and the
-[consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
-
 ## Dependency Rules
 
 May depend on:

@@ -7,8 +7,7 @@ state snapshots, and the signing/hashing pipeline. Will eventually move to the e
 
 A structural-transitional module — treated like an impl module until it moves to the execution
 layer. Production code should not depend on it directly. For its role, see
-[signed state management](../docs/consensus-layer/architecture/topics/signed-state-management.md)
-and the [consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+[signed state management](../docs/consensus-layer/architecture/topics/signed-state-management.md).
 
 ## Dependency Rules
 

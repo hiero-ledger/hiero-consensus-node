@@ -8,8 +8,7 @@ layer.
 
 The API half of the event-creator module pair. For how event creation works within the
 consensus layer, see the
-[event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md) and the
-[consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+[event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md).
 
 ## Dependency Rules
 

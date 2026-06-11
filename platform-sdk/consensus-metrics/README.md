@@ -6,9 +6,7 @@ and the Prometheus exposition endpoint.
 ## Architecture
 
 Sits above `consensus-model` and `consensus-concurrent` in the supporting module DAG. Provides
-metrics infrastructure consumed across the layer. For the signals these metrics observe, see
-[health monitor and backpressure](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md)
-and [tunables](../docs/consensus-layer/tunables.md).
+metrics infrastructure consumed across the layer.
 
 ## Dependency Rules
 

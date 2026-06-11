@@ -6,11 +6,7 @@ deduplicating, and topologically ordering events before emitting them downstream
 ## Architecture
 
 The API half of the event-intake module pair. For how intake works, see the
-[event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md) and
-concepts [event-lifecycle](../docs/consensus-layer/concepts/event-lifecycle.md),
-[branching](../docs/consensus-layer/concepts/branching.md),
-[stale-events](../docs/consensus-layer/concepts/stale-events.md),
-[birth-round](../docs/consensus-layer/concepts/birth-round.md).
+[event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md).
 
 ## Dependency Rules
 

@@ -6,10 +6,7 @@ concurrency abstractions consumed by the functional modules.
 ## Architecture
 
 Sits one level above `consensus-model` in the supporting module DAG. Provides the concurrency
-abstractions that higher-level consensus modules build on. For how these primitives interact
-with the wiring framework and backpressure, see the
-[wiring-framework topic](../docs/consensus-layer/architecture/topics/wiring-framework.md) and
-[health monitor and backpressure](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md).
+abstractions that higher-level consensus modules build on.
 
 ## Dependency Rules
 

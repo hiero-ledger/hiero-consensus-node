@@ -5,9 +5,7 @@ durability and external consumers.
 
 ## Architecture
 
-A supporting module that serializes the output of the consensus algorithm. For the events it
-writes, see the [hashgraph topic](../docs/consensus-layer/architecture/topics/hashgraph.md)
-and [event lifecycle](../docs/consensus-layer/concepts/event-lifecycle.md).
+A supporting module that serializes the output of the consensus algorithm.
 
 ## Dependency Rules
 

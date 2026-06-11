@@ -7,10 +7,7 @@ conditions. Not part of the runtime module graph.
 
 Tooling module — not part of the runtime module graph. For the module map and event flow this
 simulation reproduces, see the
-[architecture overview](../docs/consensus-layer/architecture/overview.md) and
-[concepts](../docs/consensus-layer/concepts/). For edge cases worth simulating, see
-[scenarios](../docs/consensus-layer/scenarios/) and
-[symptoms](../docs/consensus-layer/symptoms.md).
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
 
 ## Dependency Rules
 

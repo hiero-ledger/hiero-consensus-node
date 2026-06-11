@@ -77,9 +77,7 @@ platform-sdk/consensus-otter-tests/
 ## Architecture
 
 For the module map and event flow these tests reproduce, see the
-[architecture overview](../docs/consensus-layer/architecture/overview.md) and
-[concepts](../docs/consensus-layer/concepts/). For edge cases worth asserting against, see
-[scenarios](../docs/consensus-layer/scenarios/) and [symptoms](../docs/consensus-layer/symptoms.md).
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
 
 ## Dependency Rules
 

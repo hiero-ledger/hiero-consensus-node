@@ -6,8 +6,7 @@ durability before events are handed to the hashgraph.
 ## Architecture
 
 The API half of the PCES module pair. For PCES durability and replay across restarts, see
-[restart and PCES](../docs/consensus-layer/architecture/topics/restart-and-pces.md) and
-[event lifecycle](../docs/consensus-layer/concepts/event-lifecycle.md).
+[restart and PCES](../docs/consensus-layer/architecture/topics/restart-and-pces.md).
 
 ## Dependency Rules
 

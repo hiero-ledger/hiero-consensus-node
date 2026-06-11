@@ -7,10 +7,8 @@ runtime module graph.
 ## Architecture
 
 Tooling module — performance experiments that stress the event-creator and gossip subsystems.
-For the parameters these experiments sweep, see [tunables](../docs/consensus-layer/tunables.md),
-[event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md),
-[gossip topic](../docs/consensus-layer/architecture/topics/gossip.md), and
-[health monitor and backpressure](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md).
+For how the modules these experiments stress fit into the layer, see the
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
 
 ## Dependency Rules
 

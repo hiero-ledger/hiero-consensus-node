@@ -7,8 +7,7 @@ for gossip to catch it up.
 
 The API half of the reconnect module pair. Intentionally thin — the orchestration entry point
 lives in `swirlds-platform-core` today. For reconnect mechanics, see the
-[reconnect topic](../docs/consensus-layer/architecture/topics/reconnect.md) and the
-[consensus/execution boundary](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md).
+[reconnect topic](../docs/consensus-layer/architecture/topics/reconnect.md).
 
 ## Dependency Rules
 

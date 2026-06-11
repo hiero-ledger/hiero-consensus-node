@@ -7,9 +7,7 @@ neighbor discipline, falling-behind detection, and buffering for catch-up.
 
 The API half of the gossip module pair — the only consensus module that talks directly to the
 network. For how gossip works, see the
-[gossip topic](../docs/consensus-layer/architecture/topics/gossip.md),
-[reasons-not-to-gossip](../docs/consensus-layer/architecture/topics/reasons-not-to-gossip.md),
-and [health monitor and backpressure](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md).
+[gossip topic](../docs/consensus-layer/architecture/topics/gossip.md).
 
 ## Dependency Rules
 

@@ -6,12 +6,9 @@ runtime module graph.
 ## Architecture
 
 Tooling module — not part of the runtime module graph. The GUI reads internal hashgraph state
-for visualization, which requires depending on `consensus-hashgraph-impl`. For the concepts it
-renders, see [hashgraph-dag](../docs/consensus-layer/concepts/hashgraph-dag.md),
-[rounds-and-witnesses](../docs/consensus-layer/concepts/rounds-and-witnesses.md),
-[judges](../docs/consensus-layer/concepts/judges.md),
-[strongly-seeing](../docs/consensus-layer/concepts/strongly-seeing.md), and the
-[hashgraph topic](../docs/consensus-layer/architecture/topics/hashgraph.md).
+for visualization, which requires depending on `consensus-hashgraph-impl`. For how the modules
+it visualizes fit into the layer, see the
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
 
 ## Dependency Rules
 
