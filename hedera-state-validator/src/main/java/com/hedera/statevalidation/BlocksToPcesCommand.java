@@ -46,13 +46,11 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
     private static final Logger log = LogManager.getLogger(BlocksToPcesCommand.class);
 
-    private static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
-
     private Path blockStreamDirectory;
     private String gcpBlockStreamPath;
     private Path outputPath = Path.of("./out");
     private long originRound = -1;
-    private long targetRound = DEFAULT_TARGET_ROUND;
+    private long targetRound;
     private String billingProject;
     private int downloadThreads = 32;
 
@@ -90,7 +88,7 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
     @Option(
             names = {"-t", "--target-round"},
-            defaultValue = "9223372036854775807",
+            required = true,
             description = "The last round whose events are extracted; events from higher rounds are ignored. "
                     + "Default = extract all available rounds. Required when --block-stream-dir is a GCS path.")
     private void setTargetRound(final long targetRound) {
@@ -121,8 +119,7 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
                 blockStreamDirectory = resolveGcpBlockStream();
             }
 
-            final long effectiveTarget = (targetRound == DEFAULT_TARGET_ROUND) ? originRound : targetRound;
-            final Path pcesDir = outputPath.resolve("pces-" + originRound + "-" + effectiveTarget);
+            final Path pcesDir = outputPath.resolve("pces-" + originRound + "-" + targetRound);
             if (Files.exists(pcesDir)) {
                 throw new IllegalArgumentException("Output directory already exists: " + pcesDir);
             }
@@ -142,12 +139,6 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
      * @return the local path to the downloaded block files
      */
     private Path resolveGcpBlockStream() throws IOException {
-        if (targetRound == DEFAULT_TARGET_ROUND) {
-            throw new IllegalArgumentException(
-                    "--target-round is required when --block-stream-dir is a GCS path (gs://). "
-                            + "Cannot download the entire block stream from GCS.");
-        }
-
         GcpPathHelper.ensureGcloudAvailable();
 
         final String streamId = GcpPathHelper.extractLastPathElement(gcpBlockStreamPath);
@@ -191,10 +182,5 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         }
 
         return tempBlockDir;
-    }
-
-    public static void main(final String[] args) {
-        final int exitCode = new CommandLine(new BlocksToPcesCommand()).execute(args);
-        System.exit(exitCode);
     }
 }

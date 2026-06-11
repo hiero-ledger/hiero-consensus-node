@@ -54,6 +54,8 @@ public final class GcpPathHelper {
     /** Default timeout (in seconds) for a recursive directory download. */
     private static final long DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS = 3600;
 
+    public static final int LS_TIMEOUT = 120;
+
     private GcpPathHelper() {}
 
     // ========== Path utilities ==========
@@ -451,7 +453,7 @@ public final class GcpPathHelper {
                     }
                 }
             }
-            final boolean finished = process.waitFor(120, TimeUnit.SECONDS);
+            final boolean finished = process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 return 0;
@@ -465,66 +467,53 @@ public final class GcpPathHelper {
     }
 
     /**
-     * Lists the first object in a GCS directory. Returns the full GCS URI, or null if empty.
+     * Lists the first object in a GCS directory.
+     *
+     * @return the full GCS URI of the first object, or {@code null} if the directory is empty
      */
     public static String listFirstFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
-        try {
-            final List<String> cmd = new ArrayList<>();
-            cmd.add("gcloud");
-            cmd.add("storage");
-            cmd.add("ls");
-            if (billingProject != null && !billingProject.isEmpty()) {
-                cmd.add("--billing-project=" + billingProject);
-            }
-            cmd.add(gcpPath);
-
-            final ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true);
-            final Process process = pb.start();
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (!line.isEmpty() && !line.endsWith("/")) {
-                        process.destroyForcibly(); // got what we need, don't wait for full listing
-                        return line.trim();
-                    }
-                }
-            }
-            process.waitFor(30, TimeUnit.SECONDS);
-            return null;
-        } catch (IOException | InterruptedException e) {
-            log.debug("Failed to list first file in {}", gcpPath, e);
-            return null;
-        }
+        return listFile(gcpPath, billingProject, true);
     }
 
+    /**
+     * Lists the last object in a GCS directory. This reads the entire listing (GCS returns
+     * lexicographic order; the zero-padded block filenames make that equivalent to numeric order).
+     *
+     * @return the full GCS URI of the last object, or {@code null} if the directory is empty
+     */
     public static String listLastFile(@NonNull final String gcpPath, @Nullable final String billingProject) {
-        try {
-            final List<String> cmd = new ArrayList<>();
-            cmd.add("gcloud");
-            cmd.add("storage");
-            cmd.add("ls");
-            if (billingProject != null && !billingProject.isEmpty()) {
-                cmd.add("--billing-project=" + billingProject);
-            }
-            cmd.add(gcpPath);
+        return listFile(gcpPath, billingProject, false);
+    }
 
+    /**
+     * Lists either the first or last non-directory object in a GCS directory.
+     * When {@code first} is true, the process is killed as soon as the first match is found
+     * (avoids streaming the entire listing for large directories).
+     */
+    private static String listFile(
+            @NonNull final String gcpPath, @Nullable final String billingProject, final boolean first) {
+        try {
+            final List<String> cmd = buildLsCommand(gcpPath, billingProject);
             final ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             final Process process = pb.start();
-            String lastFile = null;
+            String result = null;
             try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (!line.isEmpty() && !line.endsWith("/")) {
-                        lastFile = line.trim();
+                        result = line.trim();
+                        if (first) {
+                            process.destroyForcibly();
+                            return result;
+                        }
                     }
                 }
             }
-            process.waitFor(30, TimeUnit.SECONDS);
-            return lastFile;
+            process.waitFor(LS_TIMEOUT, TimeUnit.SECONDS);
+            return result;
         } catch (IOException | InterruptedException e) {
-            log.debug("Failed to list last file in {}", gcpPath, e);
+            log.debug("Failed to list {} file in {}", first ? "first" : "last", gcpPath, e);
             return null;
         }
     }

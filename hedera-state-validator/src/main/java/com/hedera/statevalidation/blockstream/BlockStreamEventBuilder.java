@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
@@ -33,16 +34,20 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
- * Reconstructs events from the block stream.
+ * Reconstructs events from the block stream in a streaming fashion.
+ *
+ * <p>Events are reconstructed one block at a time via {@link #processBlock(Block, Consumer)}.
+ * Each completed event is immediately delivered to the consumer, so the caller can write it to
+ * PCES, validate it, or otherwise handle it without accumulating all events in memory. Only the
+ * current block's events are held in memory (for in-block parent index resolution); cross-block
+ * parent references use {@link EventDescriptor}s directly from the stream and require no lookup
+ * against previously reconstructed events.
  *
  * <p>This is a copy of
  * {@code com.hedera.services.bdd.junit.support.validators.block.BlockStreamEventBuilder} from the
- * {@code test-clients} module, adapted for use in this module. {@code test-clients} is
- * a test artifact and must not be a dependency of {@code hedera-state-validator}, so — following the
- * same approach already used for the block-manipulation logic in {@code BlockStreamRecoveryWorkflow}
- * — the logic is copied here. The only behavioral change is that assertion failures (originally
- * {@code org.assertj.core.api.Fail.fail}) are replaced with thrown exceptions, since this is not a
- * test.
+ * {@code test-clients} module, adapted for production use (no assertj dependency) and refactored
+ * from a batch API ({@code List<Block>} in, {@code List<PlatformEvent>} out) to a streaming API
+ * (one block at a time, events emitted via callback).
  *
  * <p>The reconstructed events are unsigned: the block stream does not carry the creator's
  * {@code GossipEvent.signature}, so the signature field is left empty. This does not affect the
@@ -51,17 +56,11 @@ import org.hiero.consensus.model.event.PlatformEvent;
  */
 public class BlockStreamEventBuilder {
 
-    /** The blocks to read events from. */
-    private final List<Block> blocks;
-
-    /** Track event hashes by index within a single block, for parent lookups within a block. */
+    /** Track events by index within the current block, for in-block parent lookups. */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
-    /** Transactions to include in the current event. */
+    /** Transactions collected for the event currently being assembled. */
     private final List<TransactionWrapper> currentTransactions = new ArrayList<>();
-
-    /** All reconstructed events. */
-    private final List<PlatformEvent> events = new ArrayList<>();
 
     /** The header of the event we are currently collecting transactions for. */
     private EventHeader currentEventHeader = null;
@@ -69,43 +68,44 @@ public class BlockStreamEventBuilder {
     /** The index of the current event within the current block. */
     private int eventIndexWithinBlock = 0;
 
-    /** Cross-block parent references with context about both parent and child events. */
-    private final List<CrossBlockParentRef> crossBlockParentRefs = new ArrayList<>();
-
-    /** Current block index, used for cross-block parent tracking. */
-    private int currentBlockIndex = 0;
+    /** The consumer to receive each completed event during {@link #processBlock}. */
+    private Consumer<PlatformEvent> currentConsumer;
 
     /**
-     * Details about a cross-block parent reference: the parent's descriptor and the child event
-     * that references it.
+     * Processes a single block, reconstructing events from its items and delivering each completed
+     * event to the given consumer. Only the current block's events are held in memory; once this
+     * method returns, the block and its events can be garbage-collected.
      *
-     * @param parentDescriptor the parent event's descriptor (hash, creator, birth round)
-     * @param childCreatorId the creator node ID of the child event
-     * @param childBirthRound the birth round of the child event
-     * @param childBlockIndex the block index containing the child event
+     * @param block the block to process
+     * @param eventConsumer receives each reconstructed {@link PlatformEvent} as it is completed
      */
-    public record CrossBlockParentRef(
-            @NonNull EventDescriptor parentDescriptor,
-            long childCreatorId,
-            long childBirthRound,
-            int childBlockIndex) {}
+    public void processBlock(@NonNull final Block block, @NonNull final Consumer<PlatformEvent> eventConsumer) {
+        requireNonNull(block);
+        requireNonNull(eventConsumer);
+        this.currentConsumer = eventConsumer;
 
-    /**
-     * Constructor.
-     *
-     * @param blocks the blocks to read events from
-     */
-    public BlockStreamEventBuilder(@NonNull final List<Block> blocks) {
-        this.blocks = requireNonNull(blocks);
+        startOfBlock();
+
+        for (final BlockItem item : block.items()) {
+            final var itemKind = item.item().kind();
+            switch (itemKind) {
+                case EVENT_HEADER -> eventHeader(item.item().as());
+                case SIGNED_TRANSACTION -> signedTransaction(item.item().as());
+                case REDACTED_ITEM -> redactedItem(item.item().as());
+                default -> {
+                    // Skip other item types (block headers, round headers, proofs, etc.)
+                }
+            }
+        }
+
+        endOfBlock();
+        this.currentConsumer = null;
     }
 
     /**
-     * Transactions included in the event hash have a nonce of zero and are not scheduled
-     * transactions. Other transactions (e.g. synthetic transactions) have a non-zero nonce and must
-     * not be included in the event to calculate the correct event hash.
-     *
-     * @param transactionBytes the signed transaction bytes to check
-     * @return true if the transaction should be included in the event, false otherwise
+     * Transactions included in the event hash have a nonce of zero and are not scheduled.
+     * Other transactions (e.g. synthetic transactions) have a non-zero nonce and must not be
+     * included in the event to calculate the correct event hash.
      */
     public static boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
         final TransactionBody transactionBody = getTransactionBody(transactionBytes);
@@ -128,55 +128,9 @@ public class BlockStreamEventBuilder {
         }
     }
 
-    /**
-     * Returns the events constructed from the blocks. The events are in consensus order, which is
-     * also a valid topological order.
-     *
-     * @return the reconstructed and hashed events
-     */
-    public List<PlatformEvent> getEvents() {
-        if (events.isEmpty()) {
-            reconstructEventsFromBlocks();
-        }
-        return events;
-    }
+    // ---- Internal block-processing methods ----
 
-    /**
-     * Reconstructs {@link GossipEvent} objects from {@link BlockItem}s across all blocks.
-     *
-     * <p><strong>Important:</strong> the events in the returned list are in consensus order, which
-     * also means they are in topological order. This ordering is critical: each event's hash must be
-     * calculated and stored before it can be referenced by a subsequent event as a parent.
-     */
-    private void reconstructEventsFromBlocks() {
-        for (int blockIdx = 0; blockIdx < blocks.size(); blockIdx++) {
-            final Block block = blocks.get(blockIdx);
-            startOfBlock(blockIdx);
-
-            for (final BlockItem item : block.items()) {
-                final var itemKind = item.item().kind();
-                switch (itemKind) {
-                    case EVENT_HEADER -> eventHeader(item.item().as());
-                    case SIGNED_TRANSACTION -> signedTransaction(item.item().as());
-                    case REDACTED_ITEM -> redactedItem(item.item().as());
-                    default -> {
-                        // Skip other item types (block headers, proofs, etc.)
-                    }
-                }
-            }
-            endOfBlock();
-        }
-    }
-
-    private void redactedItem(@NonNull final RedactedItem redactedItem) {
-        if (currentEventHeader == null) {
-            throw new IllegalStateException("Unexpected redacted item without an active event header!");
-        }
-        currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
-    }
-
-    private void startOfBlock(final int blockIndex) {
-        currentBlockIndex = blockIndex;
+    private void startOfBlock() {
         eventIndexWithinBlock = 0;
         currentTransactions.clear();
         eventIndexToEvent.clear();
@@ -187,21 +141,24 @@ public class BlockStreamEventBuilder {
             completeEvent();
             eventIndexWithinBlock++;
         }
-        // Start new event
         currentEventHeader = eventHeader;
         currentTransactions.clear();
     }
 
     private void signedTransaction(@NonNull final Bytes transactionBytes) {
         if (isTransactionInEvent(transactionBytes)) {
-            // When performing a network transplant, there may be transactions with a non-zero nonce
-            // outside an event header. These transactions should be ignored. But transactions with
-            // a zero nonce outside an event header should never happen.
             if (currentEventHeader == null) {
                 throw new IllegalStateException("Unexpected transaction item without an active event header!");
             }
             currentTransactions.add(TransactionWrapper.ofTransaction(transactionBytes));
         }
+    }
+
+    private void redactedItem(@NonNull final RedactedItem redactedItem) {
+        if (currentEventHeader == null) {
+            throw new IllegalStateException("Unexpected redacted item without an active event header!");
+        }
+        currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
     }
 
     private void endOfBlock() {
@@ -210,12 +167,12 @@ public class BlockStreamEventBuilder {
         }
     }
 
-    /** Uses the information collected so far about an event to create an event. */
+    /** Assembles the current event, emits it to the consumer, and records it for in-block lookups. */
     private void completeEvent() {
         final PlatformEvent platformEvent =
                 createEventFromData(currentEventHeader, new ArrayList<>(currentTransactions), eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
-        events.add(platformEvent);
+        currentConsumer.accept(platformEvent);
         currentEventHeader = null;
     }
 
@@ -300,11 +257,6 @@ public class BlockStreamEventBuilder {
                     // reference with context for later validation.
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    crossBlockParentRefs.add(new CrossBlockParentRef(
-                            parentDescriptor,
-                            childEventCore.creatorNodeId(),
-                            childEventCore.birthRound(),
-                            currentBlockIndex));
                 }
                 default ->
                     throw new IllegalStateException("Unknown parent reference kind: "
@@ -314,6 +266,8 @@ public class BlockStreamEventBuilder {
 
         return resolvedParents;
     }
+
+    // ---- Hashing ----
 
     /**
      * Recomputes the event hash, mirroring {@code PbjStreamHasher}, with the extension that a
@@ -357,6 +311,8 @@ public class BlockStreamEventBuilder {
             }
         }
     }
+
+    // ---- Transaction wrapper ----
 
     /**
      * A wrapper for either a full transaction or just its hash (when redacted).
