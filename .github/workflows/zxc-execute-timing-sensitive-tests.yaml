@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Execute Timing Sensitive Tests"
+name: "Deprecated: ZXC: Execute Timing Sensitive Tests"
 on:
   workflow_call:
     inputs:

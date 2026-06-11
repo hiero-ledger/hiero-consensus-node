@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "807: [CALL] Exec Hammer Tests"
 on:
   workflow_call:
     inputs:

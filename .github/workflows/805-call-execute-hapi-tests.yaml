@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute HAPI Tests"
+name: "805: [CALL] Exec HAPI Tests"
 on:
   workflow_call:
     inputs:

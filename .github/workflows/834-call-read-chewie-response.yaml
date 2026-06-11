@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 801: [CITR] Read Chewie Response"
+name: "834: [CALL] CITR Read Chewie Resp"
 
 on:
   workflow_call:
