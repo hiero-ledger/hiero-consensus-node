@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.gcp;
 
-import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.extractBlockNumber;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileName;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.blockFileUri;
 import static com.hedera.statevalidation.gcp.GcpPathHelper.listFirstFile;

@@ -4,7 +4,6 @@ package com.hedera.statevalidation.blockstream;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
@@ -14,31 +13,30 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 
 /**
- * Reconstructs events from a directory of block stream files and writes them as PCES files.
+ * Reconstructs events from a directory of block stream files and writes them as PCES files,
+ * streaming one block at a time.
  *
- * <p>This produces an unsigned, consensus-equivalent preconsensus event stream from the block
+ * <p>This produces an unsigned preconsensus event stream from the block
  * stream. The resulting files can be replayed on a node started from a state snapshot at the
  * {@code originRound} to reproduce the original block stream (subject to the unsigned-event intake
  * path being available on the replaying node — out of scope for this tool).
  *
- * <p>Event reconstruction is delegated to {@link BlockStreamEventBuilder} (steps 1–5: block items →
- * unsigned {@link PlatformEvent}s with recomputed hashes, in consensus/topological order). This
- * workflow performs step 6: writing those events to PCES files via {@link CommonPcesWriter},
- * following the {@code SavedStateUtils.prepareStateForTransplant()} idiom.
+ * <p>Event reconstruction is delegated to {@link BlockStreamEventBuilder}, which processes one
+ * block at a time and delivers each completed event via a callback. Each event is written to the
+ * PCES stream immediately, so memory usage is bounded by the largest single block rather than the
+ * entire extraction window. This makes it feasible to process very large windows (months of data).
  *
  * <p><b>Limitations.</b> Redacted or filtered block streams are not supported (a redacted
- * transaction has no bytes to replay). The full set of blocks is loaded into memory at once
- * (see {@link BlockStreamEventBuilder}); very large extraction windows are constrained by available
- * memory. Chunked/streaming reconstruction is possible future work.
+ * transaction has no bytes to replay).
  */
 public final class BlocksToPcesWorkflow {
 
@@ -47,8 +45,8 @@ public final class BlocksToPcesWorkflow {
     private BlocksToPcesWorkflow() {}
 
     /**
-     * Reads block files from {@code blockStreamDirectory}, reconstructs events, and writes them to
-     * PCES files under {@code pcesOutputDir}.
+     * Reads block files from {@code blockStreamDirectory}, reconstructs events one block at a time,
+     * and writes them to PCES files under {@code pcesOutputDir}.
      *
      * @param blockStreamDirectory directory containing the {@code .blk.gz} files (must be contiguous)
      * @param pcesOutputDir directory where the PCES database tree is created (must be empty/new)
@@ -57,7 +55,7 @@ public final class BlocksToPcesWorkflow {
      * @return the number of events written
      * @throws IOException if reading blocks or writing PCES files fails
      */
-    public static long convert(NodeId selfId,
+    public static long convert(
             @NonNull final Path blockStreamDirectory, @NonNull final Path pcesOutputDir, final long originRound)
             throws IOException {
         requireNonNull(blockStreamDirectory);
@@ -65,64 +63,54 @@ public final class BlocksToPcesWorkflow {
 
         validateNoMissingBlocks(blockStreamDirectory);
 
-        // Step 1–5: reconstruct events from the blocks.
-        final List<Block> blocks;
-        try (var stream = BlockStreamAccess.readBlocks(blockStreamDirectory, false)) {
-            blocks = stream.toList();
-        }
-        if (blocks.isEmpty()) {
-            throw new IllegalArgumentException("No block files found in " + blockStreamDirectory);
-        }
-        log.info("Read {} block(s) from {}", blocks.size(), blockStreamDirectory);
-
-        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
-        final List<PlatformEvent> events = eventBuilder.getEvents();
-        log.info("Reconstructed {} event(s) from the block stream", events.size());
-
-        // Step 6: write the events to PCES files.
-        writePcesFiles(selfId, events, pcesOutputDir, originRound);
-
-        log.info("Wrote {} event(s) to PCES files under {}", events.size(), pcesOutputDir);
-        return events.size();
-    }
-
-    /**
-     * Writes the given events to PCES files under {@code pcesRootDir}, using the same
-     * {@link CommonPcesWriter} mechanism the platform and {@code SavedStateUtils} use.
-     */
-    private static void writePcesFiles(NodeId selfId,
-            @NonNull final List<PlatformEvent> events, @NonNull final Path pcesRootDir, final long originRound)
-            throws IOException {
-
-        Files.createDirectories(pcesRootDir);
-
+        Files.createDirectories(pcesOutputDir);
         final PlatformContext platformContext = getPlatformContext();
         final Configuration configuration = platformContext.getConfiguration();
-
-        // The output directory is the root of a fresh PCES database tree; the standard
-        // <root>/<nodeId> sub-path is created beneath it. The tree starts empty.
-        final Path databaseDirectory = pcesRootDir.resolve(Long.toString(selfId.id()));
-        Files.createDirectories(databaseDirectory);
 
         final PcesFileManager fileManager = new PcesFileManager(
                 configuration,
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 new PcesFileTracker(),
-                databaseDirectory,
+                pcesOutputDir,
                 originRound);
 
         final CommonPcesWriter writer = new CommonPcesWriter(configuration, fileManager);
         // Without this, the writer assumes every event is already durable and writes nothing.
         writer.beginStreamingNewEvents();
 
-        for (final PlatformEvent event : events) {
-            writer.prepareOutputStream(event);
-            writer.getCurrentMutableFile().writeEvent(event);
+        final AtomicLong eventCount = new AtomicLong(0);
+        final AtomicLong blockCount = new AtomicLong(0);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder();
+
+        try (final Stream<com.hedera.hapi.block.stream.Block> blockStream =
+                BlockStreamAccess.readBlocks(blockStreamDirectory, false)) {
+            blockStream.forEach(block -> {
+                eventBuilder.processBlock(block, event -> {
+                    try {
+                        writer.prepareOutputStream(event);
+                        writer.getCurrentMutableFile().writeEvent(event);
+                        eventCount.incrementAndGet();
+                    } catch (final IOException e) {
+                        throw new RuntimeException("Failed to write event to PCES file", e);
+                    }
+                });
+                final long count = blockCount.incrementAndGet();
+                if (count % 10_000 == 0) {
+                    log.info("Processed {} blocks, {} events so far ...", count, eventCount.get());
+                }
+            });
         }
 
         writer.syncCurrentFile();
         writer.closeCurrentMutableFile();
+
+        log.info(
+                "Wrote {} event(s) from {} block(s) to PCES files under {}",
+                eventCount.get(),
+                blockCount.get(),
+                pcesOutputDir);
+        return eventCount.get();
     }
 
     /**
