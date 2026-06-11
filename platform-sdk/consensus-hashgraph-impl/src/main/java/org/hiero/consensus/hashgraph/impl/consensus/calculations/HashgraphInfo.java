@@ -263,8 +263,9 @@ public final class HashgraphInfo {
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
             }
         }
-        // for greater consensus order randomness, could generate a random permutation each round, and for all i do:
-        // consensusEvents.get(i).searchOrder = perm[i]
+        // For greater consensus order randomness, could generate a random permutation each round, and do for all i:
+        //    consensusEvents.get(i).searchOrder = perm[i]
+        // The "random" permutation must be the same on all nodes. Perhaps seed the CSPRNG with XOR of all judge hashes.
         benchmarks[BENCHMARK_SEARCH] += System.nanoTime();
     }
 
