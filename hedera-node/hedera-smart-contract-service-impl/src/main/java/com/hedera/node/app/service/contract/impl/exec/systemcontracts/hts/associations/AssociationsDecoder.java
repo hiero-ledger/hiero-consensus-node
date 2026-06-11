@@ -10,6 +10,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -138,13 +139,23 @@ public class AssociationsDecoder {
         return internalDissociations(attempt, accountAddress, tokenAddresses);
     }
 
+    /**
+     * Validate the max length of token addresses in associate call based on the canonical gas for a single association
+     * @param attempt the HTS call attempt
+     * @param tokenAddresses associate tokens addresses
+     */
+    private void validateTokensMaxLength(@NonNull final HtsCallAttempt attempt, @NonNull final Address... tokenAddresses) {
+        final var canonicalGas = attempt.systemContractGasCalculator().canonicalGasRequirement(DispatchType.ASSOCIATE);
+        final var config = attempt.configuration().getConfigData(ContractsConfig.class);
+        validateTrue(
+                tokenAddresses.length * canonicalGas <= config.maxGasPerTransaction(), TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED);
+    }
+
     private TokenAssociateTransactionBody internalAssociations(
             @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address... tokenAddresses) {
-        final var config = attempt.configuration().getConfigData(ContractsConfig.class);
-        validateTrue(
-                tokenAddresses.length <= config.tokenAssociationsMaxLen(), TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED);
+        validateTokensMaxLength(attempt, tokenAddresses);
         return TokenAssociateTransactionBody.newBuilder()
                 .account(attempt.addressIdConverter().convert(accountAddress))
                 .tokens(asTokenIds(attempt.nativeOperations().entityIdFactory(), tokenAddresses))
@@ -155,9 +166,7 @@ public class AssociationsDecoder {
             @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address... tokenAddresses) {
-        final var config = attempt.configuration().getConfigData(ContractsConfig.class);
-        validateTrue(
-                tokenAddresses.length <= config.tokenAssociationsMaxLen(), TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED);
+        validateTokensMaxLength(attempt, tokenAddresses);
         return TokenDissociateTransactionBody.newBuilder()
                 .account(attempt.addressIdConverter().convert(accountAddress))
                 .tokens(asTokenIds(attempt.nativeOperations().entityIdFactory(), tokenAddresses))
