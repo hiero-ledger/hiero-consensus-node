@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -108,9 +109,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             // Validate high-volume pricing curves before starting any tests
             HighVolumePricingValidator.validateGenesisFeeSchedule();
 
-            // Skip standard setup if any test in the plan uses HapiBlockNode
-            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
-                log.info("Test plan includes HapiBlockNode annotation, skipping shared network startup.");
+            // Skip standard setup if any test in the plan starts its own per-method subprocess network
+            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class, GenesisSubProcessTest.class))) {
+                log.info(
+                        "Test plan includes HapiBlockNode or GenesisSubProcessTest annotation, skipping shared network startup.");
                 embedding = Embedding.NA;
                 return;
             }

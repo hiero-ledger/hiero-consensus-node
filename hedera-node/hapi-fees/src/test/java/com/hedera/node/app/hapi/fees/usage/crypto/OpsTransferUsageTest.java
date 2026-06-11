@@ -64,9 +64,9 @@ class OpsTransferUsageTest {
     private final AccountID a = asAccount("1.2.3");
     private final AccountID b = asAccount("2.3.4");
     private final AccountID c = asAccount("3.4.5");
-    private final TokenID anId = IdUtils.asToken("0.0.75231");
-    private final TokenID anotherId = IdUtils.asToken("0.0.75232");
-    private final TokenID yetAnotherId = IdUtils.asToken("0.0.75233");
+    private final TokenID anId = IdUtils.asToken(75231L);
+    private final TokenID anotherId = IdUtils.asToken(75232L);
+    private final TokenID yetAnotherId = IdUtils.asToken(75233L);
 
     private TransactionBody txn;
     private CryptoTransferTransactionBody op;

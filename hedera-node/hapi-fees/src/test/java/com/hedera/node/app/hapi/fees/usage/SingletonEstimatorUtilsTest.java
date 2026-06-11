@@ -31,9 +31,9 @@ class SingletonEstimatorUtilsTest {
     private final String memo = "abcdefgh";
     private final SigUsage sigUsage = new SigUsage(3, 256, 2);
     private final TransferList transfers = TxnUtils.withAdjustments(
-            asAccount("0.0.2"), -2,
-            asAccount("0.0.3"), 1,
-            asAccount("0.0.4"), 1);
+            asAccount(2L), -2,
+            asAccount(3L), 1,
+            asAccount(4L), 1);
 
     @Test
     void byteSecondsUsagePeriodsAreCappedAtOneCentury() {
