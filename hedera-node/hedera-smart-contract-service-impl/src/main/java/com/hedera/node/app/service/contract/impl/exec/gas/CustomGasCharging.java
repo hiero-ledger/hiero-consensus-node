@@ -124,21 +124,22 @@ public class CustomGasCharging {
         validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
+            if (!context.shouldChargeGasFees()) {
+                sender.incrementNonce();
+                return new GasCharges(intrinsicGas, 0L);
+            }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
 
             // Increment nonce right after the gas is charged
             sender.incrementNonce();
 
-            if (context.shouldChargeGasFees()) {
-                return new GasCharges(intrinsicGas, allowanceUsed);
-            }
-            return GasCharges.NONE;
+            return new GasCharges(intrinsicGas, allowanceUsed);
         } else {
             if (context.shouldChargeGasFees()) {
                 chargeWithOnlySender(sender, context, worldUpdater, transaction);
                 return new GasCharges(intrinsicGas, 0L);
             }
-            return GasCharges.NONE;
+            return new GasCharges(intrinsicGas, 0L);
         }
     }
 
