@@ -73,7 +73,7 @@ consumed across the layer. They form a strict DAG; no circular dependencies are 
 each module's `README.md` for its description and dependency rules.
 
 - `consensus-model` — **foundation**: holds the consensus data structures all other modules build on. Must not depend on any other supporting module or any other consensus module.
-- Remaining supporting modules: `consensus-concurrent`, `consensus-metrics`, `consensus-roster`, `consensus-platformstate`, `consensus-utility`, `consensus-event-stream`.
+- Remaining supporting modules: `consensus-concurrent`, `consensus-metrics`, `consensus-roster`, `consensus-platformstate`, `consensus-utility`.
 
 **Functional-api modules** — the public-facing API of each business-logic topic:
 - `consensus-event-creator`, `consensus-event-intake`, `consensus-gossip`, `consensus-hashgraph`, `consensus-pces`, `consensus-reconnect`
@@ -82,8 +82,9 @@ each module's `README.md` for its description and dependency rules.
 paired API and any supporting module. Must not depend on other impl modules:
 - `consensus-event-creator-impl`, `consensus-event-intake-impl`, `consensus-event-intake-concurrent`, `consensus-gossip-impl`, `consensus-hashgraph-impl`, `consensus-pces-impl`, `consensus-pces-noop-impl`, `consensus-reconnect-impl`
 
-**Structural-transitional modules** — treated like impl modules (rule 3 applies) until they move to the execution layer:
-- `consensus-state`
+**Structural-transitional modules** — treated like impl modules (rule 3 applies); temporary, awaiting either a move to the execution layer or removal:
+- `consensus-state` — will move to the execution layer.
+- `consensus-event-stream` — will be deleted once the consensus event stream is superseded by the block stream.
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
 - `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`

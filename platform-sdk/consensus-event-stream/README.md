@@ -5,7 +5,10 @@ durability and external consumers.
 
 ## Architecture
 
-A supporting module that serializes the output of the consensus algorithm.
+A structural-transitional module — treated like an impl module (rule 3): nothing should depend
+on it except the platform wiring and test code. It serializes consensus events; it could have been split into api/impl, but was not, because it will be deleted once
+the consensus event stream is superseded by the block stream. It will not move to the execution
+layer.
 
 ## Dependency Rules
 
