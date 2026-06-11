@@ -381,7 +381,7 @@ public final class GcpPathHelper {
                             Thread.sleep(PROGRESS_INTERVAL_MS);
                             final long count = counter.count();
                             final int percent = (int) (count * 100 / totalFiles);
-                            if (percent / 10 > lastReportedPercent / 10) {
+                            if (percent / 10 > lastReportedPercent / 10 || count % 5000 == 0) {
                                 log.info(CONSOLE, "  {}% ({}/{})", percent, count, totalFiles);
                                 lastReportedPercent = percent;
                             }
