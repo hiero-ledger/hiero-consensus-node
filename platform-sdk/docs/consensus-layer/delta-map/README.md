@@ -21,7 +21,7 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 |--------------------------------------|-------------|---------|
 | `wiring-framework.md`                | partial     | Framework internals match the proposal; the pulled module boundary has not begun. |
 | `gossip.md`                          | partial     | Extraction and sync behaviour done; Sheriff discipline not started. |
-| `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection and the pre-handle API remain partial. |
+| `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection remains partial. |
 | `event-creator.md`                   | partial     | Tipset and transaction pull done; the public Consensus API surface is missing. |
 | `hashgraph.md`                       | partial     | Split and birth-round handling done; the `nextRound` pull API not started. |
 | `health-monitor-and-backpressure.md` | partial     | Wire-level monitoring done; the module-level overlay not started. |
