@@ -85,10 +85,10 @@ Layered on the RPC pipeline, simple broadcast pushes each self-event to every co
 
 `RpcOverloadMonitor` (`platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcOverloadMonitor.java`) enforces the simple-backpressure rule per peer:
 
-- Output queue size exceeds `BroadcastConfig.throttleOutputQueueThreshold` (default `200` items), or
-- Round-trip ping time exceeds `BroadcastConfig.disablePingThreshold` (default `900ms`).
+- Output queue size exceeds `BroadcastConfig.throttleOutputQueueThreshold` (TUN-154), or
+- Round-trip ping time exceeds `BroadcastConfig.disablePingThreshold` (TUN-153).
 
-When either trips, broadcast is paused for `BroadcastConfig.pauseOnLag` (default `30s`) and sync handles the connection during the cooldown. See `BroadcastConfig` (`platform-sdk/consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/BroadcastConfig.java`).
+When either trips, broadcast is paused for `BroadcastConfig.pauseOnLag` (TUN-155) and sync handles the connection during the cooldown. See `BroadcastConfig` (`platform-sdk/consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/BroadcastConfig.java`).
 
 Broadcast remains disabled until the initial sync with a peer completes, so newly connected nodes catch up via sync first.
 
