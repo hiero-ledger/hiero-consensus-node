@@ -33,7 +33,7 @@ defaults:
 jobs:
   check-permission:
     name: Check User Permission
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -56,7 +56,7 @@ jobs:
 
   update-solo-version-vars:
     name: Update Solo Version Variables
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs: check-permission
     steps:
       - name: Harden Runner

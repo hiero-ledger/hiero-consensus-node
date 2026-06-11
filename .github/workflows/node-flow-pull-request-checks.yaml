@@ -28,7 +28,7 @@ concurrency:
 jobs:
   detect-change-type:
     name: Detect Change Type
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
@@ -85,7 +85,7 @@ jobs:
 
   ci-complete:
     name: CI Complete
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
@@ -124,7 +124,7 @@ jobs:
 
   report-summary:
     name: Report PR Check Summary
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks

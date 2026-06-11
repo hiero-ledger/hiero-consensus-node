@@ -24,11 +24,13 @@ defaults:
 
 permissions:
   statuses: write
+  contents: read
+  pull-requests: read
 
 jobs:
   title-check:
     name: Title Check
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -42,7 +44,7 @@ jobs:
 
   assignee-check:
     name: Assignee Check
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
 
     steps:
       - name: Harden Runner

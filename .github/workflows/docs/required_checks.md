@@ -7,12 +7,12 @@
 - Gradle Determinism / Verify Artifacts (windows-2022) - :x:
 - Gradle Determinism / Verify Artifacts (windows-2025) - :x:
 - Gradle Determinism / Verify Artifacts (ubuntu-22.04) - :x:
-- Gradle Determinism / Verify Artifacts (hl-cn-gradle-determinism-lin-lg) - :x:
-- Gradle Determinism / Verify Artifacts (hl-cn-gradle-determinism-lin-md) - :x:
+- Gradle Determinism / Verify Artifacts (hg-cn-gradle-determinism-lin-lg) - :x:
+- Gradle Determinism / Verify Artifacts (hg-cn-gradle-determinism-lin-md) - :x:
 - Gradle Determinism / Verify Artifacts (ubuntu-24.04) - :x:
 - Docker Determinism / Generate Baseline - :x:
-- Docker Determinism / Verify Artifacts (hl-cn-docker-determinism-lin-lg) - :x:
-- Docker Determinism / Verify Artifacts (hl-cn-docker-determinism-lin-md) - :x:
+- Docker Determinism / Verify Artifacts (hg-cn-docker-determinism-lin-lg) - :x:
+- Docker Determinism / Verify Artifacts (hg-cn-docker-determinism-lin-md) - :x:
 - HAPI Tests (Crypto) / Standard - :tada:
 - HAPI Tests (Misc) / Standard - :tada:
 - HAPI Tests (Node Death Reconnect) / Standard - :tada:

@@ -24,7 +24,7 @@ env:
 jobs:
   determine-build-candidate:
     name: Fetch Latest Build Candidate
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
@@ -100,7 +100,7 @@ jobs:
 
   promote-build-candidate:
     name: Promote Build Candidate
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
@@ -167,7 +167,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - promote-build-candidate
     if: ${{ needs.promote-build-candidate.result == 'success' }}
@@ -206,7 +206,7 @@ jobs:
 
   report-promotion:
     name: Report Build Promotion
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - determine-build-candidate
       - promote-build-candidate
@@ -296,7 +296,7 @@ jobs:
 
   report-no-promotion:
     name: Report No Build Promotion
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - determine-build-candidate
     if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'false' }}
@@ -395,7 +395,7 @@ jobs:
 
   report-failure:
     name: Report Build Promotion failure
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hg-cn-default-lin-sm
     needs:
       - determine-build-candidate
       - promote-build-candidate

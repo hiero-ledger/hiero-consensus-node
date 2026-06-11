@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   copilot-setup-steps:
-    runs-on: hl-cn-default-lin-md
+    runs-on: hg-cn-default-lin-md
     steps:
       - name: Prepare Runner
         id: prepare-runner

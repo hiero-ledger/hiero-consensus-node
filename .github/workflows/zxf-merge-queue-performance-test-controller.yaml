@@ -42,7 +42,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hl-cn-mqpt-lin-sm
+    runs-on: hg-cn-mqpt-lin-sm
     outputs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
@@ -90,7 +90,7 @@ jobs:
 
   report-success:
     name: Report MQPT execution success
-    runs-on: hl-cn-mqpt-lin-sm
+    runs-on: hg-cn-mqpt-lin-sm
     needs:
       - run-merge-queue-performance-test
       - get-commit-info
@@ -195,7 +195,7 @@ jobs:
 
   report-failure:
     name: Report MQPT execution failure
-    runs-on: hl-cn-mqpt-lin-sm
+    runs-on: hg-cn-mqpt-lin-sm
     needs:
       - run-merge-queue-performance-test
       - get-commit-info
