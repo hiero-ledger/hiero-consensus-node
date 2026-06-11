@@ -861,18 +861,21 @@ start_consensus_node_via_nmt() {
   return 1
 }
 
-# Poll for "ACTIVE" in the JVM's log. NMT runs swirlds-node as a docker
-# container inside the pod, with /opt/hgcapp/services-hedera/HapiApp2.0
-# bind-mounted in, so writes from the JVM appear at the pod-level path.
-# We grep that path; on timeout we dump `docker logs swirlds-node` from
-# inside the pod, which captures the JVM's stdout/stderr (including any
-# pre-log4j boot errors) — that's the diagnostic of last resort when no
-# hgcaa.log was produced at all.
+# Poll for "ACTIVE" in the platform's swirlds.log. The platform-status
+# transitions ("Platform spent X in CHECKING. Now in ACTIVE") are emitted
+# by StatusStateMachine on the PLATFORM_STATUS log marker, which goes to
+# swirlds.log (the platform-layer log), NOT hgcaa.log (the Hedera-app
+# layer log we used to check — that file isn't even created in some
+# log4j2 configurations). On timeout we dump `docker logs swirlds-node`
+# from inside the pod plus both log tails for diagnosis.
 wait_for_node_active() {
   local pod="$1" timeout_secs="$2"
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
-    if kexec "${pod}" grep -q "ACTIVE" "${HAPI_PATH}/logs/hgcaa.log" 2>/dev/null; then
+    # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
+    # payload — uniquely identifies the transition to ACTIVE (not e.g.
+    # an "ACTIVE" substring in some other log line).
+    if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
       log "  ${pod}: ACTIVE"
       return 0
     fi
