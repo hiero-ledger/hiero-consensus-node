@@ -15,14 +15,14 @@ val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
 val hederaCryptography = "3.8.1"
 val helidon = "4.4.1"
-val jackson = "2.21.3"
+val jackson = "2.22.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
-val log4j = "2.25.3"
+val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.30.2"
+val blockNodeProtobufSources = "0.35.1"
 val testContainers = "2.0.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -82,7 +82,7 @@ dependencies.constraints {
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.22.0") { because("org.apache.commons.codec") }
-    api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
+    api("commons-io:commons-io:2.22.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.20.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }

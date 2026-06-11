@@ -3,7 +3,9 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -288,6 +290,24 @@ public class ConsensusServiceSimpleFeesSuite {
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
                 validateChargedUsd("submitTxn", SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD));
+    }
+
+    @HapiTest
+    @DisplayName("two identical topic custom fees are both charged, not collapsed")
+    final Stream<DynamicTest> identicalTopicCustomFeesAreBothCharged() {
+        return hapiTest(
+                cryptoCreate("dupCollector").balance(0L),
+                cryptoCreate("dupPayer").balance(ONE_HUNDRED_HBARS),
+                createTopic("dupFeeTopic")
+                        .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "dupCollector"))
+                        .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "dupCollector")),
+                submitMessageTo("dupFeeTopic")
+                        .message("dup")
+                        .payingWith("dupPayer")
+                        .fee(ONE_HBAR)
+                        .via("dupSubmitTxn"),
+                getTxnRecord("dupSubmitTxn").hasAssessedCustomFeesSize(2),
+                getAccountBalance("dupCollector").hasTinyBars(2 * ONE_HBAR));
     }
 
     @HapiTest

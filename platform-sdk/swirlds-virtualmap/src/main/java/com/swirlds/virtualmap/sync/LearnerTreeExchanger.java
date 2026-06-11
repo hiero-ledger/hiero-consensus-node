@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.reconnect;
+package com.swirlds.virtualmap.sync;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.sync.LearnerTreeView;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
-import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
-import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
-import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -21,27 +16,16 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
- * needs access both to the original state and records, and the current reconnect state and records.
- * This implementation uses {@link Long} as the representation of a node and corresponds directly
- * to the path of the node.
- *
- * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
- * teacher side.
+ * Class for learner handle merkle tree node exchanges.
+ * <p>
+ * It uses {@link NodeTraversalOrder} to provide next path to request from teacher via {@link #getNextPathToSend()}.
+ * Responses from teacher should be handled via {@link #responseReceived(PullVirtualTreeResponse)}.
  */
-public final class LearnerPullVirtualTreeView implements LearnerTreeView {
-
-    private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
+public final class LearnerTreeExchanger {
 
     /**
      * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
@@ -55,11 +39,6 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      * For the learner, this is the state of the tree being serialized into.
      */
     private final VirtualMapMetadata reconnectState;
-
-    /**
-     * Reconnect configuration.
-     */
-    private final ReconnectConfig reconnectConfig;
 
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
@@ -89,10 +68,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
     /**
-     * Create a new {@link LearnerPullVirtualTreeView}.
+     * Create a new {@link LearnerTreeExchanger}.
      *
-     * @param reconnectConfig
-     *      the reconnect configuration
      * @param vmapLearner
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param traversalOrder
@@ -100,88 +77,24 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      * @param mapStats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
-    public LearnerPullVirtualTreeView(
-            @NonNull final ReconnectConfig reconnectConfig,
+    public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.originalState = vmapLearner.getOriginalState();
         this.reconnectState = vmapLearner.getReconnectState();
-        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
         this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public void startLearnerTasks(
-            final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
-        // Perform the root-node (path 0) request/response handshake synchronously before forking
-        // any parallel tasks. The root response carries the teacher's first/last leaf path range,
-        // which must be known before the traversal order can be started and before any parallel
-        // send tasks can generate meaningful non-root requests.
-        try {
-            exchangeRootNode(in, out);
-        } catch (Exception e) {
-            workGroup.handleError(e);
-            throw e; // rethrow
-        }
-
-        final AtomicLong expectedResponses = new AtomicLong(0);
-        // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 16; i++) {
-            final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
-                    new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, in, this, expectedResponses);
-            learnerReceiveTask.exec();
-        }
-
-        // FUTURE WORK: configurable number of tasks
-        final int learnerSendTasks = 16;
-        final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
-        for (int i = 0; i < learnerSendTasks; i++) {
-            final LearnerPullVirtualTreeSendTask learnerSendTask =
-                    new LearnerPullVirtualTreeSendTask(workGroup, out, this, expectedResponses, tasksDone);
-            learnerSendTask.exec();
-        }
-    }
-
     /**
-     * Synchronously sends the root node request to the teacher, waits for the root response, and
-     * initializes the traversal order and learner state from the response. This must complete
-     * before any parallel tasks are forked, because all subsequent requests depend on the leaf
-     * path range carried in the root response.
+     * Initialize the exchanger with the root response from the teacher.
+     * This will initialize the traversal order and the learner with the teacher's leaf key range, and handle the root response.
      *
-     * @param in  the async input stream to read the root response from
-     * @param out the async output stream to send the root request to
-     * @throws MerkleSynchronizationException if the exchange fails, times out, or is interrupted
+     * @param rootResponse root information from teacher
      */
-    private void exchangeRootNode(final AsyncInputStream in, final AsyncOutputStream out) {
-        logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash());
-        final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
-        rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
-        try {
-            out.sendAsync(rootRequestBytes);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new MerkleSynchronizationException("Interrupted while sending root node request", e);
-        }
-        mapStats.incrementTransfersFromLearner();
-
-        // wait for response
-        final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);
-        if (rootResponseBytes == null) {
-            throw new MerkleSynchronizationException("Stream closed before root node response was received");
-        }
-        final PullVirtualTreeResponse rootResponse =
-                PullVirtualTreeResponse.parseFrom(BufferedData.wrap(rootResponseBytes));
-        if (rootResponse.path() != Path.ROOT_PATH) {
-            throw new MerkleSynchronizationException(
-                    "Expected root node response, but received response for path " + rootResponse.path());
-        }
-        logger.info(RECONNECT.getMarker(), "Root node response received from teacher");
-
+    public void init(PullVirtualTreeResponse rootResponse) {
         // init with teacher key range
         final long firstLeafPath = rootResponse.firstLeafPath();
         final long lastLeafPath = rootResponse.lastLeafPath();
@@ -191,9 +104,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         handleResponse(rootResponse);
     }
 
-    @Override
-    public void onSuccessfulComplete() {
-        vmapLearner.finish();
+    VirtualMap onSuccessfulComplete() {
+        return vmapLearner.finish();
+    }
+
+    void abortOnException() {
+        vmapLearner.abortOnException();
     }
 
     /**
@@ -208,7 +124,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     }
 
     // This method is called concurrently from multiple threads
-    long getNextPathToSend() {
+    public long getNextPathToSend() {
         // If the last leaf path request has been sent, don't send anything else
         if (lastLeafSent.get()) {
             return Path.INVALID_PATH;
@@ -236,7 +152,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     }
 
     // This method is called concurrently from multiple threads and called for non-root nodes (internal and leaves)
-    void responseReceived(final PullVirtualTreeResponse response) {
+    public void responseReceived(final PullVirtualTreeResponse response) {
         final long responsePath = response.path();
         if (!isLeaf(responsePath)) {
             handleResponse(response);
