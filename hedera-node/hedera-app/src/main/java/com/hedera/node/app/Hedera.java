@@ -665,7 +665,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     }
 
     @Override
-    public void handleStaleEvent(@NonNull final Event event) {
+    public void processStaleEvent(@NonNull final Event event) {
         requireNonNull(event);
         if (quiescenceEnabled) {
             final var app = requireNonNull(daggerApp);

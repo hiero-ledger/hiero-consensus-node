@@ -135,7 +135,7 @@ public class PlatformWiring {
         if (staleEventConsumer != null) {
             final OutputWire<PlatformEvent> staleEvent =
                     components.hashgraphModule().staleEventOutputWire();
-            staleEvent.solderTo("staleEventCallback", "stale events", staleEventConsumer::handleStaleEvent);
+            staleEvent.solderTo("staleEventCallback", "stale events", staleEventConsumer::processStaleEvent);
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine

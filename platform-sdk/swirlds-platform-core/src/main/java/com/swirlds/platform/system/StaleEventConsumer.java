@@ -13,7 +13,7 @@ public interface StaleEventConsumer {
     /**
      * Handles a stale event.
      *
-     * @param event the stale event that needs to be handled
+     * @param event the stale event that needs to be processed
      */
-    void handleStaleEvent(@NonNull Event event);
+    void processStaleEvent(@NonNull Event event);
 }
