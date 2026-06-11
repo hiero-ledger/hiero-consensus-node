@@ -1353,28 +1353,33 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 return;
             }
             try {
-                synchronized (this) {
-                    // Apply in-flight writes so the in-progress writer is quiescent before we close it.
-                    if (worker != null) {
-                        try {
-                            worker.sync();
-                        } catch (final Exception e) {
-                            log.fatal("Failed to sync in-flight block items before triage flush", e);
-                        }
+                // Quiesce in-flight writes to the in-progress writer. Done OUTSIDE synchronized(this) on purpose: it
+                // joins block-item write tasks on the (common) ForkJoinPool, and the signing callbacks that complete
+                // proofs also run on that pool while synchronized(this). Holding the monitor across this join could
+                // otherwise starve it if the pool were saturated with those callbacks.
+                if (worker != null) {
+                    try {
+                        worker.sync();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to sync in-flight block items before triage flush", e);
                     }
-                    drainAndFlushPendingBlocks();
-                    // Best-effort dump of the current in-progress block's contents, then release writer/worker.
-                    if (writer != null) {
-                        log.fatal("Prematurely closing in-progress block {}", blockNumber);
-                        try {
-                            writer.closeCompleteBlock();
-                        } catch (final Exception e) {
-                            log.fatal("Failed to close in-progress block {}", blockNumber, e);
-                        }
-                        writer = null;
-                    }
-                    worker = null;
                 }
+                // Only the pending-block drain shares writers with finishProofWithSignature, so only it needs the lock.
+                synchronized (this) {
+                    drainAndFlushPendingBlocks();
+                }
+                // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
+                // so it can be closed without the monitor.
+                if (writer != null) {
+                    log.fatal("Prematurely closing in-progress block {}", blockNumber);
+                    try {
+                        writer.closeCompleteBlock();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to close in-progress block {}", blockNumber, e);
+                    }
+                    writer = null;
+                }
+                worker = null;
             } finally {
                 fatalShutdownFuture.complete(null);
             }
