@@ -2,7 +2,9 @@
 
 Specification for `delta-map/<topic>.md` entries. This file defines the
 structure only; the allowed topics are those listed in `README.md`,
-each matching an architecture topic file under `../architecture/topics/`.
+each matching an architecture topic file under `../architecture/topics/`
+(exception: `sheriff.md` covers a proposal-only module that has no
+architecture topic yet).
 What counts as a delta-map entry — a discrete change the consensus-layer
 proposal calls for, scored against current code — is defined in `README.md`.
 

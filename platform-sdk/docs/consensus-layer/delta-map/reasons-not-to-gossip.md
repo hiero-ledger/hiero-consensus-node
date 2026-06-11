@@ -18,7 +18,7 @@ network-wide dynamic throttles have no confirmed counterpart.
 
 | Change | Proposal state | Current state | Status | Anchor / TBD |
 |---|---|---|---|---|
-| Sheriff module (centralized peer verdicts) | A dedicated module aggregates misbehaviour reports and issues shunning/welcome verdicts that gossip enforces. | No Sheriff type or reputation scoring exists; discipline is local to each mechanism. | **not-started** | `LruSyncGuard`, `SyncPermitProvider` (`consensus-gossip-impl`) — local-only, pre-proposal shape |
+| Sheriff module (centralized peer verdicts) | A dedicated module aggregates misbehaviour reports and issues shunning/welcome verdicts that gossip enforces. | No Sheriff type or reputation scoring exists; discipline is local to each mechanism (see [sheriff.md](sheriff.md)). | **not-started** | `LruSyncGuard`, `SyncPermitProvider` (`consensus-gossip-impl`) — local-only, pre-proposal shape |
 | Durability gate before gossip | An event is never gossiped before it is durable. | Gossip is fed from the written-events output of the PCES writer. | **done** | `DefaultInlinePcesWriter` (`consensus-pces-impl`); solder ordering in `PlatformWiring` (`swirlds-platform-core`) |
 | Health-based sync withholding | An unhealthy node stops initiating and serving syncs. | Sync permits are revoked while the unhealthy duration persists and restored afterwards. | **done** | `SyncPermitProvider` (`consensus-gossip-impl`) |
 | Fallen-behind gating | A node that has fallen behind abandons normal gossip and pursues recovery. | Detection and BEHIND status gating are in place. | **done** | `FallenBehindMonitor` (`consensus-utility`), `PlatformStatus` (`consensus-model`) |

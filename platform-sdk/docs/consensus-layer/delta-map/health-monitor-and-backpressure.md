@@ -19,7 +19,7 @@ Execution, is not started.
 | Change | Proposal state | Current state | Status | Anchor / TBD |
 |---|---|---|---|---|
 | Wire-level health monitor | The wiring framework detects backed-up components and broadcasts an unhealthy-duration signal. | Implemented in the component framework. | **done** | `HealthMonitor` (`swirlds-component-framework`) |
-| Health-driven mitigation chain | Under pressure the node stops creating events and sheds gossip and replay work. | The health signal gates event creation, revokes sync permits, and throttles PCES replay. | **done** | `SyncPermitProvider` (`consensus-gossip-impl`), `EventCreatorModule.healthStatusInputWire()` (`consensus-event-creator`), `PcesReplayer` (`consensus-pces-impl`) |
+| Health-driven mitigation chain | Under pressure the node stops creating events, stops accepting transactions, and sheds gossip and replay work. | The health signal gates event creation and transaction acceptance, revokes sync permits, and throttles PCES replay. | **done** | `SyncPermitProvider` (`consensus-gossip-impl`), `EventCreatorModule.healthStatusInputWire()` (`consensus-event-creator`), `TransactionPoolNexus` (`consensus-utility`), `PcesReplayer` (`consensus-pces-impl`) |
 | Module-level (`nextRound`) backpressure overlay | Execution controls the rate at which Consensus produces rounds by pulling them; Consensus never blocks on Execution. | Consensus output is soldered directly to execution-side handlers; wire-level backpressure is the only mechanism. | **not-started** | `PlatformWiring` (`swirlds-platform-core`) — push wiring intact, no `nextRound` in code |
 
 ## Cross-references
