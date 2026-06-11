@@ -1,15 +1,5 @@
-# Consensus Layer Knowledge Base
-
-`consensus-concurrent` is part of the **consensus layer** — a supporting module providing the
-concurrency primitives the consensus modules build on. When working here, consult the
-consensus-layer knowledge base at [`../docs/consensus-layer/`](../docs/consensus-layer/) — it
-documents the current implementation as canonical, anchored to specific files, classes, and
-methods.
-
-**Most relevant to this module:**
-
-- [`architecture/topics/wiring-framework.md`](../docs/consensus-layer/architecture/topics/wiring-framework.md) — how components, wires, and soldering compose the runtime and where backpressure is applied.
-- [`architecture/topics/health-monitor-and-backpressure.md`](../docs/consensus-layer/architecture/topics/health-monitor-and-backpressure.md) — keeping the consensus layer bounded under load.
+Read [`README.md`](README.md) for this module's description, dependency rules, and links to
+the relevant consensus-layer knowledge base docs.
 
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
