@@ -19,7 +19,6 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -60,7 +59,7 @@ public class BlockStreamEventBuilder {
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
     /** Transactions collected for the event currently being assembled. */
-    private final List<TransactionWrapper> currentTransactions = new ArrayList<>();
+    private final List<Bytes> currentTransactions = new ArrayList<>();
 
     /** The header of the event we are currently collecting transactions for. */
     private EventHeader currentEventHeader = null;
@@ -150,15 +149,13 @@ public class BlockStreamEventBuilder {
             if (currentEventHeader == null) {
                 throw new IllegalStateException("Unexpected transaction item without an active event header!");
             }
-            currentTransactions.add(TransactionWrapper.ofTransaction(transactionBytes));
+            currentTransactions.add(transactionBytes);
         }
     }
 
     private void redactedItem(@NonNull final RedactedItem redactedItem) {
-        if (currentEventHeader == null) {
-            throw new IllegalStateException("Unexpected redacted item without an active event header!");
-        }
-        currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
+        throw new UnsupportedOperationException("Redacted block streams are not supported by this tool. "
+                + "Event reconstruction requires full transaction bytes.");
     }
 
     private void endOfBlock() {
@@ -181,13 +178,13 @@ public class BlockStreamEventBuilder {
      * hashes using the event index lookup.
      *
      * @param eventHeader the event header containing core event data
-     * @param wrappedTransactions the list of wrapped transactions
+     * @param transactions the list of transaction bytes
      * @param eventIndexToEvent map for looking up parent events
      * @return reconstructed {@link PlatformEvent} with calculated hash
      */
     private PlatformEvent createEventFromData(
             @NonNull final EventHeader eventHeader,
-            @NonNull final List<TransactionWrapper> wrappedTransactions,
+            @NonNull final List<Bytes> transactions,
             @NonNull final Map<Integer, PlatformEvent> eventIndexToEvent) {
 
         final EventCore eventCore = eventHeader.eventCore();
@@ -199,24 +196,13 @@ public class BlockStreamEventBuilder {
         final List<EventDescriptor> resolvedParents =
                 resolveParentReferences(eventHeader.parents(), eventIndexToEvent, eventCore);
 
-        final List<Bytes> transactionBytes = new ArrayList<>();
-        for (final TransactionWrapper wrappedTransaction : wrappedTransactions) {
-            if (wrappedTransaction.isTransaction()) {
-                transactionBytes.add(wrappedTransaction.transaction());
-            } else {
-                transactionBytes.add(wrappedTransaction.transactionHash());
-            }
-        }
+        final Hash eventHash = hashEvent(eventCore, resolvedParents, transactions);
 
-        final Hash eventHash = new RedactedEventHasher().hashEvent(eventCore, resolvedParents, wrappedTransactions);
-
-        // Create GossipEvent with parents and transactions. The signature is empty because the block
-        // stream does not carry the creator's signature; this does not affect the event hash.
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
                 .signature(Bytes.EMPTY)
                 .parents(resolvedParents)
-                .transactions(transactionBytes)
+                .transactions(transactions)
                 .build();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.STORAGE);
         platformEvent.setHash(eventHash);
@@ -270,68 +256,35 @@ public class BlockStreamEventBuilder {
     // ---- Hashing ----
 
     /**
-     * Recomputes the event hash, mirroring {@code PbjStreamHasher}, with the extension that a
-     * redacted transaction (bytes absent) contributes its stored hash directly instead of being
-     * re-hashed from bytes.
+     * Computes the event hash, mirroring the production {@code PbjStreamHasher}: hash
+     * {@code EventCore} + parent {@code EventDescriptor}s + per-transaction double-hash
+     * (SHA-384 of the transaction bytes, then that hash fed into the event digest).
      */
-    private static final class RedactedEventHasher {
-        private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
-        private final WritableSequentialData eventStream =
-                new WritableStreamingData(new HashingOutputStream(eventDigest));
-        private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
-        private final WritableSequentialData transactionStream =
-                new WritableStreamingData(new HashingOutputStream(transactionDigest));
+    @NonNull
+    private static Hash hashEvent(
+            @NonNull final EventCore eventCore,
+            @NonNull final List<EventDescriptor> parents,
+            @NonNull final List<Bytes> transactions) {
+        try {
+            final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
+            final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
 
-        @NonNull
-        Hash hashEvent(
-                @NonNull final EventCore eventCore,
-                @NonNull final List<EventDescriptor> parents,
-                @NonNull final List<TransactionWrapper> wrappedTransactions) {
-            try {
-                EventCore.PROTOBUF.write(eventCore, eventStream);
-                for (final EventDescriptor parent : parents) {
-                    EventDescriptor.PROTOBUF.write(parent, eventStream);
-                }
-                for (final TransactionWrapper transaction : wrappedTransactions) {
-                    processTransactionHash(transaction);
-                }
-            } catch (final IOException e) {
-                throw new RuntimeException("An exception occurred while trying to hash an event!", e);
+            EventCore.PROTOBUF.write(eventCore, eventStream);
+            for (final EventDescriptor parent : parents) {
+                EventDescriptor.PROTOBUF.write(parent, eventStream);
             }
+
+            final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
+            final WritableSequentialData transactionStream =
+                    new WritableStreamingData(new HashingOutputStream(transactionDigest));
+            for (final Bytes transaction : transactions) {
+                transactionStream.writeBytes(transaction);
+                eventStream.writeBytes(transactionDigest.digest());
+            }
+
             return new Hash(eventDigest.digest(), DigestType.SHA_384);
-        }
-
-        private void processTransactionHash(@NonNull final TransactionWrapper wrappedTransaction) {
-            if (wrappedTransaction.isTransaction()) {
-                transactionStream.writeBytes(wrappedTransaction.transaction());
-                final byte[] hash = transactionDigest.digest();
-                eventStream.writeBytes(hash);
-            } else {
-                eventStream.writeBytes(wrappedTransaction.transactionHash());
-            }
-        }
-    }
-
-    // ---- Transaction wrapper ----
-
-    /**
-     * A wrapper for either a full transaction or just its hash (when redacted).
-     *
-     * @param transaction the full transaction bytes, or null if only the hash is available
-     * @param transactionHash the transaction hash, or null if the full transaction is available
-     */
-    private record TransactionWrapper(
-            @Nullable Bytes transaction, @Nullable Bytes transactionHash) {
-        boolean isTransaction() {
-            return transaction != null;
-        }
-
-        static TransactionWrapper ofTransaction(@NonNull final Bytes transaction) {
-            return new TransactionWrapper(transaction, null);
-        }
-
-        static TransactionWrapper ofTransactionHash(@NonNull final Bytes transactionHash) {
-            return new TransactionWrapper(null, transactionHash);
+        } catch (final IOException e) {
+            throw new RuntimeException("An exception occurred while trying to hash an event!", e);
         }
     }
 }
