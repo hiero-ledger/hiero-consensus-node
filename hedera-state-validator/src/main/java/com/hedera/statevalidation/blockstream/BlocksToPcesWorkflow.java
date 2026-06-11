@@ -11,8 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -116,47 +114,40 @@ public final class BlocksToPcesWorkflow {
     /**
      * Validates that the block files form a contiguous sequence with no gaps, providing an early,
      * descriptive failure rather than a confusing parent-resolution error during reconstruction.
-     * Mirrors the check in {@code BlockStreamRecoveryWorkflow}.
      */
     private static void validateNoMissingBlocks(@NonNull final Path blockStreamDirectory) throws IOException {
-        final List<Long> blockNumbers;
+        final AtomicLong previousBlock = new AtomicLong(-1);
+        final AtomicLong blockCount = new AtomicLong(0);
+        final AtomicLong firstBlock = new AtomicLong(-1);
+        final AtomicLong lastBlock = new AtomicLong(-1);
+
         try (var stream = Files.walk(blockStreamDirectory)) {
-            blockNumbers = stream.filter(p -> BlockStreamAccess.isBlockFile(p, false))
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, false))
                     .map(BlockStreamAccess::extractBlockNumber)
                     .filter(n -> n != -1)
                     .sorted()
-                    .toList();
+                    .forEach(blockNumber -> {
+                        final long prev = previousBlock.getAndSet(blockNumber);
+                        blockCount.incrementAndGet();
+                        if (firstBlock.get() == -1) {
+                            firstBlock.set(blockNumber);
+                        }
+                        lastBlock.set(blockNumber);
+
+                        if (prev != -1 && blockNumber != prev + 1) {
+                            final long gap = blockNumber - prev - 1;
+                            throw new RuntimeException("Block stream is missing " + gap + " block(s) between " + prev
+                                    + " and " + blockNumber);
+                        }
+                    });
         }
 
-        if (blockNumbers.size() < 2) {
-            return;
+        if (blockCount.get() > 0) {
+            log.info(
+                    "Block file contiguity validated: {} block files present, range [{}, {}]",
+                    blockCount.get(),
+                    firstBlock.get(),
+                    lastBlock.get());
         }
-
-        final List<Long> missingBlocks = new ArrayList<>();
-        for (int i = 1; i < blockNumbers.size(); i++) {
-            final long prev = blockNumbers.get(i - 1);
-            final long curr = blockNumbers.get(i);
-            for (long missing = prev + 1; missing < curr; missing++) {
-                missingBlocks.add(missing);
-            }
-        }
-
-        if (!missingBlocks.isEmpty()) {
-            throw new RuntimeException(("Block stream directory is missing %d block file(s). "
-                            + "First present block = %d, last present block = %d. Missing blocks: %s")
-                    .formatted(
-                            missingBlocks.size(),
-                            blockNumbers.getFirst(),
-                            blockNumbers.getLast(),
-                            missingBlocks.size() <= 20
-                                    ? missingBlocks.toString()
-                                    : missingBlocks.subList(0, 20) + " ... (" + missingBlocks.size() + " total)"));
-        }
-
-        log.info(
-                "Block file contiguity validated: {} block files present, range [{}, {}]",
-                blockNumbers.size(),
-                blockNumbers.getFirst(),
-                blockNumbers.getLast());
     }
 }
