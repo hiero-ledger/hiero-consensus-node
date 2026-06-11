@@ -125,8 +125,8 @@ YAHCLI_JAR="${YAHCLI_JAR:-}"
 YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-58}"
 YAHCLI_KEY_PASSPHRASE="${YAHCLI_KEY_PASSPHRASE:-migration-test}"
 MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
-UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-900}"
-NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-900}"
+UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-300}"
+NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-300}"
 
 # Filled in by fetch_artifacts / build_upgrade_zip.
 PLATFORM_INSTALLER_BASENAME=""
@@ -791,12 +791,23 @@ start_consensus_node_via_nmt() {
   # the existing container if any — meaning .env edits from `nmt install`
   # don't reach the container env. Use `docker compose up --force-recreate`
   # directly so the new JAVA_MAIN_CLASS / JAVA_OPTS / JDK actually land.
+  #
+  # JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE} prefix: NMT v1.3.4's
+  # `install -e ServicesMain` is supposed to render .env with the override,
+  # but the rendered .env either doesn't materialise or contains an empty
+  # JAVA_MAIN_CLASS slot — verified in CI by inspecting docker logs
+  # swirlds-node, where the JVM launched with the pre-v0.40 default
+  # com.swirlds.platform.Browser and died with ClassNotFoundException.
+  # docker-compose substitutes shell env over .env, so prefixing the up
+  # command pins the variable to whatever ServicesMain class we want
+  # regardless of what NMT wrote (or didn't write).
   log "docker compose up --force-recreate in ${pod} (bypassing nmt-start's --no-recreate)"
   # `runuser -u hedera` (not `sudo -u hedera`) — see install_platform_via_nmt
   # for the PAM rationale.
   kexec "${pod}" runuser -u hedera -- bash -c "
     cd ${NMT_DIR}/compose/network-node
-    docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
+    JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE} \
+      docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
       up -d --force-recreate 2>&1 | tail -10
   "
 
