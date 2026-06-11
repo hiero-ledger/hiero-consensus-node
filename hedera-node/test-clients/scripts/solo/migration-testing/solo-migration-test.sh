@@ -620,63 +620,61 @@ install_nmt_in_pod() {
   # HapiApp2.0 tree, which fails with EBUSY on every mount point.
   # `--pvcs false` doesn't help — the mounts are part of the pod template,
   # not the PVC machinery. Detach them with lazy umount before nmt preflight
-  # runs. We're inside a privileged container with full CAP_SYS_ADMIN, so
-  # umount succeeds; the directories become empty regular dirs on the pod's
-  # container filesystem. The consensus-node JVM isn't running yet (NMT
-  # hasn't started it), so nothing's holding files open in those mounts.
+  # runs.
   #
-  # Two of those mounts arrive pre-populated by Solo's init container
-  # (`cp -L /data/config/genesis-network.json ...` and the bind-mounted
-  # gossip key secret): data/config (genesis-network.json, application
-  # /api-permission/bootstrap.properties, settings.txt, log4j2.xml) and
-  # data/keys (the node's gossip + TLS keys). The JVM won't reach ACTIVE
-  # without them. Snapshot every non-empty mount to a tarball under /tmp
-  # *before* the lazy umount, then restore the contents to the (now
-  # detached) directory afterwards. Mounts that arrive empty (output,
-  # state, the *Streams dirs) are skipped — the tar is a no-op anyway.
-  log "Snapshotting + detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod}"
+  # Two of those mounts arrive pre-populated by Solo's init-copier:
+  # data/config (genesis-network.json, application/api-permission/bootstrap
+  # .properties, settings.txt, log4j2.xml) and data/keys (the node's gossip
+  # + TLS keys). The JVM won't reach ACTIVE without them.
+  #
+  # We round-trip those two paths through the driver host using `kubectl cp`:
+  # extract → umount → restore. Doing the snapshot from the driver (instead
+  # of an in-pod tar) sidesteps the entire class of in-pod shell quirks
+  # (escape parsing, find filesystem ordering, tar nested-mount behaviour)
+  # that previously left data/config empty in CI but full in local Lima.
+  # The other mounts (state, output, *Streams) arrive empty and don't need
+  # preservation.
+  local stage_dir="${WORK_DIR}/snap-${pod}"
+  mkdir -p "${stage_dir}/data"
+  log "Extracting data/config + data/keys from ${pod} to ${stage_dir}"
+  for sub in config keys; do
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${pod}:${HAPI_PATH}/data/${sub}" "${stage_dir}/data/${sub}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -5 || true
+    if [[ ! -d "${stage_dir}/data/${sub}" ]]; then
+      echo "WARN: kubectl cp pulled nothing from ${pod}:data/${sub}" >&2
+    fi
+  done
+
+  log "Detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod}"
   kexec "${pod}" bash -c "
     set -e
-    snapdir=/tmp/hgcapp-snap
-    rm -rf \$snapdir && mkdir -p \$snapdir
-    # manifest.txt pairs each tar with its original mountpoint. We can't
-    # encode the path in the tar filename — paths like /opt/hgcapp/services-
-    # hedera/... contain hyphens, so a slashes-to-dashes encoding is not
-    # reversible (services-hedera becomes services/hedera and the restore
-    # lands in a phantom dir). Use a parallel manifest instead and key each
-    # tar by a stable hash of the path.
-    manifest=\$snapdir/manifest.txt
-    : > \$manifest
-    # sort -r so we umount deepest-first (children before parents).
+    # sort -r so we umount deepest-first (children before parents). All
+    # mounts get detached; preservation of any data we care about happens
+    # via the driver-side kubectl cp wrapping this block.
     for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
-      # Skip empty mounts — saves several tar invocations per pod and keeps
-      # the restore loop cheap. find -mindepth 1 -quit short-circuits on the
-      # first entry, so this is O(1) for empty dirs.
-      if [ -n \"\$(find \"\$mp\" -mindepth 1 -print -quit 2>/dev/null)\" ]; then
-        safe=\$(printf '%s' \"\$mp\" | md5sum | cut -d' ' -f1)
-        tar -cf \"\$snapdir/\$safe.tar\" -C \"\$mp\" . 2>/dev/null || true
-        printf '%s\\t%s\\n' \"\$safe\" \"\$mp\" >> \$manifest
-      fi
       umount -l \"\$mp\" 2>/dev/null || true
     done
-    # Restore the snapshots into the now-detached directories. umount only
-    # uncovers what's beneath the mount; the underlying image-baked tree is
-    # still there, so we just extract back into the original path. Order
-    # doesn't matter — all restore paths are independent post-umount.
-    while IFS=\$'\\t' read -r safe mp; do
-      tarball=\"\$snapdir/\$safe.tar\"
-      [ -f \"\$tarball\" ] || continue
-      mkdir -p \"\$mp\"
-      tar -xf \"\$tarball\" -C \"\$mp\"
-    done < \$manifest
-    rm -rf \$snapdir
   "
 
-  # Re-assert ownership on the canonical NMT/HAPI dirs after umount — the
-  # umount uncovers the image-baked directories underneath, which already
-  # have the right ownership, but a defensive chown is cheap insurance.
-  # Also chown the just-restored data/config + data/keys so the JVM (running
-  # as hedera) can read them.
+  log "Restoring data/config + data/keys into ${pod}"
+  for sub in config keys; do
+    [[ -d "${stage_dir}/data/${sub}" ]] || { echo "  skip ${sub} (no staged contents)"; continue; }
+    # kubectl exec is a no-op if the dir already exists; the umount just
+    # detaches, leaving the image-baked empty dir in place.
+    kexec "${pod}" mkdir -p "${HAPI_PATH}/data/${sub}" >/dev/null 2>&1 || true
+    # Trailing /. so kubectl cp copies *contents* into the existing dir
+    # rather than nesting the source dir inside it.
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${stage_dir}/data/${sub}/." "${pod}:${HAPI_PATH}/data/${sub}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -5 || true
+  done
+  rm -rf "${stage_dir}"
+
+  # Re-assert ownership on the canonical NMT/HAPI dirs after umount + restore.
+  # The umount uncovers the image-baked directories underneath (already owned
+  # by hedera); the kubectl cp restore preserves uid/gid from the host tarball,
+  # which run as root. Chown so the hedera JVM can read everything.
   kexec "${pod}" chown -R hedera:hedera \
     "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
 
