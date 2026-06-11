@@ -27,6 +27,12 @@ runner images or downloading it per job. It is consumed by the `hapiTestWraps` a
 
 ## Building
 
+The image is published to this repository's ghcr.io namespace
+(`ghcr.io/hiero-ledger/hiero-consensus-node/wraps-proving-key`) by dispatching the
+`ZXF: Publish WRAPS Proving Key Image` workflow, which downloads the tarball, verifies its
+hash, builds with the `Containerfile` here, pushes, and re-verifies the published image by
+digest. To build manually instead:
+
 ```bash
 curl -fSLo wraps-v1.0.0.tar.gz https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz
 shasum -a 384 -c <<< "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3  wraps-v1.0.0.tar.gz"
