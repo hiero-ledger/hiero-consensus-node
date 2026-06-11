@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the 11 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -163,7 +163,7 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 ### `delta-map/`
 
-Per-topic status of "current code vs. proposed design": done / partial / not started / divergent. Eleven flat files, one per topic. Updated as work progresses.
+Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per topic. Updated as work progresses.
 
 ### `tutor/`
 

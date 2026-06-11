@@ -2,7 +2,7 @@
 
 Per-topic record of how the current code aligns with the proposed future-state design in `../../proposals/consensus-layer/Consensus-Layer.md`. The KB treats current code as canonical; the delta map is where the future shape and the work it implies are tracked.
 
-One file per topic, eleven topics total. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why.
+One file per architecture topic. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why. For topics the proposal does not name (`iss-detection`, `quiescence`), rows record implied deltas and proposal-staleness gaps, marked as such in the file.
 
 - Entry format: see `FORMAT.md`.
 
@@ -30,3 +30,5 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 | `restart-and-pces.md`                | divergent   | PCES done; restart ownership unchanged and ISS recovery conflicts with the proposed split. |
 | `freeze-and-upgrade.md`              | not-started | Freeze orchestration still consensus-side; only metadata handling is execution-side, and that predates the proposal. |
 | `reconnect.md`                       | divergent   | Tracks the reconnect-refactor proposal inside the consensus layer, not the proposed execution ownership. |
+| `iss-detection.md`                   | divergent   | Detection and response still platform-owned; the proposal implies they move with the state lifecycle. |
+| `quiescence.md`                      | divergent   | Postdates the proposal; the proposed public API has no quiescence operation. |
