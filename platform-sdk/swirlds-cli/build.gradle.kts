@@ -13,6 +13,8 @@ testModuleInfo {
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.event.stream.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
