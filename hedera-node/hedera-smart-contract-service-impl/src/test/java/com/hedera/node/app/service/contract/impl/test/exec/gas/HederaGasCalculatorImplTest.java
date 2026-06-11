@@ -4,11 +4,13 @@ package com.hedera.node.app.service.contract.impl.test.exec.gas;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.test.TestByteUtils;
 import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.IntStream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,51 @@ class HederaGasCalculatorImplTest {
                 21_000L, // base TX cost
                 subject.transactionGasRequirements(Bytes.EMPTY, false, null, null)
                         .intrinsicGas());
+    }
+
+    @Test
+    void payloadZeroBytesMatchesNaiveCountAcrossSizesAndPatterns() {
+        final var random = new Random(0xC0FFEEL);
+        // Cover every alignment relative to the 8-byte SWAR stride, plus a few larger sizes, and verify the
+        // word-at-a-time count agrees with a trivial byte-by-byte count for random, all-zero, and 0x80-heavy data.
+        for (int length = 0; length <= 130; length++) {
+            assertSwarMatchesNaive(randomBytesOf(random, length));
+            assertSwarMatchesNaive(new byte[length]); // all zeros
+            final var highBits = new byte[length];
+            Arrays.fill(highBits, (byte) 0x80); // 0x80 must NOT be miscounted as zero
+            assertSwarMatchesNaive(highBits);
+        }
+        // A non-zero backing offset must be respected (Bytes can wrap a slice of a larger array).
+        final var backing = randomBytesOf(random, 200);
+        final var sliced = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(backing, 37, 91);
+        assertEquals(naiveZeroCount(Arrays.copyOfRange(backing, 37, 37 + 91)), HederaGasCalculator.payloadZeroBytes(sliced));
+    }
+
+    private static void assertSwarMatchesNaive(final byte[] data) {
+        assertEquals(
+                naiveZeroCount(data),
+                HederaGasCalculator.payloadZeroBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(data)),
+                () -> "mismatch for length " + data.length);
+    }
+
+    private static int naiveZeroCount(final byte[] data) {
+        int zeros = 0;
+        for (final byte b : data) {
+            if (b == 0) {
+                zeros++;
+            }
+        }
+        return zeros;
+    }
+
+    private static byte[] randomBytesOf(final Random random, final int length) {
+        final var data = new byte[length];
+        random.nextBytes(data);
+        // Force a healthy fraction of zeros so the count is non-trivial.
+        for (int i = 0; i < length; i += 3) {
+            data[i] = 0;
+        }
+        return data;
     }
 
     @Test

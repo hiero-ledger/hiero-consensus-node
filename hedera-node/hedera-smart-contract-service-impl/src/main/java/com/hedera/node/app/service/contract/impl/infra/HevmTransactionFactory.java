@@ -429,7 +429,7 @@ public class HevmTransactionFactory {
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
                 gasCalculator
-                        .transactionGasRequirements(EMPTY, false, List.of(), List.of())
+                        .transactionGasRequirements(0, 0, false, List.of(), List.of())
                         .intrinsicGas());
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);

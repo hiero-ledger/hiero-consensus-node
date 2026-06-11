@@ -113,8 +113,10 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
+        final var payload = transaction.payload();
         final var gasCharges = gasCalculator.transactionGasRequirements(
-                transaction.evmPayload(),
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
                 transaction.isCreate(),
                 transaction.accessLists(),
                 transaction.codeDelegations());
@@ -152,8 +154,10 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
+        final var payload = transaction.payload();
         final var gasRequirements = gasCalculator.transactionGasRequirements(
-                transaction.evmPayload(),
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
                 transaction.isCreate(),
                 transaction.accessLists(),
                 transaction.codeDelegations());

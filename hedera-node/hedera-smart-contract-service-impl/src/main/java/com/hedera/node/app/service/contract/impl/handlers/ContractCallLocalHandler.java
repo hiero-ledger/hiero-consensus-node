@@ -96,8 +96,13 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
+        final var functionParameters = op.functionParameters();
         final var gasRequirements = gasCalculator.transactionGasRequirements(
-                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
+                (int) functionParameters.length(),
+                HederaGasCalculator.payloadZeroBytes(functionParameters),
+                false,
+                null,
+                null);
         validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
 
         final var contractID = op.contractID();

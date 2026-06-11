@@ -144,7 +144,7 @@ class ContractCallLocalHandlerTest {
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);
@@ -184,7 +184,7 @@ class ContractCallLocalHandlerTest {
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(contractCallLocalQuery.contractID()).willReturn(null);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         givenDefaultConfig();
 
@@ -199,7 +199,7 @@ class ContractCallLocalHandlerTest {
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(contractCallLocalQuery.contractID()).willReturn(invalidContract);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         givenDefaultConfig();
 
@@ -214,7 +214,7 @@ class ContractCallLocalHandlerTest {
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(null);
@@ -245,7 +245,7 @@ class ContractCallLocalHandlerTest {
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);

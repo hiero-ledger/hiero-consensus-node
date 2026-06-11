@@ -59,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -175,7 +176,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(
                 INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
@@ -183,8 +184,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
-        given(gasCalculator.transactionGasRequirements(
-                        org.apache.tuweni.bytes.Bytes.EMPTY, false, List.of(), List.of()))
+        given(gasCalculator.transactionGasRequirements(0, 0, false, List.of(), List.of()))
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(22_000L));
         assertCallFailsWith(
                 INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
@@ -192,7 +192,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsNegativeValue() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(
                 CONTRACT_NEGATIVE_VALUE,
@@ -201,7 +201,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.contractID(CALLED_CONTRACT_ID)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
@@ -209,7 +209,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallUsesEmptyCallDataWhenNotSet() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(
                 b -> b.amount(123L).contractID(CALLED_CONTRACT_ID).gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
@@ -253,7 +253,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallIgnoresDeletedContractIfFeatureFlagEnabled() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(
@@ -278,7 +278,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallUsesCallParamsWhenSet() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
@@ -461,7 +461,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationStillPermitsEmptyKey() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var immutabilitySentinelKey =
                 Key.newBuilder().keyList(KeyList.DEFAULT).build();
@@ -487,7 +487,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationAppendsConstructorArgsIfPresent() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(INITCODE).build());
@@ -516,7 +516,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationSkips0xPrefixFromInitcodeIfPresent() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder()
@@ -578,7 +578,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthFailsImmediatelyWithTooHighGasLimit() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var txData = ETH_DATA_WITH_TO_ADDRESS.replaceGasLimit(16_000_000L);
         final var sigs = mock(EthTxSigs.class);
@@ -590,7 +590,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthRepresentsCallAsExpected() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITH_TO_ADDRESS);
         final var sig = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
@@ -623,7 +623,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthRepresentsCreateAsExpected() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         final var dataToUse = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(CALL_DATA.toByteArray());
         givenInsteadHydratedEthTxWithRightChainId(dataToUse);

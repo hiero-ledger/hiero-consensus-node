@@ -114,7 +114,7 @@ public class HevmStaticTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
-        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(0, 0, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
