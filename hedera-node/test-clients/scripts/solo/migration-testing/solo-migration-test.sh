@@ -425,13 +425,33 @@ deploy_baseline() {
   )
 
   wait_for_consensus_pods_ready 600
+  # Solo's `consensus node setup` (next step) validates its remote config
+  # against all live k8s resources — including the per-node haproxy
+  # deployments — so we wait for those before invoking it.
+  wait_for_haproxy_ready 600
 
-  # #25736: instead of `solo consensus node setup` + `start`, install real
-  # NMT inside each pod, start `nmt watch`, and let NMT bring up the JVM
-  # via its docker-compose stack — mirrors mainnet topology.
+  # #25736: `solo consensus node setup` is what generates genesis-network.json
+  # (from the just-generated gossip keys + the deployment topology) and stages
+  # it — along with config.txt, settings.txt, the platform tarball, and the
+  # HederaNode.jar — into each pod's bind-mounted data/config + data/apps.
+  # In the plain Solo flow this would be followed by `solo consensus node
+  # start`; we replace that with our NMT bring-up below. NMT install will
+  # overwrite the platform tarball staging in data/apps with its own
+  # extracted SDK, but it leaves data/config alone, so the genesis-network
+  # .json + settings.txt + log4j2.xml that Solo wrote here survive into
+  # the JVM's view (preserved across the umount by our kubectl-cp round-trip
+  # inside install_nmt_in_pod).
+  log "Staging configs + keys + platform via 'solo consensus node setup' (for genesis-network.json)"
+  solo consensus node setup \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --release-tag "${DEPLOY_RELEASE_TAG}"
+
+  # #25736: instead of `solo consensus node start`, install real NMT inside
+  # each pod, start `nmt watch`, and let NMT bring up the JVM via its
+  # docker-compose stack — mirrors mainnet topology.
   fetch_artifacts
   bring_up_consensus_via_nmt
-  wait_for_haproxy_ready 600
 
   log "Adding Mirror Node (with Pinger enabled)"
   # Race-fix for Apple Silicon: the mirror-1-web3 Spring Boot JVM cold-starts
