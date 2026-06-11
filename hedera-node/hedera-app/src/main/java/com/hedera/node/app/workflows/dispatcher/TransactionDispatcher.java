@@ -136,7 +136,11 @@ public class TransactionDispatcher {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {
-            if (isFeeExempt(feeContext.body().data().kind())) {
+            final var kind = feeContext.body().data().kind();
+            if (kind == TransactionBody.DataOneOfType.UNSET) {
+                throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            }
+            if (isFeeExempt(kind)) {
                 return feeResultToFees(new FeeResult(), fromPbj(feeContext.activeRate()));
             }
             var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
@@ -166,6 +170,7 @@ public class TransactionDispatcher {
                     HISTORY_PROOF_SIGNATURE,
                     HISTORY_PROOF_KEY_PUBLICATION,
                     HISTORY_PROOF_VOTE,
+                    MIGRATION_ROOT_HASH_VOTE,
                     CRS_PUBLICATION -> true;
             default -> false;
         };
