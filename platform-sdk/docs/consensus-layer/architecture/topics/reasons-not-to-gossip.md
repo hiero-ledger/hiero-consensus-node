@@ -58,7 +58,8 @@ ranges are accurate at last review and may shift with refactors.
 - Code anchor: [`consensus-pces`](../../../../consensus-pces) PCES writer;
   the wiring routes self-events through the writer before they reach the
   gossip path. Configuration: `event.preconsensus.inlinePcesSyncOption`
-  (default `EVERY_SELF_EVENT`).
+  (TUN-129; default `DONT_SYNC` — the durability guarantee holds without a
+  per-event fsync, see [`restart-and-pces.md`](restart-and-pces.md)).
 - Rationale: a self-event gossiped before persistence can cause a branch
   on restart, since the node may rebuild a different self-event on the
   same self-parent. Documented in

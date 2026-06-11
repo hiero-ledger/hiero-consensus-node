@@ -92,39 +92,28 @@ See [restart-and-pces.md](restart-and-pces.md) for the replay lifecycle.
 
 ## Tunables
 
-All keys are sourced from the platform/Hedera `@ConfigData` records cited above. See [../../tunables.md](../../tunables.md) for the full catalog and any non-default deployment values.
+The detection cadence and per-reaction thresholds are all configured
+parameters; their defaults, types, and full effects live in the canonical
+catalog [../../tunables.md](../../tunables.md) and are not repeated here. The
+relevant entries, grouped by where they act:
 
-Detection (in `WiringConfig`, namespace `platform.wiring`):
-
-- `platform.wiring.healthMonitorEnabled` (default `true`) — master switch for the monitor.
-- `platform.wiring.healthMonitorHeartbeatPeriod` (default `1ms`) — polling cadence.
-- `platform.wiring.healthMonitorSchedulerCapacity` (default `500`) — capacity of the health monitor's own scheduler.
-- `platform.wiring.hardBackpressureEnabled` (default `false`) — when `true`, queue insertion would block at capacity; left off so the soft-signal model applies.
-- `platform.wiring.healthLogThreshold` (default `1s`) — minimum unhealthy duration before a log warning is emitted.
-- `platform.wiring.healthLogPeriod` (default `10m`) — minimum interval between warnings for the same scheduler.
-- `platform.wiring.healthyReportThreshold` (default `1s`) — interval at which a sustained healthy state is re-reported.
-
-Event-creation throttling (in `EventCreationConfig`):
-
-- `event.creation.maximumPermissibleUnhealthyDuration` (default `1s`) — gate for self-event creation.
-
-Gossip permits (in `SyncConfig`):
-
-- `sync.unhealthyGracePeriod` (default `1s`) — grace before permits start to be revoked.
-- `sync.permitsRevokedPerSecond` (default `5`) — revoke rate while unhealthy.
-- `sync.permitsReturnedPerSecond` (default `1`) — return rate while healthy.
-- `sync.minimumHealthyUnrevokedPermitCount` (default `1`) — floor of un-revoked permits when healthy.
-- `sync.keepSendingEventsWhenUnhealthy` (default `true`) — keep sending self events while unhealthy; only inbound processing is suppressed.
-
-Transaction acceptance (in Hedera-side `HederaConfig`):
-
-- `transaction.maximumPermissibleUnhealthySeconds` (default `1`) — gate for application transaction acceptance.
-
-PCES replay (in `PcesConfig`):
-
-- `event.preconsensus.replayHealthThreshold` (default `1ms`) — gate for PCES replay.
-- `event.preconsensus.limitReplayFrequency` (default `true`) — toggle for the replay rate limiter.
-- `event.preconsensus.maxEventReplayFrequency` (default `5000`) — maximum events per second replayed.
+- **Detection** (`WiringConfig`, `platform.wiring.*`): TUN-003
+  (`healthMonitorEnabled`), TUN-004 (`hardBackpressureEnabled`), TUN-007
+  (`healthMonitorSchedulerCapacity`), TUN-008 (`healthMonitorHeartbeatPeriod`),
+  TUN-009 (`healthLogThreshold`), TUN-010 (`healthLogPeriod`), TUN-011
+  (`healthyReportThreshold`).
+- **Event-creation throttling** (`EventCreationConfig`): TUN-138
+  (`maximumPermissibleUnhealthyDuration`).
+- **Gossip permits** (`SyncConfig`): TUN-181 (`unhealthyGracePeriod`), TUN-182
+  (`permitsRevokedPerSecond`), TUN-183 (`permitsReturnedPerSecond`), TUN-184
+  (`minimumHealthyUnrevokedPermitCount`), TUN-190
+  (`keepSendingEventsWhenUnhealthy`).
+- **PCES replay** (`PcesConfig`): TUN-126 (`replayHealthThreshold`), TUN-127
+  (`limitReplayFrequency`), TUN-128 (`maxEventReplayFrequency`).
+- **Transaction acceptance**: `transaction.maximumPermissibleUnhealthySeconds`
+  is a Hedera-side `HederaConfig` key, outside the consensus-layer tunables
+  catalog; see the [Transaction acceptance gate](#transaction-acceptance-gate)
+  reaction above for its behaviour.
 
 ## Cross-references
 
