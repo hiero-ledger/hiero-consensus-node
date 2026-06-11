@@ -53,6 +53,7 @@ public final class GcpPathHelper {
 
     /** Default timeout (in seconds) for a recursive directory download. */
     private static final long DIRECTORY_DOWNLOAD_TIMEOUT_SECONDS = 3600;
+
     public static final int LS_TIMEOUT = 120;
 
     private GcpPathHelper() {}

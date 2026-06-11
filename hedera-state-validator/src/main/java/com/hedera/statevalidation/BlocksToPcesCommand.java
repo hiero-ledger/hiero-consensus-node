@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -51,7 +50,6 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
     private String gcpBlockStreamPath;
     private Path outputPath = Path.of("./out");
     private long originRound = -1;
-    private NodeId selfId;
     private long targetRound;
     private String billingProject;
     private int downloadThreads = 32;
@@ -69,16 +67,6 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
             this.blockStreamDirectory = pathMustExist(Path.of(blockStreamDir).toAbsolutePath());
         }
     }
-
-    @Option(
-            names = {"-id", "--node-id"},
-            required = true,
-            description = "The ID of the node that is being used to recover the state. "
-                    + "This node's keys should be available locally.")
-    private void setSelfId(final long selfId) {
-        this.selfId = NodeId.of(selfId);
-    }
-
 
     @Option(
             names = {"-or", "--origin-round"},
@@ -136,7 +124,7 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
                 throw new IllegalArgumentException("Output directory already exists: " + pcesDir);
             }
 
-            final long count = convert(selfId, blockStreamDirectory, pcesDir, originRound);
+            final long count = convert(blockStreamDirectory, pcesDir, originRound);
             log.info("blocks-to-pces complete: {} event(s) written to {}", count, pcesDir);
         } catch (final IOException e) {
             throw new RuntimeException(e);
@@ -195,5 +183,4 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
         return tempBlockDir;
     }
-
 }
