@@ -113,15 +113,15 @@ a dependency on it.
   changes, so the sensitive consumers (consensus, sync) move one at a time with
   their own testing rather than in one large switch:
 
-  | Stage | Scope | Tracking | State |
-  |-------|-------|----------|-------|
-  | Compute the sequence number in the orphan buffer | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done |
-  | Event creation / tipset | `consensus-event-creator-impl` | #24991 | done |
-  | Consensus algorithm | `consensus-hashgraph-impl` | #24844 | pending |
-  | Sync | `consensus-gossip-impl` | #24843 | pending |
-  | `cGen` handling | `consensus-hashgraph-impl` | #24883 | pending |
-  | Tools (GUI, CLI) | `consensus-gui`, `swirlds-cli` | #24885 | pending |
-  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846 | pending |
+  |                          Stage                           |                 Scope                  |      Tracking      |  State  |
+  |----------------------------------------------------------|----------------------------------------|--------------------|---------|
+  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
+  | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
+  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | pending |
+  | Sync                                                     | `consensus-gossip-impl`                | #24843             | pending |
+  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
+  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
+  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | pending |
 
   The final stage (#24846) deletes `assignNGen`, the `nGen` field, and its
   accessors, completing the removal.
