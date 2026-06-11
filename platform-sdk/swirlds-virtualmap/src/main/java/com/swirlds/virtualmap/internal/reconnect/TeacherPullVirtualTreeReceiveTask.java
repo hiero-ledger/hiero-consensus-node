@@ -6,7 +6,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;

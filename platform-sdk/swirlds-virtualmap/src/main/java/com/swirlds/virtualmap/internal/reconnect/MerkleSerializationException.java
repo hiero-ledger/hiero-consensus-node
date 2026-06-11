@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.exceptions;
+package com.swirlds.virtualmap.internal.reconnect;
 
 import java.io.IOException;
 
