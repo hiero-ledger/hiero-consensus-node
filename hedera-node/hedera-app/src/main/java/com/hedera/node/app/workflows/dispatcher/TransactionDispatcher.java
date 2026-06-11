@@ -136,7 +136,7 @@ public class TransactionDispatcher {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {
-            if (feeContext.body().data().kind() == TransactionBody.DataOneOfType.NODE_STAKE_UPDATE) {
+            if (isFeeExempt(feeContext.body().data().kind())) {
                 return feeResultToFees(new FeeResult(), fromPbj(feeContext.activeRate()));
             }
             var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
@@ -145,6 +145,30 @@ public class TransactionDispatcher {
         } catch (UnsupportedOperationException ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
+    }
+
+    /**
+     * Transaction types with no simple fee schedule entry: privileged or node-internal operations
+     * that are never charged, plus unsupported operations rejected in their handlers.
+     */
+    private static boolean isFeeExempt(@NonNull final TransactionBody.DataOneOfType kind) {
+        return switch (kind) {
+            case NODE_STAKE_UPDATE,
+                    FREEZE,
+                    UNCHECKED_SUBMIT,
+                    CRYPTO_ADD_LIVE_HASH,
+                    CRYPTO_DELETE_LIVE_HASH,
+                    STATE_SIGNATURE_TRANSACTION,
+                    LEDGER_ID_PUBLICATION,
+                    HINTS_KEY_PUBLICATION,
+                    HINTS_PREPROCESSING_VOTE,
+                    HINTS_PARTIAL_SIGNATURE,
+                    HISTORY_PROOF_SIGNATURE,
+                    HISTORY_PROOF_KEY_PUBLICATION,
+                    HISTORY_PROOF_VOTE,
+                    CRS_PUBLICATION -> true;
+            default -> false;
+        };
     }
 
     /**
