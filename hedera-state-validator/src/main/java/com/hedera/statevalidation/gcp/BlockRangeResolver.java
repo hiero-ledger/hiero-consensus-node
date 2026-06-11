@@ -167,19 +167,6 @@ public final class BlockRangeResolver {
     }
 
     /**
-     * Finds the first existing block file by probing exponentially from block 0.
-     */
-    private long findFirstExistingBlock() throws IOException {
-        final String firstFileUri = listFirstFile(gcpBlockStreamDir, billingProject);
-        if (firstFileUri == null) {
-            throw new IOException("No block files found in " + gcpBlockStreamDir);
-        }
-        // Extract the block number from the filename (e.g. ...000000000000000000000000000103041409.blk.gz → 103041409)
-        final String fileName = firstFileUri.substring(firstFileUri.lastIndexOf('/') + 1);
-        return extractBlockNumber(Path.of(fileName));
-    }
-
-    /**
      * Resolves the full block range that must be downloaded to apply blocks up to
      * {@code targetRound}.
      *
@@ -440,8 +427,7 @@ public final class BlockRangeResolver {
      * Sequential binary search for the block containing the target round, for small ranges.
      */
     private long sequentialBinarySearchForRound(
-            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, Long> roundCache)
-            throws IOException {
+            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, Long> roundCache) {
         while (hi - lo > 1) {
             final long mid = lo + (hi - lo) / 2;
             final long maxRound = roundCache.computeIfAbsent(mid, block -> {

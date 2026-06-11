@@ -87,7 +87,7 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
     }
 
     @Option(
-            names = {"-t", "--target-round"},
+            names = {"-tr", "--target-round"},
             required = true,
             description = "The last round whose events are extracted; events from higher rounds are ignored. "
                     + "Default = extract all available rounds. Required when --block-stream-dir is a GCS path.")
