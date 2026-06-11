@@ -144,11 +144,13 @@ public class AssociationsDecoder {
      * @param attempt the HTS call attempt
      * @param tokenAddresses associate tokens addresses
      */
-    private void validateTokensMaxLength(@NonNull final HtsCallAttempt attempt, @NonNull final Address... tokenAddresses) {
+    private void validateTokensMaxLength(
+            @NonNull final HtsCallAttempt attempt, @NonNull final Address... tokenAddresses) {
         final var canonicalGas = attempt.systemContractGasCalculator().canonicalGasRequirement(DispatchType.ASSOCIATE);
         final var config = attempt.configuration().getConfigData(ContractsConfig.class);
         validateTrue(
-                tokenAddresses.length * canonicalGas <= config.maxGasPerTransaction(), TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED);
+                tokenAddresses.length * canonicalGas <= config.maxGasPerTransaction(),
+                TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED);
     }
 
     private TokenAssociateTransactionBody internalAssociations(

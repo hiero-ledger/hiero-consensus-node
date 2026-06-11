@@ -190,18 +190,18 @@ class AssociationsDecoderTest {
     }
 
     private void givenConvertible() {
-        given(addressIdConverter.convert(com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS)).willReturn(com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID);
+        given(addressIdConverter.convert(
+                        com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS))
+                .willReturn(com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID);
     }
 
-    private void assertAssociationPresent(
-            @NonNull final TransactionBody body, @NonNull final TokenID tokenId) {
+    private void assertAssociationPresent(@NonNull final TransactionBody body, @NonNull final TokenID tokenId) {
         final var associate = body.tokenAssociateOrThrow();
         assertEquals(com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID, associate.account());
         org.assertj.core.api.Assertions.assertThat(associate.tokens()).contains(tokenId);
     }
 
-    private void assertDissociationPresent(
-            @NonNull final TransactionBody body, @NonNull final TokenID tokenId) {
+    private void assertDissociationPresent(@NonNull final TransactionBody body, @NonNull final TokenID tokenId) {
         final var dissociate = body.tokenDissociateOrThrow();
         assertEquals(com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID, dissociate.account());
         org.assertj.core.api.Assertions.assertThat(dissociate.tokens()).contains(tokenId);

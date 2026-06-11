@@ -27,14 +27,12 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -87,10 +85,10 @@ public class AssociationsLimitsTest {
                 overriding("contracts.maxGasPerTransaction", String.valueOf(TRANSACTION_MAX_GAS)),
                 // limited by TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED
                 contractCallWithFunctionAbi(
-                        "0x0000000000000000000000000000000000000167",
-                        function,
-                        accountAddress.get(),
-                        tokenAddresses.toArray(Address[]::new))
+                                "0x0000000000000000000000000000000000000167",
+                                function,
+                                accountAddress.get(),
+                                tokenAddresses.toArray(Address[]::new))
                         .gas(TRANSACTION_MAX_GAS)
                         .payingWith(ACCOUNT)
                         .via(TX_NAME)
@@ -99,20 +97,20 @@ public class AssociationsLimitsTest {
                         .exposingTo(e -> assertEquals(
                                 messageToHex(TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED.toString()),
                                 e.getContractCallResult().getErrorMessage())),
-                // increasing 'maxGasPerTransaction' to check if max token associations depends on 'maxGasPerTransaction'
+                // increasing 'maxGasPerTransaction' to check if max token associations depends on
+                // 'maxGasPerTransaction'
                 overriding("contracts.maxGasPerTransaction", String.valueOf(TRANSACTION_MAX_GAS * 2)),
                 // should SUCCESS, because we increase 'maxGasPerTransaction'
                 contractCallWithFunctionAbi(
-                        "0x0000000000000000000000000000000000000167",
-                        function,
-                        accountAddress.get(),
-                        tokenAddresses.toArray(Address[]::new))
+                                "0x0000000000000000000000000000000000000167",
+                                function,
+                                accountAddress.get(),
+                                tokenAddresses.toArray(Address[]::new))
                         .gas(TRANSACTION_MAX_GAS * 2)
                         .payingWith(ACCOUNT)
                         .via(TX_NAME)
                         .hasKnownStatus(SUCCESS),
-                restoreDefault("contracts.maxGasPerTransaction")
-        );
+                restoreDefault("contracts.maxGasPerTransaction"));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
