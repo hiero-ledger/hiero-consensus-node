@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.branching;
+package org.hiero.consensus.event.intake.impl.branching;
 
-import static com.swirlds.platform.event.branching.BranchDetectorTests.generateSimpleSequenceOfEvents;
+import static org.hiero.consensus.event.intake.impl.branching.BranchDetectorTests.generateSimpleSequenceOfEvents;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -30,10 +30,7 @@ class BranchReporterTests {
 
         final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
-        final DefaultBranchReporter reporter = new DefaultBranchReporter(platformContext, roster);
+        final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
         int ancientThreshold = randotron.nextInt(1, 1000);
         reporter.updateEventWindow(EventWindowBuilder.builder()
@@ -77,10 +74,7 @@ class BranchReporterTests {
 
         final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
-        final DefaultBranchReporter reporter = new DefaultBranchReporter(platformContext, roster);
+        final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
         int ancientThreshold = randotron.nextInt(1, 1000);
         reporter.updateEventWindow(EventWindowBuilder.builder()
@@ -118,10 +112,7 @@ class BranchReporterTests {
 
         final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
-        final DefaultBranchReporter reporter = new DefaultBranchReporter(platformContext, roster);
+        final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
                 .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))

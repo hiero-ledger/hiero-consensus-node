@@ -143,6 +143,10 @@ on:
       slack-api-token:
         description: "The Slack API access token used to run unit and JRS tests."
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.jrs-regression.outputs.failure-mode }}
 
 env:
   MAVEN_OPTS: -Xmx16g -XX:ActiveProcessorCount=16
@@ -167,6 +171,8 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-jrs-regression-lin-lg
     if: ${{ !github.event.workflow_call.repository.fork }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -373,6 +379,7 @@ jobs:
           rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${{ inputs.summary-bucket }}/${BRANCH_NAME}/" "${{ inputs.summary-path }}/"
 
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
+        id: run-jrs-regression
         env:
           HEDERA_TESTS_ENABLED: ${{ inputs.hedera-tests-enabled }}
           REGRESSION_PATH: ${{ inputs.regression-path }}
@@ -546,3 +553,12 @@ jobs:
           cat "${HOME}/release-resources.log"
           echo
           echo "<<<<<<<<<<<<<<<<<< End Diagnostic Log >>>>>>>>>>>>>>>>>>"
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-jrs-regression.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

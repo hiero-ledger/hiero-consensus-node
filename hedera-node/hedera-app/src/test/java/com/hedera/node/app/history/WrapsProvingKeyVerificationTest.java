@@ -186,6 +186,25 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
+    void succeedsWithRelativeProvingKeyPathAndAbsoluteEnvArtifactsPath() {
+        // The default tss.wrapsProvingKeyPath is relative (data/keys/wraps) while the env var is
+        // typically absolute; both must be resolved against the working directory before comparison
+        final var provingKeyPath = Paths.get("data/keys/wraps-archive");
+        final var absoluteEnvPath =
+                Paths.get("data/keys/wraps").toAbsolutePath().toString();
+
+        assertDoesNotThrow(() -> validateArtifactsPathConsistency(provingKeyPath, absoluteEnvPath));
+    }
+
+    @Test
+    void throwsWithRelativeProvingKeyPathAndAbsoluteEnvArtifactsPathOutsideExtractionDir() {
+        final var provingKeyPath = Paths.get("data/keys/wraps-archive");
+        final var wrongEnvPath = "/completely/different/path";
+
+        assertThrows(IllegalStateException.class, () -> validateArtifactsPathConsistency(provingKeyPath, wrongEnvPath));
+    }
+
+    @Test
     void doesNotThrowWhenEnvArtifactsPathIsNull() {
         final var provingKeyPath = Paths.get("/opt/hgcapp/wraps-v1.0.0.tar.gz");
 
