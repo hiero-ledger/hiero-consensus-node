@@ -1,17 +1,5 @@
-# Consensus Layer Knowledge Base
-
-`consensus-otter-tests` is consensus-layer **tooling** — the Otter test framework that exercises
-the consensus modules under simulated (Turtle) and containerized environments. It is not part
-of the runtime layer the knowledge base documents, but writing and reading these tests requires
-the consensus-layer mental models, so consult the knowledge base at
-[`../docs/consensus-layer/`](../docs/consensus-layer/). It documents the current implementation
-as canonical, anchored to specific files, classes, and methods.
-
-**Most relevant to this module:**
-
-- [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md) — the module map and event flow a test reproduces.
-- [`concepts/`](../docs/consensus-layer/concepts/) — the mental models (hashgraph DAG, rounds and witnesses, judges, birth-round, event lifecycle) a test must respect.
-- [`scenarios/`](../docs/consensus-layer/scenarios/) and [`symptoms.md`](../docs/consensus-layer/symptoms.md) — edge cases and observable signatures worth reproducing or asserting against.
+Read [`README.md`](README.md) for this module's description, dependency rules, and links to
+the relevant consensus-layer knowledge base docs.
 
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and
