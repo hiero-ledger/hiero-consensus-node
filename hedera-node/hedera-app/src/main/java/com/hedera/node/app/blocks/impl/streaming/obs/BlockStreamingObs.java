@@ -10,8 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -288,135 +289,88 @@ public class BlockStreamingObs implements AutoCloseable {
         final long thresholdSecondTick = toSecondTick(nanosTick) - 2;
         final long thresholdNanosTick = initialNanosTick + (NANOS_PER_SECOND * thresholdSecondTick);
 
-        // gather the throughput buckets we care about
-        final Map<Long, ThroughputBucket> throughputBucketsToProcess = new HashMap<>();
-        final Iterator<Map.Entry<Long, ThroughputBucket>> throughputBucketsIt =
-                throughputBuckets.entrySet().iterator();
+        final List<ThroughputBucket> buckets = drainThroughputBuckets(thresholdSecondTick);
+        final BlockStatsAggregation blocksAggregation = drainBlocks(nanosTick, thresholdNanosTick);
 
-        while (throughputBucketsIt.hasNext()) {
-            final Map.Entry<Long, ThroughputBucket> entry = throughputBucketsIt.next();
-            final long bucketSecondTick = entry.getKey();
-            if (bucketSecondTick <= thresholdSecondTick) {
-                throughputBucketsIt.remove();
-                throughputBucketsToProcess.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        // gather the blocks we care about
-        final BlockStatsAggregation blocksAggregation = new BlockStatsAggregation();
-        long blocksAggregated = 0;
-        long blocksAbandoned = 0;
-        final Iterator<Map.Entry<Long, BlockStats>> blockStatisticsIt =
-                blockStatistics.entrySet().iterator();
-
-        while (blockStatisticsIt.hasNext()) {
-            final Map.Entry<Long, BlockStats> entry = blockStatisticsIt.next();
-            final BlockStats blockStats = entry.getValue();
-            // only blocks acked before the threshold are eligible; the ack is terminal, so by now
-            // no other thread is still recording events for the block and it is safe to aggregate
-            final long ackedNanosTick = blockStats.ackedNanosTick.get();
-            if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
-                blockStatisticsIt.remove();
-                blocksAggregation.add(blockStats);
-                ++blocksAggregated;
-            } else if (ackedNanosTick == -1 && nanosTick - blockStats.initNanosTick >= ABANDONED_AFTER_NANOS) {
-                // never acked and too old: evict without aggregating (other threads may still be
-                // mutating the block, so its probes must not be touched) and only count it
-                blockStatisticsIt.remove();
-                ++blocksAbandoned;
-            }
-        }
-
-        if (throughputBucketsToProcess.isEmpty() && blocksAggregated == 0 && blocksAbandoned == 0) {
+        if (buckets.isEmpty() && blocksAggregation.isEmpty()) {
             // nothing was recorded in this window; skip the report entirely
             return;
         }
 
         blocksAggregation.complete();
 
-        // now process all the collected data
-        long earliestSecondTick = Long.MAX_VALUE;
-        long latestSecondTick = Long.MIN_VALUE;
-        long totalBlocksOpened = 0;
-        long totalBlocksClosed = 0;
-        long totalBlocksAcked = 0;
-        final SimpleAggregator totalItemsCreated = new SimpleAggregator();
-        final SimpleAggregator totalItemsSent = new SimpleAggregator();
+        log.info("{}", formatReport(ThroughputSummary.of(buckets), blocksAggregation));
+    }
 
-        for (final ThroughputBucket throughputBucket : throughputBucketsToProcess.values()) {
-            if (earliestSecondTick > throughputBucket.secondTick) {
-                earliestSecondTick = throughputBucket.secondTick;
+    /** Removes and returns all throughput buckets at or before the threshold second. */
+    private List<ThroughputBucket> drainThroughputBuckets(final long thresholdSecondTick) {
+        final List<ThroughputBucket> drained = new ArrayList<>();
+        final Iterator<Map.Entry<Long, ThroughputBucket>> it =
+                throughputBuckets.entrySet().iterator();
+
+        while (it.hasNext()) {
+            final Map.Entry<Long, ThroughputBucket> entry = it.next();
+            if (entry.getKey() <= thresholdSecondTick) {
+                it.remove();
+                drained.add(entry.getValue());
             }
-            if (latestSecondTick < throughputBucket.secondTick) {
-                latestSecondTick = throughputBucket.secondTick;
-            }
-
-            totalBlocksOpened += throughputBucket.blocksOpened.sum();
-            totalBlocksClosed += throughputBucket.blocksClosed.sum();
-            totalBlocksAcked += throughputBucket.blocksAcked.sum();
-
-            final Statistics itemsCreatedStats = throughputBucket.itemsCreated.aggregate();
-            final Statistics itemsSentStats = throughputBucket.itemsSent.aggregate();
-
-            totalItemsCreated.add(itemsCreatedStats.numSamples(), itemsCreatedStats.sum());
-            totalItemsSent.add(itemsSentStats.numSamples(), itemsSentStats.sum());
         }
+        return drained;
+    }
 
-        // +1 because the bucket tick range is inclusive on both ends (N buckets span N seconds); if there
-        // are no buckets (only gathered/abandoned blocks), fall back to 1 to keep the divisions harmless
-        final long numberOfSeconds =
-                throughputBucketsToProcess.isEmpty() ? 1 : (latestSecondTick - earliestSecondTick) + 1;
-        final BigDecimal seconds = BigDecimal.valueOf(numberOfSeconds);
+    /** Removes terminal blocks from {@link #blockStatistics} and aggregates the acked ones. */
+    private BlockStatsAggregation drainBlocks(final long nanosTick, final long thresholdNanosTick) {
+        final BlockStatsAggregation aggregation = new BlockStatsAggregation();
+        final Iterator<Map.Entry<Long, BlockStats>> it = blockStatistics.entrySet().iterator();
 
-        // calculate per-second throughput data
-        final BigDecimal itemsCreatedPerSecondCount =
-                new BigDecimal(totalItemsCreated.numSamples).divide(seconds, MATH_CONTEXT_10);
-        final BigDecimal itemsCreatedPerSecondBytes =
-                new BigDecimal(totalItemsCreated.sum).divide(seconds, MATH_CONTEXT_10);
-        final BigDecimal itemsSentPerSecondCount =
-                new BigDecimal(totalItemsSent.numSamples).divide(seconds, MATH_CONTEXT_10);
-        final BigDecimal itemsSentPerSecondBytes = new BigDecimal(totalItemsSent.sum).divide(seconds, MATH_CONTEXT_10);
+        while (it.hasNext()) {
+            final BlockStats blockStats = it.next().getValue();
+            // only blocks acked before the threshold are eligible; the ack is terminal, so by now
+            // no other thread is still recording events for the block, and it is safe to aggregate
+            final long ackedNanosTick = blockStats.ackedNanosTick.get();
+            if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
+                it.remove();
+                aggregation.add(blockStats);
+            } else if (ackedNanosTick == -1 && nanosTick - blockStats.initNanosTick >= ABANDONED_AFTER_NANOS) {
+                // never acked and too old: evict without aggregating (other threads may still be
+                // mutating the block, so its probes must not be touched) and only count it
+                it.remove();
+                aggregation.markAbandoned();
+            }
+        }
+        return aggregation;
+    }
 
+    private static String formatReport(
+            final ThroughputSummary summary, final BlockStatsAggregation blocksAggregation) {
         // spotless:off
-        // create the log output
         final StringBuilder output = new StringBuilder("\nBlockStreamingStats {\n");
 
         output.append("  Summary {\n");
-        output.append("    Seconds { (Unit:COUNT|Sum:").append(numberOfSeconds).append(") }\n");
+        output.append("    Seconds { (Unit:COUNT|Sum:").append(summary.numberOfSeconds()).append(") }\n");
         output.append("    Blocks {\n");
-        output.append("      Opened { (Unit:COUNT|Sum:").append(totalBlocksOpened).append(") }\n");
-        output.append("      Closed { (Unit:COUNT|Sum:").append(totalBlocksClosed).append(") }\n");
-        output.append("      Acknowledged { (Unit:COUNT|Sum:").append(totalBlocksAcked).append(") }\n");
-        output.append("      Abandoned { (Unit:COUNT|Sum:").append(blocksAbandoned).append(") }\n");
+        output.append("      Opened { (Unit:COUNT|Sum:").append(summary.blocksOpened()).append(") }\n");
+        output.append("      Closed { (Unit:COUNT|Sum:").append(summary.blocksClosed()).append(") }\n");
+        output.append("      Acknowledged { (Unit:COUNT|Sum:").append(summary.blocksAcked()).append(") }\n");
+        output.append("      Abandoned { (Unit:COUNT|Sum:").append(blocksAggregation.blocksAbandoned).append(") }\n");
         output.append("    }\n");
         output.append("    Items {\n");
-        output.append("      Created-Total { (Unit:COUNT|Sum:").append(totalItemsCreated.numSamples).append(")");
-        output.append("(Unit:BYTES|Sum:").append(totalItemsCreated.sum).append(") }\n");
-        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(toString(itemsCreatedPerSecondCount)).append(")");
-        output.append("(Unit:BYTES|Avg:").append(toString(itemsCreatedPerSecondBytes)).append(") }\n");
-        output.append("      Sent-Total { (Unit:COUNT|Sum:").append(totalItemsSent.numSamples).append(")");
-        output.append("(Unit:BYTES|Sum:").append(totalItemsSent.sum).append(") }\n");
-        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(toString(itemsSentPerSecondCount)).append(")");
-        output.append("(Unit:BYTES|Avg:").append(toString(itemsSentPerSecondBytes)).append(") }\n");
+        output.append("      Created-Total { (Unit:COUNT|Sum:").append(summary.itemsCreated().numSamples).append(")");
+        output.append("(Unit:BYTES|Sum:").append(summary.itemsCreated().sum).append(") }\n");
+        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(toString(summary.perSecond(summary.itemsCreated().numSamples))).append(")");
+        output.append("(Unit:BYTES|Avg:").append(toString(summary.perSecond(summary.itemsCreated().sum))).append(") }\n");
+        output.append("      Sent-Total { (Unit:COUNT|Sum:").append(summary.itemsSent().numSamples).append(")");
+        output.append("(Unit:BYTES|Sum:").append(summary.itemsSent().sum).append(") }\n");
+        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(toString(summary.perSecond(summary.itemsSent().numSamples))).append(")");
+        output.append("(Unit:BYTES|Avg:").append(toString(summary.perSecond(summary.itemsSent().sum))).append(") }\n");
         output.append("    }\n");
         output.append("  }\n");
 
         // append block details
         output.append("  BlockDetails {\n");
-        output.append("    ").append(blocksAggregation.initToOpen).append("\n");
-        output.append("    ").append(blocksAggregation.openToClose).append("\n");
-        output.append("    ").append(blocksAggregation.openToEndSent).append("\n");
-        output.append("    ").append(blocksAggregation.openToAck).append("\n");
-        output.append("    ").append(blocksAggregation.closedToAck).append("\n");
-        output.append("    ").append(blocksAggregation.headerSendStartedToAck).append("\n");
-        output.append("    ").append(blocksAggregation.headerSentToAck).append("\n");
-        output.append("    ").append(blocksAggregation.endSentToAck).append("\n");
-        output.append("    ").append(blocksAggregation.headerSentToEndSent).append("\n");
-        output.append("    ").append(blocksAggregation.openToProofAdded).append("\n");
-        output.append("    ").append(blocksAggregation.openToProofCreated).append("\n");
-        output.append("    ").append(blocksAggregation.footerCreatedToProofCreated).append("\n");
-        output.append("    ").append(blocksAggregation.blockSize).append("\n");
-        output.append("    ").append(blocksAggregation.itemsPerBlock).append("\n");
+        for (final StatisticsProbe probe : blocksAggregation.blockProbes()) {
+            output.append("    ").append(probe).append("\n");
+        }
         output.append("  }\n");
 
         // append item details
@@ -429,11 +383,10 @@ public class BlockStreamingObs implements AutoCloseable {
 
         output.append("}");
         // spotless:on
-
-        log.info("{}", output);
+        return output.toString();
     }
 
-    private String toString(final BigDecimal bd) {
+    private static String toString(final BigDecimal bd) {
         return bd.setScale(4, RoundingMode.HALF_EVEN).toPlainString();
     }
 
@@ -447,6 +400,51 @@ public class BlockStreamingObs implements AutoCloseable {
         void add(final BigInteger numSamples, final BigInteger sum) {
             this.numSamples = this.numSamples.add(numSamples);
             this.sum = this.sum.add(sum);
+        }
+    }
+
+    /** Block-event totals and item count/byte sums across the drained buckets of one reporting window. */
+    private record ThroughputSummary(
+            long numberOfSeconds,
+            long blocksOpened,
+            long blocksClosed,
+            long blocksAcked,
+            SimpleAggregator itemsCreated,
+            SimpleAggregator itemsSent) {
+
+        static ThroughputSummary of(final List<ThroughputBucket> buckets) {
+            long earliestSecondTick = Long.MAX_VALUE;
+            long latestSecondTick = Long.MIN_VALUE;
+            long blocksOpened = 0;
+            long blocksClosed = 0;
+            long blocksAcked = 0;
+            final SimpleAggregator itemsCreated = new SimpleAggregator();
+            final SimpleAggregator itemsSent = new SimpleAggregator();
+
+            for (final ThroughputBucket bucket : buckets) {
+                earliestSecondTick = Math.min(earliestSecondTick, bucket.secondTick);
+                latestSecondTick = Math.max(latestSecondTick, bucket.secondTick);
+
+                blocksOpened += bucket.blocksOpened.sum();
+                blocksClosed += bucket.blocksClosed.sum();
+                blocksAcked += bucket.blocksAcked.sum();
+
+                final Statistics itemsCreatedStats = bucket.itemsCreated.aggregate();
+                final Statistics itemsSentStats = bucket.itemsSent.aggregate();
+
+                itemsCreated.add(itemsCreatedStats.numSamples(), itemsCreatedStats.sum());
+                itemsSent.add(itemsSentStats.numSamples(), itemsSentStats.sum());
+            }
+
+            // +1 because the bucket tick range is inclusive on both ends (N buckets span N seconds); if there
+            // are no buckets (only gathered/abandoned blocks), fall back to 1 to keep the divisions harmless
+            final long numberOfSeconds = buckets.isEmpty() ? 1 : (latestSecondTick - earliestSecondTick) + 1;
+
+            return new ThroughputSummary(numberOfSeconds, blocksOpened, blocksClosed, blocksAcked, itemsCreated, itemsSent);
+        }
+
+        BigDecimal perSecond(final BigInteger value) {
+            return new BigDecimal(value).divide(BigDecimal.valueOf(numberOfSeconds), MATH_CONTEXT_10);
         }
     }
 
@@ -474,8 +472,12 @@ public class BlockStreamingObs implements AutoCloseable {
         private final CompositeStatistics itemSendLatencyComposite = new CompositeStatistics(ObsUnit.NANOS);
         private final CompositeStatistics itemSizeComposite = new CompositeStatistics(ObsUnit.BYTES);
         private long itemsNeverSent = 0;
+        private long blocksAggregated = 0;
+        private long blocksAbandoned = 0;
 
         void add(final BlockStats blockStats) {
+            ++blocksAggregated;
+
             // computes the per-item probes and blockSize; must only ever run on the gather thread
             blockStats.aggregate();
 
@@ -531,21 +533,36 @@ public class BlockStreamingObs implements AutoCloseable {
             itemsPerBlock.add(blockStats.items.size());
         }
 
+        /** Counts a block evicted without ever being acked; its probes are never touched. */
+        void markAbandoned() {
+            ++blocksAbandoned;
+        }
+
+        boolean isEmpty() {
+            return blocksAggregated == 0 && blocksAbandoned == 0;
+        }
+
+        /** The per-block probes, in the order they appear in the {@code BlockDetails} report section. */
+        List<StatisticsProbe> blockProbes() {
+            return List.of(
+                    initToOpen,
+                    openToClose,
+                    openToEndSent,
+                    openToAck,
+                    closedToAck,
+                    headerSendStartedToAck,
+                    headerSentToAck,
+                    endSentToAck,
+                    headerSentToEndSent,
+                    openToProofAdded,
+                    openToProofCreated,
+                    footerCreatedToProofCreated,
+                    blockSize,
+                    itemsPerBlock);
+        }
+
         void complete() {
-            initToOpen.aggregate();
-            openToClose.aggregate();
-            openToEndSent.aggregate();
-            openToAck.aggregate();
-            closedToAck.aggregate();
-            headerSendStartedToAck.aggregate();
-            headerSentToAck.aggregate();
-            endSentToAck.aggregate();
-            headerSentToEndSent.aggregate();
-            openToProofAdded.aggregate();
-            openToProofCreated.aggregate();
-            footerCreatedToProofCreated.aggregate();
-            blockSize.aggregate();
-            itemsPerBlock.aggregate();
+            blockProbes().forEach(StatisticsProbe::aggregate);
         }
     }
 
