@@ -39,6 +39,10 @@ on:
       slack-detailed-report-webhook:
         description: "Slack Webhook URL for TCK Monitoring"
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.mirror-node-regression.outputs.failure-mode }}
 
 defaults:
   run:
@@ -59,6 +63,8 @@ jobs:
   mirror-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-mn-regression-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -147,6 +153,7 @@ jobs:
           echo "solo-ge-0440=${solo_ge_0440}" >> "${GITHUB_OUTPUT}"
 
       - name: Execute mirror node acceptance tests
+        id: run-mirror-node-tests
         env:
           HELM_RELEASE_NAME: ${{ inputs.helm-release-name || 'mirror-1' }}
         run: |
@@ -161,6 +168,15 @@ jobs:
         if: ${{ always() }}
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-mirror-node-tests.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
   report-mirror-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report

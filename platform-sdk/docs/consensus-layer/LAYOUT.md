@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the 11 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the 13 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -29,7 +29,7 @@ platform-sdk/docs/consensus-layer/
 ├── architecture/
 │   ├── README.md
 │   ├── overview.md                        high-level shape; adapts from Consensus-Layer.md
-│   ├── topics/                            one file per topic (the 11)
+│   ├── topics/                            one file per topic (the 13)
 │   │   ├── wiring-framework.md
 │   │   ├── gossip.md
 │   │   ├── event-intake.md
@@ -37,7 +37,9 @@ platform-sdk/docs/consensus-layer/
 │   │   ├── hashgraph.md
 │   │   ├── health-monitor-and-backpressure.md
 │   │   ├── reasons-not-to-gossip.md
+│   │   ├── quiescence.md
 │   │   ├── signed-state-management.md
+│   │   ├── iss-detection.md
 │   │   ├── restart-and-pces.md
 │   │   ├── freeze-and-upgrade.md
 │   │   └── reconnect.md
@@ -134,7 +136,7 @@ Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced
 
 The topic-organized lens on the consensus layer.
 - `architecture/overview.md` — adapts the high-level shape from `Consensus-Layer.md` for KB use.
-- `architecture/topics/` — one file per topic (the 11). Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
+- `architecture/topics/` — one file per topic (the 13). Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
 - `architecture/interfaces/consensus-execution-boundary.md` — the Consensus public API (`initialize`, `destroy`, `nextRound`, `onBehind`, `onPreHandleEvent`, `getTransactionsForEvent`, etc.).
 
 ### `decisions/`
