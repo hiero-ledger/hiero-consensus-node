@@ -6,10 +6,10 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
@@ -124,7 +124,7 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final Hash teacherHash = teacherView.findHash(path);
                 // The only valid scenario, when teacherHash may be null, is the empty tree
                 if ((teacherHash == null) && (path != 0)) {
-                    throw new MerkleSerializationException(
+                    throw new MerkleSynchronizationException(
                             "Cannot load node hash (bad request from learner?), path=" + path);
                 }
                 final boolean isClean = (teacherHash == null) || teacherHash.equals(learnerHash);
