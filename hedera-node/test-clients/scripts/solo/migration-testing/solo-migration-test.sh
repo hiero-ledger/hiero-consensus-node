@@ -592,7 +592,7 @@ upgrade_to_local() {
   log "Waiting for NMT to restart each node on the local build"
   local pod
   for pod in $(iterate_pods); do
-    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}"
+    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}" true
   done
 
   log "Verifying every consensus node is running the local build"
@@ -974,30 +974,36 @@ start_consensus_node_via_nmt() {
 # log4j2 configurations). On timeout we dump `docker logs swirlds-node`
 # from inside the pod plus both log tails for diagnosis.
 wait_for_node_active() {
-  local pod="$1" timeout_secs="$2"
+  local pod="$1" timeout_secs="$2" require_restart="${3:-false}"
   local deadline=$((SECONDS + timeout_secs))
-  # Snapshot the current swirlds-node StartedAt timestamp so we only accept
-  # an ACTIVE that comes from a JVM started AFTER this call. Without this,
-  # the post-freeze-upgrade verification races NMT's container restart:
-  # the previous run's "newStatus":"ACTIVE" is still in swirlds.log and
-  # wait_for_node_active returns instantly, before NMT has finished swapping
-  # data/apps + data/lib. The verify step then sees an empty data/apps and
-  # reports "found unknown".
+  # Optional restart gate: when `require_restart` is true, snapshot the
+  # swirlds-node container's StartedAt timestamp before the loop and only
+  # accept ACTIVE matches once that timestamp has changed. This is needed
+  # post-freeze-upgrade: NMT stops the old container and starts a new one,
+  # but the OLD container's "newStatus":"ACTIVE" payload is still in
+  # swirlds.log, so without the gate verify_local_build_on_consensus_nodes
+  # would race NMT's swap and read the stale ACTIVE.
+  # For the BASELINE caller (bring_up_consensus_via_nmt) the JVM is starting
+  # fresh and we want the first ACTIVE — pass require_restart=false (default).
   local initial_started_at=""
-  initial_started_at="$(kexec "${pod}" docker inspect swirlds-node \
-    --format='{{.State.StartedAt}}' 2>/dev/null || true)"
+  if [[ "${require_restart}" == "true" ]]; then
+    initial_started_at="$(kexec "${pod}" docker inspect swirlds-node \
+      --format='{{.State.StartedAt}}' 2>/dev/null || true)"
+  fi
   while (( SECONDS < deadline )); do
     # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
     # payload — uniquely identifies the transition to ACTIVE (not e.g.
     # an "ACTIVE" substring in some other log line).
-    local current_started_at
-    current_started_at="$(kexec "${pod}" docker inspect swirlds-node \
-      --format='{{.State.StartedAt}}' 2>/dev/null || true)"
-    # If the container hasn't restarted yet (StartedAt unchanged) AND we
-    # had an initial snapshot, the ACTIVE we'd see is stale — keep waiting.
-    if [[ -n "${initial_started_at}" && "${current_started_at}" == "${initial_started_at}" ]]; then
-      sleep 5
-      continue
+    if [[ "${require_restart}" == "true" && -n "${initial_started_at}" ]]; then
+      local current_started_at
+      current_started_at="$(kexec "${pod}" docker inspect swirlds-node \
+        --format='{{.State.StartedAt}}' 2>/dev/null || true)"
+      # If the container hasn't restarted yet (StartedAt unchanged), the
+      # ACTIVE we'd see is stale — keep waiting.
+      if [[ "${current_started_at}" == "${initial_started_at}" ]]; then
+        sleep 5
+        continue
+      fi
     fi
     if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
       log "  ${pod}: ACTIVE"
