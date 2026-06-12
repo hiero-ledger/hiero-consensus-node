@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [CITR] Merge Queue Performance Test Controller"
+name: "220: [DISP] CITR MQPT Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -31,24 +31,15 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  extract-citr-vars:
-    name: Extract CITR Vars
-    uses: ./.github/workflows/855-extract-citr-vars.yaml
-    with:
-      ref: ${{ github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
   run-merge-queue-performance-test:
     name: MQ Performance Test
     needs:
       - extract-jdk-version
-      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
-      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
@@ -108,7 +99,7 @@ jobs:
       !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
