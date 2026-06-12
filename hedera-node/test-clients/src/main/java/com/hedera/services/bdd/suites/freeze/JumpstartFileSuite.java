@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -80,6 +81,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 "blockStream.streamMode"
             })
     final Stream<DynamicTest> executesAllCutoverPhases() {
+        Assertions.fail("intentional failure for JFR collection");
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();

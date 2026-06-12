@@ -200,6 +200,18 @@ public class ProcessUtils {
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
+        // Enable JFR to capture CPU scheduling delays, GC events, and thread activity
+        // for diagnosing OS-level starvation spikes visible in JVMPauseDetector and HealthMonitor logs.
+        // disk=true writes chunks to JFR's default temp location continuously; dumponexit=true finalizes on graceful
+        // exit.
+        // For SIGKILL (non-interceptable), SubProcessNode.stopFuture() calls jcmd JFR.stop before kill.
+        final var jfrFile = metadata.workingDirOrThrow()
+                .resolve(OUTPUT_DIR)
+                .toAbsolutePath()
+                .resolve("jfr-node" + metadata.nodeId() + ".jfr");
+        commandLine.add("-XX:StartFlightRecording=filename=" + jfrFile
+                + ",settings=profile,disk=true,dumponexit=true,name=hapitest"
+                + ",jdk.InitialEnvironmentVariable#enabled=false");
         commandLine.addAll(List.of(
                 "--module-path",
                 // Use the same module path that started this process, excluding test-clients
