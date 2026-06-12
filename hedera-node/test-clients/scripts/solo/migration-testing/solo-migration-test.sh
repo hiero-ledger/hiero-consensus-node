@@ -1096,6 +1096,14 @@ wait_for_node_active() {
   kexec "${pod}" bash -c "ls -la ${HAPI_PATH}/logs ${HAPI_PATH}/output 2>&1" >&2 || true
   echo "=== docker logs swirlds-node (last 200 lines) ===" >&2
   kexec "${pod}" docker logs --tail 200 swirlds-node >&2 2>&1 || true
+  echo "=== docker logs swirlds-haveged (last 50 lines) ===" >&2
+  kexec "${pod}" docker logs --tail 50 swirlds-haveged >&2 2>&1 || true
+  echo "=== compose/network-node/docker-compose.jrs.yml ===" >&2
+  kexec "${pod}" cat "${NMT_DIR}/compose/network-node/docker-compose.jrs.yml" >&2 2>&1 || true
+  echo "=== compose/network-node/.env ===" >&2
+  kexec "${pod}" cat "${NMT_DIR}/compose/network-node/.env" >&2 2>&1 || true
+  echo "=== /tmp/nmt-watch.log tail (non-Heartbeat lines, last 80) ===" >&2
+  kexec "${pod}" bash -c "grep -v 'Heartbeat' /tmp/nmt-watch.log | tail -80" >&2 2>&1 || true
   echo "=== hgcaa.log tail (if present) ===" >&2
   kexec "${pod}" tail -100 "${HAPI_PATH}/logs/hgcaa.log" >&2 2>&1 || true
   echo "=== swirlds.log tail (if present) ===" >&2
