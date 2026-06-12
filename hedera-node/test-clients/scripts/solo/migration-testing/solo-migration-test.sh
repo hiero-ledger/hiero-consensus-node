@@ -43,6 +43,46 @@ for d in \
 done
 export PATH
 
+# Apple Silicon: the NMT binary at /opt/hgcapp/node-mgmt-tools/bin/nmt is
+# x86-64-only (built dynamically against /lib64/ld-linux-x86-64.so.2). On an
+# arm64 macOS host, Solo by default deploys arm64 pods, which have neither
+# the x86-64 dynamic linker nor a translation layer — `nmt preflight` then
+# dies with `rosetta error: failed to open elf at /lib64/ld-linux-x86-64.so.2`
+# and exit 133. Forcing DOCKER_DEFAULT_PLATFORM=linux/amd64 makes Docker
+# Desktop pull amd64 images and translate everything through Rosetta-for-Linux
+# (or fall back to QEMU, which is slower but still works). Expect ~1.5-2x
+# wall time vs an amd64 host. Rosetta-for-Linux must be enabled in Docker
+# Desktop (Settings -> General).
+if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
+  if [[ "${DOCKER_DEFAULT_PLATFORM:-}" != "linux/amd64" ]]; then
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" \
+      "Apple Silicon detected; exporting DOCKER_DEFAULT_PLATFORM=linux/amd64 (NMT is x86-64-only)"
+    export DOCKER_DEFAULT_PLATFORM=linux/amd64
+  fi
+  # Fail fast if Docker Desktop is going to silently fall back to QEMU.
+  # QEMU "works" for trivial containers (uname -m prints x86_64) but
+  # kubelet hangs in wait-control-plane for 4 minutes before timing out.
+  # Rosetta-for-Linux registers a binfmt_misc handler named "rosetta" --
+  # if it's absent inside an amd64 container, the user hasn't enabled
+  # "Use Rosetta for x86/amd64 emulation" in Docker Desktop.
+  if ! docker run --rm --platform=linux/amd64 alpine \
+       test -e /proc/sys/fs/binfmt_misc/rosetta >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+Docker Desktop is falling back to QEMU for amd64 emulation on this arm64
+host. The kind cluster will hang in kubeadm wait-control-plane for 4
+minutes before timing out. Enable Rosetta first:
+
+  Docker Desktop -> Settings -> General
+    -> Virtual Machine Manager: Apple Virtualization framework
+    -> [x] Use Rosetta for x86/amd64 emulation on Apple Silicon
+    -> Apply & Restart
+
+Then re-run this script.
+EOF
+    exit 1
+  fi
+fi
+
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-migration}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-migration}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
@@ -52,6 +92,60 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
+
+# Real-NMT upgrade flow (issue #25736). Replaces `solo consensus node setup`
+# / `start` with NMT install + `nmt watch`, and replaces `solo consensus
+# network upgrade` with yahcli-driven PREPARE_UPGRADE + FREEZE_UPGRADE.
+NMT_VERSION="${NMT_VERSION:-v1.3.4}"
+NMT_INSTALLER_BASENAME="node-mgmt-tools-installer-v1.3.4-efea0dd4.run"
+NMT_INSTALLER_URL="https://builds.hedera.com/node/mgmt-tools/v1.3/${NMT_INSTALLER_BASENAME}"
+NMT_PROFILE="jrs"
+OPENJDK_VERSION="${OPENJDK_VERSION:-25.0.2}"
+# NMT-baked consensus-node image (built from nmt-image/Dockerfile, side-loaded
+# into kind, referenced by Solo via nmt-image/solo-values-override.yaml). Must
+# stay in sync with the image:tag literals in that values file.
+NMT_IMAGE_DIR="${SCRIPT_DIR}/nmt-image"
+NMT_IMAGE_REPO="${NMT_IMAGE_REPO:-solo-nmt-network-node}"
+NMT_IMAGE_TAG="${NMT_IMAGE_TAG:-v1.3.4-jdk25}"
+NMT_IMAGE_VALUES_FILE="${NMT_IMAGE_DIR}/solo-values-override.yaml"
+# Hedera CN v0.75+ JARs are compiled to class file v69 (JDK 25). NMT v1.3.4
+# defaults to JDK 21 in helper.sh but ships checksums for 25.0.2; we override.
+JAVA_MAIN_CLASS_OVERRIDE="${JAVA_MAIN_CLASS_OVERRIDE:-com.hedera.node.app.ServicesMain}"
+# 16 GB box knob: cap the JVM heap below NMTs 6g default so the JVM fits
+# next to dockerd-in-pod + haproxy + envoy + minio + mirror.
+JAVA_HEAP_MAX="${JAVA_HEAP_MAX:-2g}"
+JAVA_HEAP_MIN="${JAVA_HEAP_MIN:-256m}"
+# NMT installer derives the docker container mem_limit from JAVA_HEAP_MAX with
+# a ~466m overhead (so JAVA_HEAP_MAX=512m → mem_limit=978m). When we boost
+# JAVA_HEAP_MAX via the compose-up env override, the rendered .env still has
+# the small container limit and the JVM gets SIGKILL'd on the first heap spike.
+# Override the container limit too. Default keeps a 2g headroom over 2g heap.
+NETWORK_NODE_MEM_LIMIT="${NETWORK_NODE_MEM_LIMIT:-4g}"
+HGCAPP_DIR="/opt/hgcapp"
+NMT_DIR="${HGCAPP_DIR}/node-mgmt-tools"
+HAPI_PATH="${HGCAPP_DIR}/services-hedera/HapiApp2.0"
+UPGRADE_CURRENT_DIR="${HAPI_PATH}/data/upgrade/current"
+HEDERA_HOME_DIR="/home/hedera"
+CACHE_DIR="${CACHE_DIR:-${HOME}/.cache/hiero-migration}"
+YAHCLI_JAR="${YAHCLI_JAR:-}"
+# yahcli uses 0.0.58 (the system-files admin) as the operator for the
+# software-zip upload + PREPARE_UPGRADE + FREEZE_UPGRADE transactions. Solo
+# seeds the same well-known dev key onto that account, so OPERATOR_PRIVATE_KEY
+# below is the right input for generate_yahcli_creds.
+YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-2}"
+YAHCLI_KEY_PASSPHRASE="${YAHCLI_KEY_PASSPHRASE:-migration-test}"
+MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
+UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-300}"
+NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-300}"
+
+# Filled in by fetch_artifacts / build_upgrade_zip.
+PLATFORM_INSTALLER_BASENAME=""
+PLATFORM_INSTALLER_URL=""
+PLATFORM_INSTALLER_PATH=""
+NMT_INSTALLER_PATH=""
+UPGRADE_ZIP_PATH=""
+UPGRADE_ZIP_SHA384=""
+YAHCLI_PF_PID=""
 
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
@@ -82,6 +176,14 @@ require_cmd() {
 
 cleanup() {
   local ec=$?
+  # #25736: kill the yahcli port-forward and any in-pod `nmt watch`
+  # processes before tearing down the cluster.
+  [[ -n "${YAHCLI_PF_PID}" ]] && kill "${YAHCLI_PF_PID}" >/dev/null 2>&1 || true
+  if [[ "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
+    for _pod in $(iterate_pods 2>/dev/null); do
+      kexec "${_pod}" pkill -f "nmt watch" >/dev/null 2>&1 || true
+    done
+  fi
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
@@ -226,7 +328,12 @@ create_cluster() {
   kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
 
   log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  # Pin Kubernetes v1.30 — kind's default (v1.35 today) hangs in
+  # wait-control-plane under Rosetta-for-Linux on Apple Silicon. v1.30.x
+  # is the last release confirmed to survive amd64 emulation reliably.
+  # Override via KIND_NODE_IMAGE if you're on amd64 and want the default.
+  kind create cluster -n "${SOLO_CLUSTER_NAME}" \
+    --image "${KIND_NODE_IMAGE:-kindest/node:v1.30.4}"
   CLUSTER_CREATED_THIS_RUN="true"
 }
 
@@ -264,6 +371,13 @@ setup_cluster_prereqs() {
 deploy_baseline() {
   log "Deploying baseline consensus network at ${DEPLOY_RELEASE_TAG}"
 
+  # Build + side-load the NMT-baked root-container image so Solo's StatefulSet
+  # picks it up via the values override below. Doing this here (instead of in
+  # bring_up_consensus_via_nmt) means it happens before solo helm-installs the
+  # network-node chart — once the StatefulSet exists, image changes require a
+  # rolling restart.
+  build_and_load_nmt_image
+
   solo keys consensus generate \
     --gossip-keys \
     --tls-keys \
@@ -273,24 +387,108 @@ deploy_baseline() {
   # `--pvcs true` is required because step 3 uses `consensus network upgrade
   # --local-build-path`, which stages new JARs through persistent volumes that
   # must survive the upgrade-driven pod restarts.
-  solo consensus network deploy \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --pvcs true \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
+  #
+  # Image override path: Solo CLI's `addRootImageValues()` injects per-node
+  # `hedera.nodes[N].root.image.{registry,repository,tag}` via helm `--set`,
+  # which beats anything we put in `--values-file` (per Helm precedence).
+  # The three SOLO_S6_NODE_IMAGE_* env vars override the defaults Solo uses
+  # in that --set, so they're the only way to redirect the root-container
+  # image at the per-node level. The `--values-file` still carries
+  # `pullPolicy: Never` (Solo doesn't --set pullPolicy, so the values-file
+  # wins for that one key).
+  #
+  # The deploy is wrapped in a diagnostic harness: solo's own pod-ready check
+  # times out at 900 attempts (~15min). If Solo gives up, an EXIT trap on the
+  # subshell dumps `kubectl get pods/events/describe` so the CI log shows
+  # *why* the root-container never started (image pull, volume mount, etc.)
+  # instead of just a generic "phases: Running not found" error.
+  (
+    diag_dump() {
+      ec=$?
+      [[ ${ec} -eq 0 ]] && return
+      local pod_ns="${SOLO_NAMESPACE}"
+      echo "===== diagnostic dump after solo deploy exit ${ec} ====="
+      kubectl -n "${pod_ns}" get pods -o wide 2>&1 | head -20
+      echo "----- events (last 40) -----"
+      kubectl -n "${pod_ns}" get events --sort-by=.lastTimestamp 2>&1 | tail -40
+      for pod in $(iterate_pods); do
+        echo "----- describe ${pod} -----"
+        kubectl -n "${pod_ns}" describe pod "${pod}" 2>&1 \
+          | awk '/^Status:|^Init Containers:|^Containers:|^Conditions:|^Volumes:|^Events:/{flag=1} flag' \
+          | head -80
+      done
+      echo "----- crictl images on kind node -----"
+      docker exec "${SOLO_CLUSTER_NAME}-control-plane" \
+        crictl images 2>&1 | grep -E 'solo-nmt|REPOSITORY' | head -10
+      echo "===== end diagnostic dump ====="
+    }
+    trap diag_dump EXIT
+    SOLO_S6_NODE_IMAGE_REGISTRY=localhost \
+    SOLO_S6_NODE_IMAGE_REPOSITORY="${NMT_IMAGE_REPO}" \
+    SOLO_S6_NODE_IMAGE_VERSION="${NMT_IMAGE_TAG}" \
+    solo consensus network deploy \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${NODE_ALIASES}" \
+      --pvcs true \
+      --values-file "${NMT_IMAGE_VALUES_FILE}" \
+      --release-tag "${DEPLOY_RELEASE_TAG}"
+  )
 
+  wait_for_consensus_pods_ready 600
+  # Solo's `consensus node setup` (next step) validates its remote config
+  # against all live k8s resources — including the per-node haproxy
+  # deployments — so we wait for those before invoking it.
+  wait_for_haproxy_ready 600
+
+  # #25736: `solo consensus node setup` is what generates genesis-network.json
+  # (from the just-generated gossip keys + the deployment topology) and stages
+  # it — along with config.txt, settings.txt, the platform tarball, and the
+  # HederaNode.jar — into each pod's bind-mounted data/config + data/apps.
+  # In the plain Solo flow this would be followed by `solo consensus node
+  # start`; we replace that with our NMT bring-up below. NMT install will
+  # overwrite the platform tarball staging in data/apps with its own
+  # extracted SDK, but it leaves data/config alone, so the genesis-network
+  # .json + settings.txt + log4j2.xml that Solo wrote here survive into
+  # the JVM's view (preserved across the umount by our kubectl-cp round-trip
+  # inside install_nmt_in_pod).
+  log "Staging configs + keys + platform via 'solo consensus node setup' (for genesis-network.json)"
   solo consensus node setup \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
-  solo consensus node start \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --force-port-forward false
+  # `solo consensus node setup` returns when its task graph completes, but in
+  # v0.77.0 the genesis-network.json copy into each pod's data/config races
+  # past the CLI return: we have seen extract start a few seconds after setup
+  # and grab a snapshot without the file, which makes the JVM later refuse to
+  # start with `IllegalStateException: Genesis network not found`. Wait until
+  # the file is actually in every pod's data/config before letting the
+  # snapshot+umount+restore cycle proceed.
+  local _node _pod deadline
+  IFS=',' read -r -a _nodes <<< "${NODE_ALIASES}"
+  for _node in "${_nodes[@]}"; do
+    _pod="network-${_node}-0"
+    deadline=$((SECONDS + 120))
+    log "Waiting for genesis-network.json to appear in ${_pod}:data/config"
+    while (( SECONDS < deadline )); do
+      if kexec "${_pod}" test -s "${HAPI_PATH}/data/config/genesis-network.json" \
+          >/dev/null 2>&1; then
+        break
+      fi
+      sleep 2
+    done
+    if ! kexec "${_pod}" test -s "${HAPI_PATH}/data/config/genesis-network.json" \
+        >/dev/null 2>&1; then
+      echo "${_pod}: genesis-network.json never landed after solo setup" >&2
+      return 1
+    fi
+  done
 
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
+  # #25736: instead of `solo consensus node start`, install real NMT inside
+  # each pod, start `nmt watch`, and let NMT bring up the JVM via its
+  # docker-compose stack — mirrors mainnet topology.
+  fetch_artifacts
+  bring_up_consensus_via_nmt
 
   log "Adding Mirror Node (with Pinger enabled)"
   # Race-fix for Apple Silicon: the mirror-1-web3 Spring Boot JVM cold-starts
@@ -329,30 +527,857 @@ deploy_baseline() {
 }
 
 # === Step 3 ====================================================================
-# Upgrade the running consensus network to the local build (current branch
-# checkout) labeled UPGRADE_VERSION, then verify each CN is actually running
-# the local build's HederaNode.jar.
+# #25736: upgrade through real PREPARE_UPGRADE + FREEZE_UPGRADE transactions.
+# NMT's `nmt watch` inside each pod sees now_frozen.mf via inotify, stops
+# the JVM, swaps artifacts from data/upgrade/pending/ -> current/, and
+# restarts on the local build. This is the production code path; the old
+# `solo consensus network upgrade --local-build-path` bypassed it.
 upgrade_to_local() {
-  log "Upgrading consensus network to local build (labeled ${UPGRADE_VERSION})"
+  build_upgrade_zip
+  ensure_yahcli
+  start_yahcli_port_forward
 
-  local upgrade_cmd=(
-    solo consensus network upgrade
-    --deployment "${SOLO_DEPLOYMENT}"
-    --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
-    --quiet-mode
-    --force
-  )
+  # Make sure nmt watch is alive in every pod before we ask CN to freeze.
+  # install_platform_via_nmt starts it during baseline deploy, but if the
+  # swirlds-node container was restarted (or the watcher died for any
+  # other reason between install and now) the inotify watcher won't see
+  # the FREEZE_UPGRADE markers and the upgrade dispatch never fires —
+  # so re-arm it here. start_nmt_watcher is no-op-safe (it just logs and
+  # bails if `pgrep -f "nmt watch"` already finds it running).
+  local _pod
+  for _pod in $(iterate_pods); do
+    if ! kexec "${_pod}" pgrep -f "nmt watch" >/dev/null 2>&1; then
+      start_nmt_watcher "${_pod}"
+    fi
+  done
 
-  run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
+  # Pre-tag the baseline haveged + jrs-network-node images with the
+  # post-upgrade version inside every pod's docker daemon. NMT's
+  # `Upgrade: Install` step rewrites HAVEGED_IMAGE_TAG / NETWORK_NODE_IMAGE_TAG
+  # in compose/.env to the new version (e.g. `0.76.0-SNAPSHOT`) and then runs
+  # `docker compose up`. The new tags don't exist locally yet, so compose-up
+  # falls through to the `build:` directive and re-runs `apt-get update &&
+  # apt-get install -y haveged ...` inside the in-pod docker daemon. On the
+  # CI runner that build is slow enough (especially with 3 pods racing in
+  # parallel on shared network) to trip NMT's compose timeout with
+  # errorCode 70 "Failed to Install New Docker Compose Containers".
+  #
+  # Tagging the existing images with the new version makes compose-up find
+  # them locally and skip the build entirely. The underlying image content
+  # is identical — NMT swaps data/apps/HederaNode.jar via the host volume
+  # mount, not by rebaking the container image.
+  local _target_tag
+  _target_tag="$(cat "${REPO_ROOT}/version.txt")"
+  for _pod in $(iterate_pods); do
+    for _img in network-node-haveged jrs-network-node; do
+      kexec "${_pod}" docker tag \
+        "local/${_img}:${DEPLOY_RELEASE_TAG}" \
+        "local/${_img}:${_target_tag}" >/dev/null 2>&1 \
+        || echo "WARN: could not pre-tag local/${_img}:${_target_tag} in ${_pod}" >&2
+    done
+  done
 
-  log "Waiting for post-upgrade pod readiness"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
+  yahcli_run sysfiles upload --appends-per-burst 64 software-zip
+  yahcli_run prepare-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}"
+  wait_for_marker "execute_immediate.mf" "${MARKER_TIMEOUT_SECS}"
+
+  local freeze_at
+  freeze_at="$(date -u -v+30S '+%Y-%m-%d.%H:%M:%S' 2>/dev/null \
+    || date -u -d '+30 seconds' '+%Y-%m-%d.%H:%M:%S')"
+  yahcli_run freeze-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}" \
+    --start-time "${freeze_at}"
+
+  wait_for_marker "now_frozen.mf" "${MARKER_TIMEOUT_SECS}"
+
+  log "Waiting for NMT to restart each node on the local build"
+  local pod
+  for pod in $(iterate_pods); do
+    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}" true
+  done
 
   log "Verifying every consensus node is running the local build"
   verify_local_build_on_consensus_nodes
+}
+
+# === NMT helpers (issue #25736) ==============================================
+# Real-NMT bring-up + freeze-upgrade flow, vendored/adapted from
+# solo-charts' .github/workflows/support/scripts/helper.sh.
+
+# Build the NMT-baked consensus-node image and side-load it into the kind
+# cluster so Solo can pull it with imagePullPolicy=Never. Replaces the
+# previous runtime `sudo apt-get install ... ; sudo /.../nmt-installer.run`
+# chain inside the pod — sudo was failing in ARC GitHub runners with
+# `PAM account management error` even when the root-container is uid 0.
+build_and_load_nmt_image() {
+  log "Building NMT-baked consensus-node image ${NMT_IMAGE_REPO}:${NMT_IMAGE_TAG} and side-loading into kind"
+  IMAGE_REPO="${NMT_IMAGE_REPO}" \
+  IMAGE_TAG="${NMT_IMAGE_TAG}" \
+  KIND_CLUSTER="${SOLO_CLUSTER_NAME}" \
+    "${NMT_IMAGE_DIR}/build.sh"
+}
+
+kexec() {
+  local pod="$1"; shift
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- "$@"
+}
+
+kcp() {
+  local src="$1" pod="$2" dst="$3"
+  kubectl -n "${SOLO_NAMESPACE}" cp "${src}" "${pod}:${dst}" -c root-container
+}
+
+iterate_pods() {
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    printf '%s\n' "network-${node}-0"
+  done
+}
+
+# Fetch NMT installer + previous-minor platform build, cached on the runner.
+# Builds URL from DEPLOY_RELEASE_TAG using the builds.hedera.com layout:
+# node/software/v<MAJOR>.<MINOR>/build-<tag>.zip
+fetch_artifacts() {
+  local nmt_cache="${CACHE_DIR}/nmt"
+  local plat_cache="${CACHE_DIR}/platform"
+  mkdir -p "${nmt_cache}" "${plat_cache}"
+
+  # builds.hedera.com lays the bucket out as node/software/v<MAJOR>.<MINOR>/
+  # (no patch). The previous parameter-expansion attempt stripped after the
+  # last `.`, which for an rc tag (v0.75.0-rc.4) lands inside the rc suffix
+  # and yields v0.75.0 — a directory that doesn't exist.
+  local prev_major_minor="v$(echo "${DEPLOY_RELEASE_TAG#v}" | cut -d. -f1,2)"
+  PLATFORM_INSTALLER_BASENAME="build-${DEPLOY_RELEASE_TAG}.zip"
+  PLATFORM_INSTALLER_URL="https://builds.hedera.com/node/software/${prev_major_minor}/${PLATFORM_INSTALLER_BASENAME}"
+  NMT_INSTALLER_PATH="${nmt_cache}/${NMT_INSTALLER_BASENAME}"
+  PLATFORM_INSTALLER_PATH="${plat_cache}/${PLATFORM_INSTALLER_BASENAME}"
+
+  if [[ ! -f "${NMT_INSTALLER_PATH}" ]]; then
+    log "Fetching NMT installer ${NMT_VERSION}"
+    curl -sSL --fail -o "${NMT_INSTALLER_PATH}" "${NMT_INSTALLER_URL}"
+  else
+    log "Using cached NMT installer ${NMT_INSTALLER_PATH}"
+  fi
+
+  if [[ ! -f "${PLATFORM_INSTALLER_PATH}" ]]; then
+    log "Fetching platform build ${DEPLOY_RELEASE_TAG}"
+    curl -sSL --fail -o "${PLATFORM_INSTALLER_PATH}" "${PLATFORM_INSTALLER_URL}"
+  else
+    log "Using cached platform build ${PLATFORM_INSTALLER_PATH}"
+  fi
+}
+
+# Generate JRS-style config.txt from real pod IPs. Adapted from
+# helper.sh::prep_address_book. The other JRS configs (log4j2.xml,
+# settings.txt, application/api-permission/bootstrap.properties and
+# genesis-network.json) come from Solo's network-node-data-config-cm
+# ConfigMap via the snapshot+restore in install_nmt_in_pod.
+prep_address_book_and_configs() {
+  local config_file="${WORK_DIR}/config.txt"
+  local node_seq=0 account_id_seq=3
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  : > "${config_file}"
+  echo "swirld, 123" >> "${config_file}"
+  echo "app, HederaNode.jar" >> "${config_file}"
+
+  for node in "${nodes[@]}"; do
+    local pod="network-${node}-0" pod_ip svc_ip
+    pod_ip="$(kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o jsonpath='{.status.podIP}')"
+    svc_ip="$(kubectl -n "${SOLO_NAMESPACE}" get svc "network-${node}-svc" -o jsonpath='{.spec.clusterIP}')"
+    [[ -n "${pod_ip}" && -n "${svc_ip}" ]] || {
+      echo "Missing pod/svc IP for ${node}" >&2; return 1
+    }
+    echo "address, ${node_seq}, ${node}, ${node}, 1, ${pod_ip}, 50111, ${svc_ip}, 50111, 0.0.${account_id_seq}" >> "${config_file}"
+    node_seq=$((node_seq + 1))
+    account_id_seq=$((account_id_seq + 1))
+  done
+  echo "nextNodeId, ${node_seq}" >> "${config_file}"
+
+  log "Generated address book:"
+  sed 's/^/  /' "${config_file}"
+}
+
+# Prepare a Solo pod for an NMT install. The base image (see nmt-image/
+# Dockerfile) already ships NMT v1.3.4, the apt/dnf prereqs, the canonical
+# /opt/hgcapp layout, the Ubuntu /etc/os-release spoof, the hedera-in-docker
+# group, and a passwordless sudoers entry. This function only does the bits
+# that genuinely need runtime state from inside the pod: detach Solo's bind
+# mounts (so NMT's snapshot rm-rf doesn't EBUSY) and start dockerd by hand
+# (no systemd PID 1, so the daemon can't autostart).
+install_nmt_in_pod() {
+  local pod="$1"
+
+  # Solo's network-node StatefulSet template bind-mounts per-subdir paths
+  # from the kind node's /dev/vda1 under /opt/hgcapp/ (HapiApp2.0/{data/*,
+  # output,state} plus blockStreams, eventsStreams, recordStreams). NMT's
+  # snapshot/rotation logic (bkp_folder_enable_snapshot_support in
+  # tools/common/backup/backup_folder.inc.sh) does `rm -rf` of the whole
+  # HapiApp2.0 tree, which fails with EBUSY on every mount point.
+  # `--pvcs false` doesn't help — the mounts are part of the pod template,
+  # not the PVC machinery. Detach them with lazy umount before nmt preflight
+  # runs.
+  #
+  # Two of those mounts arrive pre-populated by Solo's init-copier:
+  # data/config (genesis-network.json, application/api-permission/bootstrap
+  # .properties, settings.txt, log4j2.xml) and data/keys (the node's gossip
+  # + TLS keys). The JVM won't reach ACTIVE without them.
+  #
+  # We round-trip those two paths through the driver host using `kubectl cp`:
+  # extract → umount → restore. Doing the snapshot from the driver (instead
+  # of an in-pod tar) sidesteps the entire class of in-pod shell quirks
+  # (escape parsing, find filesystem ordering, tar nested-mount behaviour)
+  # that previously left data/config empty in CI but full in local Lima.
+  # The other mounts (state, output, *Streams) arrive empty and don't need
+  # preservation.
+  local stage_dir="${WORK_DIR}/snap-${pod}"
+  mkdir -p "${stage_dir}/data" "${stage_dir}/hapi"
+  log "Extracting data/config + data/keys from ${pod} to ${stage_dir}"
+  for sub in config keys; do
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${pod}:${HAPI_PATH}/data/${sub}" "${stage_dir}/data/${sub}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -5 || true
+    if [[ ! -d "${stage_dir}/data/${sub}" ]]; then
+      echo "WARN: kubectl cp pulled nothing from ${pod}:data/${sub}" >&2
+    fi
+  done
+
+  # Belt-and-braces: pull the three properties files from Solo's
+  # network-node-data-config-cm configmap as well, even if kubectl cp
+  # already grabbed them. The init-copier writes these into the data/config
+  # PVC at pod startup, but some Solo versions overwrite the PVC during
+  # `consensus node setup`, leaving the JVM unable to load api-permission
+  # /application/bootstrap defaults after our restore. Sourcing them
+  # directly from the configmap removes that dependency.
+  mkdir -p "${stage_dir}/data/config"
+  for k in api-permission.properties application.properties bootstrap.properties; do
+    if [[ ! -s "${stage_dir}/data/config/${k}" ]]; then
+      kubectl -n "${SOLO_NAMESPACE}" get configmap network-node-data-config-cm \
+        -o "go-template={{ index .data \"${k}\" }}" 2>/dev/null \
+        > "${stage_dir}/data/config/${k}" || true
+      [[ -s "${stage_dir}/data/config/${k}" ]] \
+        && log "  pulled ${k} from network-node-data-config-cm (${stage_dir}/data/config/${k})" \
+        || echo "  note: ${k} not found in network-node-data-config-cm" >&2
+    fi
+  done
+  # Solo's `consensus node setup` ALSO stages four files at HAPI_PATH itself
+  # (not under data/): settings.txt, log4j2.xml, hedera.crt, hedera.key. NMT
+  # preflight wipes these along with the data/ subdirs (we see HapiApp2.0/
+  # VERSION, during_freeze.sh, etc. in the same delete trace). The JVM reads
+  # settings.txt from CWD (= HAPI_PATH) and binds gRPC TLS to hedera.{crt,key},
+  # so all four need to survive into the running container.
+  log "Extracting HAPI_PATH-level Solo-staged files (settings.txt, log4j2.xml, hedera.crt/key) from ${pod}"
+  for f in settings.txt log4j2.xml hedera.crt hedera.key; do
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${pod}:${HAPI_PATH}/${f}" "${stage_dir}/hapi/${f}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -3 || true
+    [[ -s "${stage_dir}/hapi/${f}" ]] || echo "  note: ${pod}:${f} missing or empty (may be absent in this Solo version)"
+  done
+
+  log "Detaching Solo's per-subdir bind mounts under /opt/hgcapp in ${pod}"
+  kexec "${pod}" bash -c "
+    set -e
+    # sort -r so we umount deepest-first (children before parents). All
+    # mounts get detached; preservation of any data we care about happens
+    # via the driver-side kubectl cp wrapping this block.
+    for mp in \$(mount | awk '/\\/opt\\/hgcapp\\// {print \$3}' | sort -r); do
+      umount -l \"\$mp\" 2>/dev/null || true
+    done
+  "
+
+  log "Restoring data/config + data/keys into ${pod}"
+  for sub in config keys; do
+    [[ -d "${stage_dir}/data/${sub}" ]] || { echo "  skip ${sub} (no staged contents)"; continue; }
+    # kubectl exec is a no-op if the dir already exists; the umount just
+    # detaches, leaving the image-baked empty dir in place.
+    kexec "${pod}" mkdir -p "${HAPI_PATH}/data/${sub}" >/dev/null 2>&1 || true
+    # Trailing /. so kubectl cp copies *contents* into the existing dir
+    # rather than nesting the source dir inside it.
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${stage_dir}/data/${sub}/." "${pod}:${HAPI_PATH}/data/${sub}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -5 || true
+  done
+  # Intentionally NOT deleting ${stage_dir} here — restage_data_config_in_pod()
+  # re-copies data/config after NMT preflight, which whitelists data/config
+  # to a pre-v0.75 set and deletes files it doesn't recognise (including
+  # genesis-network.json). Cleanup happens at the end of bring_up_consensus
+  # _via_nmt() once the JVM is up and can no longer lose the file.
+
+  # Re-assert ownership on the canonical NMT/HAPI dirs after umount + restore.
+  # The umount uncovers the image-baked directories underneath (already owned
+  # by hedera); the kubectl cp restore preserves uid/gid from the host tarball,
+  # which run as root. Chown so the hedera JVM can read everything.
+  kexec "${pod}" chown -R hedera:hedera \
+    "${NMT_DIR}/state" "${NMT_DIR}/logs" "${HGCAPP_DIR}/services-hedera"
+
+  # Start dockerd in the background. NMT install builds the swirlds-node and
+  # swirlds-haveged docker images (and `nmt start` later docker-compose-ups
+  # them); without a running daemon, install dies with "failed to connect to
+  # the docker API at unix:///var/run/docker.sock". The Solo container has
+  # no systemd PID 1, so we launch dockerd by hand. The container is
+  # privileged + full CAP_SYS_ADMIN, so DinD nesting works. --storage-driver=
+  # vfs is necessary because the kind node already uses overlayfs and overlay-
+  # on-overlay fails during image build.
+  log "Starting dockerd in ${pod} (NMT install needs the docker daemon)"
+  kexec "${pod}" bash -c "
+    if ! pgrep -x dockerd >/dev/null; then
+      # --storage-driver=vfs: nested DinD doesn't stack overlay-on-overlay
+      # cleanly. The kind node already uses overlayfs; trying to do overlay
+      # again inside fails with 'mount source: overlay ... too many levels
+      # of symbolic links' during image build. vfs is much slower (no CoW)
+      # but works in any nested context.
+      (nohup dockerd --storage-driver=vfs > /var/log/dockerd.log 2>&1 &) </dev/null
+    fi
+    for i in \$(seq 1 30); do
+      [ -S /var/run/docker.sock ] && exit 0
+      sleep 1
+    done
+    echo 'dockerd did not start in 30s' >&2
+    tail -30 /var/log/dockerd.log >&2 || true
+    exit 1
+  "
+}
+
+install_platform_via_nmt() {
+  local pod="$1" node="$2"
+  log "Copying platform build to ${pod}"
+  kcp "${PLATFORM_INSTALLER_PATH}" "${pod}" "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}"
+
+  # Use the legacy shell wrapper (node-mgmt-tool) for preflight/install/start/
+  # stop. The newer Go binary at ${NMT_DIR}/bin/nmt has a different command
+  # set (watch, upgrade dispatch, ...) and rejects these subcommands with
+  # `unknown command "preflight" for "nmt"`. We use the Go binary later in
+  # start_nmt_watcher() for `nmt watch`, which IS one of its commands.
+  # NMT preflight 1.3.4 runs a self-integrity check that requires mode 755 on
+  # every file under ${NMT_DIR}. The image-build dockerd on some hosts uses
+  # a umask that lays them down 750, so a defensive chmod first is required
+  # (no-op when perms are already 755).
+  log "Normalising NMT file permissions (umask quirk)"
+  kexec "${pod}" chmod -R 755 "${NMT_DIR}"
+
+  log "nmt preflight in ${pod}"
+  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV preflight \
+    -j "${OPENJDK_VERSION}" -df -i "${NMT_PROFILE}" -k 256m -m 512m
+
+  # NMT v1.3.4 requires both -n <node_alias> and -g <node_id>. Solo's node
+  # aliases are node1/node2/node3; NMT's numeric ids are 0/1/2.
+  local node_id="${node#node}"
+  node_id=$((node_id - 1))
+
+  # NMT's jrs-network-node Dockerfile does `FROM gcr.io/swirlds-registry/
+  # network-node-base:jdk-X.Y.Z`. That registry is private, so we have to
+  # build the base ourselves with the matching JDK before nmt install can
+  # build the jrs image on top. NMT v1.3.4 ships checksum files for jdk-25.0.2.
+  log "Pre-building network-node-base:jdk-${OPENJDK_VERSION} (private gcr.io workaround)"
+  # `runuser -u hedera` instead of `sudo -u hedera`: PAM is not consulted, so
+  # ARC runners (where /etc/shadow doesn't list uid 2000) don't fail with
+  # `PAM account management error`. The baked image puts hedera in the docker
+  # group already, so this docker build has socket access.
+  kexec "${pod}" runuser -u hedera -- bash -c "
+    docker image inspect gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} >/dev/null 2>&1 || \
+      docker build --tag gcr.io/swirlds-registry/network-node-base:jdk-${OPENJDK_VERSION} \
+        --progress plain ${NMT_DIR}/images/network-node-base 2>&1 | tail -5
+  "
+
+  log "nmt install in ${pod} (platform ${DEPLOY_RELEASE_TAG}, node ${node}/id=${node_id}, JDK ${OPENJDK_VERSION})"
+  # `-e <main_class>` forces the post-v0.40 entry point. Stock NMT defaults
+  # to com.swirlds.platform.Browser (removed in platform v0.40+), so without
+  # this the JVM exits with ClassNotFoundException on startup.
+  kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV install \
+    -p "${HEDERA_HOME_DIR}/${PLATFORM_INSTALLER_BASENAME}" \
+    -n "${node}" \
+    -g "${node_id}" \
+    -x "${DEPLOY_RELEASE_TAG}" \
+    -j "${OPENJDK_VERSION}" \
+    -e "${JAVA_MAIN_CLASS_OVERRIDE}"
+
+  # NMT v1.3.4's `install -e <class>` renders compose/network-node/.env with
+  # an empty JAVA_MAIN_CLASS slot (the -e is silently dropped), and similarly
+  # leaves JAVA_HEAP_MAX/MIN + NETWORK_NODE_MEM_LIMIT at the NMT defaults
+  # (heap 512m → mem_limit 978m, NMT default heap goes up to 6g). The
+  # baseline-side workaround in start_consensus_node_via_nmt is a shell-env
+  # prefix on our explicit `docker compose up`, but NMT's OWN upgrade-time
+  # `docker compose up` (run during the freeze-upgrade dispatch) reads only
+  # the on-disk .env, so it launches the new JVM with com.swirlds.platform
+  # .Browser (pre-v0.40 default) and ClassNotFoundException.
+  #
+  # We pin the values in two places to survive both code paths:
+  #   1. compose/network-node/.env — for the baseline `docker compose up`.
+  #      NMT regenerates this file during "Installing New Configuration
+  #      Files" at upgrade time, so the values here only help on baseline.
+  #   2. compose/network-node/docker-compose.jrs.yml — an `environment:`
+  #      + `mem_limit:` block under the network-node service. NMT's
+  #      upgrade-time compose-up explicitly INCLUDES .jrs.yml as a layer
+  #      (per its own log: "Including Standard Layer [ layerFile =
+  #      'docker-compose.jrs.yml' ]"), and NMT does NOT regenerate the
+  #      compose .yml files at upgrade — only .env — so the override here
+  #      sticks across the freeze-upgrade.
+  kexec "${pod}" bash -c "
+    env_file=${NMT_DIR}/compose/network-node/.env
+    for kv in \
+      'JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE}' \
+      'JAVA_HEAP_MAX=${JAVA_HEAP_MAX}' \
+      'JAVA_HEAP_MIN=${JAVA_HEAP_MIN}' \
+      'NETWORK_NODE_MEM_LIMIT=${NETWORK_NODE_MEM_LIMIT}' ; do
+      key=\${kv%%=*}
+      if grep -qE \"^\${key}=\" \"\${env_file}\" 2>/dev/null; then
+        sed -i \"s|^\${key}=.*|\${kv}|\" \"\${env_file}\"
+      else
+        echo \"\${kv}\" >> \"\${env_file}\"
+      fi
+    done
+    chown hedera:hedera \"\${env_file}\"
+  "
+
+  # Append the env+mem_limit block to .jrs.yml. Compose host-stages a small
+  # YAML fragment via kcp then appends it inside the pod — this avoids the
+  # quoting headache of building YAML inside a kexec bash -c string.
+  local jrs_overlay="${WORK_DIR}/jrs-env-overlay-${pod}.yml"
+  cat > "${jrs_overlay}" <<EOF
+    environment:
+      JAVA_MAIN_CLASS: "${JAVA_MAIN_CLASS_OVERRIDE}"
+      JAVA_HEAP_MAX: "${JAVA_HEAP_MAX}"
+      JAVA_HEAP_MIN: "${JAVA_HEAP_MIN}"
+    mem_limit: ${NETWORK_NODE_MEM_LIMIT}
+EOF
+  if ! kexec "${pod}" grep -q 'JAVA_MAIN_CLASS:' \
+        "${NMT_DIR}/compose/network-node/docker-compose.jrs.yml" 2>/dev/null; then
+    kcp "${jrs_overlay}" "${pod}" "/tmp/jrs-env-overlay.yml"
+    kexec "${pod}" bash -c "
+      cat /tmp/jrs-env-overlay.yml >> ${NMT_DIR}/compose/network-node/docker-compose.jrs.yml
+      rm /tmp/jrs-env-overlay.yml
+      chown hedera:hedera ${NMT_DIR}/compose/network-node/docker-compose.jrs.yml
+    "
+  fi
+}
+
+seed_node_config() {
+  local pod="$1"
+  log "Seeding config.txt into ${pod}:${HAPI_PATH}"
+  kcp "${WORK_DIR}/config.txt" "${pod}" "${HAPI_PATH}/config.txt"
+  kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/config.txt"
+
+  # log4j2.xml, settings.txt, application.properties, api-permission.properties,
+  # bootstrap.properties and genesis-network.json arrive via the snapshot+restore
+  # path in install_nmt_in_pod (Solo's init container copies them into
+  # data/config before we kexec in, and we re-stage them across the umount).
+
+  # gc.log workaround from helper.sh — JVM refuses to start without it.
+  kexec "${pod}" touch "${HAPI_PATH}/gc.log"
+  kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/gc.log"
+}
+
+# Manual stand-in for nmt-ics.service. The subshell + nohup + & is needed
+# so kubectl exec returns instead of blocking on the watcher.
+start_nmt_watcher() {
+  local pod="$1"
+  log "Starting nmt watch in ${pod}"
+  kexec "${pod}" bash -c \
+    "(nohup ${NMT_DIR}/bin/nmt watch -L debug > /tmp/nmt-watch.log 2>&1 &) ; sleep 1"
+  if ! kexec "${pod}" pgrep -f "nmt watch" >/dev/null; then
+    echo "nmt watch did not stay up in ${pod}" >&2
+    kexec "${pod}" tail -50 /tmp/nmt-watch.log >&2 || true
+    return 1
+  fi
+}
+
+# helper.sh::nmt_start — `nmt start` ups swirlds-node + swirlds-haveged via
+# docker-compose.jrs.yml inside the pod.
+start_consensus_node_via_nmt() {
+  local pod="$1"
+  # NMT's `nmt start` does `docker compose up --no-recreate`, which reuses
+  # the existing container if any — meaning .env edits from `nmt install`
+  # don't reach the container env. Use `docker compose up --force-recreate`
+  # directly so the new JAVA_MAIN_CLASS / JAVA_OPTS / JDK actually land.
+  #
+  # JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE} prefix: NMT v1.3.4's
+  # `install -e ServicesMain` is supposed to render .env with the override,
+  # but the rendered .env either doesn't materialise or contains an empty
+  # JAVA_MAIN_CLASS slot — verified in CI by inspecting docker logs
+  # swirlds-node, where the JVM launched with the pre-v0.40 default
+  # com.swirlds.platform.Browser and died with ClassNotFoundException.
+  # docker-compose substitutes shell env over .env, so prefixing the up
+  # command pins the variable to whatever ServicesMain class we want
+  # regardless of what NMT wrote (or didn't write).
+  log "docker compose up --force-recreate in ${pod} (bypassing nmt-start's --no-recreate)"
+  # `runuser -u hedera` (not `sudo -u hedera`) — see install_platform_via_nmt
+  # for the PAM rationale.
+  kexec "${pod}" runuser -u hedera -- bash -c "
+    cd ${NMT_DIR}/compose/network-node
+    JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE} \
+    JAVA_HEAP_MAX=${JAVA_HEAP_MAX} JAVA_HEAP_MIN=${JAVA_HEAP_MIN} \
+    NETWORK_NODE_MEM_LIMIT=${NETWORK_NODE_MEM_LIMIT} \
+      docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
+      up -d --force-recreate 2>&1 | tail -10
+  "
+
+  local attempts=0
+  while (( attempts < 60 )); do
+    local state
+    state="$(kexec "${pod}" docker ps -a -f 'name=swirlds-node' --format '{{.State}}' 2>/dev/null || true)"
+    [[ "${state}" == "running" ]] && { log "  swirlds-node running in ${pod}"; return 0; }
+    attempts=$((attempts + 1))
+    sleep 5
+  done
+  echo "swirlds-node failed to come up in ${pod}" >&2
+  kexec "${pod}" docker ps -a >&2 || true
+  return 1
+}
+
+# Poll for "ACTIVE" in the platform's swirlds.log. The platform-status
+# transitions ("Platform spent X in CHECKING. Now in ACTIVE") are emitted
+# by StatusStateMachine on the PLATFORM_STATUS log marker, which goes to
+# swirlds.log (the platform-layer log), NOT hgcaa.log (the Hedera-app
+# layer log we used to check — that file isn't even created in some
+# log4j2 configurations). On timeout we dump `docker logs swirlds-node`
+# from inside the pod plus both log tails for diagnosis.
+wait_for_node_active() {
+  local pod="$1" timeout_secs="$2" require_restart="${3:-false}"
+  local deadline=$((SECONDS + timeout_secs))
+  # Optional restart gate: when `require_restart` is true, snapshot the
+  # swirlds.log file size before the loop and accept ACTIVE only when it
+  # is reported BY content that was written AFTER the snapshot. This is
+  # needed post-freeze-upgrade: NMT may or may not preserve the file when
+  # it swaps the HapiApp2.0 symlink, and the OLD JVM's "newStatus":"ACTIVE"
+  # payload may still be visible. Two cases the loop handles:
+  #   - File appended (preserved across snapshot): grep the tail past the
+  #     captured byte offset; any ACTIVE there is from the new JVM.
+  #   - File truncated/recreated (swap dropped it): current size < initial,
+  #     grep the whole current file; any ACTIVE in it is necessarily fresh.
+  # An earlier StartedAt-comparison version silently disabled itself when
+  # `docker inspect` returned empty (container already removed by NMT),
+  # and a count-based version broke when NMT's symlink swap resets the
+  # baseline count rather than incrementing it. Byte-offset is the only
+  # signal that survives both file-preserved and file-replaced snapshots.
+  # For the BASELINE caller (bring_up_consensus_via_nmt) the JVM is starting
+  # fresh and we want the first ACTIVE — pass require_restart=false (default).
+  local initial_size=0
+  if [[ "${require_restart}" == "true" ]]; then
+    initial_size=$(kexec "${pod}" stat -c %s \
+      "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+    log "  ${pod}: baseline swirlds.log size = ${initial_size} bytes; waiting for post-upgrade ACTIVE"
+  fi
+  while (( SECONDS < deadline )); do
+    # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
+    # payload — uniquely identifies the transition to ACTIVE (not e.g.
+    # an "ACTIVE" substring in some other log line).
+    if [[ "${require_restart}" == "true" ]]; then
+      local current_size
+      current_size=$(kexec "${pod}" stat -c %s \
+        "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+      if (( current_size < initial_size )); then
+        # File replaced/truncated — whole current file is post-restart.
+        if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' \
+            "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
+          log "  ${pod}: ACTIVE (post-restart, file reset: ${initial_size} -> ${current_size})"
+          return 0
+        fi
+      elif (( current_size > initial_size )); then
+        # File grew — only bytes past initial_size are new content.
+        if kexec "${pod}" bash -c "tail -c +$((initial_size + 1)) \
+            ${HAPI_PATH}/output/swirlds.log" 2>/dev/null \
+            | grep -q '"newStatus":"ACTIVE"'; then
+          log "  ${pod}: ACTIVE (post-restart, appended: ${initial_size} -> ${current_size})"
+          return 0
+        fi
+      fi
+      # current_size == initial_size: no new content yet, keep waiting.
+    elif kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
+      log "  ${pod}: ACTIVE"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "${pod} never reached ACTIVE within ${timeout_secs}s" >&2
+  echo "=== docker ps in ${pod} ===" >&2
+  kexec "${pod}" docker ps -a >&2 2>&1 || true
+  echo "=== /opt/hgcapp/services-hedera/HapiApp2.0/{logs,output} listings ===" >&2
+  kexec "${pod}" bash -c "ls -la ${HAPI_PATH}/logs ${HAPI_PATH}/output 2>&1" >&2 || true
+  echo "=== docker logs swirlds-node (last 200 lines) ===" >&2
+  kexec "${pod}" docker logs --tail 200 swirlds-node >&2 2>&1 || true
+  echo "=== hgcaa.log tail (if present) ===" >&2
+  kexec "${pod}" tail -100 "${HAPI_PATH}/logs/hgcaa.log" >&2 2>&1 || true
+  echo "=== swirlds.log tail (if present) ===" >&2
+  kexec "${pod}" tail -100 "${HAPI_PATH}/output/swirlds.log" >&2 2>&1 || true
+  return 1
+}
+
+# Fail fast if the pod can't actually run x86-64 binaries. Catches the
+# case where DOCKER_DEFAULT_PLATFORM wasn't propagated, Rosetta-for-Linux
+# is off in Docker Desktop, or the host is Linux on aarch64 without
+# binfmt_misc — before we waste time downloading 200+ MB into a doomed pod.
+verify_pod_arch_supports_nmt() {
+  local pod_arch
+  pod_arch="$(kexec "$(iterate_pods | head -n 1)" uname -m 2>/dev/null | tr -d '\r')"
+  if [[ "${pod_arch}" != "x86_64" ]]; then
+    cat >&2 <<EOF
+Pod arch is '${pod_arch}', but NMT is x86-64-only. Aborting before NMT install.
+
+On Apple Silicon: enable "Use Rosetta for x86/amd64 emulation" in Docker
+Desktop (Settings -> General), then re-run. The script already exports
+DOCKER_DEFAULT_PLATFORM=linux/amd64 in that environment, but the existing
+Kind cluster was created without it; tear it down first:
+
+  kind delete cluster -n ${SOLO_CLUSTER_NAME}
+EOF
+    return 1
+  fi
+  log "Pod arch ${pod_arch} OK for NMT"
+}
+
+# NMT v1.3.4's preflight runs a "folder integrity" sweep that deletes every
+# file from data/config and data/keys (we see "PREFLIGHT Folder Check:
+# Removed Existing File ..." in nmt-install logs for every file Solo's
+# init-copier + node setup put there). That hits both post-v0.75 files like
+# genesis-network.json AND the gossip keys (s-private-nodeN.pem etc.) the
+# JVM needs to start. So after `nmt install` runs preflight + extract, we
+# re-copy our staged data/config + data/keys from the host back into the
+# pod, repopulating the file(s) NMT just deleted.
+restage_data_dirs_in_pod() {
+  local pod="$1"
+  local stage_dir="${WORK_DIR}/snap-${pod}"
+  for sub in config keys; do
+    [[ -d "${stage_dir}/data/${sub}" ]] || { log "  ${pod}: no staged data/${sub}; skipping restage"; continue; }
+    log "Re-staging data/${sub} in ${pod} (NMT preflight deletes post-install)"
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${stage_dir}/data/${sub}/." "${pod}:${HAPI_PATH}/data/${sub}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -5 || true
+    kexec "${pod}" chown -R hedera:hedera "${HAPI_PATH}/data/${sub}" >/dev/null 2>&1 || true
+  done
+  # Re-stage the HAPI_PATH-level files preflight also wipes.
+  for f in settings.txt log4j2.xml hedera.crt hedera.key; do
+    [[ -s "${stage_dir}/hapi/${f}" ]] || continue
+    log "Re-staging ${f} in ${pod}"
+    kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+      "${stage_dir}/hapi/${f}" "${pod}:${HAPI_PATH}/${f}" 2>&1 \
+      | (grep -v '^tar: Removing leading' || true) | head -3 || true
+    kexec "${pod}" chown hedera:hedera "${HAPI_PATH}/${f}" >/dev/null 2>&1 || true
+  done
+}
+
+bring_up_consensus_via_nmt() {
+  verify_pod_arch_supports_nmt
+  prep_address_book_and_configs
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    local pod="network-${node}-0"
+    install_nmt_in_pod "${pod}"
+    install_platform_via_nmt "${pod}" "${node}"
+    # Re-stage data/config + data/keys AFTER preflight has had its way (it
+    # deletes genesis-network.json and the gossip s-private-nodeN.pem
+    # files), but BEFORE the JVM container starts.
+    restage_data_dirs_in_pod "${pod}"
+    seed_node_config "${pod}"
+    start_nmt_watcher "${pod}"
+    start_consensus_node_via_nmt "${pod}"
+    rm -rf "${WORK_DIR}/snap-${pod}"
+  done
+  log "Waiting for all consensus nodes to reach ACTIVE"
+  local pod
+  for pod in $(iterate_pods); do
+    wait_for_node_active "${pod}" "${NETWORK_ACTIVE_TIMEOUT_SECS}"
+  done
+}
+
+build_upgrade_zip() {
+  local zip_path="${WORK_DIR}/softwareUpgrade.zip"
+  local stage_dir="${WORK_DIR}/upgrade-stage"
+  log "Packaging local build at ${LOCAL_BUILD_PATH} into ${zip_path}"
+  # NMT v1.3.4 expects the upgrade zip layout to be:
+  #   VERSION              (single-line version string used for validation)
+  #   data/apps/HederaNode.jar
+  #   data/lib/*.jar
+  #   data/config/* (optional)
+  # We stage only data/lib + data/apps from LOCAL_BUILD_PATH. The hedera-node
+  # repo's data/ tree also contains keys/ (per-node gossip + TLS PEMs that
+  # MUST NOT clobber the live pod's keys), onboard/ (genesis-only artifacts),
+  # and a config/ set whose properties files (genesis.properties,
+  # node-admin-keys.json, node.properties) are dev-only and would either
+  # collide with the running pod's data/config or land entries the v0.76 JVM
+  # doesn't expect. NMT's package validator only requires data/lib + data/apps
+  # — it WARNs on missing data/config/settings.txt/log4j2.xml and leaves the
+  # running deployment's versions in place.
+  rm -rf "${stage_dir}" "${zip_path}"
+  mkdir -p "${stage_dir}/data"
+  # Bring only the platform binaries. Use `cp -a` to preserve perms/symlinks.
+  for sub in apps lib; do
+    if [[ -d "${LOCAL_BUILD_PATH}/${sub}" ]]; then
+      cp -a "${LOCAL_BUILD_PATH}/${sub}" "${stage_dir}/data/${sub}"
+    else
+      echo "WARN: ${LOCAL_BUILD_PATH}/${sub} not found — upgrade zip will be incomplete" >&2
+    fi
+  done
+  {
+    printf 'VERSION=%s\n' "$(cat "${REPO_ROOT}/version.txt")"
+    printf 'COMMIT=%s\n' "$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    printf 'DATE=%s\n' "$(date -u '+%a %b %d %H:%M:%S UTC %Y')"
+  } > "${stage_dir}/VERSION"
+
+  # immediate.sh — NMT v1.3.4 fails Validate Package with errorCode 75 if
+  # this file is missing from the upgrade root. fetch_artifacts has already
+  # cached the previous-tag platform ZIP (it contains an immediate.sh
+  # template at the root), so reuse it here.
+  local cached_zip="${CACHE_DIR}/platform/build-${DEPLOY_RELEASE_TAG}.zip"
+  if [[ -f "${cached_zip}" ]]; then
+    for nmt_script in immediate.sh during-freeze.sh; do
+      unzip -p "${cached_zip}" "${nmt_script}" > "${stage_dir}/${nmt_script}" 2>/dev/null \
+        && chmod +x "${stage_dir}/${nmt_script}" \
+        || echo "WARN: could not extract ${nmt_script} from ${cached_zip}" >&2
+    done
+  else
+    echo "WARN: cached platform zip ${cached_zip} missing — immediate.sh / during-freeze.sh skipped" >&2
+  fi
+
+  (cd "${stage_dir}" && zip -qr "${zip_path}" .)
+  rm -rf "${stage_dir}"
+  UPGRADE_ZIP_PATH="${zip_path}"
+  UPGRADE_ZIP_SHA384="$(shasum -a 384 "${zip_path}" | awk '{print $1}')"
+  log "  sha384: ${UPGRADE_ZIP_SHA384}"
+}
+
+ensure_yahcli() {
+  if [[ -n "${YAHCLI_JAR}" && -f "${YAHCLI_JAR}" ]]; then
+    log "Using pre-built yahcli at ${YAHCLI_JAR}"
+    return 0
+  fi
+  log "Building yahcli from source"
+  (cd "${REPO_ROOT}" && ./gradlew :yahcli:yahCliJar -q)
+  YAHCLI_JAR="$(ls -t "${REPO_ROOT}"/hedera-node/yahcli/build/libs/yahcli-*-shadow.jar 2>/dev/null | head -n 1)"
+  [[ -n "${YAHCLI_JAR}" && -f "${YAHCLI_JAR}" ]] || {
+    echo "yahcli build did not produce a JAR" >&2; return 1
+  }
+}
+
+# Build yahcli's localhost profile: encrypted PKCS#8 PEM for the operator
+# account (default 0.0.58, the system-files admin that PREPARE_UPGRADE and
+# FREEZE_UPGRADE require), the corresponding .pass file, and a config.yml
+# that points yahcli at our port-forwarded haproxy. Idempotent — skips if
+# the files already exist (e.g. between yahcli_run calls in the same step).
+#
+# OPERATOR_PRIVATE_KEY is the well-known genesis Ed25519 dev key Solo seeds
+# into every special-purpose account (0.0.2 .. 0.0.100) at deploy time, so
+# the same hex works for account 0.0.58. The hex is already an unencrypted
+# PKCS#8 DER (302e... header is Ed25519 OID 1.3.101.112 + 32-byte seed),
+# so we just base64-wrap it, then re-encrypt with openssl pkcs8 -topk8.
+generate_yahcli_creds() {
+  local yahcli_dir="${WORK_DIR}/yahcli-config"
+  local key_dir="${yahcli_dir}/localhost/keys"
+  local pem="${key_dir}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.pem"
+  local pass="${key_dir}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.pass"
+
+  mkdir -p "${key_dir}" "${yahcli_dir}/localhost/sysfiles"
+
+  if [[ -f "${pem}" && -f "${pass}" && -f "${yahcli_dir}/config.yml" ]]; then
+    return 0
+  fi
+
+  # Find an openssl binary that actually supports Ed25519. macOS's
+  # /usr/bin/openssl is LibreSSL 3.x — it can read Ed25519 but pkcs8 -topk8
+  # bails with `unsupported private key algorithm: TYPE=Ed25519`. Real
+  # OpenSSL >= 1.1.1 works. Homebrew on macOS installs it as openssl@3.
+  local openssl_bin=""
+  for cand in \
+      "${OPENSSL_BIN:-}" \
+      /opt/homebrew/opt/openssl@3/bin/openssl \
+      /usr/local/opt/openssl@3/bin/openssl \
+      openssl ; do
+    [[ -z "${cand}" ]] && continue
+    if command -v "${cand}" >/dev/null 2>&1 \
+       && "${cand}" version 2>/dev/null | grep -q '^OpenSSL'; then
+      openssl_bin="${cand}"; break
+    fi
+  done
+  if [[ -z "${openssl_bin}" ]]; then
+    echo "generate_yahcli_creds: no real OpenSSL on PATH (LibreSSL can't" >&2
+    echo "  encrypt Ed25519 PKCS#8). Install via 'brew install openssl@3'" >&2
+    echo "  on macOS, or set OPENSSL_BIN to a real openssl >=1.1.1." >&2
+    return 1
+  fi
+
+  log "Generating yahcli creds for account 0.0.${YAHCLI_OPERATOR_ACCOUNT_NUM} under ${yahcli_dir} (openssl=${openssl_bin})"
+
+  # 1. Hex -> raw bytes -> base64 -> PEM (unencrypted PKCS#8).
+  local raw_pem="${WORK_DIR}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.raw.pem"
+  {
+    echo "-----BEGIN PRIVATE KEY-----"
+    printf '%s' "${OPERATOR_PRIVATE_KEY}" | python3 -c 'import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))' | base64
+    echo "-----END PRIVATE KEY-----"
+  } > "${raw_pem}"
+
+  # 2. .pass file (single line, no trailing newline — yahcli reads it raw).
+  printf '%s' "${YAHCLI_KEY_PASSPHRASE}" > "${pass}"
+
+  # 3. Re-encrypt with AES-256 so yahcli's standard "encrypted PEM + .pass"
+  # path picks it up. openssl reads the passphrase from the file we just
+  # wrote so the secret never lands on the process command line.
+  "${openssl_bin}" pkcs8 -topk8 -in "${raw_pem}" -v2 aes256 \
+    -passout "file:${pass}" -out "${pem}"
+  rm -f "${raw_pem}"
+
+  # 4. config.yml — minimal localhost profile. yahcli connects to the
+  # port-forwarded haproxy at 127.0.0.1:${CN_GRPC_LOCAL_PORT} (set up by
+  # start_yahcli_port_forward). node id 0 / account 0.0.3 is node1, which
+  # is the haproxy target we forward to.
+  cat > "${yahcli_dir}/config.yml" <<EOF
+defaultNetwork: localhost
+networks:
+  localhost:
+    nodes:
+      - { ipv4Addr: 127.0.0.1, account: 3, id: 0 }
+    defaultPayer: "${YAHCLI_OPERATOR_ACCOUNT_NUM}"
+EOF
+
+}
+
+# Run yahcli against the local port-forward, using a generated config dir
+# under WORK_DIR.
+yahcli_run() {
+  generate_yahcli_creds
+  local yahcli_dir="${WORK_DIR}/yahcli-config"
+  [[ -n "${UPGRADE_ZIP_PATH}" && ! -f "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip" ]] && \
+    cp "${UPGRADE_ZIP_PATH}" "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip"
+  local payer="${YAHCLI_PAYER:-${YAHCLI_OPERATOR_ACCOUNT_NUM}}"
+  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p "${payer}" "$@")
+}
+
+start_yahcli_port_forward() {
+  pkill -f "kubectl.*port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
+  sleep 1
+  log "Port-forwarding haproxy-node1-svc -> 127.0.0.1:${CN_GRPC_LOCAL_PORT} (yahcli)"
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward \
+    svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
+    > "${WORK_DIR}/pf-yahcli.log" 2>&1 < /dev/null &
+  YAHCLI_PF_PID=$!
+  local deadline=$((SECONDS + 30))
+  while (( SECONDS < deadline )); do
+    (: </dev/tcp/127.0.0.1/${CN_GRPC_LOCAL_PORT}) >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  echo "yahcli port-forward never came up" >&2
+  return 1
+}
+
+# Wait for a marker file (execute_immediate.mf, now_frozen.mf, ...) to appear
+# in the first pod's data/upgrade/current/ directory.
+wait_for_marker() {
+  local marker="$1" timeout_secs="$2"
+  local pod1 marker_path
+  pod1="$(iterate_pods | head -n 1)"
+  marker_path="${UPGRADE_CURRENT_DIR}/${marker}"
+  log "Waiting for ${marker} in ${pod1}:${marker_path}"
+  local deadline=$((SECONDS + timeout_secs))
+  while (( SECONDS < deadline )); do
+    if kexec "${pod1}" test -f "${marker_path}"; then
+      log "  ${marker} appeared in ${pod1}"
+      return 0
+    fi
+    sleep 5
+  done
+  echo "${marker} never appeared in ${pod1} within ${timeout_secs}s" >&2
+  kexec "${pod1}" ls -la "${UPGRADE_CURRENT_DIR}" >&2 || true
+  return 1
 }
 
 # === Step 4 + 4a ===============================================================
