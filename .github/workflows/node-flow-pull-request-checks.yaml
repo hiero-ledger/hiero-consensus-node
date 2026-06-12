@@ -94,7 +94,7 @@ jobs:
     needs:
       - detect-change-type
     if: ${{ needs.detect-change-type.outputs.workflow-files-changed == 'true' }}
-    uses: ./.github/workflows/855-call-workflow-unit-tests.yaml
+    uses: ./.github/workflows/856-call-workflow-unit-tests.yaml
 
   ci-complete:
     name: CI Complete
