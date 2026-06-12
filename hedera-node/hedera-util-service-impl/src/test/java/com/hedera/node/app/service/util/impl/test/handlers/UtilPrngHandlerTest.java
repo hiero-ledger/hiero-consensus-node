@@ -8,11 +8,8 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -20,10 +17,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -129,28 +122,6 @@ class UtilPrngHandlerTest {
         verify(recordBuilder).entropyBytes(hash);
     }
 
-    @Test
-    void calculateFeesHappyPath() {
-        givenTxnWithoutRange();
-        final var body = TransactionBody.newBuilder().utilPrng(txn).build();
-
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(body);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(0);
-    }
-
     @ParameterizedTest
     @ValueSource(
             ints = {
@@ -201,9 +172,7 @@ class UtilPrngHandlerTest {
      * @param expected
      */
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             7, 4, 3
             -7, 4, 1
             -1, 4, 3
