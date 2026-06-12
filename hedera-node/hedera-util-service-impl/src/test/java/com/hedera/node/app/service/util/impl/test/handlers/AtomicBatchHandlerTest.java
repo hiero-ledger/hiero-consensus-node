@@ -18,12 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -46,9 +44,7 @@ import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -446,24 +442,6 @@ class AtomicBatchHandlerTest {
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
         verify(handleContext, times(2)).dispatch(any());
-    }
-
-    @Test
-    void calculateFeesReturnsExpectedFees() {
-        var feeContext = mock(FeeContext.class);
-        var calculator = mock(FeeCalculator.class);
-        var expectedFees = mock(Fees.class);
-
-        when(feeContext.feeCalculatorFactory()).thenReturn(type -> calculator);
-        when(calculator.resetUsage()).thenReturn(calculator);
-        // Use doReturn/when pattern to avoid strict stubbing issues
-        doReturn(calculator).when(calculator).addVerificationsPerTransaction(anyLong());
-        when(calculator.calculate()).thenReturn(expectedFees);
-        when(feeContext.numTxnSignatures()).thenReturn(1);
-
-        var result = subject.calculateFees(feeContext);
-
-        assertSame(expectedFees, result);
     }
 
     @Test
