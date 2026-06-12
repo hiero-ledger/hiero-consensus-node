@@ -1213,7 +1213,7 @@ generate_yahcli_creds() {
   local raw_pem="${WORK_DIR}/account${YAHCLI_OPERATOR_ACCOUNT_NUM}.raw.pem"
   {
     echo "-----BEGIN PRIVATE KEY-----"
-    printf '%s' "${OPERATOR_PRIVATE_KEY}" | xxd -r -p | base64
+    printf '%s' "${OPERATOR_PRIVATE_KEY}" | python3 -c 'import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))' | base64
     echo "-----END PRIVATE KEY-----"
   } > "${raw_pem}"
 
