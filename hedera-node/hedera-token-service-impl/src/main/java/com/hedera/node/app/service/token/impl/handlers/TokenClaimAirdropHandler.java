@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
@@ -247,16 +248,22 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         final var accountId = newTransfer.accountIDOrThrow();
         for (int i = 0, n = transfers.size(); i < n; i++) {
             if (transfers.get(i).accountIDOrThrow().equals(accountId)) {
-                final var updatedTransfer = transfers
-                        .get(i)
-                        .copyBuilder()
-                        .amount(transfers.get(i).amount() + newTransfer.amount())
-                        .build();
+                final long mergedAmount = safeAddOrThrow(transfers.get(i).amount(), newTransfer.amount());
+                final var updatedTransfer =
+                        transfers.get(i).copyBuilder().amount(mergedAmount).build();
                 transfers.set(i, updatedTransfer);
                 return;
             }
         }
         transfers.add(newTransfer);
+    }
+
+    private static long safeAddOrThrow(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (ArithmeticException e) {
+            throw new HandleException(INSUFFICIENT_TOKEN_BALANCE);
+        }
     }
 
     private void associateForFree(
