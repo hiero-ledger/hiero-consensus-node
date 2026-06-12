@@ -51,6 +51,32 @@ javaModules {
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
+// Pinned GitHub Actions — add entries here to enforce a canonical SHA in workflow files.
+// spotlessCheck fails if a file uses a different pin; spotlessApply corrects it.
+@Suppress("UnstableApiUsage")
+gradle.lifecycle.afterProject {
+    val pinnedActions =
+        mapOf(
+            "pandaswhocode/initialize-github-job" to
+                "c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0",
+            "slackapi/slack-github-action" to "b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0",
+        )
+    pluginManager.withPlugin("com.diffplug.spotless") {
+        extensions.configure(com.diffplug.gradle.spotless.SpotlessExtension::class.java) {
+            format("actionPins") {
+                target(".github/**/*.yaml", ".github/**/*.yml")
+                pinnedActions.forEach { (action, pin) ->
+                    replaceRegex(
+                        "Enforce $action pin",
+                        """(?i)uses:\s+${Regex.escape(action)}@\S+(?:\s+#[^\n]*)?""",
+                        "uses: $action@$pin",
+                    )
+                }
+            }
+        }
+    }
+}
+
 // Flaky test handling
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
