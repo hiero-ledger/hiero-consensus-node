@@ -24,8 +24,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -124,8 +122,6 @@ class PlatformWiringTests {
                 .withStateHasher(mock(StateHasher.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
-                .withBranchDetector(mock(BranchDetector.class))
-                .withBranchReporter(mock(BranchReporter.class))
                 .withStateSigner(mock(StateSigner.class))
                 .withTransactionHandler(mock(DefaultTransactionHandler.class));
 

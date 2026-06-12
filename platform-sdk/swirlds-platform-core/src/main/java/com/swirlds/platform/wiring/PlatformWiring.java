@@ -13,8 +13,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -109,15 +107,6 @@ public class PlatformWiring {
                 .model()
                 .getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
-
-        components
-                .eventIntakeModule()
-                .validatedEventsOutputWire()
-                .solderTo(components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
-        components
-                .branchDetectorWiring()
-                .getOutputWire()
-                .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
 
         components
                 .model()
@@ -371,10 +360,6 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
-        eventWindowOutputWire.solderTo(
-                components.branchDetectorWiring().getInputWire(BranchDetector::updateEventWindow), INJECT);
-        eventWindowOutputWire.solderTo(
-                components.branchReporterWiring().getInputWire(BranchReporter::updateEventWindow), INJECT);
     }
 
     /**
@@ -410,8 +395,6 @@ public class PlatformWiring {
         components.issDetectorWiring().getInputWire(IssDetector::overridingState);
         components.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
-        components.branchDetectorWiring().getInputWire(BranchDetector::clear);
-        components.branchReporterWiring().getInputWire(BranchReporter::clear);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
     }
