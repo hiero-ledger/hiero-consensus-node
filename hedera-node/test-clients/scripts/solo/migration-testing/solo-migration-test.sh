@@ -938,10 +938,29 @@ start_consensus_node_via_nmt() {
 wait_for_node_active() {
   local pod="$1" timeout_secs="$2"
   local deadline=$((SECONDS + timeout_secs))
+  # Snapshot the current swirlds-node StartedAt timestamp so we only accept
+  # an ACTIVE that comes from a JVM started AFTER this call. Without this,
+  # the post-freeze-upgrade verification races NMT's container restart:
+  # the previous run's "newStatus":"ACTIVE" is still in swirlds.log and
+  # wait_for_node_active returns instantly, before NMT has finished swapping
+  # data/apps + data/lib. The verify step then sees an empty data/apps and
+  # reports "found unknown".
+  local initial_started_at=""
+  initial_started_at="$(kexec "${pod}" docker inspect swirlds-node \
+    --format='{{.State.StartedAt}}' 2>/dev/null || true)"
   while (( SECONDS < deadline )); do
     # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
     # payload — uniquely identifies the transition to ACTIVE (not e.g.
     # an "ACTIVE" substring in some other log line).
+    local current_started_at
+    current_started_at="$(kexec "${pod}" docker inspect swirlds-node \
+      --format='{{.State.StartedAt}}' 2>/dev/null || true)"
+    # If the container hasn't restarted yet (StartedAt unchanged) AND we
+    # had an initial snapshot, the ACTIVE we'd see is stale — keep waiting.
+    if [[ -n "${initial_started_at}" && "${current_started_at}" == "${initial_started_at}" ]]; then
+      sleep 5
+      continue
+    fi
     if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
       log "  ${pod}: ACTIVE"
       return 0
