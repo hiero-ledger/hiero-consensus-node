@@ -164,7 +164,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             // Add some items to each block to make it realistic
             final List<BlockItem> items = generateBlockItems(5, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
             createdBlocks.put(blockNum, blockBufferService.getBlockState(blockNum));
@@ -260,7 +260,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(3, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
 
@@ -377,7 +377,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(4, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
         }

@@ -715,6 +715,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
+        verify(blockHashSigner).onBlockStarted(N_BLOCK_NO);
         verify(blockHashSigner).isReady();
         verifyNoMoreInteractions(blockHashSigner);
     }

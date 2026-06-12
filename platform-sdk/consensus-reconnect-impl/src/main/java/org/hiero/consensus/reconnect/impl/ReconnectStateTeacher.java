@@ -14,7 +14,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.sync.TeacherTreeView;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
@@ -45,7 +44,6 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -54,7 +52,7 @@ public class ReconnectStateTeacher {
     private final NodeId selfId;
     private final NodeId otherId;
     private final long lastRoundReceived;
-    private final Configuration configuration;
+    private final TeachingSynchronizer synchronizer;
 
     private final ReconnectMetrics statistics;
 
@@ -62,9 +60,6 @@ public class ReconnectStateTeacher {
      * After reconnect is finished, restore the socket timeout to the original value.
      */
     private int originalSocketTimeout;
-
-    private final ThreadManager threadManager;
-    private final Time time;
 
     /**
      * @param configuration the platform context
@@ -90,8 +85,10 @@ public class ReconnectStateTeacher {
             @NonNull final SignedState signedState,
             @NonNull final ReconnectMetrics statistics) {
 
-        this.time = Objects.requireNonNull(time);
-        this.threadManager = Objects.requireNonNull(threadManager);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(time);
+        Objects.requireNonNull(threadManager);
+
         this.connection = Objects.requireNonNull(connection);
         this.reconnectSocketTimeout = reconnectSocketTimeout;
 
@@ -99,16 +96,15 @@ public class ReconnectStateTeacher {
         this.otherId = Objects.requireNonNull(otherId);
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
-        this.configuration = Objects.requireNonNull(configuration);
 
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
         roster = signedState.getRoster();
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        // The teacher view will be closed by TeacherSynchronizer in reconnect() below
-        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
+
+        synchronizer = new TeachingSynchronizer(
+                virtualMapState.getRoot(), time, threadManager, configuration.getConfigData(ReconnectConfig.class));
 
         logReconnectStart(signedState);
     }
@@ -218,16 +214,10 @@ public class ReconnectStateTeacher {
 
         connection.getDis().byteCounter().getAndReset();
 
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
-                time,
-                threadManager,
+        synchronizer.synchronize(
                 new DataInputStream(connection.getDis()),
                 new DataOutputStream(connection.getDos()),
-                teacherView,
-                connection::disconnect,
-                reconnectConfig);
-        synchronizer.synchronize();
+                connection::disconnect);
         connection.getDos().flush();
 
         statistics.incrementSenderEndTimes();

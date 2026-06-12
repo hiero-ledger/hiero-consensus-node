@@ -58,6 +58,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -365,5 +366,12 @@ class HandleHederaNativeOperationsTest {
         given(context.keyVerifier()).willReturn(keyVerifier);
         given(keyVerifier.authorizingSimpleKeys()).willReturn(keys);
         assertSame(keys, subject.authorizingSimpleKeys());
+    }
+
+    @Test
+    void ledgerId_delegatesToContext() {
+        final var expected = Bytes.fromHex("deadbeef");
+        given(context.ledgerId()).willReturn(expected);
+        assertEquals(expected, subject.ledgerId());
     }
 }

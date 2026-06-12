@@ -643,6 +643,11 @@ public class BlockNodeConnectionManager {
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
 
+        // Re-emit the active connection IP (0 when there is no active connection) so the gauge does not
+        // remain stale after the active connection closes (e.g. when all block node configuration is removed).
+        blockStreamMetrics.recordActiveConnectionIp(
+                activeConnection == null ? 0L : activeConnection.ipV4AddressAsInt());
+
         checkActiveConnectionStalled(now, activeConnection);
 
         CloseReason closeReason = CloseReason.UNKNOWN;

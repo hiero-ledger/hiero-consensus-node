@@ -73,16 +73,16 @@ public class BlockStreamingObs {
                 .enhancedObservabilityEnabled();
     }
 
-    /** Called when a block is first created by {@code BlockStreamManagerImpl}; opens the block stats entry. */
+    /** Called when a block is first created; opens the block stats entry. */
     public void onBlockInit(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
         }
 
-        blockStatistics.put(blockNumber, new BlockStats(blockNumber, nanosTick));
+        blockStatistics.put(blockNumber, new BlockStats(nanosTick));
     }
 
-    /** Called when a block transitions to the open/buffered state in {@code BlockBufferService}. */
+    /** Called when a block transitions to the open/buffered state */
     public void onBlockOpen(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -140,6 +140,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Records when the {@code BlockEnd} message for a block was written to the gRPC stream. */
     public void onBlockEndSend(final long blockNumber, final long nanosTickStart, final long nanosTickEnd) {
         if (!isEnabled) {
             return;
@@ -151,6 +152,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Records when a block transitioned to the closed state (all items written to the buffer). */
     public void onBlockClose(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -178,6 +180,26 @@ public class BlockStreamingObs {
         }
     }
 
+    /**
+     * Marks all items for blocks below {@code startingBlockNumber} as {@link StartAndEndTicks#NEVER_SENT}
+     * when a new connection opens at that block. Prevents {@link BlockStats#aggregate()} from treating
+     * those items as a bug (null send ticks) rather than an expected gap.
+     */
+    public void onConnectionStartedAt(final long startingBlockNumber) {
+        if (!isEnabled) {
+            return;
+        }
+
+        for (final Map.Entry<Long, BlockStats> entry : blockStatistics.entrySet()) {
+            if (entry.getKey() < startingBlockNumber) {
+                for (final BlockItemStats itemStats : entry.getValue().items.values()) {
+                    itemStats.itemSendNanosTicks.compareAndSet(null, StartAndEndTicks.NEVER_SENT);
+                }
+            }
+        }
+    }
+
+    /** Records when the block proof item was created by the consensus layer. */
     public void onBlockProofCreate(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -189,6 +211,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Records when the block proof item was added to the streaming buffer. */
     public void onBlockProofAdd(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -200,6 +223,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Records when the block header item was written to the gRPC stream. */
     public void onBlockHeaderSend(final long blockNumber, final long nanosTickStart, final long nanosTickEnd) {
         if (!isEnabled) {
             return;
@@ -211,6 +235,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Records when the block footer item was created. */
     public void onBlockFooterCreate(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
             return;
@@ -234,6 +259,7 @@ public class BlockStreamingObs {
 
     // =================================================================================================================
 
+    /** Periodic task that re-reads the feature flag, then gathers and logs the accumulated stats. */
     private class ObsGatherAndLogTask implements Runnable {
         @Override
         public void run() {
@@ -398,6 +424,7 @@ public class BlockStreamingObs {
 
     // =================================================================================================================
 
+    /** Accumulates a running count and byte-sum across multiple {@link Statistics} contributions. */
     private static class SimpleAggregator {
         private BigInteger numSamples = BigInteger.ZERO;
         private BigInteger sum = BigInteger.ZERO;
@@ -408,6 +435,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Aggregates per-block latency and per-item statistics across all blocks in a reporting window. */
     private static class BlockStatsAggregation {
         private final StatisticsProbe initToOpen = new StatisticsProbe("InitToOpen", ObsUnit.NANOS);
         private final StatisticsProbe openToClose = new StatisticsProbe("OpenToClose", ObsUnit.NANOS);
@@ -431,15 +459,24 @@ public class BlockStreamingObs {
         void add(final BlockStats blockStats) {
             initToOpen.add(blockStats.initToOpen());
             openToClose.add(blockStats.openToClose());
-            openToEndSent.add(blockStats.openToEndSent());
             openToAck.add(blockStats.openToAck());
             closedToAck.add(blockStats.closedToAck());
-            headerProducedToAck.add(blockStats.headerProducedToAck());
-            headerSentToAck.add(blockStats.headerSentToAck());
-            endSentToAck.add(blockStats.endSentToAck());
-            headerSentToEndSent.add(blockStats.headerSentToEndSent());
             openToProofAdded.add(blockStats.openToProofAdded());
             openToProofCreated.add(blockStats.openToProofCreated());
+
+            final StartAndEndTicks endTicks = blockStats.endSentNanosTicks.get();
+            final StartAndEndTicks headerTicks = blockStats.headerSentNanosTicks.get();
+            if (endTicks != null) {
+                openToEndSent.add(blockStats.openToEndSent());
+                endSentToAck.add(blockStats.endSentToAck());
+            }
+            if (headerTicks != null) {
+                headerProducedToAck.add(blockStats.headerProducedToAck());
+                headerSentToAck.add(blockStats.headerSentToAck());
+                if (endTicks != null) {
+                    headerSentToEndSent.add(blockStats.headerSentToEndSent());
+                }
+            }
 
             itemIdleComposite.add(blockStats.itemIdleProbe.aggregate());
             itemSendLatencyComposite.add(blockStats.itemSendLatencyProbe.aggregate());
@@ -465,6 +502,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Counts block and item events that occurred within a single wall-clock second. */
     private static class ThroughputBucket {
         private final long secondTick;
         private final BasicProbe itemsCreated = new BasicProbe("ItemsCreated", ObsUnit.COUNT);
@@ -478,8 +516,12 @@ public class BlockStreamingObs {
         }
     }
 
+    /**
+     * Holds all lifecycle timestamps for a single block.
+     * AtomicLong fields use {@code -1} as a sentinel meaning "not yet recorded".
+     * AtomicReference fields use {@code null} as sentinel for the same purpose.
+     */
     private static class BlockStats {
-        private final long blockNumber;
         private final long initNanosTick;
         private final AtomicLong openedNanosTick = new AtomicLong(-1);
         private final AtomicLong closedNanosTick = new AtomicLong(-1);
@@ -497,16 +539,26 @@ public class BlockStreamingObs {
 
         private long blockSize = 0;
 
-        public BlockStats(final long blockNumber, final long initNanosTick) {
-            this.blockNumber = blockNumber;
+        public BlockStats(final long initNanosTick) {
             this.initNanosTick = initNanosTick;
         }
 
         void aggregate() {
             for (final Map.Entry<Integer, BlockItemStats> itemStatsEntry : items.entrySet()) {
                 final BlockItemStats itemStats = itemStatsEntry.getValue();
-                itemIdleProbe.add(itemStats.itemSendNanosTicks.get().start - itemStats.itemBufferedNanosTick);
-                itemSendLatencyProbe.add(itemStats.itemSendNanosTicks.get().diff());
+                final StartAndEndTicks sendTicks = itemStats.itemSendNanosTicks.get();
+                if (sendTicks == null) {
+                    // safety net: send time was not recorded (unexpected)
+                    continue;
+                }
+                if (sendTicks == StartAndEndTicks.NEVER_SENT) {
+                    // item was in buffer when connection started at a later block; size still counts
+                    itemSizeProbe.add(itemStats.itemSizeInBytes);
+                    blockSize += itemStats.itemSizeInBytes;
+                    continue;
+                }
+                itemIdleProbe.add(sendTicks.start - itemStats.itemBufferedNanosTick);
+                itemSendLatencyProbe.add(sendTicks.diff());
                 itemSizeProbe.add(itemStats.itemSizeInBytes);
                 blockSize += itemStats.itemSizeInBytes;
             }
@@ -565,6 +617,7 @@ public class BlockStreamingObs {
         }
     }
 
+    /** Holds the buffered timestamp and send timing for a single block item. */
     private static class BlockItemStats {
         private final long itemSizeInBytes;
         private final long itemBufferedNanosTick;
@@ -576,7 +629,11 @@ public class BlockStreamingObs {
         }
     }
 
+    /** A pair of {@code System.nanoTime()} values bracketing the start and end of an operation. */
     private record StartAndEndTicks(long start, long end) {
+        /** Sentinel indicating the item was in the buffer when the connection started at a later block. */
+        static final StartAndEndTicks NEVER_SENT = new StartAndEndTicks(-1L, -1L);
+
         long diff() {
             return end - start;
         }

@@ -464,6 +464,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             resetSubtrees();
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
+            blockHashSigner.onBlockStarted(blockNumber);
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var platformState = state.getReadableStates(PlatformStateService.NAME)
                         .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
@@ -998,7 +999,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            streamingObs.onBlockProofCreate(blockNumber, System.nanoTime());
+            streamingObs.onBlockProofCreate(currentPendingBlock.number(), System.nanoTime());
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first

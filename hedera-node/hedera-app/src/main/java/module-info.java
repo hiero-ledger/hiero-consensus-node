@@ -35,7 +35,6 @@ module com.hedera.node.app {
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
-    requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
     requires transitive java.net.http;
