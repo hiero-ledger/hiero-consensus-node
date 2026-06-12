@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -54,6 +56,7 @@ public class BlockStreamingObs implements AutoCloseable {
     private static final long ABANDONED_AFTER_NANOS = TimeUnit.SECONDS.toNanos(PERIOD_SECONDS * 5L);
 
     private final ConfigProvider configProvider;
+    private final LongSupplier nanoClock;
     private volatile boolean isEnabled;
     // ConcurrentMap<BlockNumber, BlockStats>
     private final ConcurrentMap<Long, BlockStats> blockStatistics = new ConcurrentHashMap<>();
@@ -65,8 +68,14 @@ public class BlockStreamingObs implements AutoCloseable {
 
     @Inject
     public BlockStreamingObs(@NonNull final ConfigProvider configProvider) {
+        this(configProvider, System::nanoTime);
+    }
+
+    /** Package-private for tests: allows substituting the clock that all timestamps are read from. */
+    BlockStreamingObs(@NonNull final ConfigProvider configProvider, @NonNull final LongSupplier nanoClock) {
         this.configProvider = requireNonNull(configProvider);
-        initialNanosTick = System.nanoTime();
+        this.nanoClock = requireNonNull(nanoClock);
+        initialNanosTick = nanoClock.getAsLong();
 
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "BlockStreamingObsGather");
@@ -75,6 +84,11 @@ public class BlockStreamingObs implements AutoCloseable {
         });
         scheduledExecutorService.schedule(new ObsGatherAndLogTask(), PERIOD_SECONDS, TimeUnit.SECONDS);
 
+        refreshEnabledFlag();
+    }
+
+    /** Re-reads the feature flag from config; called by the periodic task before every gather. */
+    void refreshEnabledFlag() {
         isEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
@@ -93,7 +107,7 @@ public class BlockStreamingObs implements AutoCloseable {
             return;
         }
 
-        blockStatistics.put(blockNumber, new BlockStats(System.nanoTime()));
+        blockStatistics.put(blockNumber, new BlockStats(nanoClock.getAsLong()));
     }
 
     /** Called when a block transitions to the open/buffered state */
@@ -107,7 +121,7 @@ public class BlockStreamingObs implements AutoCloseable {
             return;
         }
 
-        final long nanosTick = System.nanoTime();
+        final long nanosTick = nanoClock.getAsLong();
         if (stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksOpened.increment();
         }
@@ -129,7 +143,7 @@ public class BlockStreamingObs implements AutoCloseable {
             return;
         }
 
-        final long nanosTick = System.nanoTime();
+        final long nanosTick = nanoClock.getAsLong();
         if (stats.items.putIfAbsent(itemIndex, new BlockItemStats(sizeInBytes, nanosTick)) == null) {
             getThroughputBucket(nanosTick).itemsCreated.add(sizeInBytes);
         }
@@ -191,7 +205,7 @@ public class BlockStreamingObs implements AutoCloseable {
             return;
         }
 
-        final long nanosTick = System.nanoTime();
+        final long nanosTick = nanoClock.getAsLong();
         if (stats.closedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksClosed.increment();
         }
@@ -212,7 +226,7 @@ public class BlockStreamingObs implements AutoCloseable {
             return;
         }
 
-        final long nanosTick = System.nanoTime();
+        final long nanosTick = nanoClock.getAsLong();
         if (stats.ackedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksAcked.increment();
         }
@@ -226,7 +240,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.proofCreatedNanosTick.compareAndSet(-1, System.nanoTime());
+            stats.proofCreatedNanosTick.compareAndSet(-1, nanoClock.getAsLong());
         }
     }
 
@@ -250,7 +264,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.footerNanosTick.compareAndSet(-1, System.nanoTime());
+            stats.footerNanosTick.compareAndSet(-1, nanoClock.getAsLong());
         }
     }
 
@@ -285,11 +299,7 @@ public class BlockStreamingObs implements AutoCloseable {
         @Override
         public void run() {
             try {
-                isEnabled = configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enhancedObservabilityEnabled();
-
+                refreshEnabledFlag();
                 gatherAndLogObsData();
             } finally {
                 scheduledExecutorService.schedule(new ObsGatherAndLogTask(), PERIOD_SECONDS, TimeUnit.SECONDS);
@@ -297,18 +307,25 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    private void gatherAndLogObsData() {
+    /**
+     * Drains and reports all data eligible for this window. Package-private so tests can drive the
+     * gather cycle directly.
+     *
+     * @return the report that was logged, or {@code null} if obs is disabled or nothing was recorded
+     */
+    @Nullable
+    String gatherAndLogObsData() {
         if (!isEnabled) {
             // enhanced obs may have been dynamically disabled... clear everything and exit
             blockStatistics.clear();
             throughputBuckets.clear();
-            return;
+            return null;
         }
 
         // calculate the seconds tick that will act as the threshold for what data to process
         // we will only look at data 2 seconds and older; this will give any long-running in-flight operations a chance
         // to submit their observations
-        final long nanosTick = System.nanoTime();
+        final long nanosTick = nanoClock.getAsLong();
         final long thresholdSecondTick = toSecondTick(nanosTick) - 2;
         final long thresholdNanosTick = initialNanosTick + (NANOS_PER_SECOND * thresholdSecondTick);
 
@@ -317,12 +334,14 @@ public class BlockStreamingObs implements AutoCloseable {
 
         if (buckets.isEmpty() && blocksAggregation.isEmpty()) {
             // nothing was recorded in this window; skip the report entirely
-            return;
+            return null;
         }
 
         blocksAggregation.complete();
 
-        log.info("{}", formatReport(ThroughputSummary.of(buckets), blocksAggregation));
+        final String report = formatReport(ThroughputSummary.of(buckets), blocksAggregation);
+        log.info("{}", report);
+        return report;
     }
 
     /** Removes and returns all throughput buckets at or before the threshold second. */
