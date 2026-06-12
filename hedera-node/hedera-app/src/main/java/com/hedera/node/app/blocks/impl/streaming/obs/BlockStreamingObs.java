@@ -186,25 +186,6 @@ public class BlockStreamingObs {
         }
     }
 
-    /**
-     * Marks all items for blocks below {@code startingBlockNumber} as {@link StartAndEndTicks#NEVER_SENT}
-     * when a new connection opens at that block. Prevents {@link BlockStats#aggregate()} from treating
-     * those items as a bug (null send ticks) rather than an expected gap.
-     */
-    public void onConnectionStartedAt(final long startingBlockNumber) {
-        if (!isEnabled) {
-            return;
-        }
-
-        for (final Map.Entry<Long, BlockStats> entry : blockStatistics.entrySet()) {
-            if (entry.getKey() < startingBlockNumber) {
-                for (final BlockItemStats itemStats : entry.getValue().items.values()) {
-                    itemStats.itemSendNanosTicks.compareAndSet(null, StartAndEndTicks.NEVER_SENT);
-                }
-            }
-        }
-    }
-
     /** Records when the block proof item was created by the consensus layer. */
     public void onBlockProofCreate(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
@@ -428,6 +409,7 @@ public class BlockStreamingObs {
         output.append("    ItemIdle ").append(Statistics.toString(blocksAggregation.itemIdleComposite)).append("\n");
         output.append("    ItemSendLatency ").append(Statistics.toString(blocksAggregation.itemSendLatencyComposite)).append("\n");
         output.append("    ItemSize ").append(Statistics.toString(blocksAggregation.itemSizeComposite)).append("\n");
+        output.append("    ItemsNeverSent { (Unit:COUNT|Sum:").append(blocksAggregation.itemsNeverSent).append(") }\n");
         output.append("  }\n");
 
         output.append("}");
@@ -476,6 +458,7 @@ public class BlockStreamingObs {
         private final CompositeStatistics itemIdleComposite = new CompositeStatistics(ObsUnit.NANOS);
         private final CompositeStatistics itemSendLatencyComposite = new CompositeStatistics(ObsUnit.NANOS);
         private final CompositeStatistics itemSizeComposite = new CompositeStatistics(ObsUnit.BYTES);
+        private long itemsNeverSent = 0;
 
         void add(final BlockStats blockStats) {
             // computes the per-item probes and blockSize; must only ever run on the gather thread
@@ -506,6 +489,7 @@ public class BlockStreamingObs {
             itemIdleComposite.add(blockStats.itemIdleProbe.aggregate());
             itemSendLatencyComposite.add(blockStats.itemSendLatencyProbe.aggregate());
             itemSizeComposite.add(blockStats.itemSizeProbe.aggregate());
+            itemsNeverSent += blockStats.itemsNeverSent;
 
             blockSize.add(blockStats.blockSize);
             itemsPerBlock.add(blockStats.items.size());
@@ -565,6 +549,7 @@ public class BlockStreamingObs {
         private final StatisticsProbe itemSizeProbe = new StatisticsProbe("ItemSize", ObsUnit.BYTES);
 
         private long blockSize = 0;
+        private long itemsNeverSent = 0;
 
         public BlockStats(final long initNanosTick) {
             this.initNanosTick = initNanosTick;
@@ -574,18 +559,14 @@ public class BlockStreamingObs {
             for (final Map.Entry<Integer, BlockItemStats> itemStatsEntry : items.entrySet()) {
                 final BlockItemStats itemStats = itemStatsEntry.getValue();
                 final StartAndEndTicks sendTicks = itemStats.itemSendNanosTicks.get();
-                if (sendTicks == null) {
-                    // safety net: send time was not recorded (unexpected)
-                    continue;
+                if (sendTicks != null) {
+                    itemIdleProbe.add(sendTicks.start() - itemStats.itemBufferedNanosTick);
+                    itemSendLatencyProbe.add(sendTicks.diff());
+                } else {
+                    ++itemsNeverSent;
                 }
-                if (sendTicks == StartAndEndTicks.NEVER_SENT) {
-                    // item was in buffer when connection started at a later block; size still counts
-                    itemSizeProbe.add(itemStats.itemSizeInBytes);
-                    blockSize += itemStats.itemSizeInBytes;
-                    continue;
-                }
-                itemIdleProbe.add(sendTicks.start - itemStats.itemBufferedNanosTick);
-                itemSendLatencyProbe.add(sendTicks.diff());
+                // an item this node never sent (e.g. the block node already had the block when the
+                // connection started) still counts toward size, just not toward idle/send latency
                 itemSizeProbe.add(itemStats.itemSizeInBytes);
                 blockSize += itemStats.itemSizeInBytes;
             }
@@ -658,9 +639,6 @@ public class BlockStreamingObs {
 
     /** A pair of {@code System.nanoTime()} values bracketing the start and end of an operation. */
     private record StartAndEndTicks(long start, long end) {
-        /** Sentinel indicating the item was in the buffer when the connection started at a later block. */
-        static final StartAndEndTicks NEVER_SENT = new StartAndEndTicks(-1L, -1L);
-
         long diff() {
             return end - start;
         }

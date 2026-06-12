@@ -189,7 +189,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         if (initialBlockToStream != null && initialBlockToStream != -1) {
             streamingBlockNumber.set(initialBlockToStream);
-            streamingObs.onConnectionStartedAt(initialBlockToStream);
             logger.info(
                     "{} Block node connection will initially stream with block {}",
                     BlockNodeStreamingConnection.this,
@@ -1531,7 +1530,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 final long latestBlock = blockBufferService.getLastBlockNumberProduced();
 
                 if (latestBlock != -1 && streamingBlockNumber.compareAndSet(-1L, latestBlock)) {
-                    streamingObs.onConnectionStartedAt(latestBlock);
                     logger.info(
                             "{} Connection was not initialized with a starting block; defaulting to latest block produced ({})",
                             BlockNodeStreamingConnection.this,
