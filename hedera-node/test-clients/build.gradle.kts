@@ -208,7 +208,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
         "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCrypto" to
-            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.enhancedObservabilityEnabled=true",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
