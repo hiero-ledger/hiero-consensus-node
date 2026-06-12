@@ -26,6 +26,10 @@ on:
       slack-detailed-report-webhook:
         description: "Slack Webhook URL for Detailed Test Reporting."
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.migration-testing.outputs.failure-mode }}
 
 defaults:
   run:
@@ -43,6 +47,8 @@ jobs:
     timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-migration-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -107,6 +113,7 @@ jobs:
       #   4) CryptoCreate via @hashgraph/sdk + mirror REST poll
       #   4a) Mirror importer log scan for ERROR-level entries
       - name: Run migration test
+        id: run-migration-tests
         env:
           KEEP_NETWORK: "true" # keep kind alive so post-run log collection can reach it
         run: ./hedera-node/test-clients/scripts/solo/migration-testing/solo-migration-test.sh
@@ -159,6 +166,14 @@ jobs:
         if: ${{ always() }}
         run: |
           kind delete cluster -n solo-migration || true
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-migration-tests.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
   report-migration-testing-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report

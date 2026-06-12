@@ -173,16 +173,14 @@ pulls transactions from Execution through
 [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
 — `getTransactionsForEvent`, and pushes data like status and health.
 
-**Construction-time callbacks (Execution → Consensus).** Execution
-supplies a bundle of consumers to the platform at build time through
-[`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+**Construction-time callback (Execution → Consensus).** Execution
+supplies an optional stale-event consumer to the platform at build time
+through
+[`StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java),
 wired in via
 [`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
-(`withPreconsensusEventCallback`, `withSnapshotOverrideCallback`,
-`withStaleEventCallback`). Consensus invokes these consumers as the
-corresponding events occur (pre-consensus event in topological order,
-consensus-snapshot override at reconnect/restart boundaries, stale
-self-event detected).
+(`withStaleEventConsumer`). Consensus invokes it when a self-event is
+detected as stale.
 
 **Notifications (Consensus → Execution).** Lifecycle events are
 delivered through the notification engine rather than direct calls.
@@ -216,7 +214,7 @@ union of the shapes listed above:
   [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
   (data pulls plus state-signature, status, and health calls).
 - Execution → Consensus call-ins at construction time:
-  [`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+  [`StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java),
   registered via
   [`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java).
 - Consensus → Execution lifecycle signals via the notification engine
