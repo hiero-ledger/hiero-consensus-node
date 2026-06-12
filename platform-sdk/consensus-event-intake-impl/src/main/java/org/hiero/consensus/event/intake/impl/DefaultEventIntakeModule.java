@@ -144,10 +144,16 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventWindowDispatcher
                 .getOutputWire()
                 .solderTo(branchDetectorWiring.getInputWire(BranchDetector::updateEventWindow, "event window"), INJECT);
+        clearCommandDispatcher
+                .getOutputWire()
+                .solderTo(branchDetectorWiring.getInputWire(BranchDetector::clear), INJECT);
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
         eventWindowDispatcher
                 .getOutputWire()
                 .solderTo(branchReporterWiring.getInputWire(BranchReporter::updateEventWindow, "event window"), INJECT);
+        clearCommandDispatcher
+                .getOutputWire()
+                .solderTo(branchReporterWiring.getInputWire(BranchReporter::clear), INJECT);
 
         // Wire metrics
         if (pipelineTracker != null) {
