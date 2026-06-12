@@ -256,9 +256,10 @@ downstream view of pre-consensus output stays complete.
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and
 > judge mean the same thing in the paper and in the code. The notable
-> divergence is the ancient/expired horizon: the paper uses the
-> deterministic generation (max parent generation + 1) to define
-> ancient-ness, and the current code uses `birthRound` instead. The
+> divergence is the ancient/expired horizon — the paper uses an event's
+> deterministic generation where the current code uses `birthRound`; see
+> [`../concepts/birth-round.md`](../concepts/birth-round.md) for that
+> substitution. The
 > implementation also carries a few quantities that do not appear in
 > the paper — `NGen` (a locally-computed, non-deterministic generation
 > used only for picking a topological order and for
@@ -335,13 +336,9 @@ Conceptual background:
 
 ## Future state
 
-> **Future state.** The proposal envisions a single Consensus public
-> API on which Execution calls `nextRound(roster)` to pull each round,
-> giving natural backpressure; today rounds flow over the wired
-> `consensusRoundOutputWire` and the boundary is split across
-> `ExecutionLayer` and `ConsensusStateEventHandler` in
-> `swirlds-platform-core`. The proposal also introduces a separate
-> Sheriff module that aggregates misbehavior reports; it is not present
-> in the current `consensus-hashgraph` module or anywhere else in the
-> code, and a reader looking for it inside the hashgraph topic will
-> not find it.
+> **Future state.** Two proposal items touch this topic: the
+> `nextRound(roster)` pull that would replace today's wired
+> `consensusRoundOutputWire`, and the Sheriff module (absent from
+> `consensus-hashgraph`, so a reader will not find it here). Both are
+> described once, for the whole layer, in the
+> [overview's Future state](../overview.md#future-state).

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.branching;
+package org.hiero.consensus.event.intake.impl.branching;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -78,15 +79,17 @@ public class DefaultBranchReporter implements BranchReporter {
     /**
      * Metrics for the branch detector.
      */
-    private final BranchingMetrics metrics;
+    private final BranchingMetrics branchingMetrics;
 
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
-     * @param currentRoster   the current roster
+     * @param metrics the metrics system
+     * @param time the time source
+     * @param currentRoster the current roster
      */
-    public DefaultBranchReporter(@NonNull final PlatformContext platformContext, @NonNull final Roster currentRoster) {
+    public DefaultBranchReporter(
+            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Roster currentRoster) {
 
         this.currentRoster = Objects.requireNonNull(currentRoster);
         this.rosterMap = RosterUtils.toMap(currentRoster);
@@ -95,14 +98,14 @@ public class DefaultBranchReporter implements BranchReporter {
         // The stream MUST be sequential to modify external collections in forEach().
         currentRoster.rosterEntries().stream().map(re -> NodeId.of(re.nodeId())).forEach(nodeId -> {
             nodes.add(nodeId);
-            nodeLoggers.put(nodeId, new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(10)));
+            nodeLoggers.put(nodeId, new RateLimitedLogger(logger, time, Duration.ofMinutes(10)));
         });
 
-        excessiveBranchingLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(10));
+        excessiveBranchingLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(10));
 
         Collections.sort(nodes);
 
-        metrics = new BranchingMetrics(platformContext);
+        branchingMetrics = new BranchingMetrics(metrics);
     }
 
     /**
@@ -131,10 +134,10 @@ public class DefaultBranchReporter implements BranchReporter {
             branchingWeight += rosterMap.get(creator.id()).weight();
         }
 
-        metrics.reportBranchingEvent();
-        metrics.reportBranchingNodeCount(branchingCount);
+        branchingMetrics.reportBranchingEvent();
+        branchingMetrics.reportBranchingNodeCount(branchingCount);
         final double fraction = (double) branchingWeight / rosterTotalWeight;
-        metrics.reportBranchingWeightFraction(fraction);
+        branchingMetrics.reportBranchingWeightFraction(fraction);
 
         if (Threshold.STRONG_MINORITY.isSatisfiedBy(branchingWeight, rosterTotalWeight)) {
             // Uh oh. We've violated our assumption that >2/3 nodes in the network are honest.
@@ -178,8 +181,8 @@ public class DefaultBranchReporter implements BranchReporter {
                 branchingWeight -= rosterMap.get(nodeId.id()).weight();
             }
         }
-        metrics.reportBranchingNodeCount(branchingCount);
-        metrics.reportBranchingWeightFraction((double) branchingWeight / rosterTotalWeight);
+        branchingMetrics.reportBranchingNodeCount(branchingCount);
+        branchingMetrics.reportBranchingWeightFraction((double) branchingWeight / rosterTotalWeight);
     }
 
     /**
@@ -191,7 +194,7 @@ public class DefaultBranchReporter implements BranchReporter {
         branchingCount = 0;
         branchingWeight = 0;
 
-        metrics.reportBranchingNodeCount(0);
-        metrics.reportBranchingWeightFraction(0);
+        branchingMetrics.reportBranchingNodeCount(0);
+        branchingMetrics.reportBranchingWeightFraction(0);
     }
 }
