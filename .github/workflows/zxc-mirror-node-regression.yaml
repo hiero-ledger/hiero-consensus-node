@@ -180,6 +180,11 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
+      - name: Set up JQ
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Build Slack Payload Message
         id: build-payload
         if: always()
@@ -192,7 +197,6 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          sudo apt-get update && sudo apt-get install -y jq
           PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
           echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
 
