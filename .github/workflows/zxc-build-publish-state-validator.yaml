@@ -67,7 +67,7 @@ jobs:
           java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
         with:
           gradle-home-cache-cleanup: true
 
