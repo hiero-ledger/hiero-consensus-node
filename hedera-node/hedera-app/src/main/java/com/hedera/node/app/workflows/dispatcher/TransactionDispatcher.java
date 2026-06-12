@@ -136,7 +136,11 @@ public class TransactionDispatcher {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {
-            if (feeContext.body().data().kind() == TransactionBody.DataOneOfType.NODE_STAKE_UPDATE) {
+            final var kind = feeContext.body().data().kind();
+            if (kind == TransactionBody.DataOneOfType.UNSET) {
+                throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            }
+            if (isFeeExempt(kind)) {
                 return feeResultToFees(new FeeResult(), fromPbj(feeContext.activeRate()));
             }
             var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
