@@ -48,6 +48,12 @@ public class BlockStreamingObs {
     private static final int PERIOD_SECONDS = 60;
     private static final long NANOS_PER_SECOND = TimeUnit.SECONDS.toNanos(1);
     private static final int MAX_THROUGHPUT_BUCKETS = (PERIOD_SECONDS * 2) + 10;
+    /**
+     * A block that has not been acked this long after its init is considered abandoned (e.g. block node down,
+     * streaming disabled, or pruned from the buffer without an ack) and is evicted from tracking so that
+     * {@link #blockStatistics} cannot grow without bound. Abandoned blocks are reported in the summary.
+     */
+    private static final long ABANDONED_AFTER_NANOS = TimeUnit.SECONDS.toNanos(PERIOD_SECONDS * 5L);
 
     private final ConfigProvider configProvider;
     private volatile boolean isEnabled;
@@ -307,6 +313,7 @@ public class BlockStreamingObs {
 
         // gather the blocks we care about
         final BlockStatsAggregation blocksAggregation = new BlockStatsAggregation();
+        long blocksAbandoned = 0;
         final Iterator<Map.Entry<Long, BlockStats>> blockStatisticsIt =
                 blockStatistics.entrySet().iterator();
 
@@ -319,6 +326,11 @@ public class BlockStreamingObs {
             if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
                 blockStatisticsIt.remove();
                 blocksAggregation.add(blockStats);
+            } else if (ackedNanosTick == -1 && nanosTick - blockStats.initNanosTick >= ABANDONED_AFTER_NANOS) {
+                // never acked and too old: evict without aggregating (other threads may still be
+                // mutating the block, so its probes must not be touched) and only count it
+                blockStatisticsIt.remove();
+                ++blocksAbandoned;
             }
         }
 
@@ -379,6 +391,7 @@ public class BlockStreamingObs {
         output.append("      Opened { (Unit:COUNT|Sum:").append(totalBlocksOpened).append(") }\n");
         output.append("      Closed { (Unit:COUNT|Sum:").append(totalBlocksClosed).append(") }\n");
         output.append("      Acknowledged { (Unit:COUNT|Sum:").append(totalBlocksAcked).append(") }\n");
+        output.append("      Abandoned { (Unit:COUNT|Sum:").append(blocksAbandoned).append(") }\n");
         output.append("    }\n");
         output.append("    Items {\n");
         output.append("      Created-Total { (Unit:COUNT|Sum:").append(totalItemsCreated.numSamples).append(")");
