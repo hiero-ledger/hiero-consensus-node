@@ -135,8 +135,8 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: >-
             ${{ steps.prepare-runner.outcome }}
             ${{ steps.publish-unit-test-report.outcome }}
-            ${{ needs.upload-artifacts.outcome }}
-            ${{ needs.publish-codecov.outcome }}
-            ${{ needs.publish-codacy.outcome }}
-            ${{ needs.upload-test-reports.outcome }}
+            ${{ steps.upload-artifacts.outcome }}
+            ${{ steps.publish-codecov.outcome }}
+            ${{ steps.publish-codacy.outcome }}
+            ${{ steps.upload-test-reports.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

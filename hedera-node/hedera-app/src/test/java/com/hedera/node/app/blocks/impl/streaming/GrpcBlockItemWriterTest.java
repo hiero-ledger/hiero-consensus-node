@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -21,6 +22,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -102,7 +104,7 @@ class GrpcBlockItemWriterTest {
 
         grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
 
-        verify(blockBufferService).addItem(0L, proof);
+        verify(blockBufferService).addItem(0L, bytes, proof.item().kind());
     }
 
     @Test
@@ -116,7 +118,8 @@ class GrpcBlockItemWriterTest {
 
         grpcBlockItemWriter.writePbjItem(proof);
 
-        verify(blockBufferService).addItem(0L, proof);
+        verify(blockBufferService)
+                .addItem(0L, BlockItem.PROTOBUF.toBytes(proof), proof.item().kind());
     }
 
     @Test
@@ -162,5 +165,15 @@ class GrpcBlockItemWriterTest {
         final var nodeDir = tempDir.resolve("block-0.0.3");
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.gz"))).isTrue();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isTrue();
+
+        // The pending contents are written as BlockBytes, which is wire-identical to Block; verify the file is
+        // recoverable as a Block (the recovery path parses it as Block) and round-trips to the original item.
+        final byte[] contents;
+        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".pnd.gz")))) {
+            contents = in.readAllBytes();
+        }
+        final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));
+        assertThat(parsedBlock.items()).hasSize(1);
+        assertThat(parsedBlock.items().getFirst().blockHeader().number()).isEqualTo(blockNumber);
     }
 }

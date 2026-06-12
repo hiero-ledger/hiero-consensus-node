@@ -21,6 +21,7 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -72,6 +73,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
     public @NonNull TssSubmissions submissions() {
         return delegate.submissions();
     }
@@ -113,6 +119,14 @@ public class FakeHintsService implements HintsService {
             final boolean isActive,
             @NonNull final NetworkInfo networkInfo) {
         delegate.executeCrsWork(hintsStore, now, isActive, networkInfo);
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
+        return delegate.doGenesisSetup(writableStates, configuration, networkSize);
     }
 
     @Override
