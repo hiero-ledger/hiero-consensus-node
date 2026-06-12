@@ -447,6 +447,33 @@ deploy_baseline() {
     --node-aliases "${NODE_ALIASES}" \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
+  # `solo consensus node setup` returns when its task graph completes, but in
+  # v0.77.0 the genesis-network.json copy into each pod's data/config races
+  # past the CLI return: we have seen extract start a few seconds after setup
+  # and grab a snapshot without the file, which makes the JVM later refuse to
+  # start with `IllegalStateException: Genesis network not found`. Wait until
+  # the file is actually in every pod's data/config before letting the
+  # snapshot+umount+restore cycle proceed.
+  local _node _pod deadline
+  IFS=',' read -r -a _nodes <<< "${NODE_ALIASES}"
+  for _node in "${_nodes[@]}"; do
+    _pod="network-${_node}-0"
+    deadline=$((SECONDS + 120))
+    log "Waiting for genesis-network.json to appear in ${_pod}:data/config"
+    while (( SECONDS < deadline )); do
+      if kexec "${_pod}" test -s "${HAPI_PATH}/data/config/genesis-network.json" \
+          >/dev/null 2>&1; then
+        break
+      fi
+      sleep 2
+    done
+    if ! kexec "${_pod}" test -s "${HAPI_PATH}/data/config/genesis-network.json" \
+        >/dev/null 2>&1; then
+      echo "${_pod}: genesis-network.json never landed after solo setup" >&2
+      return 1
+    fi
+  done
+
   # #25736: instead of `solo consensus node start`, install real NMT inside
   # each pod, start `nmt watch`, and let NMT bring up the JVM via its
   # docker-compose stack — mirrors mainnet topology.
@@ -500,7 +527,21 @@ upgrade_to_local() {
   ensure_yahcli
   start_yahcli_port_forward
 
-  yahcli_run sysfiles upload software-zip
+  # Make sure nmt watch is alive in every pod before we ask CN to freeze.
+  # install_platform_via_nmt starts it during baseline deploy, but if the
+  # swirlds-node container was restarted (or the watcher died for any
+  # other reason between install and now) the inotify watcher won't see
+  # the FREEZE_UPGRADE markers and the upgrade dispatch never fires —
+  # so re-arm it here. start_nmt_watcher is no-op-safe (it just logs and
+  # bails if `pgrep -f "nmt watch"` already finds it running).
+  local _pod
+  for _pod in $(iterate_pods); do
+    if ! kexec "${_pod}" pgrep -f "nmt watch" >/dev/null 2>&1; then
+      start_nmt_watcher "${_pod}"
+    fi
+  done
+
+  yahcli_run sysfiles upload --appends-per-burst 64 software-zip
   yahcli_run prepare-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}"
   wait_for_marker "execute_immediate.mf" "${MARKER_TIMEOUT_SECS}"
 
@@ -665,6 +706,25 @@ install_nmt_in_pod() {
       echo "WARN: kubectl cp pulled nothing from ${pod}:data/${sub}" >&2
     fi
   done
+
+  # Belt-and-braces: pull the three properties files from Solo's
+  # network-node-data-config-cm configmap as well, even if kubectl cp
+  # already grabbed them. The init-copier writes these into the data/config
+  # PVC at pod startup, but some Solo versions overwrite the PVC during
+  # `consensus node setup`, leaving the JVM unable to load api-permission
+  # /application/bootstrap defaults after our restore. Sourcing them
+  # directly from the configmap removes that dependency.
+  mkdir -p "${stage_dir}/data/config"
+  for k in api-permission.properties application.properties bootstrap.properties; do
+    if [[ ! -s "${stage_dir}/data/config/${k}" ]]; then
+      kubectl -n "${SOLO_NAMESPACE}" get configmap network-node-data-config-cm \
+        -o "go-template={{ index .data \"${k}\" }}" 2>/dev/null \
+        > "${stage_dir}/data/config/${k}" || true
+      [[ -s "${stage_dir}/data/config/${k}" ]] \
+        && log "  pulled ${k} from network-node-data-config-cm (${stage_dir}/data/config/${k})" \
+        || echo "  note: ${k} not found in network-node-data-config-cm" >&2
+    fi
+  done
   # Solo's `consensus node setup` ALSO stages four files at HAPI_PATH itself
   # (not under data/): settings.txt, log4j2.xml, hedera.crt, hedera.key. NMT
   # preflight wipes these along with the data/ subdirs (we see HapiApp2.0/
@@ -753,6 +813,13 @@ install_platform_via_nmt() {
   # set (watch, upgrade dispatch, ...) and rejects these subcommands with
   # `unknown command "preflight" for "nmt"`. We use the Go binary later in
   # start_nmt_watcher() for `nmt watch`, which IS one of its commands.
+  # NMT preflight 1.3.4 runs a self-integrity check that requires mode 755 on
+  # every file under ${NMT_DIR}. The image-build dockerd on some hosts uses
+  # a umask that lays them down 750, so a defensive chmod first is required
+  # (no-op when perms are already 755).
+  log "Normalising NMT file permissions (umask quirk)"
+  kexec "${pod}" chmod -R 755 "${NMT_DIR}"
+
   log "nmt preflight in ${pod}"
   kexec "${pod}" "${NMT_DIR}/bin/node-mgmt-tool" -VV preflight \
     -j "${OPENJDK_VERSION}" -df -i "${NMT_PROFILE}" -k 256m -m 512m
