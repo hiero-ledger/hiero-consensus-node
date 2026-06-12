@@ -9,6 +9,9 @@ mainModuleInfo { runtimeOnly("org.hiero.consensus.pces.noop.impl.test.fixtures")
 
 testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
+    requires("org.hiero.consensus.event.stream.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.pcli")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
