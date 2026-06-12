@@ -976,36 +976,43 @@ start_consensus_node_via_nmt() {
 wait_for_node_active() {
   local pod="$1" timeout_secs="$2" require_restart="${3:-false}"
   local deadline=$((SECONDS + timeout_secs))
-  # Optional restart gate: when `require_restart` is true, snapshot the
-  # swirlds-node container's StartedAt timestamp before the loop and only
-  # accept ACTIVE matches once that timestamp has changed. This is needed
+  # Optional restart gate: when `require_restart` is true, count the
+  # `"newStatus":"ACTIVE"` occurrences currently in swirlds.log and only
+  # return once that count has strictly increased. This is needed
   # post-freeze-upgrade: NMT stops the old container and starts a new one,
-  # but the OLD container's "newStatus":"ACTIVE" payload is still in
-  # swirlds.log, so without the gate verify_local_build_on_consensus_nodes
-  # would race NMT's swap and read the stale ACTIVE.
+  # but the OLD JVM's "newStatus":"ACTIVE" payload is still in swirlds.log
+  # (the file is on a host-fs volume mount, so it survives the docker
+  # compose down/up). Without the gate verify_local_build_on_consensus_nodes
+  # races NMT's swap and reads the stale ACTIVE.
+  # An earlier attempt used the swirlds-node container's StartedAt as the
+  # signal, but `docker inspect` returns empty if NMT has already removed
+  # the container by the time we sample — the gate then silently disabled
+  # itself and fell back to grep'ing the old log. Counting is robust: if
+  # NMT truncates swirlds.log the baseline drops to 0 and the new ACTIVE
+  # entry pushes it to 1; if NMT preserves the file the baseline is N and
+  # the new entry makes it N+1. Either way `current > initial` is the
+  # only thing the new JVM's ACTIVE transition makes true.
   # For the BASELINE caller (bring_up_consensus_via_nmt) the JVM is starting
   # fresh and we want the first ACTIVE — pass require_restart=false (default).
-  local initial_started_at=""
+  local initial_active_count=0
   if [[ "${require_restart}" == "true" ]]; then
-    initial_started_at="$(kexec "${pod}" docker inspect swirlds-node \
-      --format='{{.State.StartedAt}}' 2>/dev/null || true)"
+    initial_active_count=$(kexec "${pod}" grep -c '"newStatus":"ACTIVE"' \
+      "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+    log "  ${pod}: baseline ACTIVE count = ${initial_active_count}; waiting for post-upgrade increment"
   fi
   while (( SECONDS < deadline )); do
     # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
     # payload — uniquely identifies the transition to ACTIVE (not e.g.
     # an "ACTIVE" substring in some other log line).
-    if [[ "${require_restart}" == "true" && -n "${initial_started_at}" ]]; then
-      local current_started_at
-      current_started_at="$(kexec "${pod}" docker inspect swirlds-node \
-        --format='{{.State.StartedAt}}' 2>/dev/null || true)"
-      # If the container hasn't restarted yet (StartedAt unchanged), the
-      # ACTIVE we'd see is stale — keep waiting.
-      if [[ "${current_started_at}" == "${initial_started_at}" ]]; then
-        sleep 5
-        continue
+    if [[ "${require_restart}" == "true" ]]; then
+      local current_count
+      current_count=$(kexec "${pod}" grep -c '"newStatus":"ACTIVE"' \
+        "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+      if (( current_count > initial_active_count )); then
+        log "  ${pod}: ACTIVE (post-restart, count ${initial_active_count} -> ${current_count})"
+        return 0
       fi
-    fi
-    if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
+    elif kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
       log "  ${pod}: ACTIVE"
       return 0
     fi
