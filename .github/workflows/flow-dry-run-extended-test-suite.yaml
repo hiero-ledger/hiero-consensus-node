@@ -87,9 +87,19 @@ defaults:
     shell: bash
 
 jobs:
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   parameters:
     name: Workflow Parameters
     runs-on: hl-cn-default-lin-sm
+    needs:
+      - extract-citr-vars
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
@@ -101,7 +111,7 @@ jobs:
       - name: Print Params
         id: params
         run: |
-          SOLO_VERSION="${{ inputs.solo-version || vars.ADHOC_XTS_SOLO_VERSION }}"
+          SOLO_VERSION="${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}"
           SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
           HELM_NAME="mirror"
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
@@ -149,13 +159,14 @@ jobs:
     needs:
       - parameters
       - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
       branch-name: ${{ inputs.branch-name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
+      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       enable-timing-sensitive-test-suite: ${{ inputs.enable-timing-sensitive-test-suite }}
       enable-hammer-test-suite: ${{ inputs.enable-hammer-test-suite }}
