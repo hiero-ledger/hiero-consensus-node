@@ -1,11 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Test Gomplate Templates"
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/templates/**"
-      - ".github/workflows/support/tests/test-gomplate-templates.sh"
   workflow_dispatch:
+  workflow_call:
 
 defaults:
   run:
