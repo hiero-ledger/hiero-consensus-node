@@ -477,7 +477,7 @@ jobs:
 
           sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/model/solo/tss-schema.ts
           sed -i -e 's/37_748_736/300_000_000/g' src/data/schema/migration/impl/solo/solo-config-v1-migration.ts
-
+          sed -i -e "s@, wrapPath@, '/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps-v0.2.0'@g" src/core/helm-values-helper.ts
           task build:compile
           #npm run build
 
