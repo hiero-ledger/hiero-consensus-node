@@ -4,6 +4,7 @@ package com.hedera.statevalidation.validator;
 import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationError;
 
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -53,6 +54,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
     private final AtomicLong indexMismatchCount = new AtomicLong(0);
     private final AtomicLong storeMismatchCount = new AtomicLong(0);
+    private final AtomicLong stateIdMismatchCount = new AtomicLong(0);
 
     // A minor optimization to avoid multiple chunk loads from disk
     private final ThreadLocal<VirtualHashChunk> lastChunk = new ThreadLocal<>();
@@ -120,6 +122,22 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             if (!valueBytes.equals(virtualMap.getBytes(keyBytes))) {
                 valueErrorCount.incrementAndGet();
                 log.error("Value mismatch for path={}, value={}", p2KvPath, parseValue(valueBytes));
+                return;
+            }
+
+            final StateKey parsedKey = StateKey.PROTOBUF.parse(keyBytes);
+            final StateValue parsedValue = parseValue(valueBytes);
+            final int keyStateId = parsedKey.key().kind().protoOrdinal();
+            final int valueStateId = parsedValue.value().kind().protoOrdinal();
+            if (keyStateId != valueStateId) {
+                stateIdMismatchCount.incrementAndGet();
+                log.error(
+                        "State id mismatch at path={}. keyStateId={} vs valueStateId={} key={} value={}",
+                        p2KvPath,
+                        keyStateId,
+                        valueStateId,
+                        parsedKey,
+                        parsedValue);
                 return;
             }
 
@@ -210,6 +228,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 && hashMismatchCount.get() == 0
                 && indexMismatchCount.get() == 0
                 && storeMismatchCount.get() == 0
+                && stateIdMismatchCount.get() == 0
                 && exceptionCount.get() == 0;
 
         if (!ok) {
@@ -218,7 +237,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                     ("%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                    + "indexMismatchCount=%d, exceptionCount=%d")
+                                    + "indexMismatchCount=%d, storeMismatchCount=%d, stateIdMismatchCount=%d, exceptionCount=%d")
                             .formatted(
                                     getName(),
                                     successCount.get(),
@@ -228,6 +247,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                                     hashMismatchCount.get(),
                                     indexMismatchCount.get(),
                                     storeMismatchCount.get(),
+                                    stateIdMismatchCount.get(),
                                     exceptionCount.get()));
         }
     }
