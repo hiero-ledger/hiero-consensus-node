@@ -135,8 +135,8 @@ YAHCLI_JAR="${YAHCLI_JAR:-}"
 YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-2}"
 YAHCLI_KEY_PASSPHRASE="${YAHCLI_KEY_PASSPHRASE:-migration-test}"
 MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
-UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-900}"
-NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-900}"
+UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-300}"
+NETWORK_ACTIVE_TIMEOUT_SECS="${NETWORK_ACTIVE_TIMEOUT_SECS:-300}"
 
 # Filled in by fetch_artifacts / build_upgrade_zip.
 PLATFORM_INSTALLER_BASENAME=""
@@ -891,6 +891,33 @@ install_platform_via_nmt() {
     -x "${DEPLOY_RELEASE_TAG}" \
     -j "${OPENJDK_VERSION}" \
     -e "${JAVA_MAIN_CLASS_OVERRIDE}"
+
+  # NMT v1.3.4's `install -e <class>` renders compose/network-node/.env with
+  # an empty JAVA_MAIN_CLASS slot (the -e is silently dropped), and similarly
+  # leaves JAVA_HEAP_MAX/MIN + NETWORK_NODE_MEM_LIMIT at the NMT defaults
+  # (heap 512m → mem_limit 978m, NMT default heap goes up to 6g). On the
+  # baseline `docker compose up` we work around this with a shell-env prefix
+  # in start_consensus_node_via_nmt, but NMT's OWN post-freeze compose-up
+  # (which it runs during upgrade dispatch) reads only the on-disk .env, so
+  # it launches the new JVM with com.swirlds.platform.Browser (pre-v0.40
+  # default) and ClassNotFoundException. Pin the env file here so both the
+  # baseline-side and the upgrade-side compose-ups see the right values.
+  kexec "${pod}" bash -c "
+    env_file=${NMT_DIR}/compose/network-node/.env
+    for kv in \
+      'JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE}' \
+      'JAVA_HEAP_MAX=${JAVA_HEAP_MAX}' \
+      'JAVA_HEAP_MIN=${JAVA_HEAP_MIN}' \
+      'NETWORK_NODE_MEM_LIMIT=${NETWORK_NODE_MEM_LIMIT}' ; do
+      key=\${kv%%=*}
+      if grep -qE \"^\${key}=\" \"\${env_file}\" 2>/dev/null; then
+        sed -i \"s|^\${key}=.*|\${kv}|\" \"\${env_file}\"
+      else
+        echo \"\${kv}\" >> \"\${env_file}\"
+      fi
+    done
+    chown hedera:hedera \"\${env_file}\"
+  "
 }
 
 seed_node_config() {
@@ -976,42 +1003,54 @@ start_consensus_node_via_nmt() {
 wait_for_node_active() {
   local pod="$1" timeout_secs="$2" require_restart="${3:-false}"
   local deadline=$((SECONDS + timeout_secs))
-  # Optional restart gate: when `require_restart` is true, count the
-  # `"newStatus":"ACTIVE"` occurrences currently in swirlds.log and only
-  # return once that count has strictly increased. This is needed
-  # post-freeze-upgrade: NMT stops the old container and starts a new one,
-  # but the OLD JVM's "newStatus":"ACTIVE" payload is still in swirlds.log
-  # (the file is on a host-fs volume mount, so it survives the docker
-  # compose down/up). Without the gate verify_local_build_on_consensus_nodes
-  # races NMT's swap and reads the stale ACTIVE.
-  # An earlier attempt used the swirlds-node container's StartedAt as the
-  # signal, but `docker inspect` returns empty if NMT has already removed
-  # the container by the time we sample — the gate then silently disabled
-  # itself and fell back to grep'ing the old log. Counting is robust: if
-  # NMT truncates swirlds.log the baseline drops to 0 and the new ACTIVE
-  # entry pushes it to 1; if NMT preserves the file the baseline is N and
-  # the new entry makes it N+1. Either way `current > initial` is the
-  # only thing the new JVM's ACTIVE transition makes true.
+  # Optional restart gate: when `require_restart` is true, snapshot the
+  # swirlds.log file size before the loop and accept ACTIVE only when it
+  # is reported BY content that was written AFTER the snapshot. This is
+  # needed post-freeze-upgrade: NMT may or may not preserve the file when
+  # it swaps the HapiApp2.0 symlink, and the OLD JVM's "newStatus":"ACTIVE"
+  # payload may still be visible. Two cases the loop handles:
+  #   - File appended (preserved across snapshot): grep the tail past the
+  #     captured byte offset; any ACTIVE there is from the new JVM.
+  #   - File truncated/recreated (swap dropped it): current size < initial,
+  #     grep the whole current file; any ACTIVE in it is necessarily fresh.
+  # An earlier StartedAt-comparison version silently disabled itself when
+  # `docker inspect` returned empty (container already removed by NMT),
+  # and a count-based version broke when NMT's symlink swap resets the
+  # baseline count rather than incrementing it. Byte-offset is the only
+  # signal that survives both file-preserved and file-replaced snapshots.
   # For the BASELINE caller (bring_up_consensus_via_nmt) the JVM is starting
   # fresh and we want the first ACTIVE — pass require_restart=false (default).
-  local initial_active_count=0
+  local initial_size=0
   if [[ "${require_restart}" == "true" ]]; then
-    initial_active_count=$(kexec "${pod}" grep -c '"newStatus":"ACTIVE"' \
+    initial_size=$(kexec "${pod}" stat -c %s \
       "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
-    log "  ${pod}: baseline ACTIVE count = ${initial_active_count}; waiting for post-upgrade increment"
+    log "  ${pod}: baseline swirlds.log size = ${initial_size} bytes; waiting for post-upgrade ACTIVE"
   fi
   while (( SECONDS < deadline )); do
     # `"newStatus":"ACTIVE"` is the StatusStateMachine PLATFORM_STATUS
     # payload — uniquely identifies the transition to ACTIVE (not e.g.
     # an "ACTIVE" substring in some other log line).
     if [[ "${require_restart}" == "true" ]]; then
-      local current_count
-      current_count=$(kexec "${pod}" grep -c '"newStatus":"ACTIVE"' \
+      local current_size
+      current_size=$(kexec "${pod}" stat -c %s \
         "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
-      if (( current_count > initial_active_count )); then
-        log "  ${pod}: ACTIVE (post-restart, count ${initial_active_count} -> ${current_count})"
-        return 0
+      if (( current_size < initial_size )); then
+        # File replaced/truncated — whole current file is post-restart.
+        if kexec "${pod}" grep -q '"newStatus":"ACTIVE"' \
+            "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
+          log "  ${pod}: ACTIVE (post-restart, file reset: ${initial_size} -> ${current_size})"
+          return 0
+        fi
+      elif (( current_size > initial_size )); then
+        # File grew — only bytes past initial_size are new content.
+        if kexec "${pod}" bash -c "tail -c +$((initial_size + 1)) \
+            ${HAPI_PATH}/output/swirlds.log" 2>/dev/null \
+            | grep -q '"newStatus":"ACTIVE"'; then
+          log "  ${pod}: ACTIVE (post-restart, appended: ${initial_size} -> ${current_size})"
+          return 0
+        fi
       fi
+      # current_size == initial_size: no new content yet, keep waiting.
     elif kexec "${pod}" grep -q '"newStatus":"ACTIVE"' "${HAPI_PATH}/output/swirlds.log" 2>/dev/null; then
       log "  ${pod}: ACTIVE"
       return 0
@@ -1119,14 +1158,25 @@ build_upgrade_zip() {
   #   data/apps/HederaNode.jar
   #   data/lib/*.jar
   #   data/config/* (optional)
-  # The script's LOCAL_BUILD_PATH (hedera-node/data) already matches the
-  # "data/" subtree, so we stage it under data/ and drop a VERSION file
-  # derived from the repo-level version.txt.
+  # We stage only data/lib + data/apps from LOCAL_BUILD_PATH. The hedera-node
+  # repo's data/ tree also contains keys/ (per-node gossip + TLS PEMs that
+  # MUST NOT clobber the live pod's keys), onboard/ (genesis-only artifacts),
+  # and a config/ set whose properties files (genesis.properties,
+  # node-admin-keys.json, node.properties) are dev-only and would either
+  # collide with the running pod's data/config or land entries the v0.76 JVM
+  # doesn't expect. NMT's package validator only requires data/lib + data/apps
+  # — it WARNs on missing data/config/settings.txt/log4j2.xml and leaves the
+  # running deployment's versions in place.
   rm -rf "${stage_dir}" "${zip_path}"
   mkdir -p "${stage_dir}/data"
-  # Copy contents of LOCAL_BUILD_PATH into stage/data/ via rsync-equivalent.
-  # Use `cp -a .` to preserve permissions/symlinks and avoid an extra subdir.
-  (cd "${LOCAL_BUILD_PATH}" && cp -a . "${stage_dir}/data/")
+  # Bring only the platform binaries. Use `cp -a` to preserve perms/symlinks.
+  for sub in apps lib; do
+    if [[ -d "${LOCAL_BUILD_PATH}/${sub}" ]]; then
+      cp -a "${LOCAL_BUILD_PATH}/${sub}" "${stage_dir}/data/${sub}"
+    else
+      echo "WARN: ${LOCAL_BUILD_PATH}/${sub} not found — upgrade zip will be incomplete" >&2
+    fi
+  done
   {
     printf 'VERSION=%s\n' "$(cat "${REPO_ROOT}/version.txt")"
     printf 'COMMIT=%s\n' "$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
