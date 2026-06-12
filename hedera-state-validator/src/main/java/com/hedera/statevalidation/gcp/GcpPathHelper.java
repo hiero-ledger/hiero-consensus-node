@@ -28,6 +28,9 @@ import org.apache.logging.log4j.MarkerManager;
  */
 public final class GcpPathHelper {
 
+    private static final String GCLOUD = System.getProperty("os.name", "")
+            .toLowerCase().contains("windows") ? "gcloud.cmd" : "gcloud";
+
     private static final Logger log = LogManager.getLogger(GcpPathHelper.class);
 
     /** Marker for log statements that should be routed to stdout for user-facing progress. */
@@ -126,7 +129,7 @@ public final class GcpPathHelper {
      */
     public static void ensureGcloudAvailable() {
         try {
-            final ProcessBuilder pb = new ProcessBuilder("gcloud", "--version");
+            final ProcessBuilder pb = new ProcessBuilder(GCLOUD, "--version");
             pb.redirectErrorStream(true);
             final Process p = pb.start();
             // Drain output to avoid blocking
@@ -431,7 +434,7 @@ public final class GcpPathHelper {
     private static int countRemoteObjects(@NonNull final String gcpPath, @Nullable final String billingProject) {
         try {
             final List<String> cmd = new ArrayList<>();
-            cmd.add("gcloud");
+            cmd.add(GCLOUD);
             cmd.add("storage");
             cmd.add("ls");
             cmd.add("--recursive");
@@ -618,7 +621,8 @@ public final class GcpPathHelper {
     private static String buildDownloadScript(@NonNull final Path localDir, @Nullable final String billingProject) {
         final StringBuilder sb = new StringBuilder();
         sb.append("#!/bin/sh\n");
-        sb.append("gcloud storage cp");
+        sb.append(GCLOUD);
+        sb.append(" storage cp");
         if (billingProject != null && !billingProject.isEmpty()) {
             sb.append(" '--billing-project=").append(billingProject).append("'");
         }
@@ -632,7 +636,7 @@ public final class GcpPathHelper {
     @NonNull
     private static List<String> buildLsCommand(@NonNull final String gcpPath, @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add("ls");
         if (billingProject != null && !billingProject.isEmpty()) {
@@ -652,7 +656,7 @@ public final class GcpPathHelper {
             @NonNull final String destination,
             @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add(subCommand);
         if (billingProject != null && !billingProject.isEmpty()) {
@@ -670,7 +674,7 @@ public final class GcpPathHelper {
     private static List<String> buildRecursiveCpCommand(
             @NonNull final String source, @NonNull final String destination, @Nullable final String billingProject) {
         final List<String> cmd = new ArrayList<>();
-        cmd.add("gcloud");
+        cmd.add(GCLOUD);
         cmd.add("storage");
         cmd.add("cp");
         cmd.add("--recursive");
