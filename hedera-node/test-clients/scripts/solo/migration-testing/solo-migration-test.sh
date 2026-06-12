@@ -895,13 +895,24 @@ install_platform_via_nmt() {
   # NMT v1.3.4's `install -e <class>` renders compose/network-node/.env with
   # an empty JAVA_MAIN_CLASS slot (the -e is silently dropped), and similarly
   # leaves JAVA_HEAP_MAX/MIN + NETWORK_NODE_MEM_LIMIT at the NMT defaults
-  # (heap 512m → mem_limit 978m, NMT default heap goes up to 6g). On the
-  # baseline `docker compose up` we work around this with a shell-env prefix
-  # in start_consensus_node_via_nmt, but NMT's OWN post-freeze compose-up
-  # (which it runs during upgrade dispatch) reads only the on-disk .env, so
-  # it launches the new JVM with com.swirlds.platform.Browser (pre-v0.40
-  # default) and ClassNotFoundException. Pin the env file here so both the
-  # baseline-side and the upgrade-side compose-ups see the right values.
+  # (heap 512m → mem_limit 978m, NMT default heap goes up to 6g). The
+  # baseline-side workaround in start_consensus_node_via_nmt is a shell-env
+  # prefix on our explicit `docker compose up`, but NMT's OWN upgrade-time
+  # `docker compose up` (run during the freeze-upgrade dispatch) reads only
+  # the on-disk .env, so it launches the new JVM with com.swirlds.platform
+  # .Browser (pre-v0.40 default) and ClassNotFoundException.
+  #
+  # We pin the values in two places to survive both code paths:
+  #   1. compose/network-node/.env — for the baseline `docker compose up`.
+  #      NMT regenerates this file during "Installing New Configuration
+  #      Files" at upgrade time, so the values here only help on baseline.
+  #   2. compose/network-node/docker-compose.jrs.yml — an `environment:`
+  #      + `mem_limit:` block under the network-node service. NMT's
+  #      upgrade-time compose-up explicitly INCLUDES .jrs.yml as a layer
+  #      (per its own log: "Including Standard Layer [ layerFile =
+  #      'docker-compose.jrs.yml' ]"), and NMT does NOT regenerate the
+  #      compose .yml files at upgrade — only .env — so the override here
+  #      sticks across the freeze-upgrade.
   kexec "${pod}" bash -c "
     env_file=${NMT_DIR}/compose/network-node/.env
     for kv in \
@@ -918,6 +929,27 @@ install_platform_via_nmt() {
     done
     chown hedera:hedera \"\${env_file}\"
   "
+
+  # Append the env+mem_limit block to .jrs.yml. Compose host-stages a small
+  # YAML fragment via kcp then appends it inside the pod — this avoids the
+  # quoting headache of building YAML inside a kexec bash -c string.
+  local jrs_overlay="${WORK_DIR}/jrs-env-overlay-${pod}.yml"
+  cat > "${jrs_overlay}" <<EOF
+    environment:
+      JAVA_MAIN_CLASS: "${JAVA_MAIN_CLASS_OVERRIDE}"
+      JAVA_HEAP_MAX: "${JAVA_HEAP_MAX}"
+      JAVA_HEAP_MIN: "${JAVA_HEAP_MIN}"
+    mem_limit: ${NETWORK_NODE_MEM_LIMIT}
+EOF
+  if ! kexec "${pod}" grep -q 'JAVA_MAIN_CLASS:' \
+        "${NMT_DIR}/compose/network-node/docker-compose.jrs.yml" 2>/dev/null; then
+    kcp "${jrs_overlay}" "${pod}" "/tmp/jrs-env-overlay.yml"
+    kexec "${pod}" bash -c "
+      cat /tmp/jrs-env-overlay.yml >> ${NMT_DIR}/compose/network-node/docker-compose.jrs.yml
+      rm /tmp/jrs-env-overlay.yml
+      chown hedera:hedera ${NMT_DIR}/compose/network-node/docker-compose.jrs.yml
+    "
+  fi
 }
 
 seed_node_config() {
