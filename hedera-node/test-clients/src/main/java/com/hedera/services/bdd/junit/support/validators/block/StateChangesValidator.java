@@ -35,6 +35,8 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
@@ -51,6 +53,8 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -64,6 +68,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -505,6 +510,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
+            final boolean isWrb = BlockStreamValidator.isWrappedRecordBlock(block.items());
             var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
                     || indirectProofSeq != null
@@ -626,14 +632,18 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
 
                 if (shouldVerifyProof) {
-                    final var lastStateChange = lastStateChanges.stateChanges().getLast();
-                    assertTrue(
-                            lastStateChange.hasSingletonUpdate(),
-                            "Final state change " + lastStateChange + " does not match expected singleton update type");
-                    assertTrue(
-                            lastStateChange.singletonUpdateOrThrow().hasBlockStreamInfoValue(),
-                            "Final state change " + lastStateChange
-                                    + " does not match final block BlockStreamInfo update type");
+                    if (!isWrb) {
+                        final var lastStateChange =
+                                lastStateChanges.stateChanges().getLast();
+                        assertTrue(
+                                lastStateChange.hasSingletonUpdate(),
+                                "Final state change " + lastStateChange
+                                        + " does not match expected singleton update type");
+                        assertTrue(
+                                lastStateChange.singletonUpdateOrThrow().hasBlockStreamInfoValue(),
+                                "Final state change " + lastStateChange
+                                        + " does not match final block BlockStreamInfo update type");
+                    }
 
                     // The state changes hasher already incorporated the last state change, so compute its root hash
                     final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -792,7 +802,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         switch (item.item().kind()) {
             case EVENT_HEADER, ROUND_HEADER -> consensusHeaderHasher.addLeaf(serialized);
             case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER, RECORD_FILE ->
+                outputTreeHasher.addLeaf(serialized);
             case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
             case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
             default -> {
@@ -1001,6 +1012,88 @@ public class StateChangesValidator implements BlockStreamValidator {
                 expectedMockSignature,
                 proof.signedBlockProofOrThrow().blockSignature(),
                 "Signature mismatch for " + proof);
+    }
+
+    private void validateWrbBlockProof(
+            final long blockNumber, @NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
+        assertEquals(blockNumber, proof.block());
+        assertTrue(
+                proof.hasSignedRecordFileProof(),
+                "WRB block #" + blockNumber + " proof must be SignedRecordFileProof, found: "
+                        + proof.proof().kind());
+        final var signedProof = proof.signedRecordFileProofOrThrow();
+        final int version = signedProof.version();
+        assertTrue(
+                version == 2 || version == 5 || version == 6,
+                "WRB block #" + blockNumber + " has invalid record file version " + version);
+        final var signatures = signedProof.recordFileSignatures();
+        assertTrue(!signatures.isEmpty(), "WRB block #" + blockNumber + " has no RSA signatures");
+        final var uniqueNodeIds =
+                signatures.stream().map(sig -> sig.nodeId()).distinct().count();
+        assertEquals(
+                signatures.size(),
+                uniqueNodeIds,
+                "WRB block #" + blockNumber + " has duplicate node IDs in signatures");
+        for (int j = 0; j < signatures.size(); j++) {
+            assertTrue(
+                    !signatures.get(j).signaturesBytes().equals(Bytes.EMPTY),
+                    "WRB block #" + blockNumber + " signature at index " + j + " has empty bytes");
+        }
+        validateWrbSignatureThreshold(blockNumber, signatures);
+        logger.info(
+                "Verified WRB block #{} proof: {} RSA signatures (v{}), block hash matches",
+                blockNumber,
+                signatures.size(),
+                version);
+    }
+
+    private long cachedTotalWeight = -1;
+    private long cachedTotalNodes = -1;
+
+    private void validateWrbSignatureThreshold(
+            final long blockNumber, @NonNull final List<com.hedera.hapi.block.stream.RecordFileSignature> signatures) {
+        final ReadableKVState<EntityNumber, Node> nodesState =
+                state.getReadableStates(AddressBookService.NAME).get(V053AddressBookSchema.NODES_STATE_ID);
+        if (cachedTotalWeight < 0) {
+            cachedTotalNodes = requireNonNull(state.getReadableStates(EntityIdService.NAME)
+                            .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)
+                            .get())
+                    .numNodes();
+            cachedTotalWeight = 0;
+            for (long nodeId = 0; nodeId < cachedTotalNodes; nodeId++) {
+                final var node = nodesState.get(new EntityNumber(nodeId));
+                if (node != null && !node.deleted()) {
+                    cachedTotalWeight += node.weight();
+                }
+            }
+        }
+        if (cachedTotalNodes == 0) {
+            logger.warn("WRB block #{}: no nodes in address book state, skipping threshold check", blockNumber);
+            return;
+        }
+        long signingWeight = 0;
+        for (final var sig : signatures) {
+            final var node = nodesState.get(new EntityNumber(sig.nodeId()));
+            assertTrue(
+                    node != null && !node.deleted(),
+                    "WRB block #" + blockNumber + " signature references unknown or deleted node " + sig.nodeId());
+            signingWeight += node.weight();
+        }
+        final long weightThreshold = cachedTotalWeight / 3;
+        assertTrue(
+                signingWeight >= weightThreshold,
+                "WRB block #" + blockNumber + " signing weight " + signingWeight
+                        + " is below threshold " + weightThreshold + " (1/3 of total weight "
+                        + cachedTotalWeight + ", " + signatures.size() + " of " + cachedTotalNodes
+                        + " nodes signed)");
+        logger.info(
+                "WRB block #{}: signing weight {}/{} meets threshold {} ({}/{} nodes)",
+                blockNumber,
+                signingWeight,
+                cachedTotalWeight,
+                weightThreshold,
+                signatures.size(),
+                cachedTotalNodes);
     }
 
     static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {
