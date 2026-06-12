@@ -111,7 +111,7 @@ jobs:
       - name: Checkout Tagged Code
         id: checkout-tagged-code
         if: ${{ needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: "0"
           ref: ${{ needs.determine-build-candidate.outputs.build-candidate-commit }}
@@ -217,7 +217,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: |
             .github/workflows/templates
@@ -263,7 +263,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: |
             .github/workflows/templates
@@ -368,7 +368,7 @@ jobs:
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: |
             .github/workflows/templates
