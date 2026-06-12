@@ -37,58 +37,57 @@ class BlockStreamingObsTest {
 
     @Test
     void onBlockInit_whenDisabled_storesNoData() {
-        obsDisabled.onBlockInit(1L, tick());
+        obsDisabled.onBlockInit(1L);
         // If no entry is stored, onBlockOpen will be a no-op and not throw
-        obsDisabled.onBlockOpen(1L, tick());
+        obsDisabled.onBlockOpen(1L);
     }
 
     @Test
     void onBlockInit_whenEnabled_allowsSubsequentLifecycleEvents() {
         final long blockNumber = 1L;
-        final long t0 = tick();
-        obsEnabled.onBlockInit(blockNumber, t0);
+        obsEnabled.onBlockInit(blockNumber);
         // These must not throw — data exists for this block
-        obsEnabled.onBlockOpen(blockNumber, t0 + 1);
-        obsEnabled.onBlockClose(blockNumber, t0 + 2);
+        obsEnabled.onBlockOpen(blockNumber);
+        obsEnabled.onBlockClose(blockNumber);
     }
 
     @Test
     void onBlockOpen_unknownBlock_isNoOp() {
         // Block was never initialised — must not throw
-        obsEnabled.onBlockOpen(999L, tick());
+        obsEnabled.onBlockOpen(999L);
     }
 
     @Test
     void onBlockOpen_onlyRecordsFirstCall() {
         final long blockNumber = 2L;
-        obsEnabled.onBlockInit(blockNumber, tick());
-        obsEnabled.onBlockOpen(blockNumber, tick());
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
         // Second call must be idempotent and not throw
-        obsEnabled.onBlockOpen(blockNumber, tick());
+        obsEnabled.onBlockOpen(blockNumber);
     }
 
     @Test
     void onBlockItemAdd_whenDisabled_storesNothing() {
-        obsDisabled.onBlockItemAdd(1L, 0, tick(), 512);
+        obsDisabled.onBlockItemAdd(1L, 0, 512, false);
     }
 
     @Test
     void onBlockItemAdd_whenEnabled_doesNotThrow() {
         final long blockNumber = 3L;
-        obsEnabled.onBlockInit(blockNumber, tick());
-        obsEnabled.onBlockOpen(blockNumber, tick());
-        obsEnabled.onBlockItemAdd(blockNumber, 0, tick(), 256);
-        obsEnabled.onBlockItemAdd(blockNumber, 1, tick(), 512);
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
+        obsEnabled.onBlockItemAdd(blockNumber, 0, 256, false);
+        obsEnabled.onBlockItemAdd(blockNumber, 1, 512, false);
     }
 
     @Test
     void onBlockItemAdd_duplicateIndex_ignoredGracefully() {
         final long blockNumber = 4L;
-        obsEnabled.onBlockInit(blockNumber, tick());
-        obsEnabled.onBlockOpen(blockNumber, tick());
-        obsEnabled.onBlockItemAdd(blockNumber, 0, tick(), 100);
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
+        obsEnabled.onBlockItemAdd(blockNumber, 0, 100, false);
         // Same index again — must be a no-op, not throw or double-count
-        obsEnabled.onBlockItemAdd(blockNumber, 0, tick(), 200);
+        obsEnabled.onBlockItemAdd(blockNumber, 0, 200, false);
     }
 
     @Test
@@ -99,45 +98,45 @@ class BlockStreamingObsTest {
     @Test
     void onBlockItemsSend_recordsSendWindow() {
         final long blockNumber = 5L;
-        final long t0 = tick();
-        obsEnabled.onBlockInit(blockNumber, t0);
-        obsEnabled.onBlockOpen(blockNumber, t0 + 1);
-        obsEnabled.onBlockItemAdd(blockNumber, 0, t0 + 2, 128);
-        obsEnabled.onBlockItemAdd(blockNumber, 1, t0 + 3, 256);
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
+        obsEnabled.onBlockItemAdd(blockNumber, 0, 128, false);
+        obsEnabled.onBlockItemAdd(blockNumber, 1, 256, false);
         // Must not throw
+        final long t0 = tick();
         obsEnabled.onBlockItemsSend(blockNumber, 0, 1, t0 + 10, t0 + 20);
     }
 
     @Test
     void onBlockClose_unknownBlock_isNoOp() {
-        obsEnabled.onBlockClose(999L, tick());
+        obsEnabled.onBlockClose(999L);
     }
 
     @Test
     void onBlockAcknowledge_afterFullLifecycle_doesNotThrow() {
         final long blockNumber = 6L;
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
+        obsEnabled.onBlockItemAdd(blockNumber, 0, 64, false);
         final long t0 = tick();
-        obsEnabled.onBlockInit(blockNumber, t0);
-        obsEnabled.onBlockOpen(blockNumber, t0 + 1_000);
-        obsEnabled.onBlockItemAdd(blockNumber, 0, t0 + 2_000, 64);
         obsEnabled.onBlockHeaderSend(blockNumber, t0 + 3_000, t0 + 4_000);
         obsEnabled.onBlockItemsSend(blockNumber, 0, 0, t0 + 3_000, t0 + 4_000);
         obsEnabled.onBlockEndSend(blockNumber, t0 + 5_000, t0 + 6_000);
-        obsEnabled.onBlockClose(blockNumber, t0 + 7_000);
+        obsEnabled.onBlockClose(blockNumber);
         // Acknowledge records the ack tick; aggregation is deferred to the gather thread
-        obsEnabled.onBlockAcknowledge(blockNumber, t0 + 8_000);
+        obsEnabled.onBlockAcknowledge(blockNumber);
     }
 
     @Test
     void gatherAndLog_whenDisabled_clearsAccumulatedData() {
         // Populate some data while enabled, then disable and verify no crash
         final long blockNumber = 7L;
-        obsEnabled.onBlockInit(blockNumber, tick());
-        obsEnabled.onBlockOpen(blockNumber, tick());
+        obsEnabled.onBlockInit(blockNumber);
+        obsEnabled.onBlockOpen(blockNumber);
 
         // Simulate a gather cycle with the feature turned off — must clear data and not throw
         final BlockStreamingObs obsNowDisabled = makeObs(false);
-        obsNowDisabled.onBlockInit(blockNumber, tick()); // no-op
+        obsNowDisabled.onBlockInit(blockNumber); // no-op
         obsNowDisabled.close();
     }
 
@@ -153,17 +152,17 @@ class BlockStreamingObsTest {
 
     @Test
     void onBlockProofCreate_unknownBlock_isNoOp() {
-        obsEnabled.onBlockProofCreate(999L, tick());
+        obsEnabled.onBlockProofCreate(999L);
     }
 
     @Test
-    void onBlockProofAdd_unknownBlock_isNoOp() {
-        obsEnabled.onBlockProofAdd(999L, tick());
+    void onBlockItemAdd_blockProof_unknownBlock_isNoOp() {
+        obsEnabled.onBlockItemAdd(999L, 0, 64, true);
     }
 
     @Test
     void onBlockFooterCreate_unknownBlock_isNoOp() {
-        obsEnabled.onBlockFooterCreate(999L, tick());
+        obsEnabled.onBlockFooterCreate(999L);
     }
 
     private BlockStreamingObs makeObs(final boolean enabled) {

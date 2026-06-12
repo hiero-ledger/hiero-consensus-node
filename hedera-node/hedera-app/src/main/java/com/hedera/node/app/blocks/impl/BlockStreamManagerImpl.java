@@ -483,7 +483,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
-            streamingObs.onBlockInit(blockNumber, System.nanoTime());
+            streamingObs.onBlockInit(blockNumber);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
@@ -736,7 +736,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Write BlockFooter to block stream (last item before BlockProof)
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
-            streamingObs.onBlockFooterCreate(blockNumber, System.nanoTime());
+            streamingObs.onBlockFooterCreate(blockNumber);
             worker.addItem(footerItem);
             worker.sync();
 
@@ -999,7 +999,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            streamingObs.onBlockProofCreate(currentPendingBlock.number(), System.nanoTime());
+            streamingObs.onBlockProofCreate(currentPendingBlock.number());
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first

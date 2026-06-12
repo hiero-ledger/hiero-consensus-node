@@ -307,7 +307,7 @@ public class BlockBufferService {
 
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
-        streamingObs.onBlockOpen(blockNumber, System.nanoTime());
+        streamingObs.onBlockOpen(blockNumber);
         blockBuffer.put(blockNumber, blockState);
         // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
@@ -339,14 +339,14 @@ public class BlockBufferService {
             return;
         }
         blockStreamMetrics.recordBlockItemBytes((int) serializedItem.length());
-        final long nanosTick = System.nanoTime();
         final int itemIndex = blockState.addSerializedItem(serializedItem, itemType);
 
         if (itemIndex != -1) {
-            streamingObs.onBlockItemAdd(blockNumber, itemIndex, nanosTick, (int) serializedItem.length());
-            if (itemType == BlockItem.ItemOneOfType.BLOCK_PROOF) {
-                streamingObs.onBlockProofAdd(blockNumber, nanosTick);
-            }
+            streamingObs.onBlockItemAdd(
+                    blockNumber,
+                    itemIndex,
+                    (int) serializedItem.length(),
+                    itemType == BlockItem.ItemOneOfType.BLOCK_PROOF);
         }
     }
 
@@ -365,7 +365,7 @@ public class BlockBufferService {
             return;
         }
 
-        streamingObs.onBlockClose(blockNumber, System.nanoTime());
+        streamingObs.onBlockClose(blockNumber);
 
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
@@ -437,7 +437,6 @@ public class BlockBufferService {
         // gives both old and new value, which is needed to compute the newly-acked range
         final long previousHighest = highestAckedBlockNumber.getAndUpdate(current -> Math.max(current, blockNumber));
         final long highestBlock = Math.max(previousHighest, blockNumber);
-        final long nanosTick = System.nanoTime();
 
         // only walk the newly-acked range; clamp it to the earliest buffered block so the walk stays bounded on the
         // first ack (previousHighest == MIN_VALUE) and does not depend on buffer contents for termination, so an
@@ -446,7 +445,7 @@ public class BlockBufferService {
         if (earliest != Long.MIN_VALUE) {
             final long lowestToMark = Math.max(previousHighest + 1, earliest);
             for (long blockNum = highestBlock; blockNum >= lowestToMark; --blockNum) {
-                streamingObs.onBlockAcknowledge(blockNum, nanosTick);
+                streamingObs.onBlockAcknowledge(blockNum);
             }
         }
 

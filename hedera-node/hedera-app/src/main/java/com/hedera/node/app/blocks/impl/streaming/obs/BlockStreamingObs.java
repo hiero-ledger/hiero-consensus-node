@@ -91,39 +91,53 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /** Called when a block is first created; opens the block stats entry. */
-    public void onBlockInit(final long blockNumber, final long nanosTick) {
+    public void onBlockInit(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
-        blockStatistics.put(blockNumber, new BlockStats(nanosTick));
+        blockStatistics.put(blockNumber, new BlockStats(System.nanoTime()));
     }
 
     /** Called when a block transitions to the open/buffered state */
-    public void onBlockOpen(final long blockNumber, final long nanosTick) {
+    public void onBlockOpen(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
-        if (stats != null && stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats == null) {
+            return;
+        }
+
+        final long nanosTick = System.nanoTime();
+        if (stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksOpened.increment();
         }
     }
 
     /**
      * Called when a block item is added to the buffer. {@code sizeInBytes} is used to compute
-     * per-second byte throughput and the per-item size distribution.
+     * per-second byte throughput and the per-item size distribution. When {@code isBlockProof} is
+     * {@code true}, the block's proof-added timestamp is recorded as well.
      */
     public void onBlockItemAdd(
-            final long blockNumber, final int itemIndex, final long nanosTick, final int sizeInBytes) {
+            final long blockNumber, final int itemIndex, final int sizeInBytes, final boolean isBlockProof) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
-        if (stats != null && stats.items.putIfAbsent(itemIndex, new BlockItemStats(sizeInBytes, nanosTick)) == null) {
+        if (stats == null) {
+            return;
+        }
+
+        final long nanosTick = System.nanoTime();
+        if (stats.items.putIfAbsent(itemIndex, new BlockItemStats(sizeInBytes, nanosTick)) == null) {
             getThroughputBucket(nanosTick).itemsCreated.add(sizeInBytes);
+        }
+        if (isBlockProof) {
+            stats.proofAddedNanosTick.compareAndSet(-1, nanosTick);
         }
     }
 
@@ -170,13 +184,18 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /** Records when a block transitioned to the closed state (all items written to the buffer). */
-    public void onBlockClose(final long blockNumber, final long nanosTick) {
+    public void onBlockClose(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
-        if (stats != null && stats.closedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats == null) {
+            return;
+        }
+
+        final long nanosTick = System.nanoTime();
+        if (stats.closedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksClosed.increment();
         }
     }
@@ -186,38 +205,31 @@ public class BlockStreamingObs implements AutoCloseable {
      * NOT done here: it happens only on the gather thread, once the ack is older than the grace
      * period, so the ack thread can never race the gather task inside the probes.
      */
-    public void onBlockAcknowledge(final long blockNumber, final long nanosTick) {
+    public void onBlockAcknowledge(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
-        if (stats != null && stats.ackedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats == null) {
+            return;
+        }
+
+        final long nanosTick = System.nanoTime();
+        if (stats.ackedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksAcked.increment();
         }
     }
 
     /** Records when the block proof item was created by the consensus layer. */
-    public void onBlockProofCreate(final long blockNumber, final long nanosTick) {
+    public void onBlockProofCreate(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.proofCreatedNanosTick.compareAndSet(-1, nanosTick);
-        }
-    }
-
-    /** Records when the block proof item was added to the streaming buffer. */
-    public void onBlockProofAdd(final long blockNumber, final long nanosTick) {
-        if (!isEnabled) {
-            return;
-        }
-
-        final BlockStats stats = blockStatistics.get(blockNumber);
-        if (stats != null) {
-            stats.proofAddedNanosTick.compareAndSet(-1, nanosTick);
+            stats.proofCreatedNanosTick.compareAndSet(-1, System.nanoTime());
         }
     }
 
@@ -234,14 +246,14 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /** Records when the block footer item was created. */
-    public void onBlockFooterCreate(final long blockNumber, final long nanosTick) {
+    public void onBlockFooterCreate(final long blockNumber) {
         if (!isEnabled) {
             return;
         }
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.footerNanosTick.compareAndSet(-1, nanosTick);
+            stats.footerNanosTick.compareAndSet(-1, System.nanoTime());
         }
     }
 
