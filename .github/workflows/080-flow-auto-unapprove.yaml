@@ -30,7 +30,7 @@ jobs:
           node-version: "20"
 
       - name: Dismiss Reviews from Code Owners and Teams
-        uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
+        uses: step-security/auto-unapprove@c87029c4f62d004fb8979a7a5cb90b3c1729df32 # v1.0.3
         with:
           github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
           pr-number: ${{ github.event.pull_request.number }}
