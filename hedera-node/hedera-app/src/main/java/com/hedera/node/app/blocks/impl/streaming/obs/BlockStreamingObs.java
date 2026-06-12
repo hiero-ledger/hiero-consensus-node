@@ -464,18 +464,39 @@ public class BlockStreamingObs {
             // computes the per-item probes and blockSize; must only ever run on the gather thread
             blockStats.aggregate();
 
-            initToOpen.add(blockStats.initToOpen());
-            openToClose.add(blockStats.openToClose());
-            openToAck.add(blockStats.openToAck());
-            closedToAck.add(blockStats.closedToAck());
-            openToProofAdded.add(blockStats.openToProofAdded());
-            openToProofCreated.add(blockStats.openToProofCreated());
-            footerCreatedToProofCreated.add(blockStats.footerCreatedToProofCreated());
-
+            // any tick may still be the -1 "never recorded" sentinel; a probe gets a sample only when every
+            // tick it depends on was recorded, otherwise a garbage value would pollute the window
+            final long opened = blockStats.openedNanosTick.get();
+            final long closed = blockStats.closedNanosTick.get();
+            final long proofCreated = blockStats.proofCreatedNanosTick.get();
+            final long proofAdded = blockStats.proofAddedNanosTick.get();
+            final long footerCreated = blockStats.footerNanosTick.get();
             final StartAndEndTicks endTicks = blockStats.endSentNanosTicks.get();
             final StartAndEndTicks headerTicks = blockStats.headerSentNanosTicks.get();
+
+            if (opened != -1) {
+                initToOpen.add(blockStats.initToOpen());
+                openToAck.add(blockStats.openToAck());
+                if (closed != -1) {
+                    openToClose.add(blockStats.openToClose());
+                }
+                if (proofAdded != -1) {
+                    openToProofAdded.add(blockStats.openToProofAdded());
+                }
+                if (proofCreated != -1) {
+                    openToProofCreated.add(blockStats.openToProofCreated());
+                }
+                if (endTicks != null) {
+                    openToEndSent.add(blockStats.openToEndSent());
+                }
+            }
+            if (closed != -1) {
+                closedToAck.add(blockStats.closedToAck());
+            }
+            if (footerCreated != -1 && proofCreated != -1) {
+                footerCreatedToProofCreated.add(blockStats.footerCreatedToProofCreated());
+            }
             if (endTicks != null) {
-                openToEndSent.add(blockStats.openToEndSent());
                 endSentToAck.add(blockStats.endSentToAck());
             }
             if (headerTicks != null) {
