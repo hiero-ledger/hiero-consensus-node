@@ -359,8 +359,8 @@ jobs:
       - name: Fix size BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
-          sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
-          grep MAX_BLOCK_SIZE_BYTES block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
+          sed -i -e 's/MAX_BLOCK_SIZE_BYTES = 125/MAX_BLOCK_SIZE_BYTES = 300/g' tools-and-tests/tools/src/main/java/org/hiero/block/tools/blocks/ConvertToJson.java
+          #grep MAX_BLOCK_SIZE_BYTES block-node/spi-plugins/src/main/java/org/hiero/block/node/spi/historicalblocks/BlockAccessor.java
           sed -i -e 's/131_072_000/300_000_000/g' block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
           grep -B 2 maxMessageSizeBytes block-node/app-config/src/main/java/org/hiero/block/node/app/config/ServerConfig.java
 
