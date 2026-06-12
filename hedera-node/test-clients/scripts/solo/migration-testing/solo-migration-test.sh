@@ -975,8 +975,44 @@ bring_up_consensus_via_nmt() {
 
 build_upgrade_zip() {
   local zip_path="${WORK_DIR}/softwareUpgrade.zip"
+  local stage_dir="${WORK_DIR}/upgrade-stage"
   log "Packaging local build at ${LOCAL_BUILD_PATH} into ${zip_path}"
-  (cd "${LOCAL_BUILD_PATH}" && zip -qr "${zip_path}" .)
+  # NMT v1.3.4 expects the upgrade zip layout to be:
+  #   VERSION              (single-line version string used for validation)
+  #   data/apps/HederaNode.jar
+  #   data/lib/*.jar
+  #   data/config/* (optional)
+  # The script's LOCAL_BUILD_PATH (hedera-node/data) already matches the
+  # "data/" subtree, so we stage it under data/ and drop a VERSION file
+  # derived from the repo-level version.txt.
+  rm -rf "${stage_dir}" "${zip_path}"
+  mkdir -p "${stage_dir}/data"
+  # Copy contents of LOCAL_BUILD_PATH into stage/data/ via rsync-equivalent.
+  # Use `cp -a .` to preserve permissions/symlinks and avoid an extra subdir.
+  (cd "${LOCAL_BUILD_PATH}" && cp -a . "${stage_dir}/data/")
+  {
+    printf 'VERSION=%s\n' "$(cat "${REPO_ROOT}/version.txt")"
+    printf 'COMMIT=%s\n' "$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    printf 'DATE=%s\n' "$(date -u '+%a %b %d %H:%M:%S UTC %Y')"
+  } > "${stage_dir}/VERSION"
+
+  # immediate.sh — NMT v1.3.4 fails Validate Package with errorCode 75 if
+  # this file is missing from the upgrade root. fetch_artifacts has already
+  # cached the previous-tag platform ZIP (it contains an immediate.sh
+  # template at the root), so reuse it here.
+  local cached_zip="${CACHE_DIR}/platform/build-${DEPLOY_RELEASE_TAG}.zip"
+  if [[ -f "${cached_zip}" ]]; then
+    for nmt_script in immediate.sh during-freeze.sh; do
+      unzip -p "${cached_zip}" "${nmt_script}" > "${stage_dir}/${nmt_script}" 2>/dev/null \
+        && chmod +x "${stage_dir}/${nmt_script}" \
+        || echo "WARN: could not extract ${nmt_script} from ${cached_zip}" >&2
+    done
+  else
+    echo "WARN: cached platform zip ${cached_zip} missing — immediate.sh / during-freeze.sh skipped" >&2
+  fi
+
+  (cd "${stage_dir}" && zip -qr "${zip_path}" .)
+  rm -rf "${stage_dir}"
   UPGRADE_ZIP_PATH="${zip_path}"
   UPGRADE_ZIP_SHA384="$(shasum -a 384 "${zip_path}" | awk '{print $1}')"
   log "  sha384: ${UPGRADE_ZIP_SHA384}"
