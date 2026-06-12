@@ -17,16 +17,20 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -35,6 +39,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +66,7 @@ import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
@@ -245,7 +251,8 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public EnhancedKeyStoreLoader scan() throws KeyLoadingException, KeyStoreException {
-        logger.debug(STARTUP.getMarker(), "Starting key store enumeration");
+        logger.debug(
+                STARTUP.getMarker(), "Starting key store enumeration [ keyStoreDirectory = {} ]", keyStoreDirectory);
 
         for (final NodeId nodeId : this.nodeIds) {
             logger.debug(STARTUP.getMarker(), "Attempting to locate key stores for nodeId {}", nodeId);
@@ -257,7 +264,11 @@ public class EnhancedKeyStoreLoader {
             sigCertificates.compute(nodeId, (k, v) -> resolveNodeCertificate(nodeId));
         }
 
-        logger.trace(STARTUP.getMarker(), "Completed key store enumeration");
+        logger.debug(
+                STARTUP.getMarker(),
+                "Completed key store enumeration [ sigKeysLoaded = {}, sigCertsLoaded = {} ]",
+                sigPrivateKeys.size(),
+                sigCertificates.size());
         return this;
     }
 
@@ -340,6 +351,7 @@ public class EnhancedKeyStoreLoader {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
                 throw e;
             }
+            warnIfSigKeyMismatch(nodeId);
         }
 
         return this;
@@ -434,7 +446,7 @@ public class EnhancedKeyStoreLoader {
         // Check for the enhanced private key store. The enhance key store is preferred over the legacy key store.
         Path ksLocation = privateKeyStore(nodeId);
         if (Files.exists(ksLocation)) {
-            logger.trace(
+            logger.info(
                     STARTUP.getMarker(),
                     "Found enhanced private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
@@ -446,7 +458,7 @@ public class EnhancedKeyStoreLoader {
         // Check for the legacy private key store.
         ksLocation = legacyPrivateKeyStore(nodeId);
         if (Files.exists(ksLocation)) {
-            logger.trace(
+            logger.info(
                     STARTUP.getMarker(),
                     "Found legacy private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
@@ -476,12 +488,29 @@ public class EnhancedKeyStoreLoader {
     private Certificate resolveNodeCertificate(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
 
-        return rosterEntries.stream()
+        final Certificate cert = rosterEntries.stream()
                 .filter(e -> e.nodeId() == nodeId.id())
                 .map(RosterUtils::fetchGossipCaCertificate)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
+
+        if (cert != null) {
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Loaded signing certificate from roster for nodeId: {} [ purpose = {}, fingerprint = {} ]",
+                    nodeId,
+                    KeyCertPurpose.SIGNING,
+                    certFingerprint(cert));
+        } else {
+            logger.warn(
+                    STARTUP.getMarker(),
+                    "No signing certificate found in roster for nodeId: {} [ purpose = {} ]",
+                    nodeId,
+                    KeyCertPurpose.SIGNING);
+        }
+
+        return cert;
     }
 
     /**
@@ -660,6 +689,173 @@ public class EnhancedKeyStoreLoader {
                             .formatted(entry.getClass().getName()),
                     e);
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------
+    //                               VERIFICATION HELPERS
+    // ----------------------------------------------------------------------------------------------
+
+    /**
+     * Logs a warning if the signing private key loaded from disk does not correspond to the public key
+     * embedded in the signing certificate loaded from the roster. The node is allowed to continue
+     * starting — this is a diagnostic warning, not a hard failure.
+     *
+     * <p>Delegates the keypair check to {@link #keyPairMatches(PrivateKey, PublicKey)}, which works
+     * for any keypair algorithm supported by {@link #signatureAlgorithm(PrivateKey)}.
+     *
+     * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
+     */
+    private void warnIfSigKeyMismatch(@NonNull final NodeId nodeId) {
+        final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
+        final Certificate cert = sigCertificates.get(nodeId);
+        if (privateKey == null || cert == null) {
+            return;
+        }
+
+        try {
+            if (!keyPairMatches(privateKey, cert.getPublicKey())) {
+                logger.warn(
+                        STARTUP.getMarker(),
+                        "Signing private key does not match certificate public key for nodeId {} "
+                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {} ]"
+                                + " — node may fail to establish gossip connections",
+                        nodeId,
+                        KeyCertPurpose.SIGNING,
+                        certFingerprint(cert),
+                        keyFingerprint(cert.getPublicKey()));
+            }
+        } catch (final NoSuchAlgorithmException
+                | NoSuchProviderException
+                | InvalidKeyException
+                | SignatureException
+                | RuntimeException cause) {
+            logger.warn(
+                    STARTUP.getMarker(),
+                    "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]: {}",
+                    nodeId,
+                    KeyCertPurpose.SIGNING,
+                    cause.getMessage(),
+                    cause);
+        }
+    }
+
+    /**
+     * Returns {@code true} iff the private key and public key form a matching keypair, determined
+     * by signing a random nonce with the private key and verifying the signature with the public
+     * key. Type-agnostic: works for any keypair whose JCA algorithm is recognized by
+     * {@link #signatureAlgorithm(PrivateKey)}.
+     *
+     * <p>Package-private for direct testing — no production callers outside this class.
+     *
+     * <p>Implementation note: DER byte-comparison was considered as a simpler/faster alternative
+     * (derive the public key from the private key via BouncyCastle, then {@code Arrays.equals} on
+     * encoded SubjectPublicKeyInfo bytes). It fails in practice — BC's
+     * {@code SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(...)} produces RSA SPKI bytes
+     * that are not byte-identical to {@code cert.getPublicKey().getEncoded()}, so matching keys
+     * compare unequal. Sign-and-verify depends on the math, not the encoding, and is robust to
+     * provider differences.
+     *
+     * @param privateKey the private key to probe.
+     * @param publicKey the public key to verify against.
+     * @return {@code true} if the keys pair, {@code false} otherwise
+     * @throws NoSuchAlgorithmException if the JCA signature algorithm isn't installed
+     * @throws NoSuchProviderException if {@link CryptoConstants#SIG_PROVIDER} isn't installed
+     * @throws InvalidKeyException if either key is structurally invalid for the algorithm
+     * @throws SignatureException if the sign/verify operation fails for non-key reasons
+     */
+    static boolean keyPairMatches(@NonNull final PrivateKey privateKey, @NonNull final PublicKey publicKey)
+            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
+        // Random nonce, not a fixed test vector: prevents any hypothetical attack
+        // where a malformed key is crafted to pass verification for a known plaintext.
+        final byte[] nonce = new byte[32];
+        new SecureRandom().nextBytes(nonce);
+
+        final String sigAlg = signatureAlgorithm(privateKey);
+        final Signature signer = Signature.getInstance(sigAlg, CryptoConstants.SIG_PROVIDER);
+        signer.initSign(privateKey);
+        signer.update(nonce);
+        final byte[] signature = signer.sign();
+
+        final Signature verifier = Signature.getInstance(sigAlg, CryptoConstants.SIG_PROVIDER);
+        verifier.initVerify(publicKey);
+        verifier.update(nonce);
+        return verifier.verify(signature);
+    }
+
+    /**
+     * Returns the JCA {@link Signature} algorithm name for a given signing private key.
+     *
+     * <p>Package-private for direct testing — no production callers outside this class.
+     *
+     * @param key the signing private key.
+     * @return the JCA signature algorithm name
+     * @throws IllegalArgumentException if the key algorithm is not supported.
+     */
+    @NonNull
+    static String signatureAlgorithm(@NonNull final PrivateKey key) {
+        return switch (key.getAlgorithm()) {
+            case "RSA" -> "SHA384withRSA";
+            default -> throw new IllegalArgumentException("Unsupported signing key algorithm: " + key.getAlgorithm());
+        };
+    }
+
+    /**
+     * Returns a SHA-384 fingerprint of the certificate's full DER-encoded bytes, formatted as
+     * {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Safe to log — contains no key
+     * material. Returns {@code "<unavailable>"} if the digest cannot be computed.
+     *
+     * <p>SHA-384 is used to match the DevOps operational tooling used during incident triage
+     * ({@code openssl x509 -fingerprint -sha384}), allowing operators to directly cross-reference
+     * log output against manual certificate inspection.
+     *
+     * @param cert the certificate to fingerprint.
+     * @return a colon-separated uppercase hex fingerprint string
+     */
+    @NonNull
+    private static String certFingerprint(@NonNull final Certificate cert) {
+        try {
+            return fingerprint(cert.getEncoded());
+        } catch (final Exception e) {
+            logger.trace(STARTUP.getMarker(), "Unable to compute certificate fingerprint", e);
+            return "<unavailable>";
+        }
+    }
+
+    /**
+     * Returns a SHA-384 fingerprint of a public key's DER-encoded {@code SubjectPublicKeyInfo} bytes,
+     * formatted as {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Safe to log —
+     * contains no private key material. Returns {@code "<unavailable>"} if the digest cannot be
+     * computed.
+     *
+     * <p>Unlike {@link #certFingerprint(Certificate)}, this hashes only the key bytes, not the full
+     * certificate. Two values from this method are directly comparable to each other.
+     *
+     * @param publicKey the public key to fingerprint.
+     * @return a colon-separated uppercase hex fingerprint string
+     */
+    @NonNull
+    private static String keyFingerprint(@NonNull final PublicKey publicKey) {
+        try {
+            return fingerprint(publicKey.getEncoded());
+        } catch (final Exception e) {
+            logger.trace(STARTUP.getMarker(), "Unable to compute public key fingerprint", e);
+            return "<unavailable>";
+        }
+    }
+
+    /**
+     * Core SHA-384 digest helper. Computes the SHA-384 hash of the given bytes and returns them
+     * formatted as colon-separated uppercase hex octets (e.g. {@code "A1:B2:C3:..."}).
+     *
+     * @param encoded the raw bytes to hash.
+     * @return a colon-separated uppercase hex string
+     * @throws NoSuchAlgorithmException if the SHA-384 algorithm is unavailable.
+     */
+    @NonNull
+    private static String fingerprint(@NonNull final byte[] encoded) throws NoSuchAlgorithmException {
+        final byte[] digest =
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(encoded);
+        return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
     }
 
     // ----------------------------------------------------------------------------------------------
