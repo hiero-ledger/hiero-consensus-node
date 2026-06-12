@@ -1321,16 +1321,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
         // The flush of the in-progress block runs on the handler thread (from startRound/endRound) so it cannot race
-        // round processing. Here, on the status thread, we only wait for that flush to complete, bounded by the
-        // timeout. If the handler never reaches a round boundary within the timeout, we flush any already-closed
-        // pending blocks ourselves (race-free; never touching the handler-owned in-progress writer/worker).
+        // round processing. Here, on the status thread, we only WAIT for that flush, bounded by the timeout — using
+        // get(...) rather than completeOnTimeout(...) so we never complete the future ourselves. Completing it here
+        // would trip the one-shot done-guard and make a later handler round boundary skip the flush, leaving the
+        // in-progress block unwritten. If the handler never reaches a boundary within the timeout, we flush any
+        // already-closed pending blocks ourselves (race-free; never touching the handler-owned in-progress writer).
         log.fatal("Awaiting handler-thread flush of open/pending blocks for triage within {}", timeout);
         try {
-            fatalShutdownFuture
-                    .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
-                    .join();
+            fatalShutdownFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.fatal("Interrupted while awaiting triage flush", e);
         } catch (final Exception e) {
-            log.fatal("Error while awaiting triage flush", e);
+            // TimeoutException (handler idle) or ExecutionException: fall through to the pending-only fallback below
+            log.fatal(
+                    "Did not observe handler-thread triage flush within {}; flushing pending blocks directly", timeout);
         }
         flushPendingBlocksOnlyForTriage();
         log.fatal("Block stream fatal shutdown complete");
