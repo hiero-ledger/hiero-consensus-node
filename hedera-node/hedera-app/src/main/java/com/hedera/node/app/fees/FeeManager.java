@@ -343,4 +343,9 @@ public final class FeeManager {
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
     }
+
+    @NonNull
+    public org.hiero.hapi.support.fees.FeeSchedule getSimpleFeesSchedule() {
+        return simpleFeesSchedule != null ? simpleFeesSchedule : org.hiero.hapi.support.fees.FeeSchedule.DEFAULT;
+    }
 }
