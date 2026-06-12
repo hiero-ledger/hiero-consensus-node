@@ -147,7 +147,7 @@ computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`
 
 The snapshot is the moving baseline against which improvement is
 measured. `TipsetWeightCalculator` holds the current `snapshot` and a
-bounded `snapshotHistory` (default `tipsetSnapshotHistorySize = 10`).
+bounded `snapshotHistory` (sized by `tipsetSnapshotHistorySize`, TUN-136).
 Whenever `TipsetWeightCalculator#addEventAndGetAdvancementWeight`
 (lines 165–198) is called for a new self-event, it computes the
 partial-weighted score of that event's tipset against the current
@@ -269,7 +269,7 @@ rule agrees. The rules cover distinct concerns.
 - **`PlatformHealthRule`**
   (`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`)
   blocks event creation whenever the duration reported via `reportUnhealthyDuration`
-  exceeds `maximumPermissibleUnhealthyDuration` (default `1s`),
+  exceeds `maximumPermissibleUnhealthyDuration` (TUN-138),
   giving slow downstream components room to catch up. The signal
   framework that produces the unhealthy-duration measurement lives
   in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md).

@@ -72,11 +72,11 @@ class CryptoOpsUsageTest {
     private final long expiry = now + secs;
     private final Key key = KeyUtils.A_COMPLEX_KEY;
     private final String memo = "That abler soul, which thence doth flow";
-    private final AccountID proxy = IdUtils.asAccount("0.0.75231");
-    private final AccountID proxy2 = IdUtils.asAccount("0.0.75232");
-    private final AccountID proxy3 = IdUtils.asAccount("0.0.75233");
-    private final AccountID proxy4 = IdUtils.asAccount("0.0.75234");
-    private final AccountID owner = IdUtils.asAccount("0.0.10000");
+    private final AccountID proxy = IdUtils.asAccount(75231L);
+    private final AccountID proxy2 = IdUtils.asAccount(75232L);
+    private final AccountID proxy3 = IdUtils.asAccount(75233L);
+    private final AccountID proxy4 = IdUtils.asAccount(75234L);
+    private final AccountID owner = IdUtils.asAccount(10000L);
     private final int maxAutoAssociations = 123;
     private final int numSigs = 3;
     private final int sigSize = 100;
@@ -86,17 +86,17 @@ class CryptoOpsUsageTest {
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
             .setSpender(proxy)
             .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
             .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L))
             .build();
 
     private final NftRemoveAllowance nftDeleteAllowances = NftRemoveAllowance.newBuilder()
             .setOwner(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L))
             .build();
 

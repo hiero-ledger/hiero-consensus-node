@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.branching;
+package org.hiero.consensus.event.intake.impl.branching;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 
@@ -27,12 +27,12 @@ public class BranchingMetrics {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
      */
-    public BranchingMetrics(@NonNull final PlatformContext platformContext) {
-        branchingEvents = platformContext.getMetrics().getOrCreate(BRANCHING_EVENT_SPEEDOMETER_CONFIG);
-        branchingNodeCount = platformContext.getMetrics().getOrCreate(BRANCHING_NODE_COUNT_CONFIG);
-        branchingWeightFraction = platformContext.getMetrics().getOrCreate(BRANCHING_WEIGHT_FRACTION_CONFIG);
+    public BranchingMetrics(@NonNull final Metrics metrics) {
+        branchingEvents = metrics.getOrCreate(BRANCHING_EVENT_SPEEDOMETER_CONFIG);
+        branchingNodeCount = metrics.getOrCreate(BRANCHING_NODE_COUNT_CONFIG);
+        branchingWeightFraction = metrics.getOrCreate(BRANCHING_WEIGHT_FRACTION_CONFIG);
     }
 
     /**
