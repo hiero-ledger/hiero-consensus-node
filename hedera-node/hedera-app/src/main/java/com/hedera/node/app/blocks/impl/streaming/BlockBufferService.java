@@ -434,14 +434,19 @@ public class BlockBufferService {
             return;
         }
 
-        final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
+        // gives both old and new value, which is needed to compute the newly-acked range
+        final long previousHighest = highestAckedBlockNumber.getAndUpdate(current -> Math.max(current, blockNumber));
+        final long highestBlock = Math.max(previousHighest, blockNumber);
         final long nanosTick = System.nanoTime();
 
-        for (long blockNum = highestBlock; ; --blockNum) {
-            if (blockBuffer.containsKey(blockNum)) {
+        // only walk the newly-acked range; clamp it to the earliest buffered block so the walk stays bounded on the
+        // first ack (previousHighest == MIN_VALUE) and does not depend on buffer contents for termination, so an
+        // ack for an already-pruned block still marks the rest of the range
+        final long earliest = earliestBlockNumber.get();
+        if (earliest != Long.MIN_VALUE) {
+            final long lowestToMark = Math.max(previousHighest + 1, earliest);
+            for (long blockNum = highestBlock; blockNum >= lowestToMark; --blockNum) {
                 streamingObs.onBlockAcknowledge(blockNum, nanosTick);
-            } else {
-                break;
             }
         }
 
