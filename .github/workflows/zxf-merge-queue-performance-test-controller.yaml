@@ -31,15 +31,24 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   run-merge-queue-performance-test:
     name: MQ Performance Test
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
