@@ -9,6 +9,7 @@ module.exports = async ({ github, context, core }) => {
     core.info('Label "Run Full CI" detected — forcing full CI');
     core.setOutput('docs-only', 'false');
     core.setOutput('enable-tests', 'true');
+    core.setOutput('workflow-files-changed', 'true');
     return;
   }
 
@@ -25,6 +26,7 @@ module.exports = async ({ github, context, core }) => {
     core.info(`File count (${files.length}) triggers full CI (conservative)`);
     core.setOutput('docs-only', 'false');
     core.setOutput('enable-tests', 'true');
+    core.setOutput('workflow-files-changed','true');
     return;
   }
 
@@ -40,6 +42,9 @@ module.exports = async ({ github, context, core }) => {
   const isDocFile = (filename) =>
       docPatterns.some(pattern => pattern.test(filename));
 
+  // Any file under .github/ is considered a workflow file
+  const isWorkflowFile = (filename) => /^\.github\//.test(filename);
+
   const nonDocFiles = files.filter(f => !isDocFile(f.filename));
 
   if (nonDocFiles.length > 0) {
@@ -51,5 +56,14 @@ module.exports = async ({ github, context, core }) => {
     core.info(`All ${files.length} changed file(s) are documentation — docs-only mode`);
     core.setOutput('docs-only', 'true');
     core.setOutput('enable-tests', 'false');
+  }
+
+  const workflowFiles = files.filter(f => isWorkflowFile(f.filename));
+  if (workflowFiles.length > 0) {
+    core.info(`Found ${workflowFiles.length} workflow file(s)`);
+    workflowFiles.slice(0, 10).forEach(f => core.info(`  - ${f.filename}`));
+    core.setOutput('workflow-files-changed', 'true');
+  } else {
+    core.setOutput('workflow-files-changed', 'false');
   }
 };
