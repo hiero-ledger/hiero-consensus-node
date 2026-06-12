@@ -16,7 +16,7 @@ class BasicProbeTest {
     @Test
     void emptyProbe_returnsNil() {
         final BasicProbe probe = new BasicProbe("p", ObsUnit.NANOS);
-        assertThat(probe.aggregate()).isSameAs(FixedStatistics.NIL);
+        assertThat(probe.aggregate()).isEqualTo(FixedStatistics.nil(ObsUnit.NANOS));
     }
 
     @Test

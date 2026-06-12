@@ -9,7 +9,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -19,9 +18,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -48,7 +44,8 @@ public class BlockStreamingObs implements AutoCloseable {
 
     private static final int PERIOD_SECONDS = 60;
     private static final long NANOS_PER_SECOND = TimeUnit.SECONDS.toNanos(1);
-    private static final int MAX_THROUGHPUT_BUCKETS = (PERIOD_SECONDS * 2) + 10;
+    /** Sizing hint only — steady state is ~62 live buckets; {@link #getThroughputBucket} guards runaway growth. */
+    private static final int THROUGHPUT_BUCKETS_CAPACITY_HINT = (PERIOD_SECONDS * 2) + 10;
     /**
      * A block that has not been acked this long after its init is considered abandoned (e.g. block node down,
      * streaming disabled, or pruned from the buffer without an ack) and is evicted from tracking so that
@@ -62,7 +59,7 @@ public class BlockStreamingObs implements AutoCloseable {
     private final ConcurrentMap<Long, BlockStats> blockStatistics = new ConcurrentHashMap<>();
     // ConcurrentMap<SecondTick, ThroughputBucket>
     private final ConcurrentMap<Long, ThroughputBucket> throughputBuckets =
-            new ConcurrentHashMap<>(MAX_THROUGHPUT_BUCKETS);
+            new ConcurrentHashMap<>(THROUGHPUT_BUCKETS_CAPACITY_HINT);
     private final long initialNanosTick;
     private final ScheduledExecutorService scheduledExecutorService;
 
@@ -264,6 +261,20 @@ public class BlockStreamingObs implements AutoCloseable {
 
     private ThroughputBucket getThroughputBucket(final long nanosTick) {
         final long second = toSecondTick(nanosTick);
+        final ThroughputBucket bucket = throughputBuckets.get(second);
+        if (bucket != null) {
+            return bucket;
+        }
+
+        // a bucket is created at most ~once per second, so this guard is effectively free; the buckets can
+        // only pile up if the gather task stopped draining them (e.g. the scheduler thread died), in which
+        // case dropping them all is preferable to growing without bound
+        if (throughputBuckets.size() > THROUGHPUT_BUCKETS_CAPACITY_HINT * 4) {
+            log.warn(
+                    "Throughput buckets are not being drained ({} accumulated); Clearing all buckets",
+                    throughputBuckets.size());
+            throughputBuckets.clear();
+        }
         return throughputBuckets.computeIfAbsent(second, _ -> new ThroughputBucket(second));
     }
 
@@ -333,7 +344,8 @@ public class BlockStreamingObs implements AutoCloseable {
     /** Removes terminal blocks from {@link #blockStatistics} and aggregates the acked ones. */
     private BlockStatsAggregation drainBlocks(final long nanosTick, final long thresholdNanosTick) {
         final BlockStatsAggregation aggregation = new BlockStatsAggregation();
-        final Iterator<Map.Entry<Long, BlockStats>> it = blockStatistics.entrySet().iterator();
+        final Iterator<Map.Entry<Long, BlockStats>> it =
+                blockStatistics.entrySet().iterator();
 
         while (it.hasNext()) {
             final BlockStats blockStats = it.next().getValue();
@@ -353,8 +365,7 @@ public class BlockStreamingObs implements AutoCloseable {
         return aggregation;
     }
 
-    private static String formatReport(
-            final ThroughputSummary summary, final BlockStatsAggregation blocksAggregation) {
+    private static String formatReport(final ThroughputSummary summary, final BlockStatsAggregation blocksAggregation) {
         // spotless:off
         final StringBuilder output = new StringBuilder("\nBlockStreamingStats {\n");
 
@@ -369,12 +380,12 @@ public class BlockStreamingObs implements AutoCloseable {
         output.append("    Items {\n");
         output.append("      Created-Total { (Unit:COUNT|Sum:").append(summary.itemsCreated().numSamples).append(")");
         output.append("(Unit:BYTES|Sum:").append(summary.itemsCreated().sum).append(") }\n");
-        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(toString(summary.perSecond(summary.itemsCreated().numSamples))).append(")");
-        output.append("(Unit:BYTES|Avg:").append(toString(summary.perSecond(summary.itemsCreated().sum))).append(") }\n");
+        output.append("      Created-PerSecond { (Unit:COUNT|Avg:").append(ObsUtils.format(summary.perSecond(summary.itemsCreated().numSamples))).append(")");
+        output.append("(Unit:BYTES|Avg:").append(ObsUtils.format(summary.perSecond(summary.itemsCreated().sum))).append(") }\n");
         output.append("      Sent-Total { (Unit:COUNT|Sum:").append(summary.itemsSent().numSamples).append(")");
         output.append("(Unit:BYTES|Sum:").append(summary.itemsSent().sum).append(") }\n");
-        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(toString(summary.perSecond(summary.itemsSent().numSamples))).append(")");
-        output.append("(Unit:BYTES|Avg:").append(toString(summary.perSecond(summary.itemsSent().sum))).append(") }\n");
+        output.append("      Sent-PerSecond { (Unit:COUNT|Avg:").append(ObsUtils.format(summary.perSecond(summary.itemsSent().numSamples))).append(")");
+        output.append("(Unit:BYTES|Avg:").append(ObsUtils.format(summary.perSecond(summary.itemsSent().sum))).append(") }\n");
         output.append("    }\n");
         output.append("  }\n");
 
@@ -396,10 +407,6 @@ public class BlockStreamingObs implements AutoCloseable {
         output.append("}");
         // spotless:on
         return output.toString();
-    }
-
-    private static String toString(final BigDecimal bd) {
-        return bd.setScale(4, RoundingMode.HALF_EVEN).toPlainString();
     }
 
     // =================================================================================================================
@@ -452,260 +459,12 @@ public class BlockStreamingObs implements AutoCloseable {
             // are no buckets (only gathered/abandoned blocks), fall back to 1 to keep the divisions harmless
             final long numberOfSeconds = buckets.isEmpty() ? 1 : (latestSecondTick - earliestSecondTick) + 1;
 
-            return new ThroughputSummary(numberOfSeconds, blocksOpened, blocksClosed, blocksAcked, itemsCreated, itemsSent);
+            return new ThroughputSummary(
+                    numberOfSeconds, blocksOpened, blocksClosed, blocksAcked, itemsCreated, itemsSent);
         }
 
         BigDecimal perSecond(final BigInteger value) {
             return new BigDecimal(value).divide(BigDecimal.valueOf(numberOfSeconds), MATH_CONTEXT_10);
-        }
-    }
-
-    /** Aggregates per-block latency and per-item statistics across all blocks in a reporting window. */
-    private static class BlockStatsAggregation {
-        private final StatisticsProbe initToOpen = new StatisticsProbe("InitToOpen", ObsUnit.NANOS);
-        private final StatisticsProbe openToClose = new StatisticsProbe("OpenToClose", ObsUnit.NANOS);
-        private final StatisticsProbe openToEndSent = new StatisticsProbe("OpenToEndSent", ObsUnit.NANOS);
-        private final StatisticsProbe openToAck = new StatisticsProbe("OpenToAck", ObsUnit.NANOS);
-        private final StatisticsProbe closedToAck = new StatisticsProbe("ClosedToAck", ObsUnit.NANOS);
-        private final StatisticsProbe headerSendStartedToAck =
-                new StatisticsProbe("HeaderSendStartedToAck", ObsUnit.NANOS);
-        private final StatisticsProbe headerSentToAck = new StatisticsProbe("HeaderSentToAck", ObsUnit.NANOS);
-        private final StatisticsProbe endSentToAck = new StatisticsProbe("EndSentToAck", ObsUnit.NANOS);
-        private final StatisticsProbe headerSentToEndSent = new StatisticsProbe("HeaderSentToEndSent", ObsUnit.NANOS);
-        private final StatisticsProbe openToProofAdded = new StatisticsProbe("OpenToProofAdded", ObsUnit.NANOS);
-        private final StatisticsProbe openToProofCreated = new StatisticsProbe("OpenToProofCreated", ObsUnit.NANOS);
-        private final StatisticsProbe footerCreatedToProofCreated =
-                new StatisticsProbe("FooterCreatedToProofCreated", ObsUnit.NANOS);
-
-        private final StatisticsProbe blockSize = new StatisticsProbe("BlockSize", ObsUnit.BYTES);
-        private final StatisticsProbe itemsPerBlock = new StatisticsProbe("ItemsPerBlock", ObsUnit.COUNT);
-
-        private final CompositeStatistics itemIdleComposite = new CompositeStatistics(ObsUnit.NANOS);
-        private final CompositeStatistics itemSendLatencyComposite = new CompositeStatistics(ObsUnit.NANOS);
-        private final CompositeStatistics itemSizeComposite = new CompositeStatistics(ObsUnit.BYTES);
-        private long itemsNeverSent = 0;
-        private long blocksAggregated = 0;
-        private long blocksAbandoned = 0;
-
-        void add(final BlockStats blockStats) {
-            ++blocksAggregated;
-
-            // computes the per-item probes and blockSize; must only ever run on the gather thread
-            blockStats.aggregate();
-
-            // any tick may still be the -1 "never recorded" sentinel; a probe gets a sample only when every
-            // tick it depends on was recorded, otherwise a garbage value would pollute the window
-            final long opened = blockStats.openedNanosTick.get();
-            final long closed = blockStats.closedNanosTick.get();
-            final long proofCreated = blockStats.proofCreatedNanosTick.get();
-            final long proofAdded = blockStats.proofAddedNanosTick.get();
-            final long footerCreated = blockStats.footerNanosTick.get();
-            final StartAndEndTicks endTicks = blockStats.endSentNanosTicks.get();
-            final StartAndEndTicks headerTicks = blockStats.headerSentNanosTicks.get();
-
-            if (opened != -1) {
-                initToOpen.add(blockStats.initToOpen());
-                openToAck.add(blockStats.openToAck());
-                if (closed != -1) {
-                    openToClose.add(blockStats.openToClose());
-                }
-                if (proofAdded != -1) {
-                    openToProofAdded.add(blockStats.openToProofAdded());
-                }
-                if (proofCreated != -1) {
-                    openToProofCreated.add(blockStats.openToProofCreated());
-                }
-                if (endTicks != null) {
-                    openToEndSent.add(blockStats.openToEndSent());
-                }
-            }
-            if (closed != -1) {
-                closedToAck.add(blockStats.closedToAck());
-            }
-            if (footerCreated != -1 && proofCreated != -1) {
-                footerCreatedToProofCreated.add(blockStats.footerCreatedToProofCreated());
-            }
-            if (endTicks != null) {
-                endSentToAck.add(blockStats.endSentToAck());
-            }
-            if (headerTicks != null) {
-                headerSendStartedToAck.add(blockStats.headerSendStartedToAck());
-                headerSentToAck.add(blockStats.headerSentToAck());
-                if (endTicks != null) {
-                    headerSentToEndSent.add(blockStats.headerSentToEndSent());
-                }
-            }
-
-            itemIdleComposite.add(blockStats.itemIdleProbe.aggregate());
-            itemSendLatencyComposite.add(blockStats.itemSendLatencyProbe.aggregate());
-            itemSizeComposite.add(blockStats.itemSizeProbe.aggregate());
-            itemsNeverSent += blockStats.itemsNeverSent;
-
-            blockSize.add(blockStats.blockSize);
-            itemsPerBlock.add(blockStats.items.size());
-        }
-
-        /** Counts a block evicted without ever being acked; its probes are never touched. */
-        void markAbandoned() {
-            ++blocksAbandoned;
-        }
-
-        boolean isEmpty() {
-            return blocksAggregated == 0 && blocksAbandoned == 0;
-        }
-
-        /** The per-block probes, in the order they appear in the {@code BlockDetails} report section. */
-        List<StatisticsProbe> blockProbes() {
-            return List.of(
-                    initToOpen,
-                    openToClose,
-                    openToEndSent,
-                    openToAck,
-                    closedToAck,
-                    headerSendStartedToAck,
-                    headerSentToAck,
-                    endSentToAck,
-                    headerSentToEndSent,
-                    openToProofAdded,
-                    openToProofCreated,
-                    footerCreatedToProofCreated,
-                    blockSize,
-                    itemsPerBlock);
-        }
-
-        void complete() {
-            blockProbes().forEach(StatisticsProbe::aggregate);
-        }
-    }
-
-    /** Counts block and item events that occurred within a single wall-clock second. */
-    private static class ThroughputBucket {
-        private final long secondTick;
-        private final BasicProbe itemsCreated = new BasicProbe("ItemsCreated", ObsUnit.COUNT);
-        private final BasicProbe itemsSent = new BasicProbe("ItemsSent", ObsUnit.COUNT);
-        private final LongAdder blocksOpened = new LongAdder();
-        private final LongAdder blocksClosed = new LongAdder();
-        private final LongAdder blocksAcked = new LongAdder();
-
-        ThroughputBucket(final long secondTick) {
-            this.secondTick = secondTick;
-        }
-    }
-
-    /**
-     * Holds all lifecycle timestamps for a single block.
-     * AtomicLong fields use {@code -1} as a sentinel meaning "not yet recorded".
-     * AtomicReference fields use {@code null} as sentinel for the same purpose.
-     */
-    private static class BlockStats {
-        private final long initNanosTick;
-        private final AtomicLong openedNanosTick = new AtomicLong(-1);
-        private final AtomicLong closedNanosTick = new AtomicLong(-1);
-        private final AtomicLong ackedNanosTick = new AtomicLong(-1);
-        private final AtomicLong proofCreatedNanosTick = new AtomicLong(-1);
-        private final AtomicLong proofAddedNanosTick = new AtomicLong(-1);
-        private final AtomicLong footerNanosTick = new AtomicLong(-1);
-        private final AtomicReference<StartAndEndTicks> headerSentNanosTicks = new AtomicReference<>();
-        private final AtomicReference<StartAndEndTicks> endSentNanosTicks = new AtomicReference<>();
-        private final ConcurrentMap<Integer, BlockItemStats> items = new ConcurrentHashMap<>();
-
-        private final StatisticsProbe itemIdleProbe = new StatisticsProbe("ItemIdle", ObsUnit.NANOS);
-        private final StatisticsProbe itemSendLatencyProbe = new StatisticsProbe("ItemSendLatency", ObsUnit.NANOS);
-        private final StatisticsProbe itemSizeProbe = new StatisticsProbe("ItemSize", ObsUnit.BYTES);
-
-        private long blockSize = 0;
-        private long itemsNeverSent = 0;
-
-        public BlockStats(final long initNanosTick) {
-            this.initNanosTick = initNanosTick;
-        }
-
-        void aggregate() {
-            for (final Map.Entry<Integer, BlockItemStats> itemStatsEntry : items.entrySet()) {
-                final BlockItemStats itemStats = itemStatsEntry.getValue();
-                final StartAndEndTicks sendTicks = itemStats.itemSendNanosTicks.get();
-                if (sendTicks != null) {
-                    itemIdleProbe.add(sendTicks.start() - itemStats.itemBufferedNanosTick);
-                    itemSendLatencyProbe.add(sendTicks.diff());
-                } else {
-                    ++itemsNeverSent;
-                }
-                // an item this node never sent (e.g. the block node already had the block when the
-                // connection started) still counts toward size, just not toward idle/send latency
-                itemSizeProbe.add(itemStats.itemSizeInBytes);
-                blockSize += itemStats.itemSizeInBytes;
-            }
-
-            itemIdleProbe.aggregate();
-            itemSendLatencyProbe.aggregate();
-            itemSizeProbe.aggregate();
-        }
-
-        long initToOpen() {
-            return openedNanosTick.get() - initNanosTick;
-        }
-
-        long openToClose() {
-            return closedNanosTick.get() - openedNanosTick.get();
-        }
-
-        long openToEndSent() {
-            return endSentNanosTicks.get().end() - openedNanosTick.get();
-        }
-
-        long openToAck() {
-            return ackedNanosTick.get() - openedNanosTick.get();
-        }
-
-        long closedToAck() {
-            return ackedNanosTick.get() - closedNanosTick.get();
-        }
-
-        long headerSendStartedToAck() {
-            return ackedNanosTick.get() - headerSentNanosTicks.get().start();
-        }
-
-        long headerSentToAck() {
-            return ackedNanosTick.get() - headerSentNanosTicks.get().end();
-        }
-
-        long endSentToAck() {
-            return ackedNanosTick.get() - endSentNanosTicks.get().end();
-        }
-
-        long headerSentToEndSent() {
-            return endSentNanosTicks.get().end() - headerSentNanosTicks.get().end();
-        }
-
-        long openToProofAdded() {
-            return proofAddedNanosTick.get() - openedNanosTick.get();
-        }
-
-        long openToProofCreated() {
-            return proofCreatedNanosTick.get() - openedNanosTick.get();
-        }
-
-        long footerCreatedToProofCreated() {
-            return proofCreatedNanosTick.get() - footerNanosTick.get();
-        }
-    }
-
-    /** Holds the buffered timestamp and send timing for a single block item. */
-    private static class BlockItemStats {
-        private final long itemSizeInBytes;
-        private final long itemBufferedNanosTick;
-        private final AtomicReference<StartAndEndTicks> itemSendNanosTicks = new AtomicReference<>();
-
-        public BlockItemStats(final long itemSizeInBytes, final long itemBufferedNanosTick) {
-            this.itemSizeInBytes = itemSizeInBytes;
-            this.itemBufferedNanosTick = itemBufferedNanosTick;
-        }
-    }
-
-    /** A pair of {@code System.nanoTime()} values bracketing the start and end of an operation. */
-    private record StartAndEndTicks(long start, long end) {
-        long diff() {
-            return end - start;
         }
     }
 }

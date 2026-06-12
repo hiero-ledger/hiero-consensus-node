@@ -6,8 +6,8 @@ import java.math.BigInteger;
 
 /**
  * Immutable {@link Statistics} snapshot produced after a probe is aggregated.
- * {@link #NIL} is the sentinel value representing zero samples; it is returned by probes and
- * composites when no data was collected.
+ * {@link #nil(ObsUnit)} produces the empty result returned by probes and composites when no data
+ * was collected.
  */
 public record FixedStatistics(
         ObsUnit unit,
@@ -18,7 +18,15 @@ public record FixedStatistics(
         BigDecimal avg,
         BigDecimal stdDev)
         implements Statistics {
-    /** Sentinel for an empty result (no samples). All numeric fields are zero, unit is {@code null}. */
-    public static FixedStatistics NIL = new FixedStatistics(
-            null, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    /** An empty result (no samples) labelled with the given unit. All numeric fields are zero. */
+    public static FixedStatistics nil(final ObsUnit unit) {
+        return new FixedStatistics(
+                unit,
+                BigInteger.ZERO,
+                BigInteger.ZERO,
+                BigInteger.ZERO,
+                BigInteger.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO);
+    }
 }

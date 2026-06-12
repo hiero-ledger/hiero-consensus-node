@@ -41,7 +41,7 @@ public class StatisticsProbe extends Probe {
      * Seals the probe, computes statistics (including stdDev), and releases the internal value
      * queue to allow GC. Idempotent after the first call.
      *
-     * @return {@link FixedStatistics#NIL} if no samples were recorded
+     * @return {@link FixedStatistics#nil(ObsUnit)} if no samples were recorded
      */
     @Override
     public @NonNull Statistics aggregate() {
@@ -71,7 +71,7 @@ public class StatisticsProbe extends Probe {
         }
 
         if (BigInteger.ZERO.equals(numSamples)) {
-            statistics = FixedStatistics.NIL;
+            statistics = FixedStatistics.nil(unit());
             return statistics;
         }
 

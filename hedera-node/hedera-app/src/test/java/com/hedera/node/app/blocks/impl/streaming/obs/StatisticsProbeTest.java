@@ -19,7 +19,7 @@ class StatisticsProbeTest {
         final StatisticsProbe probe = new StatisticsProbe("p", ObsUnit.NANOS);
         final Statistics stats = probe.aggregate();
 
-        assertThat(stats).isSameAs(FixedStatistics.NIL);
+        assertThat(stats).isEqualTo(FixedStatistics.nil(ObsUnit.NANOS));
     }
 
     @Test

@@ -7,9 +7,8 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link Statistics} that combines multiple component {@link Statistics} objects into a single
@@ -21,14 +20,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * </pre>
  * where {@code N} is the total sample count across all components.
  *
- * <p>{@link #add(Statistics)} is {@code synchronized}; the aggregate is recomputed eagerly on
- * every call.
+ * <p>{@link #add(Statistics)} only accumulates the component; the aggregate is computed lazily on
+ * the first read after an add. All methods are {@code synchronized}.
  */
 public class CompositeStatistics implements Statistics {
 
     private final ObsUnit unit;
-    private final AtomicReference<Statistics> compositeStatsRef = new AtomicReference<>(FixedStatistics.NIL);
-    private final List<Statistics> componentStatistics = new LinkedList<>();
+    private final List<Statistics> componentStatistics = new ArrayList<>();
+    private Statistics composite = null;
 
     public CompositeStatistics(@NonNull final ObsUnit unit) {
         this.unit = requireNonNull(unit);
@@ -37,10 +36,17 @@ public class CompositeStatistics implements Statistics {
     public synchronized void add(@NonNull final Statistics stats) {
         requireNonNull(stats);
         componentStatistics.add(stats);
-        calculateCompositeStatistics();
+        composite = null; // invalidate; recomputed lazily on the next read
     }
 
-    private void calculateCompositeStatistics() {
+    private synchronized Statistics composite() {
+        if (composite == null) {
+            composite = calculateCompositeStatistics();
+        }
+        return composite;
+    }
+
+    private Statistics calculateCompositeStatistics() {
         BigInteger numSamples = BigInteger.ZERO;
         BigInteger sum = BigInteger.ZERO;
         BigInteger min = null;
@@ -59,8 +65,7 @@ public class CompositeStatistics implements Statistics {
         }
 
         if (BigInteger.ZERO.equals(numSamples)) {
-            compositeStatsRef.set(FixedStatistics.NIL);
-            return;
+            return FixedStatistics.nil(unit);
         }
 
         final BigDecimal avg = new BigDecimal(sum).divide(new BigDecimal(numSamples), MATH_CONTEXT_10);
@@ -79,7 +84,7 @@ public class CompositeStatistics implements Statistics {
 
         stdDev = stdDev.divide(new BigDecimal(numSamples), MATH_CONTEXT_10).sqrt(MATH_CONTEXT_10);
 
-        compositeStatsRef.set(new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev));
+        return new FixedStatistics(unit, numSamples, sum, min, max, avg, stdDev);
     }
 
     @Override
@@ -88,32 +93,32 @@ public class CompositeStatistics implements Statistics {
     }
 
     @Override
-    public BigInteger numSamples() {
-        return compositeStatsRef.get().numSamples();
+    public synchronized BigInteger numSamples() {
+        return composite().numSamples();
     }
 
     @Override
-    public BigInteger sum() {
-        return compositeStatsRef.get().sum();
+    public synchronized BigInteger sum() {
+        return composite().sum();
     }
 
     @Override
-    public BigInteger min() {
-        return compositeStatsRef.get().min();
+    public synchronized BigInteger min() {
+        return composite().min();
     }
 
     @Override
-    public BigInteger max() {
-        return compositeStatsRef.get().max();
+    public synchronized BigInteger max() {
+        return composite().max();
     }
 
     @Override
-    public BigDecimal avg() {
-        return compositeStatsRef.get().avg();
+    public synchronized BigDecimal avg() {
+        return composite().avg();
     }
 
     @Override
-    public BigDecimal stdDev() {
-        return compositeStatsRef.get().stdDev();
+    public synchronized BigDecimal stdDev() {
+        return composite().stdDev();
     }
 }

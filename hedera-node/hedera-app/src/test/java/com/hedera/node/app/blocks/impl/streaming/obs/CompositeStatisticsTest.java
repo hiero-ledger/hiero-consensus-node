@@ -22,7 +22,7 @@ class CompositeStatisticsTest {
     void nilComponent_doesNotCauseDivisionByZero() {
         // Regression test for the missing `return` bug in calculateCompositeStatistics.
         final CompositeStatistics composite = new CompositeStatistics(ObsUnit.NANOS);
-        composite.add(FixedStatistics.NIL);
+        composite.add(FixedStatistics.nil(ObsUnit.NANOS));
 
         assertThat(composite.numSamples()).isEqualTo(BigInteger.ZERO);
     }

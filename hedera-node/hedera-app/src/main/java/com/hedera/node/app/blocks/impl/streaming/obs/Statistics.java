@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 
 /**
  * Read-only view of aggregated statistics for a single measurement probe.
@@ -37,8 +36,8 @@ public interface Statistics {
         s += "|Sum:" + stats.sum();
         s += "|Min:" + stats.min();
         s += "|Max:" + stats.max();
-        s += "|Avg:" + stats.avg().setScale(4, RoundingMode.HALF_EVEN).toPlainString();
-        s += "|StdDev:" + stats.stdDev().setScale(4, RoundingMode.HALF_EVEN).toPlainString();
+        s += "|Avg:" + ObsUtils.format(stats.avg());
+        s += "|StdDev:" + ObsUtils.format(stats.stdDev());
 
         s += ") }";
         return s;

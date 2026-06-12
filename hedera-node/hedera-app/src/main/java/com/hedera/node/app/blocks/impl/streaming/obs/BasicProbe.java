@@ -7,12 +7,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
- * A lightweight, lock-free metric accumulator that tracks count, sum, min, and max via
- * compare-and-swap loops. Use this for high-frequency call sites where allocating a queue per
- * sample would be too expensive.
+ * A lightweight, lock-free, allocation-free metric accumulator that tracks count, sum, min, and
+ * max. Use this for high-frequency call sites.
+ *
+ * <p>The accumulators are updated independently (there is no cross-field atomicity), so
+ * {@link #aggregate()} must only be called once concurrent {@link #add} calls have ceased; the
+ * gather task's grace period guarantees this in production.
  *
  * <p>Trade-off: {@code stdDev} is always {@link java.math.BigDecimal#ZERO}. Use
  * {@link StatisticsProbe} when accurate standard deviation is required.
@@ -22,8 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class BasicProbe extends Probe {
 
-    private final AtomicReference<DataHolder> dataRef =
-            new AtomicReference<>(new DataHolder(BigInteger.ZERO, BigInteger.ZERO, Long.MAX_VALUE, Long.MIN_VALUE));
+    private final LongAdder count = new LongAdder();
+    private final LongAdder sum = new LongAdder();
+    private final AtomicLong min = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong max = new AtomicLong(Long.MIN_VALUE);
     private final AtomicReference<Statistics> statsRef = new AtomicReference<>();
 
     public BasicProbe(@NonNull final String name, @NonNull final ObsUnit unit) {
@@ -38,54 +45,43 @@ public class BasicProbe extends Probe {
     /** Seals the probe and computes the final statistics. Idempotent after the first call. */
     @Override
     public @NonNull Statistics aggregate() {
-        Statistics stats = statsRef.get();
-        if (stats != null) {
-            return stats;
+        final Statistics existing = statsRef.get();
+        if (existing != null) {
+            return existing;
         }
 
-        final DataHolder data = dataRef.get();
-        if (BigInteger.ZERO.equals(data.numSamples)) {
-            statsRef.set(FixedStatistics.NIL);
-            return FixedStatistics.NIL;
+        final long numSamples = count.sum();
+        final Statistics stats;
+        if (numSamples == 0) {
+            stats = FixedStatistics.nil(unit());
+        } else {
+            final long total = sum.sum();
+            final BigDecimal avg = BigDecimal.valueOf(total).divide(BigDecimal.valueOf(numSamples), MATH_CONTEXT_10);
+            stats = new FixedStatistics(
+                    unit(),
+                    BigInteger.valueOf(numSamples),
+                    BigInteger.valueOf(total),
+                    BigInteger.valueOf(min.get()),
+                    BigInteger.valueOf(max.get()),
+                    avg,
+                    BigDecimal.ZERO);
         }
 
-        final BigDecimal avg = new BigDecimal(data.sum).divide(new BigDecimal(data.numSamples), MATH_CONTEXT_10);
-
-        stats = new FixedStatistics(
-                unit(),
-                data.numSamples,
-                data.sum,
-                BigInteger.valueOf(data.min),
-                BigInteger.valueOf(data.max),
-                avg,
-                BigDecimal.ZERO);
-        statsRef.set(stats);
-        return stats;
+        statsRef.compareAndSet(null, stats);
+        return statsRef.get();
     }
 
-    /**
-     * Thread-safe via a CAS loop so multiple threads may call this concurrently without locking.
-     */
+    /** Lock-free and allocation-free; each accumulator is updated independently. */
     @Override
     protected void doAdd(final long value) {
-        while (true) {
-            final DataHolder old = dataRef.get();
-            final DataHolder updated = new DataHolder(
-                    old.sum.add(BigInteger.valueOf(value)), // sum
-                    old.numSamples.add(BigInteger.ONE), // numSamples
-                    Math.min(old.min, value), // min
-                    Math.max(old.max, value)); // max
-
-            if (dataRef.compareAndSet(old, updated)) {
-                return;
-            }
-        }
+        count.increment();
+        sum.add(value);
+        min.accumulateAndGet(value, Math::min);
+        max.accumulateAndGet(value, Math::max);
     }
 
     @Override
     protected boolean isAggregated() {
         return statsRef.get() != null;
     }
-
-    private record DataHolder(BigInteger sum, BigInteger numSamples, long min, long max) {}
 }
