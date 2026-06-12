@@ -409,15 +409,7 @@ jobs:
           checkout-ref: main
           checkout-fetch-depth: "1"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+          setup-gomplate: "true"
 
       - name: Build Success Slack Payload
         env:
@@ -459,6 +451,7 @@ jobs:
           checkout-ref: main
           checkout-fetch-depth: "0"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          setup-gomplate: "true"
 
       - name: Determine Report Category
         id: report-category
@@ -582,18 +575,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
-
-      - name: Install gomplate
-        if: ${{ steps.report-category.outputs.category == 'test' ||
-          steps.report-category.outputs.category == 'environment' ||
-          steps.report-category.outputs.category == 'cancelled' }}
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
 
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
