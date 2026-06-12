@@ -7,8 +7,7 @@
 | flow-increment-next-main-release.yaml                  | [Release] Increment Version File                                  | 003-user-increment-next-main-release.yaml    | 003: [USER] Increment Main Rel     |
 | node-flow-deploy-preview.yaml                          | Node: Deploy Preview                                              | 004-user-deploy-preview.yaml                 | 004: [USER] Deploy Preview         |
 | flow-artifact-determinism.yaml                         | Artifact Determinism                                              | 005-user-artifact-determinism.yaml           | 005: [USER] Artifact Determinism   |
-| 100-flow-update-solo-version-vars.yaml                 | 100: [FLOW] Update Solo Version Variables                         | 006-user-update-solo-version-vars.yaml       | 006: [USER] Update Solo Vers Vars  |
-| zxf-update-gs-state-variable.yaml                      | ZXF: Update GS_STATE Variable                                     | 007-user-update-gs-state-variable.yaml       | 007: [USER] Update GS State Var    |
+| zxf-update-gs-state-variable.yaml                      | ZXF: Update GS_STATE Variable                                     | 006-user-update-gs-state-variable.yaml       | 006: [USER] Update GS State Var    |
 |                                                        |                                                                   |                                              |                                    |
 | # OPERATIONAL (100-199)                                |                                                                   |                                              |                                    |
 | zxf-collect-workflow-logs.yaml                         | ZXF: Collect Workflow Run Logs                                    | 100-user-collect-workflow-logs.yaml          | 100: [USER] Collect Workflow Logs  |
@@ -40,7 +39,6 @@
 | node-flow-pull-request-checks.yaml                     | Node: PR Checks                                                   | 600-flow-pull-request-checks.yaml            | 600: [FLOW] PR Checks              |
 | flow-pull-request-formatting.yaml                      | PR Formatting                                                     | 601-flow-pull-request-formatting.yaml        | 601: [FLOW] PR Formatting          |
 | 210-flow-merge-queue-controller.yaml                   | 210: [FLOW] Merge Queue Controller                                | 602-flow-merge-queue-controller.yaml         | 602: [FLOW] Merge Queue Controller |
-|                                                        |                                                                   |                                              |                                    |
 | # AI HELPERS (700-799)                                 |                                                                   |                                              |                                    |
 | 700-flow-copilot-setup-steps.yaml                      | 700: [FLOW] Copilot Setup Steps                                   | 700-flow-copilot-setup-steps.yaml            | 700: [FLOW] Copilot Setup Steps    |
 | 080-flow-auto-unapprove.yaml                           | 080: [FLOW] Auto Unapprove PR                                     | 701-flow-auto-unapprove.yaml                 | 701: [FLOW] Auto Unapprove PR      |
@@ -77,6 +75,7 @@
 | zxc-publish-production-image.yaml                      | ZXC: Publish Production Image                                     | 852-call-publish-production-image.yaml       | 852: [CALL] Publish Prod Image     |
 | zxc-create-github-release.yaml                         | ZXC: Create Github Release                                        | 853-call-create-github-release.yaml          | 853: [CALL] Create Github Release  |
 | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   | 854-extract-jdk-version.yaml                 | 854: [CALL] Extract JDK Version    |
+| 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     | 855-extract-citr-vars.yaml                   | 855: [CALL] Extract CITR Vars      |
 |                                                        |                                                                   | 855-call-workflow-unit-tests.yaml            | 855: [CALL] Workflow Unit Tests    |
 |                                                        |                                                                   |                                              |                                    |
 | # CRON (900-999)                                       |                                                                   |                                              |                                    |
