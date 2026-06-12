@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -17,9 +18,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.Key;
@@ -35,7 +39,9 @@ import org.junit.jupiter.api.Tag;
  * "no key" for that function: the privileged handlers treat an empty key as absent, so the function
  * (wipe, mint/burn, freeze, kyc, pause, fee schedule, metadata) is disabled and cannot be re-added
  * later — matching HIP-540's treatment of a removed key. An empty admin key likewise makes the token
- * immutable.
+ * immutable. Because it counts as "no key", creations that require a usable key — an NFT's supply
+ * key, or the freeze key of a freeze-default token — reject the sentinel, and new associations
+ * default to KYC-granted/unfrozen exactly as if the empty key were absent.
  *
  * <p>Crucially, an empty key must NOT be treated as "no signature required": the previous behavior
  * silently dropped the unsatisfiable signature requirement, making the operation permissionless.
@@ -97,6 +103,62 @@ public class EmptyKeyListTokenKeyTest {
                 wipeTokenAccount("disabledT", HOLDER, 50L)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> emptyKeyListKycAndFreezeKeysDoNotBlockNewAssociations() {
+        return hapiTest(
+                withOpContext((spec, opLog) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
+                cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(HOLDER).balance(ONE_HUNDRED_HBARS),
+
+                // Empty KYC/freeze keys mean those functions are disabled, so a new association must
+                // default to KYC-granted and unfrozen: no key exists that could ever grant KYC or
+                // unfreeze, and otherwise the holder could never receive units.
+                tokenCreate("kycFreezeDisabledT")
+                        .treasury(TREASURY)
+                        .initialSupply(1_000L)
+                        .kycKey(EMPTY_KEY)
+                        .freezeKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(HOLDER, "kycFreezeDisabledT"),
+
+                // The disabled KYC function cannot be invoked...
+                grantTokenKyc("kycFreezeDisabledT", HOLDER)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
+
+                // ...and is not needed: the transfer succeeds because the association defaulted to
+                // KYC-granted and unfrozen.
+                cryptoTransfer(moving(100L, "kycFreezeDisabledT").between(TREASURY, HOLDER)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateRejectsEmptyKeyListWhenAUsableKeyIsRequired() {
+        return hapiTest(
+                withOpContext((spec, opLog) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
+                cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+
+                // A freeze-default token needs a usable freeze key: with the empty-KeyList sentinel
+                // every new relation would be frozen forever with no key able to unfreeze it.
+                tokenCreate("frozenForeverT")
+                        .treasury(TREASURY)
+                        .initialSupply(1_000L)
+                        .freezeDefault(true)
+                        .freezeKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasPrecheck(TOKEN_HAS_NO_FREEZE_KEY),
+
+                // An NFT needs a usable supply key: with the sentinel nothing could ever be minted.
+                tokenCreate("unmintableT")
+                        .treasury(TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .decimals(0)
+                        .supplyKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasPrecheck(TOKEN_HAS_NO_SUPPLY_KEY));
     }
 
     @HapiTest
