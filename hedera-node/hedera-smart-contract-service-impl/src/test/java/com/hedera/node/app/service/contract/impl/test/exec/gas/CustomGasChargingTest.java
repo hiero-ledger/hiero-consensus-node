@@ -89,10 +89,12 @@ class CustomGasChargingTest {
     }
 
     @Test
-    void zeroPriceGasDoesNoChargingWorkButDoesReturnIntrinsicGas() {
+    void zeroPriceGasDoesChargeAndReturnIntrinsicGas() {
         final var context =
-                new HederaEvmContext(0L, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+                new HederaEvmContext(0L, false, true, blocks, tinybarValues, systemContractGasCalculator, null, null);
         givenWellKnownIntrinsicGasCost();
+        final var transaction = wellKnownHapiCall();
+        given(sender.getBalance()).willReturn(Wei.of(transaction.upfrontCostGiven(0)));
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
