@@ -185,7 +185,7 @@ jobs:
         run: ${GRADLE_EXEC} :yahcli:testSubprocess --no-daemon
 
       - name: Publish HAPI Test (Misc) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Misc) Results"
           json_thousands_separator: ","
@@ -298,7 +298,7 @@ jobs:
           exit $status
 
       - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Misc Records, Crypto & Misc Serial) Results"
           json_thousands_separator: ","
@@ -400,7 +400,7 @@ jobs:
           exit $status
 
       - name: Publish HAPI Test (Token & Time Consuming) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Token & Time Consuming) Results"
           json_thousands_separator: ","
@@ -502,7 +502,7 @@ jobs:
           exit $status
 
       - name: Publish HAPI Test (Simple Fees & ND Reconnect) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Simple Fees & ND Reconnect) Results"
           json_thousands_separator: ","
@@ -603,7 +603,7 @@ jobs:
           exit $status
 
       - name: Publish HAPI Test (Smart Contracts & ISS) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Smart Contracts & ISS) Results"
           json_thousands_separator: ","
@@ -687,7 +687,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Restart) Results"
           json_thousands_separator: ","
@@ -771,7 +771,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
           json_thousands_separator: ","
@@ -870,7 +870,7 @@ jobs:
           exit $status
 
       - name: Publish HAPI Test (Atomic Batch) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Atomic Batch) Results"
           json_thousands_separator: ","
@@ -954,7 +954,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestStateThrottling
 
       - name: Publish HAPI Test (State Throttling) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (State Throttling) Results"
           json_thousands_separator: ","
@@ -1057,7 +1057,7 @@ jobs:
           exit "${status}"
 
       - name: Publish HAPI Test (Crypto & Misc Serial) Reports
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Crypto & Misc Serial) Results"
           json_thousands_separator: ","
