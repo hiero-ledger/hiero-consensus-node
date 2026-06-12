@@ -25,7 +25,7 @@ The detection mechanism sits on top of the wiring substrate; for the underlying 
 
 ## Detection
 
-Detection lives in `swirlds-component-framework`, in `com.swirlds.component.framework.model.internal.monitor.HealthMonitor`. The model wires a heartbeat to `HealthMonitor.checkSystemHealth(Instant)` at construction time (`StandardWiringModel#StandardWiringModel`, around line 124: `buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire)`). The heartbeat period is `platform.wiring.healthMonitorHeartbeatPeriod` (default `1ms`).
+Detection lives in `swirlds-component-framework`, in `com.swirlds.component.framework.model.internal.monitor.HealthMonitor`. The model wires a heartbeat to `HealthMonitor.checkSystemHealth(Instant)` at construction time (`StandardWiringModel#StandardWiringModel`, around line 124: `buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire)`). The heartbeat period is `platform.wiring.healthMonitorHeartbeatPeriod` (TUN-008).
 
 For each watched scheduler the monitor compares `TaskScheduler.getUnprocessedTaskCount()` with `TaskScheduler.getCapacity()` (`HealthMonitor.checkSystemHealth`, line 123). A scheduler is "unhealthy" when its unprocessed-task count exceeds its capacity. Capacity is set per component via `TaskSchedulerBuilder.withUnhandledTaskCapacity(long)`; schedulers built with `UNLIMITED_CAPACITY` are skipped at registration time (`HealthMonitor` constructor, line 93) and are never reported as unhealthy.
 
@@ -36,7 +36,7 @@ Output reaches consumers two ways:
 - A wire publication via `StandardWiringModel.getHealthMonitorWire()` returning `OutputWire<Duration>` (line 165). Soldered to consumers in `swirlds-platform-core/.../PlatformWiring` (around lines 98–110): event creator, gossip module, and the execution layer (which forwards to `TransactionPoolNexus`).
 - A polled accessor `WiringModel.getUnhealthyDuration()` (line 174), used by PCES replay.
 
-A reported `Duration.ZERO` means all watched schedulers are healthy. A non-zero value means at least one scheduler is over capacity, with the magnitude indicating how long. To avoid spamming consumers, the monitor suppresses repeat reports of the same duration unless the system has been continuously healthy for `platform.wiring.healthyReportThreshold` (default `1s`), at which point a healthy state is re-asserted (`HealthMonitor.checkSystemHealth`, lines 142–157).
+A reported `Duration.ZERO` means all watched schedulers are healthy. A non-zero value means at least one scheduler is over capacity, with the magnitude indicating how long. To avoid spamming consumers, the monitor suppresses repeat reports of the same duration unless the system has been continuously healthy for `platform.wiring.healthyReportThreshold` (TUN-011), at which point a healthy state is re-asserted (`HealthMonitor.checkSystemHealth`, lines 142–157).
 
 The wire-soldered consumers (event creator, gossip, transaction acceptance) are therefore **edge-driven**: only deltas arrive, and each consumer's `reportUnhealthyDuration` handler is responsible for tracking the last value it saw. PCES is the exception — it polls `getUnhealthyDuration()` directly and always sees the current level.
 
@@ -48,7 +48,7 @@ Each reaction site reads the unhealthy-duration signal independently and applies
 
 Site: `consensus-event-creator-impl/.../rules/PlatformHealthRule.isEventCreationPermitted()` (line 40). Installed as one of the rules consulted by `DefaultEventCreationManager` (line 111: `rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration))`). The signal flows in through `EventCreationManager.reportUnhealthyDuration(Duration)`, soldered in `DefaultEventCreatorModule` (line 136).
 
-Trigger: when the reported unhealthy duration exceeds `event.creation.maximumPermissibleUnhealthyDuration` (default `1s`), the rule returns `false` from `isEventCreationPermitted()` and the event creator stops minting new self events. When the duration drops back to or below the threshold, event creation resumes; the rule reports `EventCreationStatus.OVERLOADED` while engaged.
+Trigger: when the reported unhealthy duration exceeds `event.creation.maximumPermissibleUnhealthyDuration` (TUN-138), the rule returns `false` from `isEventCreationPermitted()` and the event creator stops minting new self events. When the duration drops back to or below the threshold, event creation resumes; the rule reports `EventCreationStatus.OVERLOADED` while engaged.
 
 See [event-creator.md](event-creator.md) for the rest of the rules and the event-creation lifecycle.
 
@@ -58,11 +58,11 @@ Site: `consensus-gossip-impl/.../gossip/permits/SyncPermitProvider.reportUnhealt
 
 Triggers and rates:
 
-- Reactions are gated by a grace period: `SyncPermitProvider` only enters the unhealthy branch once the reported duration reaches `sync.unhealthyGracePeriod` (default `1s`). Brief blips below the grace period leave permits untouched.
-- While unhealthy, permits are revoked at `sync.permitsRevokedPerSecond` (default `5`).
-- When the system returns to healthy, permits are returned at `sync.permitsReturnedPerSecond` (default `1`).
-- A floor of `sync.minimumHealthyUnrevokedPermitCount` (default `1`) un-revoked permits is enforced as soon as the system becomes healthy, so a recovered system is not stuck at zero permits while it waits for the gradual return rate.
-- `sync.keepSendingEventsWhenUnhealthy` (default `true`) softens the reaction further: when set, the node continues to send its own events during an unhealthy period and only stops receiving and processing remote events. Continuing to send self events lets the rest of the network build on them, which prevents the local node's recent events — and the user transactions they carry — from going stale and expiring before they reach consensus.
+- Reactions are gated by a grace period: `SyncPermitProvider` only enters the unhealthy branch once the reported duration reaches `sync.unhealthyGracePeriod` (TUN-181). Brief blips below the grace period leave permits untouched.
+- While unhealthy, permits are revoked at `sync.permitsRevokedPerSecond` (TUN-182).
+- When the system returns to healthy, permits are returned at `sync.permitsReturnedPerSecond` (TUN-183).
+- A floor of `sync.minimumHealthyUnrevokedPermitCount` (TUN-184) un-revoked permits is enforced as soon as the system becomes healthy, so a recovered system is not stuck at zero permits while it waits for the gradual return rate.
+- `sync.keepSendingEventsWhenUnhealthy` (TUN-190) softens the reaction further: when set, the node continues to send its own events during an unhealthy period and only stops receiving and processing remote events. Continuing to send self events lets the rest of the network build on them, which prevents the local node's recent events — and the user transactions they carry — from going stale and expiring before they reach consensus.
 
 When `sync.keepSendingEventsWhenUnhealthy` is `true`, the health-driven permit revoke path is bypassed entirely: `SyncPermitProvider.computeRevokedPermits()` (line 274) guards the unhealthy-branch delta computation with `if (!keepSendingEventsWhenUnhealthy)`, so permit accounting and the keep-sending mode are mutually exclusive — only one of them reacts to an unhealthy report. Permit accounting still applies on reconnect: `SyncPermitProvider.revokeAll()` (line 194) is invoked when a reconnect begins, and the configured `permitsReturnedPerSecond` then slowly restores permits once the reconnect finishes.
 
@@ -82,9 +82,9 @@ Note: this is a **separate** config key from the event-creator threshold, even t
 
 Site: `consensus-pces-impl/.../replayer/PcesReplayer.waitUntilHealthy()` (line 206). The replay loop calls `waitUntilHealthy()` before each event (`PcesReplayer.replayPces`, line 172) and blocks (sleeping 100 ms at a time) until the supplied health check returns true.
 
-The health check is constructed in `consensus-pces-impl/.../DefaultPcesModule` (lines 124–133) as `() -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold)`. Trigger: when the polled unhealthy duration meets or exceeds `event.preconsensus.replayHealthThreshold` (default `1ms`, much tighter than the gossip-side `1s`).
+The health check is constructed in `consensus-pces-impl/.../DefaultPcesModule` (lines 124–133) as `() -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold)`. Trigger: when the polled unhealthy duration meets or exceeds `event.preconsensus.replayHealthThreshold` (TUN-126) — a much tighter threshold than the gossip-side grace period (TUN-181).
 
-In addition to the health gate, replay is rate-limited by a `RateLimiter` constructed with `event.preconsensus.maxEventReplayFrequency` (default `5000` events/second), checked at `PcesReplayer.replayPces` line 174. The rate limiter can be disabled via `event.preconsensus.limitReplayFrequency` (default `true`). The rate limiter exists because replay can vastly outstrip the rate at which the system can ingest events — fast enough that the health monitor cannot detect the overload before the system is flooded, so a separate frequency cap is required.
+In addition to the health gate, replay is rate-limited by a `RateLimiter` constructed with `event.preconsensus.maxEventReplayFrequency` (TUN-128), checked at `PcesReplayer.replayPces` line 174. The rate limiter can be disabled via `event.preconsensus.limitReplayFrequency` (TUN-127). The rate limiter exists because replay can vastly outstrip the rate at which the system can ingest events — fast enough that the health monitor cannot detect the overload before the system is flooded, so a separate frequency cap is required.
 
 PCES is the only reaction site that polls the signal rather than receiving it on a wire; this is appropriate because the replay loop is naturally a polling site and benefits from the freshest possible value.
 
@@ -92,39 +92,28 @@ See [restart-and-pces.md](restart-and-pces.md) for the replay lifecycle.
 
 ## Tunables
 
-All keys are sourced from the platform/Hedera `@ConfigData` records cited above. See [../../tunables.md](../../tunables.md) for the full catalog and any non-default deployment values.
+The detection cadence and per-reaction thresholds are all configured
+parameters; their defaults, types, and full effects live in the canonical
+catalog [../../tunables.md](../../tunables.md) and are not repeated here. The
+relevant entries, grouped by where they act:
 
-Detection (in `WiringConfig`, namespace `platform.wiring`):
-
-- `platform.wiring.healthMonitorEnabled` (default `true`) — master switch for the monitor.
-- `platform.wiring.healthMonitorHeartbeatPeriod` (default `1ms`) — polling cadence.
-- `platform.wiring.healthMonitorSchedulerCapacity` (default `500`) — capacity of the health monitor's own scheduler.
-- `platform.wiring.hardBackpressureEnabled` (default `false`) — when `true`, queue insertion would block at capacity; left off so the soft-signal model applies.
-- `platform.wiring.healthLogThreshold` (default `1s`) — minimum unhealthy duration before a log warning is emitted.
-- `platform.wiring.healthLogPeriod` (default `10m`) — minimum interval between warnings for the same scheduler.
-- `platform.wiring.healthyReportThreshold` (default `1s`) — interval at which a sustained healthy state is re-reported.
-
-Event-creation throttling (in `EventCreationConfig`):
-
-- `event.creation.maximumPermissibleUnhealthyDuration` (default `1s`) — gate for self-event creation.
-
-Gossip permits (in `SyncConfig`):
-
-- `sync.unhealthyGracePeriod` (default `1s`) — grace before permits start to be revoked.
-- `sync.permitsRevokedPerSecond` (default `5`) — revoke rate while unhealthy.
-- `sync.permitsReturnedPerSecond` (default `1`) — return rate while healthy.
-- `sync.minimumHealthyUnrevokedPermitCount` (default `1`) — floor of un-revoked permits when healthy.
-- `sync.keepSendingEventsWhenUnhealthy` (default `true`) — keep sending self events while unhealthy; only inbound processing is suppressed.
-
-Transaction acceptance (in Hedera-side `HederaConfig`):
-
-- `transaction.maximumPermissibleUnhealthySeconds` (default `1`) — gate for application transaction acceptance.
-
-PCES replay (in `PcesConfig`):
-
-- `event.preconsensus.replayHealthThreshold` (default `1ms`) — gate for PCES replay.
-- `event.preconsensus.limitReplayFrequency` (default `true`) — toggle for the replay rate limiter.
-- `event.preconsensus.maxEventReplayFrequency` (default `5000`) — maximum events per second replayed.
+- **Detection** (`WiringConfig`, `platform.wiring.*`): TUN-003
+  (`healthMonitorEnabled`), TUN-004 (`hardBackpressureEnabled`), TUN-007
+  (`healthMonitorSchedulerCapacity`), TUN-008 (`healthMonitorHeartbeatPeriod`),
+  TUN-009 (`healthLogThreshold`), TUN-010 (`healthLogPeriod`), TUN-011
+  (`healthyReportThreshold`).
+- **Event-creation throttling** (`EventCreationConfig`): TUN-138
+  (`maximumPermissibleUnhealthyDuration`).
+- **Gossip permits** (`SyncConfig`): TUN-181 (`unhealthyGracePeriod`), TUN-182
+  (`permitsRevokedPerSecond`), TUN-183 (`permitsReturnedPerSecond`), TUN-184
+  (`minimumHealthyUnrevokedPermitCount`), TUN-190
+  (`keepSendingEventsWhenUnhealthy`).
+- **PCES replay** (`PcesConfig`): TUN-126 (`replayHealthThreshold`), TUN-127
+  (`limitReplayFrequency`), TUN-128 (`maxEventReplayFrequency`).
+- **Transaction acceptance**: `transaction.maximumPermissibleUnhealthySeconds`
+  is a Hedera-side `HederaConfig` key, outside the consensus-layer tunables
+  catalog; see the [Transaction acceptance gate](#transaction-acceptance-gate)
+  reaction above for its behaviour.
 
 ## Cross-references
 
@@ -136,4 +125,4 @@ PCES replay (in `PcesConfig`):
 
 ## Future state (sidebar)
 
-The Consensus-Layer proposal at [../../../proposals/consensus-layer/Consensus-Layer.md](../../../proposals/consensus-layer/Consensus-Layer.md) (see *Slow Execution*, around lines 227–270) introduces a coarser, module-API-level backpressure: Execution drives the rate at which `nextRound` is called, and the Hashgraph module never advances faster than Execution requests. This is an overlay on top of the wire-level / queue-saturation mechanism described above — a per-round sliding window in addition to the per-queue health signal, not a replacement for it.
+The proposal introduces a coarser, module-API-level backpressure (the `nextRound` pull; see the [overview's Future state](../overview.md#future-state)): Execution drives the rate at which `nextRound` is called, and the Hashgraph module never advances faster than Execution requests. This is an overlay on top of the wire-level / queue-saturation mechanism described above — a per-round sliding window in addition to the per-queue health signal, not a replacement for it.
