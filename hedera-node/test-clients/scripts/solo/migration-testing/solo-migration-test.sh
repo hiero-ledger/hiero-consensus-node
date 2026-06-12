@@ -551,6 +551,32 @@ upgrade_to_local() {
     fi
   done
 
+  # Pre-tag the baseline haveged + jrs-network-node images with the
+  # post-upgrade version inside every pod's docker daemon. NMT's
+  # `Upgrade: Install` step rewrites HAVEGED_IMAGE_TAG / NETWORK_NODE_IMAGE_TAG
+  # in compose/.env to the new version (e.g. `0.76.0-SNAPSHOT`) and then runs
+  # `docker compose up`. The new tags don't exist locally yet, so compose-up
+  # falls through to the `build:` directive and re-runs `apt-get update &&
+  # apt-get install -y haveged ...` inside the in-pod docker daemon. On the
+  # CI runner that build is slow enough (especially with 3 pods racing in
+  # parallel on shared network) to trip NMT's compose timeout with
+  # errorCode 70 "Failed to Install New Docker Compose Containers".
+  #
+  # Tagging the existing images with the new version makes compose-up find
+  # them locally and skip the build entirely. The underlying image content
+  # is identical — NMT swaps data/apps/HederaNode.jar via the host volume
+  # mount, not by rebaking the container image.
+  local _target_tag
+  _target_tag="$(cat "${REPO_ROOT}/version.txt")"
+  for _pod in $(iterate_pods); do
+    for _img in network-node-haveged jrs-network-node; do
+      kexec "${_pod}" docker tag \
+        "local/${_img}:${DEPLOY_RELEASE_TAG}" \
+        "local/${_img}:${_target_tag}" >/dev/null 2>&1 \
+        || echo "WARN: could not pre-tag local/${_img}:${_target_tag} in ${_pod}" >&2
+    done
+  done
+
   yahcli_run sysfiles upload --appends-per-burst 64 software-zip
   yahcli_run prepare-upgrade --upgrade-zip-hash "${UPGRADE_ZIP_SHA384}"
   wait_for_marker "execute_immediate.mf" "${MARKER_TIMEOUT_SECS}"
