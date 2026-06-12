@@ -165,8 +165,9 @@ public class BlockStreamingObs {
     }
 
     /**
-     * Called when a block is acknowledged by the block node. Triggers per-block aggregation so
-     * that per-item probes can be computed before the periodic gather task runs.
+     * Called when a block is acknowledged by the block node. Per-block aggregation is deliberately
+     * NOT done here: it happens only on the gather thread, once the ack is older than the grace
+     * period, so the ack thread can never race the gather task inside the probes.
      */
     public void onBlockAcknowledge(final long blockNumber, final long nanosTick) {
         if (!isEnabled) {
@@ -176,7 +177,6 @@ public class BlockStreamingObs {
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null && stats.ackedNanosTick.compareAndSet(-1, nanosTick)) {
             getThroughputBucket(nanosTick).blocksAcked.increment();
-            stats.aggregate();
         }
     }
 
@@ -313,7 +313,10 @@ public class BlockStreamingObs {
         while (blockStatisticsIt.hasNext()) {
             final Map.Entry<Long, BlockStats> entry = blockStatisticsIt.next();
             final BlockStats blockStats = entry.getValue();
-            if (blockStats.isAcked() && blockStats.initNanosTick <= thresholdNanosTick) {
+            // only blocks acked before the threshold are eligible; the ack is terminal, so by now
+            // no other thread is still recording events for the block and it is safe to aggregate
+            final long ackedNanosTick = blockStats.ackedNanosTick.get();
+            if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
                 blockStatisticsIt.remove();
                 blocksAggregation.add(blockStats);
             }
@@ -457,6 +460,9 @@ public class BlockStreamingObs {
         private final CompositeStatistics itemSizeComposite = new CompositeStatistics(ObsUnit.BYTES);
 
         void add(final BlockStats blockStats) {
+            // computes the per-item probes and blockSize; must only ever run on the gather thread
+            blockStats.aggregate();
+
             initToOpen.add(blockStats.initToOpen());
             openToClose.add(blockStats.openToClose());
             openToAck.add(blockStats.openToAck());
@@ -610,10 +616,6 @@ public class BlockStreamingObs {
 
         long openToProofCreated() {
             return proofCreatedNanosTick.get() - openedNanosTick.get();
-        }
-
-        boolean isAcked() {
-            return ackedNanosTick.get() != -1;
         }
     }
 

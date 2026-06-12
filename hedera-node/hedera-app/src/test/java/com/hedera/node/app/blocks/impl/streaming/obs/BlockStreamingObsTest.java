@@ -28,8 +28,6 @@ class BlockStreamingObsTest {
         obsDisabled = makeObs(false);
     }
 
-    // ── onBlockInit ─────────────────────────────────────────────────────────────
-
     @Test
     void onBlockInit_whenDisabled_storesNoData() {
         obsDisabled.onBlockInit(1L, tick());
@@ -47,8 +45,6 @@ class BlockStreamingObsTest {
         obsEnabled.onBlockClose(blockNumber, t0 + 2);
     }
 
-    // ── onBlockOpen ─────────────────────────────────────────────────────────────
-
     @Test
     void onBlockOpen_unknownBlock_isNoOp() {
         // Block was never initialised — must not throw
@@ -63,8 +59,6 @@ class BlockStreamingObsTest {
         // Second call must be idempotent and not throw
         obsEnabled.onBlockOpen(blockNumber, tick());
     }
-
-    // ── onBlockItemAdd ──────────────────────────────────────────────────────────
 
     @Test
     void onBlockItemAdd_whenDisabled_storesNothing() {
@@ -90,8 +84,6 @@ class BlockStreamingObsTest {
         obsEnabled.onBlockItemAdd(blockNumber, 0, tick(), 200);
     }
 
-    // ── onBlockItemsSend ────────────────────────────────────────────────────────
-
     @Test
     void onBlockItemsSend_unknownBlock_isNoOp() {
         obsEnabled.onBlockItemsSend(999L, 0, 5, tick(), tick() + 1);
@@ -109,15 +101,13 @@ class BlockStreamingObsTest {
         obsEnabled.onBlockItemsSend(blockNumber, 0, 1, t0 + 10, t0 + 20);
     }
 
-    // ── onBlockClose / onBlockAcknowledge ───────────────────────────────────────
-
     @Test
     void onBlockClose_unknownBlock_isNoOp() {
         obsEnabled.onBlockClose(999L, tick());
     }
 
     @Test
-    void onBlockAcknowledge_triggersAggregation() {
+    void onBlockAcknowledge_afterFullLifecycle_doesNotThrow() {
         final long blockNumber = 6L;
         final long t0 = tick();
         obsEnabled.onBlockInit(blockNumber, t0);
@@ -127,11 +117,9 @@ class BlockStreamingObsTest {
         obsEnabled.onBlockItemsSend(blockNumber, 0, 0, t0 + 3_000, t0 + 4_000);
         obsEnabled.onBlockEndSend(blockNumber, t0 + 5_000, t0 + 6_000);
         obsEnabled.onBlockClose(blockNumber, t0 + 7_000);
-        // Acknowledge seals the block and must not throw
+        // Acknowledge records the ack tick; aggregation is deferred to the gather thread
         obsEnabled.onBlockAcknowledge(blockNumber, t0 + 8_000);
     }
-
-    // ── dynamic enable/disable ──────────────────────────────────────────────────
 
     @Test
     void gatherAndLog_whenDisabled_clearsAccumulatedData() {
@@ -144,8 +132,6 @@ class BlockStreamingObsTest {
         final BlockStreamingObs obsNowDisabled = makeObs(false);
         obsNowDisabled.onBlockInit(blockNumber, tick()); // no-op
     }
-
-    // ── header / end / proof events ─────────────────────────────────────────────
 
     @Test
     void onBlockHeaderSend_unknownBlock_isNoOp() {
@@ -171,8 +157,6 @@ class BlockStreamingObsTest {
     void onBlockFooterCreate_unknownBlock_isNoOp() {
         obsEnabled.onBlockFooterCreate(999L, tick());
     }
-
-    // ── helpers ─────────────────────────────────────────────────────────────────
 
     private BlockStreamingObs makeObs(final boolean enabled) {
         final Configuration config = HederaTestConfigBuilder.create()
