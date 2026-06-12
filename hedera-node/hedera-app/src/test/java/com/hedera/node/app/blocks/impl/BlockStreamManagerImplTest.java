@@ -1962,7 +1962,7 @@ class BlockStreamManagerImplTest {
         final boolean closed = subject.endRound(state, ROUND_NO);
 
         assertFalse(closed);
-        verify(aWriter).closeCompleteBlock();
+        verify(aWriter).flushIncompleteBlock();
         verify(aWriter, never()).flushPendingBlock(any());
     }
 
@@ -2108,7 +2108,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO); // handler flush completes fatalShutdownFuture
 
         assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
-        verify(aWriter).closeCompleteBlock();
+        verify(aWriter).flushIncompleteBlock();
     }
 
     @Test
@@ -2176,14 +2176,14 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         verify(bWriter, never()).openBlock(anyLong());
-        verify(aWriter).closeCompleteBlock();
+        verify(aWriter).flushIncompleteBlock();
         verify(aWriter, never()).flushPendingBlock(any());
     }
 
     @Test
-    void triageFlushIsBestEffortWhenInProgressCloseThrows() {
-        // If closing the in-progress block throws, the flush swallows it (best-effort) and still completes the
-        // shutdown future, so awaitFatalShutdown returns rather than propagating the failure on the status thread.
+    void triageFlushIsBestEffortWhenInProgressFlushThrows() {
+        // If flushing the in-progress block throws, the triage flush swallows it (best-effort) and still completes
+        // the shutdown future, so awaitFatalShutdown returns rather than propagating the failure on the status thread.
         givenSubjectWith(
                 1,
                 2,
@@ -2192,14 +2192,14 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        doThrow(new RuntimeException("boom")).when(aWriter).closeCompleteBlock();
+        doThrow(new RuntimeException("boom")).when(aWriter).flushIncompleteBlock();
 
         subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
         subject.notifyFatalEvent();
 
         assertDoesNotThrow(() -> subject.endRound(state, ROUND_NO));
-        verify(aWriter).closeCompleteBlock();
+        verify(aWriter).flushIncompleteBlock();
         assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
     }
 
