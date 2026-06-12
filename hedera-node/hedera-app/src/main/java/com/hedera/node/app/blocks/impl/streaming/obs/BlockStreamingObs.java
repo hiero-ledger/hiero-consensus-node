@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
  * restart. Disabling mid-run clears all accumulated data immediately.
  */
 @Singleton
-public class BlockStreamingObs {
+public class BlockStreamingObs implements AutoCloseable {
 
     private static final Logger log = LogManager.getLogger(BlockStreamingObs.class);
 
@@ -70,13 +70,23 @@ public class BlockStreamingObs {
         this.configProvider = requireNonNull(configProvider);
         initialNanosTick = System.nanoTime();
 
-        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            final Thread thread = new Thread(runnable, "BlockStreamingObsGather");
+            thread.setDaemon(true);
+            return thread;
+        });
         scheduledExecutorService.schedule(new ObsGatherAndLogTask(), PERIOD_SECONDS, TimeUnit.SECONDS);
 
         isEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .enhancedObservabilityEnabled();
+    }
+
+    /** Stops the periodic gather-and-log task. The instance must not be used after closing. */
+    @Override
+    public void close() {
+        scheduledExecutorService.shutdownNow();
     }
 
     /** Called when a block is first created; opens the block stats entry. */
@@ -294,6 +304,7 @@ public class BlockStreamingObs {
 
         // gather the blocks we care about
         final BlockStatsAggregation blocksAggregation = new BlockStatsAggregation();
+        long blocksAggregated = 0;
         long blocksAbandoned = 0;
         final Iterator<Map.Entry<Long, BlockStats>> blockStatisticsIt =
                 blockStatistics.entrySet().iterator();
@@ -307,12 +318,18 @@ public class BlockStreamingObs {
             if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
                 blockStatisticsIt.remove();
                 blocksAggregation.add(blockStats);
+                ++blocksAggregated;
             } else if (ackedNanosTick == -1 && nanosTick - blockStats.initNanosTick >= ABANDONED_AFTER_NANOS) {
                 // never acked and too old: evict without aggregating (other threads may still be
                 // mutating the block, so its probes must not be touched) and only count it
                 blockStatisticsIt.remove();
                 ++blocksAbandoned;
             }
+        }
+
+        if (throughputBucketsToProcess.isEmpty() && blocksAggregated == 0 && blocksAbandoned == 0) {
+            // nothing was recorded in this window; skip the report entirely
+            return;
         }
 
         blocksAggregation.complete();
@@ -345,12 +362,10 @@ public class BlockStreamingObs {
             totalItemsSent.add(itemsSentStats.numSamples(), itemsSentStats.sum());
         }
 
-        long numberOfSeconds = latestSecondTick - earliestSecondTick;
-        if (numberOfSeconds == 0) {
-            // if there was just one bucket, the latest and earliest second ticks are the same so record the number
-            // of seconds as being 1
-            numberOfSeconds = 1;
-        }
+        // +1 because the bucket tick range is inclusive on both ends (N buckets span N seconds); if there
+        // are no buckets (only gathered/abandoned blocks), fall back to 1 to keep the divisions harmless
+        final long numberOfSeconds =
+                throughputBucketsToProcess.isEmpty() ? 1 : (latestSecondTick - earliestSecondTick) + 1;
         final BigDecimal seconds = BigDecimal.valueOf(numberOfSeconds);
 
         // calculate per-second throughput data

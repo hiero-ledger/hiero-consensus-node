@@ -7,6 +7,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,12 @@ class BlockStreamingObsTest {
     void setUp() {
         obsEnabled = makeObs(true);
         obsDisabled = makeObs(false);
+    }
+
+    @AfterEach
+    void tearDown() {
+        obsEnabled.close();
+        obsDisabled.close();
     }
 
     @Test
@@ -131,6 +138,7 @@ class BlockStreamingObsTest {
         // Simulate a gather cycle with the feature turned off — must clear data and not throw
         final BlockStreamingObs obsNowDisabled = makeObs(false);
         obsNowDisabled.onBlockInit(blockNumber, tick()); // no-op
+        obsNowDisabled.close();
     }
 
     @Test
