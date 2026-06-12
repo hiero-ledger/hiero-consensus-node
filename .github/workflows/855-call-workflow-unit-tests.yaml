@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Test Gomplate Templates"
+name: "[CALL] Workflow Unit Tests"
 on:
   workflow_dispatch:
   workflow_call:
