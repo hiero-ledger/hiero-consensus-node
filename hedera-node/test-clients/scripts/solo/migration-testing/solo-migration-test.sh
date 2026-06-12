@@ -111,6 +111,16 @@ NMT_IMAGE_VALUES_FILE="${NMT_IMAGE_DIR}/solo-values-override.yaml"
 # Hedera CN v0.75+ JARs are compiled to class file v69 (JDK 25). NMT v1.3.4
 # defaults to JDK 21 in helper.sh but ships checksums for 25.0.2; we override.
 JAVA_MAIN_CLASS_OVERRIDE="${JAVA_MAIN_CLASS_OVERRIDE:-com.hedera.node.app.ServicesMain}"
+# 16 GB box knob: cap the JVM heap below NMTs 6g default so the JVM fits
+# next to dockerd-in-pod + haproxy + envoy + minio + mirror.
+JAVA_HEAP_MAX="${JAVA_HEAP_MAX:-2g}"
+JAVA_HEAP_MIN="${JAVA_HEAP_MIN:-256m}"
+# NMT installer derives the docker container mem_limit from JAVA_HEAP_MAX with
+# a ~466m overhead (so JAVA_HEAP_MAX=512m → mem_limit=978m). When we boost
+# JAVA_HEAP_MAX via the compose-up env override, the rendered .env still has
+# the small container limit and the JVM gets SIGKILL'd on the first heap spike.
+# Override the container limit too. Default keeps a 2g headroom over 2g heap.
+NETWORK_NODE_MEM_LIMIT="${NETWORK_NODE_MEM_LIMIT:-4g}"
 HGCAPP_DIR="/opt/hgcapp"
 NMT_DIR="${HGCAPP_DIR}/node-mgmt-tools"
 HAPI_PATH="${HGCAPP_DIR}/services-hedera/HapiApp2.0"
@@ -122,7 +132,7 @@ YAHCLI_JAR="${YAHCLI_JAR:-}"
 # software-zip upload + PREPARE_UPGRADE + FREEZE_UPGRADE transactions. Solo
 # seeds the same well-known dev key onto that account, so OPERATOR_PRIVATE_KEY
 # below is the right input for generate_yahcli_creds.
-YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-58}"
+YAHCLI_OPERATOR_ACCOUNT_NUM="${YAHCLI_OPERATOR_ACCOUNT_NUM:-2}"
 YAHCLI_KEY_PASSPHRASE="${YAHCLI_KEY_PASSPHRASE:-migration-test}"
 MARKER_TIMEOUT_SECS="${MARKER_TIMEOUT_SECS:-600}"
 UPGRADE_RESTART_TIMEOUT_SECS="${UPGRADE_RESTART_TIMEOUT_SECS:-300}"
@@ -911,6 +921,8 @@ start_consensus_node_via_nmt() {
   kexec "${pod}" runuser -u hedera -- bash -c "
     cd ${NMT_DIR}/compose/network-node
     JAVA_MAIN_CLASS=${JAVA_MAIN_CLASS_OVERRIDE} \
+    JAVA_HEAP_MAX=${JAVA_HEAP_MAX} JAVA_HEAP_MIN=${JAVA_HEAP_MIN} \
+    NETWORK_NODE_MEM_LIMIT=${NETWORK_NODE_MEM_LIMIT} \
       docker compose --project-directory . -f docker-compose.yml -f docker-compose.jrs.yml \
       up -d --force-recreate 2>&1 | tail -10
   "
@@ -1110,8 +1122,8 @@ ensure_yahcli() {
     return 0
   fi
   log "Building yahcli from source"
-  (cd "${REPO_ROOT}" && ./gradlew :yahcli:assemble -q)
-  YAHCLI_JAR="$(ls -t "${REPO_ROOT}"/hedera-node/yahcli/build/libs/yahcli-*.jar 2>/dev/null | head -n 1)"
+  (cd "${REPO_ROOT}" && ./gradlew :yahcli:yahCliJar -q)
+  YAHCLI_JAR="$(ls -t "${REPO_ROOT}"/hedera-node/yahcli/build/libs/yahcli-*-shadow.jar 2>/dev/null | head -n 1)"
   [[ -n "${YAHCLI_JAR}" && -f "${YAHCLI_JAR}" ]] || {
     echo "yahcli build did not produce a JAR" >&2; return 1
   }
@@ -1192,9 +1204,10 @@ defaultNetwork: localhost
 networks:
   localhost:
     nodes:
-      - { ipv4Addr: 127.0.0.1, account: 0.0.3, nodeId: 0 }
-    defaultPayer: ${YAHCLI_OPERATOR_ACCOUNT_NUM}
+      - { ipv4Addr: 127.0.0.1, account: 3, id: 0 }
+    defaultPayer: "${YAHCLI_OPERATOR_ACCOUNT_NUM}"
 EOF
+
 }
 
 # Run yahcli against the local port-forward, using a generated config dir
@@ -1204,7 +1217,8 @@ yahcli_run() {
   local yahcli_dir="${WORK_DIR}/yahcli-config"
   [[ -n "${UPGRADE_ZIP_PATH}" && ! -f "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip" ]] && \
     cp "${UPGRADE_ZIP_PATH}" "${yahcli_dir}/localhost/sysfiles/softwareUpgrade.zip"
-  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p "${YAHCLI_OPERATOR_ACCOUNT_NUM}" "$@")
+  local payer="${YAHCLI_PAYER:-${YAHCLI_OPERATOR_ACCOUNT_NUM}}"
+  (cd "${yahcli_dir}" && java -jar "${YAHCLI_JAR}" -n localhost -p "${payer}" "$@")
 }
 
 start_yahcli_port_forward() {
