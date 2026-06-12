@@ -153,7 +153,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * Create a new long list with the specified chunk size, capacity, and reserved
      * buffer size.
      *
-     * <p>This method is used for testing purposes.
+     * <p>This constructor is used for testing purposes.
      *
      * @param longsPerChunk Number of longs to store in each chunk of memory allocated
      * @param capacity Maximum number of longs permissible for this long list

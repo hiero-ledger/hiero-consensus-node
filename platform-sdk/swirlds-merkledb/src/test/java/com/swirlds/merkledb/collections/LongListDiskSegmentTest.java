@@ -169,4 +169,25 @@ class LongListDiskSegmentTest extends AbstractLongListTest<LongListDiskSegment> 
             list3.delete();
         }
     }
+
+    @Test
+    void putBeforeTakeoverThrows() {
+        final int capacity = 1_000;
+        final LongListDiskSegment list1 = new LongListDiskSegment(100, capacity, 0, fileSystemManager);
+        try (list1) {
+            list1.updateValidRange(0, capacity - 1);
+        }
+        final Path backingFile = list1.getBackingFile();
+        final LongListDiskSegment list2 = new LongListDiskSegment(backingFile, 100, capacity, 0);
+        try (list2) {
+            // With assertions enabled, put() throws an assertion error
+            Assertions.assertThrows(AssertionError.class, () -> list2.put(0, 999));
+            // Check that updateValidRange() throws
+            Assertions.assertThrows(IllegalStateException.class, () -> list2.updateValidRange(0, capacity - 1));
+            list2.takeover();
+            Assertions.assertDoesNotThrow(() -> list2.put(0, 999));
+        } finally {
+            list2.delete();
+        }
+    }
 }

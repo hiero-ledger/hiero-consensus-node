@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
+import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static java.lang.Math.toIntExact;
 
 import com.swirlds.config.api.Configuration;
@@ -21,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 
 ///
@@ -64,6 +67,8 @@ import org.hiero.base.file.FileSystemManager;
 ///
 public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegment.SegmentChunk>
         implements OffHeapUser {
+
+    private static final Logger logger = LogManager.getLogger(LongListDiskSegment.class);
 
     private static final String DEFAULT_FILE_NAME = "LongListDiskSegment.ll";
 
@@ -228,6 +233,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
                 throw new IOException("Failed to lock the backing index file: " + backingFile.getFileName());
             }
             header = map(0, HEADER_SIZE);
+            logger.info(MERKLE_DB.getMarker(), "LongListDiskSegment created, new file: " + backingFile.getFileName());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -242,15 +248,30 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
             }
             fileChannel = FileChannel.open(backingFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
             // File lock and header will be initialized in takeover()
+            logger.info(
+                    MERKLE_DB.getMarker(), "LongListDiskSegment created, existing file: " + backingFile.getFileName());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    ///
+    /// This method is called, when the index is created for an existing backing file, and
+    /// the file is released by another process (by closing the corresponding long list index).
+    /// All reads from the current index before this method is called return non-existing
+    /// values, and all writes throw exceptions.
+    ///
+    /// If the long list is created from a snapshot file or with no file at all, calling this
+    /// method is not required.
+    ///
     public void takeover() {
         try {
             if (fileLock != null) {
-                // Double takeover? Should throw an exception?
+                // Either double takeover, or this method is called on a long list, which was
+                // created from a new/snapshot file
+                logger.warn(
+                        MERKLE_DB.getMarker(),
+                        "LongListDiskSegment takeover: the file is already owned: " + backingFile.getFileName());
                 return;
             }
             // Acquire the lock
@@ -380,14 +401,14 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Closes the chunk's arena, deterministically freeing native memory. Unlike NIO
-     * direct buffers (which depend on GC to trigger their cleaner), {@link Arena#close()}
-     * releases the backing memory immediately. After this call, any access to the chunk's
-     * segment will throw {@link IllegalStateException}.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// <p>Closes the chunk's arena, deterministically freeing native memory. Unlike NIO
+    /// direct buffers (which depend on GC to trigger their cleaner), {@link Arena#close()}
+    /// releases the backing memory immediately. After this call, any access to the chunk's
+    /// segment will throw {@link IllegalStateException}.
+    ///
     @Override
     protected void closeChunk(@NonNull final SegmentChunk chunk) {
         chunk.arena().close();
@@ -396,6 +417,15 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // =========================================================================
     // Data access
     // =========================================================================
+
+    ///
+    /// {@inheritDoc}
+    ///
+    @Override
+    public void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
+        checkBackingFileOwned();
+        super.updateValidRange(newMinValidIndex, newMaxValidIndex);
+    }
 
     /**
      * {@inheritDoc}
@@ -437,6 +467,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
      */
     @Override
     protected void putToChunk(final SegmentChunk chunk, final int subIndex, final long value) {
+        checkBackingFileOwned();
         LONG_HANDLE.setVolatile(chunk.segment(), (long) subIndex * Long.BYTES, value);
     }
 
@@ -454,6 +485,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     @Override
     protected boolean putIfEqual(
             @NonNull final SegmentChunk chunk, final int subIndex, final long oldValue, final long newValue) {
+        checkBackingFileOwned();
         return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
     }
 
@@ -494,6 +526,14 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // =========================================================================
     // File I/O
     // =========================================================================
+
+    private void checkBackingFileOwned() {
+        // Null check is cheap wrt performance
+        if (fileLock == null) {
+            throw new IllegalStateException(
+                    "LongListDiskSegment doesn't own the backing file:  " + backingFile.getFileName());
+        }
+    }
 
     /**
      * {@inheritDoc}
