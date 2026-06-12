@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -170,6 +171,48 @@ class GrpcBlockItemWriterTest {
         // recoverable as a Block (the recovery path parses it as Block) and round-trips to the original item.
         final byte[] contents;
         try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".pnd.gz")))) {
+            contents = in.readAllBytes();
+        }
+        final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));
+        assertThat(parsedBlock.items()).hasSize(1);
+        assertThat(parsedBlock.items().getFirst().blockHeader().number()).isEqualTo(blockNumber);
+    }
+
+    @Test
+    void testFlushIncompleteBlockWritesIssArtifactWithoutClosingBuffer() throws Exception {
+        final var blockNumber = 7L;
+        final var blockState = new BlockState(blockNumber);
+        blockState.addItem(BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().number(blockNumber).build())
+                .build());
+        when(configProvider.getConfiguration()).thenReturn(configuration);
+        when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+        when(selfNodeAccountIdManager.getSelfNodeAccountId())
+                .thenReturn(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3)
+                        .build());
+        when(blockBufferService.getBlockState(blockNumber)).thenReturn(blockState);
+
+        final GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        grpcBlockItemWriter.openBlock(blockNumber);
+        grpcBlockItemWriter.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var nodeDir = tempDir.resolve("block-0.0.3");
+        // The open block's items are persisted as a .iss.gz triage artifact, with no pending-proof sidecar...
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".iss.gz"))).isTrue();
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.gz"))).isFalse();
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isFalse();
+        // ...and the buffer block is deliberately NOT closed (which would make it eligible for buffer persistence)
+        verify(blockBufferService, never()).closeBlock(blockNumber);
+
+        // The .iss.gz parses back as a Block for analysis (BlockBytes is wire-identical to Block)
+        final byte[] contents;
+        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".iss.gz")))) {
             contents = in.readAllBytes();
         }
         final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));

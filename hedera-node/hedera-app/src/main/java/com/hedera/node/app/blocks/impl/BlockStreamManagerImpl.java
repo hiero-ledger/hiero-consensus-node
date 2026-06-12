@@ -215,10 +215,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
     /**
-     * If not null, a future to complete when the block manager's fatal shutdown process is done.
+     * Set on any thread when the platform reaches CATASTROPHIC_FAILURE; read on the handler thread to stop the
+     * block stream and trigger the one-shot triage flush at the next round boundary.
      */
-    @Nullable
-    private volatile CompletableFuture<Void> fatalShutdownFuture = null;
+    private volatile boolean fatalShutdownRequested = false;
+    /**
+     * Completed once the triage flush has run (by the handler thread, or by the status-thread fallback in
+     * {@link #awaitFatalShutdown}). Pre-allocated and never reassigned; {@code isDone()} (checked under
+     * {@link #fatalShutdownLock}) is the one-shot done-guard.
+     */
+    private final CompletableFuture<Void> fatalShutdownFuture = new CompletableFuture<>();
+    /**
+     * Guards the one-shot triage flush so its body runs at most once and completes {@link #fatalShutdownFuture}
+     * exactly once across the handler thread and the status-thread fallback.
+     */
+    private final Object fatalShutdownLock = new Object();
 
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
@@ -429,8 +440,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
-        if (fatalShutdownFuture != null) {
-            log.fatal("Ignoring round {} after fatal shutdown request", round.getRoundNum());
+        // After catastrophic failure the block stream is stopped; capture any open/pending blocks for triage (once)
+        // and do not open a new block.
+        if (fatalShutdownRequested) {
+            flushOpenAndPendingBlocksForTriage();
             return;
         }
 
@@ -637,6 +650,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
+        // After catastrophic failure the block stream is stopped; dump the in-progress block + any pending blocks for
+        // triage (once) instead of running the normal close. This captures the open block as-is on the handler thread
+        // and issues no new signing request during shutdown.
+        if (fatalShutdownRequested) {
+            flushOpenAndPendingBlocksForTriage();
+            return false;
+        }
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled
@@ -850,29 +870,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndexInBlock.clear();
             eventIndex = 0;
         }
-        if (fatalShutdownFuture != null) {
-            // Flush all pending blocks to local disk for triage (e.g. ISS diagnosis)
-            // before abandoning their incomplete proofs
-            pendingBlocks.forEach(block -> {
-                log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
-                try {
-                    block.writer().flushPendingBlock(block.asPendingProof());
-                } catch (final Exception e) {
-                    log.fatal("Failed to flush pending block #{}", block.number(), e);
-                }
-            });
-            if (writer != null) {
-                log.fatal("Prematurely closing block {}", blockNumber);
-                writer.closeCompleteBlock();
-                writer = null;
-            }
-            requireNonNull(fatalShutdownFuture).complete(null);
-        }
         return closesBlock;
     }
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
+        // After catastrophic failure the stream is stopped and the worker has been released; drop further items
+        // rather than mutate the flushed snapshot or NPE on the null worker.
+        if (fatalShutdownRequested) {
+            return;
+        }
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
@@ -884,11 +891,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void writeItem(@NonNull final Function<Timestamp, BlockItem> itemSpec) {
         requireNonNull(itemSpec);
+        if (fatalShutdownRequested) {
+            return;
+        }
         writeItem(itemSpec.apply(lastUsedTime));
     }
 
     @Override
     public @Nullable Bytes prngSeed() {
+        // After catastrophic failure the worker has been released and the stream is stopped; there is no seed to give.
+        if (fatalShutdownRequested) {
+            return null;
+        }
         // Incorporate all pending results before returning the seed to guarantee
         // no two consecutive transactions ever get the same seed
         worker.sync();
@@ -1033,9 +1047,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {
-        if (fatalShutdownFuture != null) {
-            return true;
-        }
         // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
@@ -1299,18 +1310,116 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void notifyFatalEvent() {
-        fatalShutdownFuture = new CompletableFuture<>();
+        if (!fatalShutdownRequested) {
+            log.fatal("Catastrophic failure signalled; stopping block stream and scheduling a triage flush of "
+                    + "open/pending blocks at the next round boundary");
+        }
+        fatalShutdownRequested = true;
     }
 
     @Override
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
-        log.fatal("Awaiting any in-progress round to be closed within {}", timeout);
-        Optional.ofNullable(fatalShutdownFuture)
-                .orElse(CompletableFuture.completedFuture(null))
-                .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
-                .join();
+        // The flush of the in-progress block runs on the handler thread (from startRound/endRound) so it cannot race
+        // round processing. Here, on the status thread, we only WAIT for that flush, bounded by the timeout — using
+        // get(...) rather than completeOnTimeout(...) so we never complete the future ourselves. Completing it here
+        // would trip the one-shot done-guard and make a later handler round boundary skip the flush, leaving the
+        // in-progress block unwritten. If the handler never reaches a boundary within the timeout, we flush any
+        // already-closed pending blocks ourselves (race-free; never touching the handler-owned in-progress writer).
+        log.fatal("Awaiting handler-thread flush of open/pending blocks for triage within {}", timeout);
+        try {
+            fatalShutdownFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.fatal("Interrupted while awaiting triage flush", e);
+        } catch (final Exception e) {
+            // TimeoutException (handler idle) or ExecutionException: fall through to the pending-only fallback below
+            log.fatal(
+                    "Did not observe handler-thread triage flush within {}; flushing pending blocks directly", timeout);
+        }
+        flushPendingBlocksOnlyForTriage();
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    /**
+     * One-shot, idempotent flush of the in-progress block plus all pending blocks to local disk for triage (e.g. ISS
+     * diagnosis). Runs on the HANDLER thread (from {@link #startRound}/{@link #endRound}), so it cannot race round
+     * processing. Pending blocks (already closed and awaiting a proof) are flushed as recoverable pending blocks; the
+     * in-progress block, which has no proof yet, is closed best-effort so its contents are preserved on disk. Every
+     * step is guarded so a single failure cannot prevent the rest of the contents from reaching disk.
+     * <p>
+     * The inner {@code synchronized(this)} excludes {@link #finishProofWithSignature} from the shared writers; the
+     * {@code fatalShutdownLock} done-guard ensures the body runs at most once and completes {@link #fatalShutdownFuture}
+     * exactly once across the handler thread and the status-thread fallback.
+     */
+    private void flushOpenAndPendingBlocksForTriage() {
+        synchronized (fatalShutdownLock) {
+            if (fatalShutdownFuture.isDone()) {
+                return;
+            }
+            try {
+                // Quiesce in-flight writes to the in-progress writer. Done OUTSIDE synchronized(this) on purpose: it
+                // joins block-item write tasks on the (common) ForkJoinPool, and the signing callbacks that complete
+                // proofs also run on that pool while synchronized(this). Holding the monitor across this join could
+                // otherwise starve it if the pool were saturated with those callbacks.
+                if (worker != null) {
+                    try {
+                        worker.sync();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to sync in-flight block items before triage flush", e);
+                    }
+                }
+                // Only the pending-block drain shares writers with finishProofWithSignature, so only it needs the lock.
+                synchronized (this) {
+                    drainAndFlushPendingBlocks();
+                }
+                // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
+                // so it can be flushed without the monitor. flushIncompleteBlock persists the open, unproven block as
+                // a ".iss.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
+                if (writer != null) {
+                    log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
+                    try {
+                        writer.flushIncompleteBlock();
+                    } catch (final Exception e) {
+                        log.fatal("Failed to flush in-progress block {}", blockNumber, e);
+                    }
+                    writer = null;
+                }
+                worker = null;
+            } finally {
+                fatalShutdownFuture.complete(null);
+            }
+        }
+    }
+
+    /**
+     * Status-thread fallback used by {@link #awaitFatalShutdown} when the handler thread does not reach a round
+     * boundary within the timeout. Flushes ONLY already-closed pending blocks (their writers are quiescent once
+     * enqueued); it never touches the handler-owned in-progress {@code writer}/{@code worker}, so it is race-free
+     * from the status thread. No-op if the handler flush already drained the queue.
+     */
+    private void flushPendingBlocksOnlyForTriage() {
+        synchronized (this) {
+            drainAndFlushPendingBlocks();
+        }
+    }
+
+    /**
+     * Drains {@code pendingBlocks}, flushing each to disk as a recoverable pending block and keeping the pending-proof
+     * bookkeeping consistent (so a freeze waiting on {@link #pendingBlockProofsFuture()} does not hang). Callers must
+     * hold {@code synchronized(this)} to exclude {@link #finishProofWithSignature}.
+     */
+    private void drainAndFlushPendingBlocks() {
+        PendingBlock block;
+        while ((block = pendingBlocks.poll()) != null) {
+            log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
+            try {
+                block.writer().flushPendingBlock(block.asPendingProof());
+            } catch (final Exception e) {
+                log.fatal("Failed to flush pending block #{}", block.number(), e);
+            }
+            markPendingBlockProofComplete(block);
+        }
     }
 
     @Override

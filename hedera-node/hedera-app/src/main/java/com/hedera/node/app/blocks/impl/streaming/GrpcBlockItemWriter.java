@@ -32,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private static final String COMPLETE_PENDING_EXTENSION = ".pnd.gz";
+    private static final String INCOMPLETE_EXTENSION = ".iss.gz";
     private final BlockBufferService blockBufferService;
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -153,5 +154,45 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     private Path pendingContentsPath(@NonNull final Path blockDir, final long blockNumber) {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         return blockDir.resolve(baseName + COMPLETE_PENDING_EXTENSION);
+    }
+
+    @Override
+    public void flushIncompleteBlock() {
+        // Persist the open, unproven block's buffered items as a ".iss.gz" triage artifact (gzipped BlockBytes,
+        // wire-identical to a Block so it parses back for analysis). We write NO ".pnd.json" proof sidecar, so it is
+        // never picked up by pending-block recovery nor mistaken for a finished block. We also deliberately do NOT
+        // close the block in the buffer service: a closed block would become eligible for the buffer's own
+        // persistence/recovery path, which would re-introduce the same hazard. Best-effort: never throws.
+        try {
+            final var blockState = blockBufferService.getBlockState(blockNumber);
+            if (blockState == null) {
+                logger.warn("Cannot flush incomplete block #{} because no block state is available", blockNumber);
+                return;
+            }
+            final var items = new ArrayList<Bytes>(blockState.itemCount());
+            for (int i = 0; i < blockState.itemCount(); i++) {
+                final var item = blockState.bufferedItem(i);
+                if (item != null) {
+                    items.add(item.serializedItem());
+                }
+            }
+            if (items.isEmpty()) {
+                logger.warn("Cannot flush incomplete block #{} because no block items are available", blockNumber);
+                return;
+            }
+            Files.createDirectories(nodeScopedBlockDir);
+            final var contentsPath = incompleteContentsPath(nodeScopedBlockDir, blockNumber);
+            try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
+                out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
+            }
+            logger.info("Flushed incomplete block #{} for triage to {}", blockNumber, contentsPath);
+        } catch (final Exception e) {
+            logger.error("Error flushing incomplete block #{}", blockNumber, e);
+        }
+    }
+
+    private Path incompleteContentsPath(@NonNull final Path blockDir, final long blockNumber) {
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        return blockDir.resolve(baseName + INCOMPLETE_EXTENSION);
     }
 }

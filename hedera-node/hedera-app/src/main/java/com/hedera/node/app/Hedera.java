@@ -723,7 +723,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     app.blockNodeConnectionManager().shutdown();
                 }
 
-                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
+                // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
+                // them for triage), then wait (bounded) for that flush to complete before the node stops.
+                blockStreamManager().notifyFatalEvent();
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
