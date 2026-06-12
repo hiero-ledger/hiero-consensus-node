@@ -9,8 +9,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
@@ -93,8 +91,6 @@ public class ReconnectCoordinator {
         components.stateHasherWiring().flush();
         components.stateSignatureCollectorWiring().flush();
         components.transactionHandlerWiring().flush();
-        components.branchDetectorWiring().flush();
-        components.branchReporterWiring().flush();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
@@ -111,8 +107,6 @@ public class ReconnectCoordinator {
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
         components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
-        components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
-        components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
 
     /**

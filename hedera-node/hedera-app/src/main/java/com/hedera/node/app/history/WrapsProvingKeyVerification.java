@@ -217,7 +217,9 @@ public class WrapsProvingKeyVerification {
     /**
      * Validates that the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable (which the native
      * WRAPS library reads to locate unpacked artifacts) is consistent with the extraction directory
-     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file).
+     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file). Relative paths are resolved
+     * against the working directory before comparison, so the default relative
+     * {@code tss.wrapsProvingKeyPath} is compatible with an absolute env var value.
      *
      * @param provingKeyPath the configured path to the packed proving key archive
      * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
@@ -239,8 +241,8 @@ public class WrapsProvingKeyVerification {
                     WRAPS_ARTIFACTS_ENV_VAR);
             return;
         }
-        final var envPath = Paths.get(envArtifactsPath).normalize();
-        final var normalizedTarget = extractionTarget.normalize();
+        final var envPath = Paths.get(envArtifactsPath).toAbsolutePath().normalize();
+        final var normalizedTarget = extractionTarget.toAbsolutePath().normalize();
         if (!envPath.startsWith(normalizedTarget)) {
             throw new IllegalStateException(WRAPS_ARTIFACTS_ENV_VAR + " (" + envArtifactsPath
                     + ") is not under the extraction directory (" + normalizedTarget
