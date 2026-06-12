@@ -89,12 +89,12 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-  workflow-file-tests:
+  workflow-unit-tests:
     name: Workflow File Tests
     needs:
       - detect-change-type
     if: ${{ needs.detect-change-type.outputs.workflow-files-changed == 'true' }}
-    uses: ./.github/workflows/zxc-test-gomplate-templates.yaml
+    uses: ./.github/workflows/855-call-workflow-unit-tests.yaml
 
   ci-complete:
     name: CI Complete
@@ -102,7 +102,7 @@ jobs:
     needs:
       - detect-change-type
       - mats-pr-checks
-      - workflow-file-tests
+      - workflow-unit-tests
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
@@ -115,7 +115,7 @@ jobs:
           echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
           echo "MATS result: ${{ needs.mats-pr-checks.result }}"
 
-          if [[ "${{ needs.workflow-file-tests.result }}" == "failure" ]]; then
+          if [[ "${{ needs.workflow-unit-tests.result }}" == "failure" ]]; then
             echo "Workflow file tests failed."
             exit 1
           fi
@@ -134,7 +134,7 @@ jobs:
     needs:
       - detect-change-type
       - mats-pr-checks
-      - workflow-file-tests
+      - workflow-unit-tests
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -163,7 +163,7 @@ jobs:
             echo "------------------------------------"
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
-            echo "- **Workflow File Tests:** ${{ needs.workflow-file-tests.result }}"
+            echo "- **Workflow File Tests:** ${{ needs.workflow-unit-tests.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
                 echo "### MATS Test Failures"
