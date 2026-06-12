@@ -146,7 +146,7 @@ jobs:
 
       - name: Import GPG key for commit signoff
         id: gpg_import
-        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
