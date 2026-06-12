@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.utils;
+package org.hiero.base.crypto.test.fixtures;
 
 import java.util.ArrayList;
 import java.util.List;
