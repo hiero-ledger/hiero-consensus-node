@@ -399,12 +399,14 @@ public class BlockStreamingObs {
         output.append("    ").append(blocksAggregation.openToEndSent).append("\n");
         output.append("    ").append(blocksAggregation.openToAck).append("\n");
         output.append("    ").append(blocksAggregation.closedToAck).append("\n");
-        output.append("    ").append(blocksAggregation.headerProducedToAck).append("\n");
+        output.append("    ").append(blocksAggregation.headerSendStartedToAck).append("\n");
         output.append("    ").append(blocksAggregation.headerSentToAck).append("\n");
         output.append("    ").append(blocksAggregation.endSentToAck).append("\n");
         output.append("    ").append(blocksAggregation.headerSentToEndSent).append("\n");
         output.append("    ").append(blocksAggregation.openToProofAdded).append("\n");
         output.append("    ").append(blocksAggregation.openToProofCreated).append("\n");
+        output.append("    ").append(blocksAggregation.footerCreatedToProofCreated).append("\n");
+        output.append("    ").append(blocksAggregation.blockSize).append("\n");
         output.append("    ").append(blocksAggregation.itemsPerBlock).append("\n");
         output.append("  }\n");
 
@@ -445,12 +447,15 @@ public class BlockStreamingObs {
         private final StatisticsProbe openToEndSent = new StatisticsProbe("OpenToEndSent", ObsUnit.NANOS);
         private final StatisticsProbe openToAck = new StatisticsProbe("OpenToAck", ObsUnit.NANOS);
         private final StatisticsProbe closedToAck = new StatisticsProbe("ClosedToAck", ObsUnit.NANOS);
-        private final StatisticsProbe headerProducedToAck = new StatisticsProbe("HeaderProducedToAck", ObsUnit.NANOS);
+        private final StatisticsProbe headerSendStartedToAck =
+                new StatisticsProbe("HeaderSendStartedToAck", ObsUnit.NANOS);
         private final StatisticsProbe headerSentToAck = new StatisticsProbe("HeaderSentToAck", ObsUnit.NANOS);
         private final StatisticsProbe endSentToAck = new StatisticsProbe("EndSentToAck", ObsUnit.NANOS);
         private final StatisticsProbe headerSentToEndSent = new StatisticsProbe("HeaderSentToEndSent", ObsUnit.NANOS);
         private final StatisticsProbe openToProofAdded = new StatisticsProbe("OpenToProofAdded", ObsUnit.NANOS);
         private final StatisticsProbe openToProofCreated = new StatisticsProbe("OpenToProofCreated", ObsUnit.NANOS);
+        private final StatisticsProbe footerCreatedToProofCreated =
+                new StatisticsProbe("FooterCreatedToProofCreated", ObsUnit.NANOS);
 
         private final StatisticsProbe blockSize = new StatisticsProbe("BlockSize", ObsUnit.BYTES);
         private final StatisticsProbe itemsPerBlock = new StatisticsProbe("ItemsPerBlock", ObsUnit.COUNT);
@@ -469,6 +474,7 @@ public class BlockStreamingObs {
             closedToAck.add(blockStats.closedToAck());
             openToProofAdded.add(blockStats.openToProofAdded());
             openToProofCreated.add(blockStats.openToProofCreated());
+            footerCreatedToProofCreated.add(blockStats.footerCreatedToProofCreated());
 
             final StartAndEndTicks endTicks = blockStats.endSentNanosTicks.get();
             final StartAndEndTicks headerTicks = blockStats.headerSentNanosTicks.get();
@@ -477,7 +483,7 @@ public class BlockStreamingObs {
                 endSentToAck.add(blockStats.endSentToAck());
             }
             if (headerTicks != null) {
-                headerProducedToAck.add(blockStats.headerProducedToAck());
+                headerSendStartedToAck.add(blockStats.headerSendStartedToAck());
                 headerSentToAck.add(blockStats.headerSentToAck());
                 if (endTicks != null) {
                     headerSentToEndSent.add(blockStats.headerSentToEndSent());
@@ -498,12 +504,14 @@ public class BlockStreamingObs {
             openToEndSent.aggregate();
             openToAck.aggregate();
             closedToAck.aggregate();
-            headerProducedToAck.aggregate();
+            headerSendStartedToAck.aggregate();
             headerSentToAck.aggregate();
             endSentToAck.aggregate();
             headerSentToEndSent.aggregate();
             openToProofAdded.aggregate();
             openToProofCreated.aggregate();
+            footerCreatedToProofCreated.aggregate();
+            blockSize.aggregate();
             itemsPerBlock.aggregate();
         }
     }
@@ -594,7 +602,7 @@ public class BlockStreamingObs {
             return ackedNanosTick.get() - closedNanosTick.get();
         }
 
-        long headerProducedToAck() {
+        long headerSendStartedToAck() {
             return ackedNanosTick.get() - headerSentNanosTicks.get().start();
         }
 
@@ -616,6 +624,10 @@ public class BlockStreamingObs {
 
         long openToProofCreated() {
             return proofCreatedNanosTick.get() - openedNanosTick.get();
+        }
+
+        long footerCreatedToProofCreated() {
+            return proofCreatedNanosTick.get() - footerNanosTick.get();
         }
     }
 
