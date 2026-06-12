@@ -21,6 +21,7 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.intake.config.EventIntakeConfig;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
 import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
@@ -168,8 +169,10 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
+        final boolean allowUnsigned =
+                configuration.getConfigData(EventIntakeConfig.class).allowUnsignedPcesEvents();
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter, allowUnsigned);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);
