@@ -16,6 +16,6 @@ blockStream.buffer.isBufferPersistenceEnabled=true
 tss.hintsEnabled=true
 tss.historyEnabled=true
 tss.wrapsEnabled=true
-tss.wrapsProvingKeyPath=wraps-v0.2.0
+tss.wraps.artifactsFolderName=data/keys/wraps-v1.0.0
 tss.wrapsProvingKeyDownloadUrl=https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz
 blockStream.enableStateProofs=true
