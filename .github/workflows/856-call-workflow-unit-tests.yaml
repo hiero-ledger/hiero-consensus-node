@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "[CALL] Workflow Unit Tests"
+on:
+  workflow_dispatch:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  test-gomplate-templates:
+    name: Validate Gomplate Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Test Templates
+        run: bash .github/workflows/support/tests/test-gomplate-templates.sh

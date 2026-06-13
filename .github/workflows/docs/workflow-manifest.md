@@ -76,6 +76,7 @@
 | zxc-create-github-release.yaml                         | ZXC: Create Github Release                                        | 853-call-create-github-release.yaml          | 853: [CALL] Create Github Release  |
 | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   | 854-extract-jdk-version.yaml                 | 854: [CALL] Extract JDK Version    |
 | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     | 855-extract-citr-vars.yaml                   | 855: [CALL] Extract CITR Vars      |
+|                                                        |                                                                   | 856-call-workflow-unit-tests.yaml            | 856: [CALL] Workflow Unit Tests    |
 |                                                        |                                                                   |                                              |                                    |
 | # CRON (900-999)                                       |                                                                   |                                              |                                    |
 | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    |
