@@ -56,6 +56,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -207,6 +208,9 @@ class BlockStreamManagerImplTest {
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
 
+    @Mock
+    private BlockStreamingObs streamingObs;
+
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
@@ -283,7 +287,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -308,7 +313,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -1621,7 +1627,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
         subject.init(state, HASH_OF_ZERO);
@@ -1657,7 +1664,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -1708,7 +1716,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -1754,7 +1763,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -1796,7 +1806,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);
