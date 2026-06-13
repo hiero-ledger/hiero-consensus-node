@@ -20,11 +20,19 @@ import org.hiero.consensus.event.stream.test.fixtures.StreamUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.GenerateConsensus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class EventStreamReportingToolTest {
+
+    @BeforeAll
+    static void beforeAll() throws ConstructableRegistryException {
+        ConstructableRegistration.registerAllConstructables();
+    }
 
     private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
             TestPlatformContextBuilder.create().build();

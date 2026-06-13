@@ -154,55 +154,58 @@ public class EventStreamScanner {
      * 		if an I/O error occurs during scanning
      */
     public EventStreamReport createReport() throws IOException {
-
-        if (!eventIterator.hasNext()) {
-            throw new IllegalStateException("No events found in the event stream");
-        }
-
-        final CesEvent firstEvent = eventIterator.peek();
-        granularFirstEvent = firstEvent;
-
-        CesEvent mostRecentEvent = null;
-        CesEvent previousEvent;
-        while (eventIterator.hasNext()) {
-            previousEvent = mostRecentEvent;
-            mostRecentEvent = eventIterator.next();
-
-            final Duration elapsedGranularTime = Duration.between(
-                    granularFirstEvent.getPlatformEvent().getConsensusTimestamp(),
-                    mostRecentEvent.getPlatformEvent().getConsensusTimestamp());
-            if (previousEvent != null && isGreaterThan(elapsedGranularTime, reportPeriod)) {
-                // The previous granular period has ended. Start a new period.
-                reportGranularData(previousEvent);
-                resetGranularData(mostRecentEvent);
+        try {
+            if (!eventIterator.hasNext()) {
+                throw new IllegalStateException("No events found in the event stream");
             }
 
-            collectEventData(mostRecentEvent);
+            final CesEvent firstEvent = eventIterator.peek();
+            granularFirstEvent = firstEvent;
 
-            previousFileCount = fileIterator.getFileCount();
-            previousDamagedFileCount = fileIterator.getDamagedFileCount();
+            CesEvent mostRecentEvent = null;
+            CesEvent previousEvent;
+            while (eventIterator.hasNext()) {
+                previousEvent = mostRecentEvent;
+                mostRecentEvent = eventIterator.next();
 
-            if (!eventIterator.hasNext() && granularEventCount > 0) {
-                reportGranularData(mostRecentEvent);
+                final Duration elapsedGranularTime = Duration.between(
+                        granularFirstEvent.getPlatformEvent().getConsensusTimestamp(),
+                        mostRecentEvent.getPlatformEvent().getConsensusTimestamp());
+                if (previousEvent != null && isGreaterThan(elapsedGranularTime, reportPeriod)) {
+                    // The previous granular period has ended. Start a new period.
+                    reportGranularData(previousEvent);
+                    resetGranularData(mostRecentEvent);
+                }
+
+                collectEventData(mostRecentEvent);
+
+                previousFileCount = fileIterator.getFileCount();
+                previousDamagedFileCount = fileIterator.getDamagedFileCount();
+
+                if (!eventIterator.hasNext() && granularEventCount > 0) {
+                    reportGranularData(mostRecentEvent);
+                }
+
+                writeConsoleSummary(firstEvent, mostRecentEvent);
             }
 
-            writeConsoleSummary(firstEvent, mostRecentEvent);
+            final long rounds = mostRecentEvent.getRoundReceived() - firstEvent.getRoundReceived();
+
+            return new EventStreamReport(
+                    granularInfo,
+                    new EventStreamInfo(
+                            firstEvent.getPlatformEvent().getConsensusTimestamp(),
+                            mostRecentEvent.getPlatformEvent().getConsensusTimestamp(),
+                            rounds,
+                            eventCount,
+                            applicationTransactionCount,
+                            fileIterator.getFileCount(),
+                            fileIterator.getBytesRead(),
+                            firstEvent,
+                            mostRecentEvent,
+                            fileIterator.getDamagedFileCount()));
+        } finally {
+            eventIterator.close();
         }
-
-        final long rounds = mostRecentEvent.getRoundReceived() - firstEvent.getRoundReceived();
-
-        return new EventStreamReport(
-                granularInfo,
-                new EventStreamInfo(
-                        firstEvent.getPlatformEvent().getConsensusTimestamp(),
-                        mostRecentEvent.getPlatformEvent().getConsensusTimestamp(),
-                        rounds,
-                        eventCount,
-                        applicationTransactionCount,
-                        fileIterator.getFileCount(),
-                        fileIterator.getBytesRead(),
-                        firstEvent,
-                        mostRecentEvent,
-                        fileIterator.getDamagedFileCount()));
     }
 }
