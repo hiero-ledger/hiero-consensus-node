@@ -156,8 +156,6 @@ public class SystemContractGasCalculator {
      * @return the computed gas requirement for the operation
      */
     private long gasRequirementFromTinycents(long tinycentsPrice, final long gasPriceInCents) {
-        final var gasRequirement =
-                (tinycentsPrice + gasPriceInCents - 1) * FEE_SCHEDULE_UNITS_PER_TINYCENT / gasPriceInCents;
-        return gasRequirement + (gasRequirement / 5);
+         return (tinycentsPrice + gasPriceInCents - 1) * FEE_SCHEDULE_UNITS_PER_TINYCENT / gasPriceInCents;
     }
 }
