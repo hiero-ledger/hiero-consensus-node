@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
@@ -195,6 +196,26 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void validatesTokenHasFeeScheduleKey() {
         final var tokenWithoutFeeScheduleKey =
                 fungibleToken.copyBuilder().feeScheduleKey((Key) null).build();
+        writableTokenState = MapWritableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
+                .value(fungibleTokenId, tokenWithoutFeeScheduleKey)
+                .build();
+        given(writableStates.<TokenID, Token>get(TOKENS_STATE_ID)).willReturn(writableTokenState);
+        writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
+        given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
+
+        assertThatThrownBy(() -> subject.handle(context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TOKEN_HAS_NO_FEE_SCHEDULE_KEY));
+    }
+
+    @Test
+    @DisplayName("fee schedule update fails if token has an empty key list fee schedule key")
+    void tokenHasEmptyKeyListFeeScheduleKey() {
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        final var tokenWithoutFeeScheduleKey = fungibleToken
+                .copyBuilder()
+                .feeScheduleKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
         writableTokenState = MapWritableKVState.<TokenID, Token>builder(TOKENS_STATE_ID, TOKENS_STATE_LABEL)
                 .value(fungibleTokenId, tokenWithoutFeeScheduleKey)
                 .build();

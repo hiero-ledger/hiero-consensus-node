@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -144,6 +146,18 @@ class TokenPauseHandlerTest extends TokenHandlerTestBase {
 
         final var unpausedToken = writableTokenStore.get(tokenId);
         assertTrue(unpausedToken.paused());
+    }
+
+    @Test
+    void tokenHasEmptyKeyListPauseKey() {
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        final var sentinelToken = token.copyBuilder()
+                .pauseKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(sentinelToken);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(TOKEN_HAS_NO_PAUSE_KEY, msg.getStatus());
     }
 
     @Test
