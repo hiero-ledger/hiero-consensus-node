@@ -4,9 +4,6 @@ package org.hiero.consensus.pcli;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 
-import com.swirlds.platform.event.report.EventStreamMultiNodeReport;
-import com.swirlds.platform.event.report.EventStreamReport;
-import com.swirlds.platform.event.report.EventStreamScanner;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
@@ -25,6 +22,9 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.pcli.report.EventStreamMultiNodeReport;
+import org.hiero.consensus.pcli.report.EventStreamReport;
+import org.hiero.consensus.pcli.report.EventStreamScanner;
 import picocli.CommandLine;
 
 @CommandLine.Command(

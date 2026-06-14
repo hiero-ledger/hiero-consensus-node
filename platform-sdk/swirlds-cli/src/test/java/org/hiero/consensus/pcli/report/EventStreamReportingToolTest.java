@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.report;
+package org.hiero.consensus.pcli.report;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.report.EventStreamReport;
-import com.swirlds.platform.event.report.EventStreamScanner;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamTimestampLowerBound;
 import com.swirlds.platform.test.fixtures.simulated.RandomSigner;
