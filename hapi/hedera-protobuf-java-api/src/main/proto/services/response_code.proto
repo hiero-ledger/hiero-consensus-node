@@ -162,7 +162,7 @@ enum ResponseCodeEnum {
     /**
      * There was a system error and the transaction failed because of invalid request parameters.
      */
-    FAIL_INVALId = 23;
+    FAIL_INVALID = 23;
 
     /**
      * There was a system error while performing fee calculation, reserved for future.
@@ -571,7 +571,7 @@ enum ResponseCodeEnum {
     /**
      * Fee Schedule Proto uploaded but not valid (append or update is required)
      */
-    FILE_UPLOADED_PROTO_INVALId = 102;
+    FILE_UPLOADED_PROTO_INVALID = 102;
 
     /**
      * Fee Schedule Proto uploaded but not valid (append or update is required)
@@ -598,7 +598,7 @@ enum ResponseCodeEnum {
      */
     TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT = 107;
 
-    TOTAL_LEDGER_BALANCE_INVALId = 108;
+    TOTAL_LEDGER_BALANCE_INVALID = 108;
     /**
      * The expiration date/time on a smart contract may not be reduced
      */
@@ -738,7 +738,7 @@ enum ResponseCodeEnum {
     /**
      * At least one of the signatures in the provided sig map did not represent a valid signature for any required signer
      */
-    SOME_SIGNATURES_WERE_INVALId = 208;
+    SOME_SIGNATURES_WERE_INVALID = 208;
 
     /**
      * The scheduled field in the TransactionID may not be set to true
