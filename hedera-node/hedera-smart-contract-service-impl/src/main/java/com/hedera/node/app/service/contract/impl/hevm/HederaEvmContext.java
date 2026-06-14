@@ -38,7 +38,7 @@ public record HederaEvmContext(
     }
 
     public boolean isNoopGasContext() {
-        return staticCall || gasPrice == 0;
+        return staticCall;
     }
 
     public boolean isTransaction() {
