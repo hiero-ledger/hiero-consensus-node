@@ -24,6 +24,30 @@ option java_package = "com.hiero.proto.blocks";
 option java_multiple_files = true;
 
 /**
+ * A block whose items are carried as already-serialized bytes.
+ *
+ * This mirrors `com.hedera.hapi.block.stream.Block` field-for-field on the wire (its single
+ * `repeated BlockItem items = 1` field): each element here is the full serialized form of one
+ * `com.hedera.hapi.block.stream.BlockItem`. Because a protobuf `bytes` field and an embedded
+ * `message` field share the same wire encoding, a `BlockBytes` whose `items` are full serialized
+ * `BlockItem`s serializes byte-for-byte identically to the equivalent `Block`.
+ *
+ * Storing the buffer's already-serialized items this way lets the in-memory block buffer be
+ * persisted to (and restored from) disk without deserializing each item back into a `BlockItem`
+ * only to re-serialize it. The on-disk representation is unchanged (byte-identical to the prior
+ * `Block`-based format), so it remains backward compatible with previously persisted buffers.
+ */
+message BlockBytes {
+  /**
+   * The serialized block items that, together, make up this block.
+   * <p>
+   * Each element MUST be the full serialized bytes of exactly one
+   * `com.hedera.hapi.block.stream.BlockItem`.
+   */
+  repeated bytes items = 1;
+}
+
+/**
  * Represents a block that is/was part of the in-memory block buffer. This record
  * contains all of the necessary data to re-load the block back into the buffer and
  * replicate the full state pre-export. For example, details such as when the block
@@ -55,7 +79,7 @@ message BufferedBlock {
   /**
    * The block data.
    */
-  //proto.block.stream.Block block = 5;
+  BlockBytes block = 5;
 
   /**
    * The timestamp this block's header was added to the Block.
