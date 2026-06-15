@@ -74,11 +74,11 @@ Environment:
                             Must point at a published Solo tag (Solo resolves it before applying
                             --local-build-path), but the binary always comes from the local build.
                             Solo accepts reusing the same label across local-build upgrades.
-                            (default: v0.75.0-rc.5)
+                            (default: v0.75.0-rc.6)
   UPGRADE_076_VERSION        Solo upgrade-version label for the local-build 0.76 step
-                            (default: v0.75.0-rc.5)
+                            (default: v0.75.0-rc.6)
   UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step
-                            (default: v0.75.0-rc.5)
+                            (default: v0.75.0-rc.6)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
   SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 local-build upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
@@ -154,9 +154,9 @@ APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.e
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
-UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.5}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.5}"
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.5}"
+UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.6}"
+UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.6}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"

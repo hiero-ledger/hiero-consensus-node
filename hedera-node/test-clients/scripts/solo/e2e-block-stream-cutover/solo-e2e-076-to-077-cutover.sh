@@ -55,15 +55,15 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
-# v0.75.0-rc.5 matches the baseline the full cutover script (step 6) deploys.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.5}"
+# v0.75.0-rc.6 matches the baseline the full cutover script (step 6) deploys.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.6}"
 
 # Both upgrades use the local build. The --upgrade-version label must point at a
 # published Solo tag (Solo resolves it before applying --local-build-path), but
 # the actual binary always comes from LOCAL_BUILD_PATH. Solo accepts re-using
 # the same label across upgrades when --local-build-path is supplied, so we
-# reuse v0.75.0-rc.5 for both the 0.76 and 0.77 upgrades.
-UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.5}"
+# reuse v0.75.0-rc.6 for both the 0.76 and 0.77 upgrades.
+UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.6}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
