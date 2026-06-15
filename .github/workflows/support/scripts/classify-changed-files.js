@@ -42,8 +42,8 @@ module.exports = async ({ github, context, core }) => {
   const isDocFile = (filename) =>
       docPatterns.some(pattern => pattern.test(filename));
 
-  // Any file under .github/ is considered a workflow file
-  const isWorkflowFile = (filename) => /^\.github\//.test(filename);
+  // Any file under .github/workflows is considered a workflow file
+  const isWorkflowFile = (filename) => /^\.github\/workflows\//.test(filename);
 
   const nonDocFiles = files.filter(f => !isDocFile(f.filename));
 
