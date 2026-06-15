@@ -952,6 +952,7 @@ install_platform_via_nmt() {
       JAVA_HEAP_MAX: "${JAVA_HEAP_MAX}"
       JAVA_HEAP_MIN: "${JAVA_HEAP_MIN}"
     mem_limit: ${NETWORK_NODE_MEM_LIMIT}
+    memswap_limit: ${NETWORK_NODE_MEM_LIMIT}
 EOF
   if ! kexec "${pod}" grep -q 'JAVA_MAIN_CLASS:' \
         "${NMT_DIR}/compose/network-node/docker-compose.jrs.yml" 2>/dev/null; then
