@@ -13,10 +13,10 @@ related:
   tests: [ ]
 status: verified
 provenance: caught by a JRS address-book/roster-change integration test that halted on this stall; JRS test framework subsequently retired
-curated_by: Kelly Greco
+curated_by: Kelly Greco (@poulok)
 ---
 
-# SCN-001 — Same-round judge in ancestry of another same-round judge stalls consensus after roster change
+# SCN-001 — A round's judge exempted from clearing has another same-round judge in its ancestry — consensus stalls after roster change
 
 ## Summary
 

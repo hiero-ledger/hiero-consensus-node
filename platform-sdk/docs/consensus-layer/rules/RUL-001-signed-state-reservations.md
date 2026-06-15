@@ -25,7 +25,7 @@ provenance: extracted from architecture/topics/signed-state-management.md, 2026-
 curated_by: Kelly Greco (@poulok)
 ---
 
-# RUL-001 — A SignedState must remain reserved while any consumer may still require access it
+# RUL-001 — A SignedState must remain reserved while any consumer can still access it
 
 ## Statement
 
