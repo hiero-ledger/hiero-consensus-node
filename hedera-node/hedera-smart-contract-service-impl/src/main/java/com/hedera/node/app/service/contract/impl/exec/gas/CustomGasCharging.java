@@ -71,7 +71,7 @@ public class CustomGasCharging {
         if (!context.shouldChargeGasFees()) {
             return;
         }
-        if (context.isNoopGasContext() || unusedGas == 0) {
+        if (context.isStaticCall() || unusedGas == 0) {
             return;
         }
         final var refund = unusedGas * context.gasPrice();
@@ -118,7 +118,7 @@ public class CustomGasCharging {
         // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas =
                 gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
-        if (context.isNoopGasContext()) {
+        if (context.isStaticCall()) {
             return new GasCharges(intrinsicGas, 0L);
         }
         validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);

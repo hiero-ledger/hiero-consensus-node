@@ -37,7 +37,7 @@ public record HederaEvmContext(
         return blocks.blockValuesOf(gasLimit);
     }
 
-    public boolean isNoopGasContext() {
+    public boolean isStaticCall() {
         return staticCall;
     }
 

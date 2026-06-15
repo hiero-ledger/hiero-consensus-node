@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
@@ -85,6 +86,18 @@ class CustomGasChargingTest {
                 wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         verifyNoInteractions(worldUpdater);
+    }
+
+    @Test
+    void zeroPriceGasDoesChargeAndReturnIntrinsicGas() {
+        final var context =
+                new HederaEvmContext(0L, false, true, blocks, tinybarValues, systemContractGasCalculator, null, null);
+        givenWellKnownIntrinsicGasCost();
+        final var transaction = wellKnownHapiCall();
+        given(sender.getBalance()).willReturn(Wei.of(transaction.upfrontCostGiven(0)));
+        final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
+        assertEquals(0, chargingResult.relayerAllowanceUsed());
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
     }
 
     @Test
