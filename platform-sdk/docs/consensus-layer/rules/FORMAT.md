@@ -16,6 +16,7 @@ here.
 
 ```yaml
 ---
+type: rule
 id: RUL-NNN
 title: Short declarative title — the property in a phrase
 class: structural                     # structural | protocol | state-machine | config | operational | determinism
@@ -112,6 +113,7 @@ related RUL entries, retirement history. Omit the section if empty.
 
 ```markdown
 ---
+type: rule
 id: RUL-NNN
 title: ...
 class: structural

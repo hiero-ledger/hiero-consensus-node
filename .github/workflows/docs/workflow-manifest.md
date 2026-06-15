@@ -7,8 +7,7 @@
 | flow-increment-next-main-release.yaml                  | [Release] Increment Version File                                  | 003-user-increment-next-main-release.yaml    | 003: [USER] Increment Main Rel     |
 | node-flow-deploy-preview.yaml                          | Node: Deploy Preview                                              | 004-user-deploy-preview.yaml                 | 004: [USER] Deploy Preview         |
 | flow-artifact-determinism.yaml                         | Artifact Determinism                                              | 005-user-artifact-determinism.yaml           | 005: [USER] Artifact Determinism   |
-| 100-flow-update-solo-version-vars.yaml                 | 100: [FLOW] Update Solo Version Variables                         | 006-user-update-solo-version-vars.yaml       | 006: [USER] Update Solo Vers Vars  |
-| zxf-update-gs-state-variable.yaml                      | ZXF: Update GS_STATE Variable                                     | 007-user-update-gs-state-variable.yaml       | 007: [USER] Update GS State Var    |
+| zxf-update-gs-state-variable.yaml                      | ZXF: Update GS_STATE Variable                                     | 006-user-update-gs-state-variable.yaml       | 006: [USER] Update GS State Var    |
 |                                                        |                                                                   |                                              |                                    |
 | # OPERATIONAL (100-199)                                |                                                                   |                                              |                                    |
 | zxf-collect-workflow-logs.yaml                         | ZXF: Collect Workflow Run Logs                                    | 100-user-collect-workflow-logs.yaml          | 100: [USER] Collect Workflow Logs  |
@@ -76,6 +75,8 @@
 | zxc-publish-production-image.yaml                      | ZXC: Publish Production Image                                     | 852-call-publish-production-image.yaml       | 852: [CALL] Publish Prod Image     |
 | zxc-create-github-release.yaml                         | ZXC: Create Github Release                                        | 853-call-create-github-release.yaml          | 853: [CALL] Create Github Release  |
 | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   | 854-extract-jdk-version.yaml                 | 854: [CALL] Extract JDK Version    |
+| 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     | 855-extract-citr-vars.yaml                   | 855: [CALL] Extract CITR Vars      |
+| 857-call-solo-ge044.yaml                               | 857: [CALL] Compute solo-ge-0440 Gate                             | 857-call-solo-ge044.yaml                     | 857: [CALL] Compute solo-ge-0440   |
 |                                                        |                                                                   |                                              |                                    |
 | # CRON (900-999)                                       |                                                                   |                                              |                                    |
 | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    |
