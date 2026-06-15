@@ -329,23 +329,25 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.compile-and-spotless.result || 'skipped' }}
-            ${{ needs.dependency-check.result || 'skipped' }}
-            ${{ needs.mats-unit-tests.result || 'skipped' }}
-            ${{ needs.mats-integration-tests.result || 'skipped' }}
-            ${{ needs.mats-hapi-tests.result || 'skipped' }}
-            ${{ needs.mats-otter-tests.result || 'skipped' }}
-            ${{ needs.mats-snyk-scan.result || 'skipped' }}
-            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
-            ${{ needs.mats-docker-determinism.result || 'skipped' }}
-          )
-          job_failure_modes=(
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.commit-info.result }}
+            ${{ needs.compile-and-spotless.result }}
+            ${{ needs.dependency-check.result }}
+            ${{ needs.mats-unit-tests.result }}
+            ${{ needs.mats-integration-tests.result }}
+            ${{ needs.mats-hapi-tests.result }}
+            ${{ needs.mats-otter-tests.result }}
+            ${{ needs.mats-snyk-scan.result }}
+            ${{ needs.mats-gradle-determinism.result }}
+            ${{ needs.mats-docker-determinism.result }}
+          INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.compile-and-spotless.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
@@ -356,53 +358,15 @@ jobs:
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
             ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
-          )
-          job_names=(
-            "commit-info"
-            "compile-and-spotless"
-            "dependency-check"
-            "mats-unit-tests"
-            "mats-integration-tests"
-            "mats-hapi-tests"
-            "mats-otter-tests"
-            "mats-snyk-scan"
-            "mats-gradle-determinism"
-            "mats-docker-determinism"
-          )
-
-          # Final outputs
-          failure_mode="none"
-          failed_tests=""
-
-          for job in "${!job_statuses[@]}"; do
-            status=${job_statuses[$job]}
-            mode=${job_failure_modes[$job]}
-            name=${job_names[$job]}
-
-            if [[ "$status" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="$mode"
-              elif [[ "$mode" == "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-              if [[ -z "$failed_tests" ]]; then
-                failed_tests="$name"
-              else
-                failed_tests="$failed_tests, $name"
-              fi
-            elif [[ "$status" == "cancelled" ]]; then
-              # A cancelled job signals an infrastructure/runner issue, not a test bug.
-              # Default to workflow so report-status routes to the environment channel.
-              if [[ "${failure_mode}" != "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-              if [[ -z "$failed_tests" ]]; then
-                failed_tests="$name (cancelled)"
-              else
-                failed_tests="$failed_tests, $name (cancelled)"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"
+          INPUT_JOB_NAMES: >-
+            commit-info
+            compile-and-spotless
+            dependency-check
+            mats-unit-tests
+            mats-integration-tests
+            mats-hapi-tests
+            mats-otter-tests
+            mats-snyk-scan
+            mats-gradle-determinism
+            mats-docker-determinism
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

@@ -91,12 +91,9 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.compile-source.outcome || 'skipped' }}" == "failure" \
-            || "${{ steps.spotless-check.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.prepare-runner.outcome || 'skipped' }}" != "success" ]]; then
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          fi
+        env:
+          INPUT_TEST_OUTCOMES: >-
+            ${{ steps.compile-source.outcome }}
+            ${{ steps.spotless-check.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

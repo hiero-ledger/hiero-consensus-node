@@ -130,35 +130,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          workflow_statuses=(
-            "${{ steps.prepare-runner.outcome || 'skipped' }}"
-            "${{ steps.publish-unit-test-report.outcome || 'skipped' }}"
-            "${{ steps.upload-artifacts.outcome || 'skipped' }}"
-            "${{ steps.publish-codecov.outcome || 'skipped' }}"
-            "${{ steps.publish-codacy.outcome || 'skipped' }}"
-            "${{ steps.upload-test-reports.outcome || 'skipped' }}"
-          )
-          test_statuses=(
-            "${{ steps.gradle-test.outcome || 'skipped' }}"
-          )
-
-          failure_mode="none"
-
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${test_statuses[@]}"; then
-            failure_mode="test"
-          fi
-
-          if has_failure "${workflow_statuses[@]}"; then
-            failure_mode="workflow"
-          fi
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.gradle-test.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: >-
+            ${{ steps.prepare-runner.outcome }}
+            ${{ steps.publish-unit-test-report.outcome }}
+            ${{ steps.upload-artifacts.outcome }}
+            ${{ steps.publish-codecov.outcome }}
+            ${{ steps.publish-codacy.outcome }}
+            ${{ steps.upload-test-reports.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

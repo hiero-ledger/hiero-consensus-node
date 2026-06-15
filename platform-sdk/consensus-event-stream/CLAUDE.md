@@ -1,14 +1,5 @@
-# Consensus Layer Knowledge Base
-
-`consensus-event-stream` is part of the **consensus layer** — a supporting module that writes
-the consensus event-stream files. When working here, consult the consensus-layer knowledge
-base at [`../docs/consensus-layer/`](../docs/consensus-layer/) — it documents the current
-implementation as canonical, anchored to specific files, classes, and methods.
-
-**Most relevant to this module:**
-
-- [`architecture/topics/hashgraph.md`](../docs/consensus-layer/architecture/topics/hashgraph.md) — the consensus rounds and ordered events this module serializes.
-- [`concepts/event-lifecycle.md`](../docs/consensus-layer/concepts/event-lifecycle.md) — what an event carries once it reaches consensus.
+Read [`README.md`](README.md) for this module's description, dependency rules, and links to
+the relevant consensus-layer knowledge base docs.
 
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and

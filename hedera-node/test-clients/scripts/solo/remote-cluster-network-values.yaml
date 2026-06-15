@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Solo network-deploy value overrides for the REMOTE multi-tenant cluster, shared by the streaming
+# and cutover scenarios (jumpstart has its own copy under wrapped-record-block-jumpstart/resources/
+# remote/). Pass via `solo consensus network deploy --values-file` with `--pvcs false` on remote.
+#
+# Every worker node is tainted solo.hashgraph.io/{role,owner,network-id}; Exists tolerations let our
+# pods schedule on any of them. MinIO is pinned to local-path (the cluster has no default class);
+# consensus uses --pvcs false (emptyDir) so it needs no StorageClass for a single short run.
+# Resources are right-sized for a functional run (NOT the 256Gi perf profile).
+
+defaults:
+  root:
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+
+deployment:
+  tolerations: &soloTolerations
+    - key: "solo.hashgraph.io/role"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+haproxyDeployment:
+  tolerations: *soloTolerations
+
+envoyDeployment:
+  tolerations: *soloTolerations
+
+minio-server:
+  tenant:
+    pools:
+      - servers: 1
+        name: pool-1
+        volumesPerServer: 1
+        size: 50Gi
+        storageClassName: local-path
+        tolerations: *soloTolerations

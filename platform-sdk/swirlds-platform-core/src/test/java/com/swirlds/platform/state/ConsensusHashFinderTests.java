@@ -4,7 +4,7 @@ package com.swirlds.platform.state;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.CATASTROPHIC_ISS;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.DECIDED;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.UNDECIDED;
-import static com.swirlds.platform.test.fixtures.utils.EqualsVerifier.randomHash;
+import static org.hiero.base.crypto.test.fixtures.EqualsVerifier.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,7 +43,8 @@ class ConsensusHashFinderTests {
     /**
      * A node to be added to a consensus hash builder.
      */
-    private record NodeToAdd(@NonNull NodeId nodeId, long weight, @NonNull Hash stateHash) {}
+    private record NodeToAdd(
+            @NonNull NodeId nodeId, long weight, @NonNull Hash stateHash) {}
 
     /**
      * A description of a desired partition

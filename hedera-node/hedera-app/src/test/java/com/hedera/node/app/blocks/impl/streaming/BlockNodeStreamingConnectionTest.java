@@ -1257,7 +1257,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(101);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1279,7 +1278,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1301,7 +1299,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1323,7 +1320,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
@@ -1401,7 +1397,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1503,7 +1498,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics, times(5)).recordRequestLatency(anyLong());
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
