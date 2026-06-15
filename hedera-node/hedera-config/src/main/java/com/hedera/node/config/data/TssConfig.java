@@ -65,9 +65,9 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean validateBlockSignatures,
 
-        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
-        // in prod until release that fully cuts over to streamMode=BLOCKS
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash. As of the
+        // 0.77 cutover to streamMode=BLOCKS, nodes produce real TSS signatures, so this defaults to false.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean forceMockSignatures,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty

@@ -11,6 +11,9 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
@@ -27,6 +30,7 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
+import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -148,7 +152,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
-                checkPrOverridesForBlockNodeStreaming(network);
+                maybeStartBlockNodeStreaming(network);
                 network.start();
                 SHARED_NETWORK.set(network);
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
@@ -322,40 +326,61 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
     }
 
-    private static void checkPrOverridesForBlockNodeStreaming(HederaNetwork network) {
-        if (network instanceof SubProcessNetwork) {
-            Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-            final String writerMode = prCheckOverrides.get("blockStream.writerMode");
-            if ("FILE_AND_GRPC".equals(writerMode) || "GRPC".equals(writerMode)) {
-                // Determine block node mode from system property, default to REAL
-                final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
-                        .map(BlockNodeMode::valueOf)
-                        .orElse(BlockNodeMode.REAL);
-                log.info(
-                        "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
-                        writerMode,
-                        blockNodeMode);
-                final SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
-                final BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
-                blockNodeNetwork.getBlockNodeModeById().put(0L, blockNodeMode);
-                network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
-                    blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
-                });
-                if (blockNodeMode == BlockNodeMode.REAL) {
-                    blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
-                }
-                blockNodeNetwork.start();
-                SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
-                subProcessNetwork.setBlockNodeMode(blockNodeMode);
-                subProcessNetwork
-                        .getPostInitWorkingDirActions()
-                        .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
-                subProcessNetwork
-                        .getPostInitWorkingDirActions()
-                        .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
-            }
+    /**
+     * Starts a {@link BlockNodeNetwork} for the shared subprocess network when its nodes will stream blocks over
+     * gRPC. The decision is based on the <i>effective</i> {@code blockStream.writerMode}/{@code blockStream.streamMode}
+     * — a per-task PR override if present, otherwise the production default — so that once the default is
+     * {@code writerMode=GRPC} we still stand up a block node for the network to stream to. Without one the block
+     * buffer back-pressures and the handle thread stalls (back-pressure is active when {@code streamMode==BLOCKS}
+     * and the writer streams over gRPC). No block node is started for a {@code FILE} writer, a {@code RECORDS}-only
+     * stream, or when {@code -Dhapi.spec.blocknode.mode=NONE}.
+     */
+    private static void maybeStartBlockNodeStreaming(HederaNetwork network) {
+        if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
+            return;
         }
+        final Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
+        // Read the production defaults so we honor the default (not just explicit overrides) when deciding
+        // whether the network streams to a block node.
+        final BlockStreamConfig defaults = ConfigurationBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .build()
+                .getConfigData(BlockStreamConfig.class);
+        final BlockStreamWriterMode writerMode = Optional.ofNullable(prCheckOverrides.get("blockStream.writerMode"))
+                .map(BlockStreamWriterMode::valueOf)
+                .orElseGet(defaults::writerMode);
+        final StreamMode streamMode = Optional.ofNullable(prCheckOverrides.get("blockStream.streamMode"))
+                .map(StreamMode::valueOf)
+                .orElseGet(defaults::streamMode);
+        final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
+                .map(BlockNodeMode::valueOf)
+                .orElse(BlockNodeMode.REAL);
+        final boolean streamsToBlockNodes =
+                writerMode != BlockStreamWriterMode.FILE && streamMode != StreamMode.RECORDS;
+        if (!streamsToBlockNodes || blockNodeMode == BlockNodeMode.NONE) {
+            return;
+        }
+        log.info(
+                "Block streaming active (effective writerMode={}, streamMode={}); configuring a Block Node network with mode {}",
+                writerMode,
+                streamMode,
+                blockNodeMode);
+        final BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+        blockNodeNetwork.getBlockNodeModeById().put(0L, blockNodeMode);
+        subProcessNetwork.nodes().forEach(node -> {
+            blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
+            blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
+        });
+        if (blockNodeMode == BlockNodeMode.REAL) {
+            blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
+        }
+        blockNodeNetwork.start();
+        SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
+        subProcessNetwork.setBlockNodeMode(blockNodeMode);
+        subProcessNetwork.getPostInitWorkingDirActions().add(blockNodeNetwork::configureBlockNodeConnectionInformation);
+        subProcessNetwork
+                .getPostInitWorkingDirActions()
+                .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
     }
 
     public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {

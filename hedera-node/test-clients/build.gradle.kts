@@ -123,6 +123,10 @@ tasks.test {
     )
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
+    // These INTEGRATION/STREAM_VALIDATION specs run the CN in-process; pin writerMode=FILE +
+    // forceMockSignatures=true for the same reasons as testEmbedded (no block node, fake TSS).
+    systemProperty("blockStream.writerMode", "FILE")
+    systemProperty("tss.forceMockSignatures", "true")
 
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
@@ -252,6 +256,9 @@ val prCheckPropOverrides =
             "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
         "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
+        // ISS suites read the block stream from disk and intentionally diverge one node's state,
+        // which a block node would reject, so keep a FILE writer (no block node needed for ISS).
+        "hapiTestIss" to "blockStream.writerMode=FILE",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
@@ -750,6 +757,15 @@ tasks.register<Test>("testEmbedded") {
     // so we can maintain confidence that there are no regressions in the code.
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
+    // Embedded networks run the CN in-process with fake TSS services and no block node, so pin two
+    // node properties to their pre-cutover values. writerMode=FILE keeps block-buffer back-pressure
+    // off (active only for BLOCKS + gRPC; otherwise the in-process handle thread blocks in
+    // ensureNewBlocksPermitted). forceMockSignatures=true keeps the signer ready (the fake TSS
+    // services never establish a ledger id, so real signing wedges ingest at
+    // WAITING_FOR_LEDGER_ID).
+    // streamMode stays BLOCKS, the new default.
+    systemProperty("blockStream.writerMode", "FILE")
+    systemProperty("tss.forceMockSignatures", "true")
 
     if (gradle.startParameter.taskNames.contains("hapiTestSimpleFeesEmbedded")) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
@@ -807,6 +823,12 @@ tasks.register<Test>("testRepeatable") {
     )
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
+    // Repeatable networks also run the CN in-process; pin writerMode=FILE +
+    // forceMockSignatures=true
+    // (see testEmbedded for the rationale). -PsysProp.* below can still override these for local
+    // runs.
+    systemProperty("blockStream.writerMode", "FILE")
+    systemProperty("tss.forceMockSignatures", "true")
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
