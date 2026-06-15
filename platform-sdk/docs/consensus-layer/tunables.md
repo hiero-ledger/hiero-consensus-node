@@ -356,7 +356,7 @@ Module: `consensus-event-creator`. Source: [EventCreationConfig.java](../../cons
 | TUN-137 | `event.creation.eventIntakeThrottle`                 | int      | `1024`  | When the event intake queue equals or exceeds this size, new self-event creation is suspended.                                          |       | —         |
 | TUN-138 | `event.creation.maximumPermissibleUnhealthyDuration` | Duration | `1s`    | Maximum time the system can be unhealthy before event creation stops.                                                                   |       | —         |
 | TUN-139 | `event.creation.maxAllowedSyncLag`                   | int      | `15`    | If the node is lagging more than this many rounds on average, stop creating events; very large values effectively disable the rule.     |       | —         |
-| TUN-140 | `event.creation.maxOtherParents`                     | int      | `1`     | Maximum allowed number of other parents; `1` reproduces the classic single-self-parent / single-other-parent shape.                     |       | —         |
+| TUN-140 | `event.creation.maxOtherParents`                     | int      | `4`     | Maximum number of other parents an event may reference.                                                                                 |       | —         |
 
 ## `event.creation.wiring.*` — EventCreationWiringConfig
 
