@@ -58,12 +58,17 @@ module.exports = async ({ github, context, core }) => {
     core.setOutput('enable-tests', 'false');
   }
 
+  // check for all files that are workflow files
   const workflowFiles = files.filter(f => isWorkflowFile(f.filename));
+  // if at least one workflow file
   if (workflowFiles.length > 0) {
     core.info(`Found ${workflowFiles.length} workflow file(s)`);
+    // log the name of each file
     workflowFiles.slice(0, 10).forEach(f => core.info(`  - ${f.filename}`));
+    // set the output var to true
     core.setOutput('workflow-files-changed', 'true');
   } else {
+    // set the output var to false
     core.setOutput('workflow-files-changed', 'false');
   }
 };
