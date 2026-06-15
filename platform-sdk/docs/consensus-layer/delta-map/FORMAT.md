@@ -55,7 +55,7 @@ module split is a row, a module renaming is a row, an API method
 introduction is a row, a behaviour shift is a row.
 
 | Change | Proposal state | Current state | Status | Anchor / TBD |
-|---|---|---|---|---|
+|--------|----------------|---------------|--------|--------------|
 
 - **Change** — short noun phrase identifying the discrete item.
 - **Proposal state** — one or two sentences on what the proposal calls for.

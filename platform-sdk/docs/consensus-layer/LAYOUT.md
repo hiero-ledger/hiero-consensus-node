@@ -212,21 +212,21 @@ Two header orderings apply:
 
 Type vocabulary:
 
-| Path pattern | `type` value |
-|---|---|
-| `concepts/*.md` | `concept` |
-| `glossary.md` | `glossary` |
-| `architecture/overview.md` | `architecture-overview` |
+|          Path pattern          |       `type` value       |
+|--------------------------------|--------------------------|
+| `concepts/*.md`                | `concept`                |
+| `glossary.md`                  | `glossary`               |
+| `architecture/overview.md`     | `architecture-overview`  |
 | `architecture/interfaces/*.md` | `architecture-interface` |
-| `architecture/topics/*.md` | `architecture-topic` |
-| `decisions/ADR-*.md` | `decision` |
-| `invariants/INV-*.md` | `invariant` |
-| `rules/RUL-*.md` | `rule` |
-| `scenarios/SCN-*.md` | `scenario` |
-| `heuristics/HEU-*.md` | `heuristic` |
-| `delta-map/*.md` | `delta-map` |
-| `symptoms.md` | `symptom-catalog` |
-| `tunables.md` | `tunable-catalog` |
+| `architecture/topics/*.md`     | `architecture-topic`     |
+| `decisions/ADR-*.md`           | `decision`               |
+| `invariants/INV-*.md`          | `invariant`              |
+| `rules/RUL-*.md`               | `rule`                   |
+| `scenarios/SCN-*.md`           | `scenario`               |
+| `heuristics/HEU-*.md`          | `heuristic`              |
+| `delta-map/*.md`               | `delta-map`              |
+| `symptoms.md`                  | `symptom-catalog`        |
+| `tunables.md`                  | `tunable-catalog`        |
 
 ## When to update this file
 
