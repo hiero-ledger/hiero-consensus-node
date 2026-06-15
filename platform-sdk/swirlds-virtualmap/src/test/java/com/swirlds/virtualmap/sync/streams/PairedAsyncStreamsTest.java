@@ -117,8 +117,8 @@ class PairedAsyncStreamsTest {
                 final byte[] first = teacherIn.readOrWait(YieldStrategy.PARK);
                 assertNotNull(first, "first message should arrive before disconnect");
                 firstReceived.countDown();
-                // second read blocks until the work group interrupts the task after EOF and marks stream as done
-                Thread.sleep(DEFAULT_TIMEOUT.toMillis());
+                // Block until the work group interrupts the task after EOF and marks stream as done.
+                new CountDownLatch(1).await();
             });
             workGroup.fork("teacher-task", teacherRunnable);
 

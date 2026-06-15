@@ -192,7 +192,7 @@ public class StandardWorkGroup implements AutoCloseable {
                     // future so every task is guaranteed to finish before we return.
                     executorService.shutdownNow();
                 } catch (final ExecutionException e) {
-                    break; // defensive — safeOp does not re-throw, so this should not occur
+                    break; // defensive — wrapped operation does not re-throw, so this should not occur
                 } catch (final CancellationException e) {
                     break; // task was cancelled by shutdownNow
                 }

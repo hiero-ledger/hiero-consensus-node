@@ -40,8 +40,8 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * Lifecycle is tracked by {@link Status}: {@link Status#NOT_STARTED} → {@link Status#RUNNING} (set by a successful
  * {@link #start(StandardWorkGroup)}) → {@link Status#DONE} (set by the background thread when it exits — normal EOF marker, I/O error,
  * or interrupt). Shutdown is driven by either an {@link IOException} (EOF marker, socket timeout, etc.) on the stream
- * or by an interrupt delivered through {@link StandardWorkGroup} (e.g. {@code handleError} → {@code shutdownNow}). An
- * I/O error is reported through the work group rather than the status, so {@link Status#DONE} does not distinguish
+ * or by an interrupt delivered through {@link StandardWorkGroup}.
+ * An I/O error is reported through the work group rather than the status, so {@link Status#DONE} does not distinguish
  * clean shutdown from a failure.
  * </p>
  */
@@ -109,7 +109,7 @@ public class AsyncInputStream {
      * This method can be called only once.
      *
      * @throws IllegalStateException if background thread is already started or terminated
-     * @throws MerkleSynchronizationException if background thread cannot be submitted for execution
+     * @throws Exception if background thread cannot be submitted for execution
      */
     public void start(final @NonNull StandardWorkGroup workGroup) {
         Objects.requireNonNull(workGroup, "workGroup must not be null");
