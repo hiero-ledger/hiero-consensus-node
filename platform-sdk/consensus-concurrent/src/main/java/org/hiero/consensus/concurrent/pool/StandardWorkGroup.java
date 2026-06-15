@@ -182,7 +182,8 @@ public class StandardWorkGroup implements AutoCloseable {
     public void join() throws InterruptedException, ParallelExecutionException {
         boolean interrupted = false;
 
-        for (final Future<?> future : futures) {
+        Future<?> future;
+        while ((future = futures.poll()) != null) {
             while (!future.isDone()) {
                 try {
                     future.get();
