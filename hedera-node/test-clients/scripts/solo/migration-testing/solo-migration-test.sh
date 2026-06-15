@@ -1411,7 +1411,27 @@ step4_crypto_create_smoke() {
   require_cmd node
   require_cmd npm
 
-  # 1) Port-forward CN gRPC + Mirror REST. Kill any stale forwards first.
+  # 1) Install @hashgraph/sdk into WORK_DIR FIRST (before opening any
+  #    port-forwards). On a slow runner this takes 2-4 minutes — if we open
+  #    port-forwards beforehand they sit idle through the entire install and
+  #    the kernel's NAT/conntrack state stales out, so the SDK's first gRPC
+  #    call ends up talking to a half-open connection that just hangs until
+  #    its deadline. The fix is just to do the slow setup work first and
+  #    leave port-forward opening to be the very last thing before the SDK
+  #    actually uses the channel.
+  if [[ ! -d "${WORK_DIR}/node_modules/@hashgraph/sdk" ]]; then
+    log "Installing @hashgraph/sdk into ${WORK_DIR} (one-time, ~30s)"
+    (
+      cd "${WORK_DIR}"
+      cat > package.json <<'PKG'
+{ "name": "smoke", "version": "0.0.0", "private": true, "type": "module" }
+PKG
+      npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
+    )
+  fi
+  cp "${SCRIPT_DIR}/crypto-create-smoke.mjs" "${WORK_DIR}/crypto-create-smoke.mjs"
+
+  # 2) Port-forward CN gRPC + Mirror REST. Kill any stale forwards first.
   pkill -f "kubectl.*port-forward.*haproxy-node1-svc.*${CN_GRPC_LOCAL_PORT}" >/dev/null 2>&1 || true
   pkill -f "kubectl.*port-forward.*mirror-1-rest.*${MIRROR_REST_LOCAL_PORT}" >/dev/null 2>&1 || true
   sleep 1
@@ -1441,22 +1461,6 @@ step4_crypto_create_smoke() {
       return 1
     fi
   done
-
-  # 2) Install @hashgraph/sdk into WORK_DIR (one-time per script run). The
-  #    JS lives at ${SCRIPT_DIR}/crypto-create-smoke.mjs; copy it into WORK_DIR
-  #    so Node resolves `@hashgraph/sdk` from WORK_DIR/node_modules (ESM
-  #    resolution walks up from the script's directory).
-  if [[ ! -d "${WORK_DIR}/node_modules/@hashgraph/sdk" ]]; then
-    log "Installing @hashgraph/sdk into ${WORK_DIR} (one-time, ~30s)"
-    (
-      cd "${WORK_DIR}"
-      cat > package.json <<'PKG'
-{ "name": "smoke", "version": "0.0.0", "private": true, "type": "module" }
-PKG
-      npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
-    )
-  fi
-  cp "${SCRIPT_DIR}/crypto-create-smoke.mjs" "${WORK_DIR}/crypto-create-smoke.mjs"
 
   log "Running CryptoCreate smoke"
   local rc=0
