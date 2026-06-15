@@ -226,10 +226,22 @@ local_build_implementation_version() {
 }
 
 consensus_pod_implementation_version() {
+  # NMT bakes HederaNode.jar into the rebuilt jrs-network-node image at
+  # /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar inside
+  # the running swirlds-node container. That path is NOT bind-mounted out to
+  # the pod (compare with data/upgrade, data/saved, data/keys, etc. which
+  # are), so reading the pod's data/apps directly returns an empty directory
+  # and the verify step would silently fall back to "unknown". docker cp the
+  # jar out to the pod's root-container tmpdir (root-container has unzip;
+  # swirlds-node does not) and read MANIFEST.MF from the copy.
   local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
-      | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc '
+    tmp=$(mktemp /tmp/HederaNode.jar.XXXXXX) || exit 0
+    docker cp swirlds-node:/opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar "${tmp}" >/dev/null 2>&1 || { rm -f "${tmp}"; exit 0; }
+    unzip -p "${tmp}" META-INF/MANIFEST.MF 2>/dev/null \
+      | sed -n "s/^Implementation-Version: //p" | tr -d "\r" | head -n 1
+    rm -f "${tmp}"
+  '
 }
 
 verify_local_build_on_consensus_nodes() {
