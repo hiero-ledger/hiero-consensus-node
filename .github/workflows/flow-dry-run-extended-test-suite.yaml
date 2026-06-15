@@ -95,15 +95,24 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  compute-solo-ge-0440:
+    name: Compute solo-ge-0440
+    needs:
+      - extract-citr-vars
+    uses: ./.github/workflows/857-call-solo-ge044.yaml
+    with:
+      solo-version: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
+
   parameters:
     name: Workflow Parameters
     runs-on: hl-cn-default-lin-sm
     needs:
       - extract-citr-vars
+      - compute-solo-ge-0440
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
-      solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
+      solo-ge-0440: ${{ needs.compute-solo-ge-0440.outputs.solo-ge-0440 }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -112,8 +121,7 @@ jobs:
         id: params
         run: |
           SOLO_VERSION="${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}"
-          SOLO_VERSION_BARE="${SOLO_VERSION#v}"
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION_BARE}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
+          SOLO_GE_0440="${{ needs.compute-solo-ge-0440.outputs.solo-ge-0440 }}"
           HELM_NAME="mirror"
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
@@ -138,7 +146,6 @@ jobs:
 
           echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
   extract-jdk-version:
     name: Extract Java Version
