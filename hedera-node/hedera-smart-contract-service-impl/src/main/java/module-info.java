@@ -31,7 +31,6 @@ module com.hedera.node.app.service.contract.impl {
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
-    requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.internal.crypto;
