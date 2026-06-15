@@ -333,36 +333,6 @@ public class BlockNodeSuite {
         return validateHappyPath(5);
     }
 
-    //    @HapiTest
-    //    @HapiBlockNode(
-    //            networkSize = 1,
-    //            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-    //            subProcessNodeConfigs = {
-    //                @SubProcessNodeConfig(
-    //                        nodeId = 0,
-    //                        blockNodeIds = {0},
-    //                        blockNodePriorities = {0},
-    //                        applicationPropertiesOverrides = {
-    //                            "blockStream.streamMode", "BOTH",
-    //                            "blockStream.writerMode", "FILE_AND_GRPC",
-    //                            "blockStream.enhancedObservabilityEnabled", "true"
-    //                        })
-    //            })
-    //    @Order(6)
-    //    final Stream<DynamicTest> enhancedObservabilityLogsBlockStreamingStats() {
-    //        return hapiTest(
-    //                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-    //                // Wait for the first BlockStreamingStats report in block-node-comms.log
-    //                awaitBlockNodeCommsLogContainsText(
-    //                        byNodeId(0), "BlockStreamingStats", Duration.ofMinutes(2)),
-    //                // Regression: no NPE from BlockStreamingObs aggregate/gather logic
-    //                assertBlockNodeCommsLogDoesNotContainText(
-    //                        byNodeId(0), "NullPointerException", Duration.ofSeconds(0)),
-    //                // Verify the block node actually acknowledged blocks (non-zero count)
-    //                assertBlockNodeCommsLogDoesNotContainText(
-    //                        byNodeId(0), "Acknowledged { (Unit:COUNT|Sum:0)", Duration.ofSeconds(0)));
-    //    }
-
     private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),

@@ -44,7 +44,7 @@ class CompositeStatisticsTest {
         assertThat(composite.sum()).isEqualTo(BigInteger.valueOf(60));
         assertThat(composite.min()).isEqualTo(BigInteger.valueOf(10));
         assertThat(composite.max()).isEqualTo(BigInteger.valueOf(30));
-        assertThat(composite.avg().doubleValue()).isCloseTo(20.0, within(0.001));
+        assertThat(composite.avg().doubleValue()).isEqualTo(20.0);
     }
 
     @Test
@@ -78,7 +78,7 @@ class CompositeStatisticsTest {
         assertThat(composite.min()).isEqualTo(BigInteger.valueOf(2));
         assertThat(composite.max()).isEqualTo(BigInteger.valueOf(8));
         // combined avg = 20/4 = 5
-        assertThat(composite.avg().doubleValue()).isCloseTo(5.0, within(0.001));
+        assertThat(composite.avg().doubleValue()).isEqualTo(5.0);
     }
 
     @Test

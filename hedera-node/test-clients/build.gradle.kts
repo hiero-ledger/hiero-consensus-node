@@ -208,11 +208,11 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
         "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCrypto" to
-            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.enhancedObservabilityEnabled=true",
+            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.enhancedObservabilityEnabled=true",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
