@@ -78,6 +78,10 @@ jobs:
           fi
 
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "::debug::SOLO_GE_0440=${SOLO_GE_0440}"
+          echo "::notice::SOLO_VERSION=${SOLO_VERSION} SOLO_GE_0440=${SOLO_GE_0440} (gates Migration Testing + Block Node Regression panels)"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
 
   extract-jdk-version:
