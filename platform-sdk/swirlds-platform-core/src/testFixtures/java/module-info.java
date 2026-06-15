@@ -38,8 +38,6 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.recovery;
     exports com.swirlds.platform.test.fixtures.roster;
     exports com.swirlds.platform.test.fixtures.simulated;
-    exports com.swirlds.platform.test.fixtures.utils;
-    exports com.swirlds.platform.test.fixtures.resource;
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.state.manager;
 }
