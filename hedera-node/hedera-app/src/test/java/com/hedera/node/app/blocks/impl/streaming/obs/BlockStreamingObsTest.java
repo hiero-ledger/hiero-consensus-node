@@ -247,7 +247,7 @@ class BlockStreamingObsTest {
         clock.set(secs(1));
         obs.onBlockInit(1L); // never acked (e.g. block node down)
 
-        clock.set(secs(311)); // past the 5-minute abandon threshold
+        clock.set(secs((5 * 60) + 1)); // past the 5-minute abandon threshold
         final String report = obs.gatherAndLogObsData();
         assertThat(report).isNotNull();
         assertThat(report).contains("Abandoned { (Unit:COUNT|Sum:1) }");
