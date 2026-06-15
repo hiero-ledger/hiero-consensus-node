@@ -633,11 +633,17 @@ public final class HashgraphInfo {
                     h.candStake = new long[2 * h.numNodes];
                     for (int i = 0; i < h.numNodes; i++) {
                         ArrayList<Integer> list = new ArrayList<>(2);
-                        list.add(i);
-                        h.candIndex.add(list);
-                        h.candEventInfo[i] = null; // index m represents a vote that node m have a judge of null
-                        h.candStake[i] = 0L;
                     }
+                }
+
+                // it's a new round, so reset the list of candidates to just have the null vote for each node
+                // it's a new round, so reset the list of candidates to just have the null vote for each node
+                for (int m = 0; m < h.numNodes; m++) {
+                    h.candIndex.get(m).clear(); // forget old list of candidates for node with index m
+                    h.candIndex.get(m).add(m); // add back the entry for the null candidate
+                    h.candEventInfo[m] = null; // index m represents a vote that node m have a judge of null
+                    Arrays.fill(h.candStake,0L); // this could be skipped, but it's cheap and safer to do it
+                    h.candStake[m] = r.stake[m];
                 }
 
                 // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
