@@ -16,6 +16,7 @@ import java.util.Objects;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImplDAB;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
@@ -30,6 +31,9 @@ import org.hiero.consensus.round.EventWindowUtils;
  * This class is responsible for storing events utilized by the GUI.
  */
 public class GuiEventStorage {
+    /** true iff these GUI files should use the updated consensus code for dynamic address book */
+    //TODO make this false before merging the dynamic-address-book branch into main
+    public static final boolean USE_DYNAMIC_ADDRESS_BOOK_UPDATE = true;
 
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class
     // happens asynchronously. This requires all methods to be synchronized.
@@ -50,10 +54,12 @@ public class GuiEventStorage {
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
         this.configuration = Objects.requireNonNull(configuration);
-        // TODO switch these lines before merging
-        //        this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(),
-        // roster, 0L);
-        this.consensus = new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+        if (USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
+            this.consensus = new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+        } else {
+            this.consensus = new ConsensusImpl(configuration, Time.getCurrent(),
+                    new NoOpConsensusMetrics(), roster, 0L);
+        }
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 
