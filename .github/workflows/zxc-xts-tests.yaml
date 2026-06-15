@@ -405,6 +405,25 @@ jobs:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
+  block-node-regression-skipped-notice:
+    name: Block Node Regression Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Block Node Regression Panel was requested (enable-block-node-regression-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Block Node Regression Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-block-node-regression-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   migration-testing-panel:
     name: Migration Testing Panel
     needs:
@@ -420,6 +439,25 @@ jobs:
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  migration-testing-skipped-notice:
+    name: Migration Testing Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Migration Testing Panel was requested (enable-migration-testing-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Migration Testing Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-migration-testing-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   set-failure-mode:
     name: Set Failure Mode
