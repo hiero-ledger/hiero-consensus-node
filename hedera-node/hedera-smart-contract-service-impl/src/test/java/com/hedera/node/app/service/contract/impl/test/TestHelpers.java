@@ -874,7 +874,7 @@ public class TestHelpers {
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator) {
         return new HederaEvmContext(
-                NETWORK_GAS_PRICE, false, true, blocks, tinybarValues, systemContractGasCalculator, null, null);
+                NETWORK_GAS_PRICE, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
     }
 
     public static HederaEvmContext wellKnownContextWith(
@@ -883,7 +883,7 @@ public class TestHelpers {
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator) {
         return new HederaEvmContext(
-                NETWORK_GAS_PRICE, staticCall, true, blocks, tinybarValues, systemContractGasCalculator, null, null);
+                NETWORK_GAS_PRICE, staticCall, blocks, tinybarValues, systemContractGasCalculator, null, null);
     }
 
     public static HederaEvmContext wellKnownContextWith(
@@ -894,7 +894,6 @@ public class TestHelpers {
         return new HederaEvmContext(
                 NETWORK_GAS_PRICE,
                 false,
-                true,
                 blocks,
                 tinybarValues,
                 systemContractGasCalculator,

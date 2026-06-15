@@ -3,7 +3,6 @@ package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
 import static java.nio.file.Files.exists;
-import static java.util.Objects.requireNonNull;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -58,8 +57,6 @@ public class LongListDisk extends AbstractLongList<Long> {
      * there may be too many temp directories piled up.
      */
     private Path tempDir;
-
-    private final FileSystemManager fileSystemManager;
 
     /** A temp byte buffer for transferring data between file channels */
     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
@@ -121,9 +118,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final long capacity,
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager) {
-        this.fileSystemManager = fileSystemManager;
         super(capacity, configuration);
-        initFileChannel(configuration);
+        initFileChannel(DEFAULT_FILE_NAME, fileSystemManager);
         fillBufferWithZeroes(initOrGetTransferBuffer());
         numAllocatedChunks = new AtomicInteger(0);
     }
@@ -142,11 +138,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration,
             final @NonNull FileSystemManager fileSystemManager) {
-        this.fileSystemManager = fileSystemManager;
         super(longsPerChunk, capacity, reservedBufferSize);
-        initFileChannel(configuration);
+        initFileChannel(DEFAULT_FILE_NAME, fileSystemManager);
         fillBufferWithZeroes(initOrGetTransferBuffer());
         numAllocatedChunks = new AtomicInteger(0);
     }
@@ -171,14 +165,10 @@ public class LongListDisk extends AbstractLongList<Long> {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
-        this.fileSystemManager = fileSystemManager;
-        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
-        // which is called from super()
+        super(capacity, configuration);
         numAllocatedChunks = new AtomicInteger(0);
-        super(file, capacity, configuration);
-        if (tempFile == null) {
-            throw new IllegalStateException("The temp file is not initialized");
-        }
+        initFileChannel(file.getFileName().toString(), fileSystemManager);
+        loadFromFile(file);
     }
 
     /**
@@ -188,41 +178,33 @@ public class LongListDisk extends AbstractLongList<Long> {
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
      *
-     * @param path The file to load the long list from
+     * @param file The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
      * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListDisk(
-            @NonNull final Path path,
+            @NonNull final Path file,
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration,
             final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
-        this.fileSystemManager = fileSystemManager;
-        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
-        // which is called from super()
+        super(longsPerChunk, capacity, reservedBufferSize);
         numAllocatedChunks = new AtomicInteger(0);
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
-        // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
-        // which is called from the constructor of the parent class
-        if (tempFile == null) {
-            throw new IllegalStateException("The temp file is not initialized");
-        }
+        initFileChannel(file.getFileName().toString(), fileSystemManager);
+        loadFromFile(file);
     }
 
-    private void initFileChannel(final Configuration configuration) {
+    private void initFileChannel(@NonNull final String fileName, @NonNull final FileSystemManager fileSystemManager) {
         if (tempFile != null) {
             throw new IllegalStateException("The temp file has been already initialized");
         }
         try {
-            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration, fileSystemManager);
+            tempFile = createTempFile(fileName, fileSystemManager);
             currentFileChannel = FileChannel.open(
                     tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (IOException e) {
@@ -232,13 +214,9 @@ public class LongListDisk extends AbstractLongList<Long> {
 
     /** {@inheritDoc} */
     @Override
-    protected void readBodyFromFileChannelOnInit(
-            final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
-            throws IOException {
-        tempFile = createTempFile(sourceFileName, configuration, fileSystemManager);
-
-        currentFileChannel = FileChannel.open(
-                tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+    protected void readBodyFromFileChannelOnInit(@NonNull final FileChannel fileChannel) throws IOException {
+        assert tempFile != null;
+        assert currentFileChannel != null;
 
         if (minValidIndex.get() < 0) {
             // Empty list, nothing to read
@@ -255,7 +233,7 @@ public class LongListDisk extends AbstractLongList<Long> {
                 (long) minValidIndexInChunk * Long.BYTES, // the first chunk may not start from 0
                 fileChannel.size() - fileChannel.position()); // read what's available and check list size below
         if (bytesTransferred != (maxValidIndex.get() - minValidIndex.get() + 1) * Long.BYTES) {
-            throw new IOException("Failed to init LongListDisk from file: " + sourceFileName);
+            throw new IOException("Failed to init LongListDisk from file: " + tempFile.getFileName());
         }
 
         for (int chunkIndex = firstChunkIndex; chunkIndex <= lastChunkIndex; chunkIndex++) {
@@ -291,12 +269,9 @@ public class LongListDisk extends AbstractLongList<Long> {
         return buffer;
     }
 
-    Path createTempFile(
-            final String sourceFileName,
-            final @NonNull Configuration configuration,
-            final @NonNull FileSystemManager fileSystemManager)
+    @NonNull
+    Path createTempFile(@NonNull final String sourceFileName, final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
-        requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
         tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
@@ -511,7 +486,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     }
 
     /**
-     *  Flushes and closes the file chanel and clears the free chunks offset list.
+     *  Flushes and closes the file channel and clears the free chunks offset list.
      */
     @Override
     public void close() {
@@ -522,9 +497,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         chunkRecycleLock.writeLock().lock();
         try {
             // flush
-            if (currentFileChannel.isOpen()) {
-                currentFileChannel.force(false);
-            }
+            currentFileChannel.force(false);
             // release all chunks
             super.close();
             // now close
