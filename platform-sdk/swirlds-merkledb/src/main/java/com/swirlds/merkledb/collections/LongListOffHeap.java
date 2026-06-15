@@ -76,7 +76,8 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      */
     public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
             throws IOException {
-        super(file, capacity, configuration);
+        super(capacity, configuration);
+        loadFromFile(file);
     }
 
     /**
@@ -86,22 +87,18 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
      *
-     * @param path The file to load the long list from
+     * @param file The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListOffHeap(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            @NonNull final Configuration configuration)
+            @NonNull final Path file, final int longsPerChunk, final long capacity, final long reservedBufferSize)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        super(longsPerChunk, capacity, reservedBufferSize);
+        loadFromFile(file);
     }
 
     /** {@inheritDoc} */

@@ -1,3 +1,10 @@
+---
+type: symptom-catalog
+title: Symptoms — Catalog
+description: Controlled vocabulary of observable symptoms (SYM-NNN) referenced by heuristics and scenarios; each entry pairs an ID with a name, description, and source of observation.
+last_reviewed: TBD
+---
+
 # Symptoms — Catalog
 
 Controlled vocabulary of observable symptoms referenced by the `symptoms` field of

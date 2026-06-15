@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.resource;
+package org.hiero.base.utility.test.fixtures.io;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-public class ResourceLoader<T> {
+public class ResourceExtractor<T> {
 
     /**
      * The class which is requesting the resources.
@@ -35,12 +35,12 @@ public class ResourceLoader<T> {
     private final List<ClassLoader> resolvers;
 
     /**
-     * Constructs a new {@link ResourceLoader} for the specified class which is requesting the resources.
+     * Constructs a new {@link ResourceExtractor} for the specified class which is requesting the resources.
      *
      * @param requester the class which is requesting the resources.
      * @throws NullPointerException if the requester is {@code null}.
      */
-    public ResourceLoader(final Class<T> requester) {
+    public ResourceExtractor(final Class<T> requester) {
         Objects.requireNonNull(requester, "requester cannot be null");
         this.requester = requester;
 
