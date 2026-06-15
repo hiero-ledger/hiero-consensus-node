@@ -25,9 +25,13 @@ FAILED=0
 TOTAL=0
 PASSED=0
 
+# extract the required vars from the template file
 extract_required_vars() {
   local template="$1"
-  # Matches: getenv "VAR_NAME" | required
+  # Matches: 'getenv "VAR_NAME" | required'
+  # check each line for 'getenv' varname followed by '| required'
+  # strip the 'getenv' prefix and the '| required' suffix, leaving just the var name
+  # sort and de-duplicate the results
   grep -o 'getenv "[^"]*" | required' "${template}" \
     | sed 's/getenv "//;s/" | required//' \
     | sort -u
