@@ -7,6 +7,7 @@ import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;
+import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -51,6 +52,7 @@ public class ProofKeysAccessorImpl
     @Override
     public SchnorrKeyPair readContent(@NonNull final Path p) throws IOException {
         requireNonNull(p);
+        TssKeyFiles.ensureKeyFilePermissions(p);
         final var bytes = Files.readAllBytes(p);
         return SchnorrKeyPair.fromDelimited(bytes);
     }
@@ -59,7 +61,7 @@ public class ProofKeysAccessorImpl
     public void writeContent(@NonNull final SchnorrKeyPair content, @NonNull final Path p) throws IOException {
         requireNonNull(content);
         requireNonNull(p);
-        Files.write(p, content.toDelimitedBytes());
+        TssKeyFiles.writeKeyBytes(p, Bytes.wrap(content.toDelimitedBytes()));
     }
 
     public record SchnorrKeyPair(Bytes privateKey, Bytes publicKey) {
