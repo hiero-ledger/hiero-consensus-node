@@ -20,7 +20,12 @@ platform-sdk/docs/consensus-layer/
 │   ├── rounds-and-witnesses.md
 │   ├── strongly-seeing.md
 │   ├── birth-round.md
-│   └── ...
+│   ├── coin-rounds.md
+│   ├── judges.md
+│   ├── voting.md
+│   ├── event-lifecycle.md
+│   ├── stale-events.md
+│   └── branching.md
 │
 ├── glossary.md                            single file, ~50 terms
 ├── symptoms.md                            single file (catalog of SYM-NNN entries)
@@ -73,6 +78,7 @@ platform-sdk/docs/consensus-layer/
 │
 ├── delta-map/                             one file per topic, flat
 │   ├── README.md
+│   ├── FORMAT.md
 │   ├── wiring-framework.md
 │   ├── gossip.md
 │   ├── event-intake.md
@@ -80,10 +86,13 @@ platform-sdk/docs/consensus-layer/
 │   ├── hashgraph.md
 │   ├── health-monitor-and-backpressure.md
 │   ├── reasons-not-to-gossip.md
+│   ├── quiescence.md
 │   ├── signed-state-management.md
+│   ├── iss-detection.md
 │   ├── restart-and-pces.md
 │   ├── freeze-and-upgrade.md
-│   └── reconnect.md
+│   ├── reconnect.md
+│   └── sheriff.md
 │
 └── tutor/                                 curriculum content; internal structure deferred
 ```
@@ -165,7 +174,7 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 ### `delta-map/`
 
-Per-topic status of "current code vs. proposed design": done / partial / not started / divergent. Eleven flat files, one per topic. Updated as work progresses.
+Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet. `FORMAT.md` defines the entry shape. Updated as work progresses.
 
 ### `tutor/`
 
@@ -185,7 +194,39 @@ Internal organization of `tutor/` is left to the Tutor implementation — author
 
 Every populated directory has a `README.md` that serves as the canonical index — a table mapping IDs (where applicable) to titles, with brief descriptions. Tools cross-reference by ID; humans navigate by title in listings.
 
-Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
+Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`, `delta-map/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
+
+### Frontmatter conventions
+
+`type` is the first key in every non-scaffolding `.md` frontmatter block. Non-scaffolding
+means every file except `README.md`, `FORMAT.md`, and `LAYOUT.md`. The value is lowercase
+and fixed per document class.
+
+Two header orderings apply:
+
+- **Catalog entries** (`decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`):
+  `type` / `id` / `title` / … (all other existing fields unchanged)
+- **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `glossary.md`,
+  `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files only) /
+  `last_reviewed`
+
+Type vocabulary:
+
+|          Path pattern          |       `type` value       |
+|--------------------------------|--------------------------|
+| `concepts/*.md`                | `concept`                |
+| `glossary.md`                  | `glossary`               |
+| `architecture/overview.md`     | `architecture-overview`  |
+| `architecture/interfaces/*.md` | `architecture-interface` |
+| `architecture/topics/*.md`     | `architecture-topic`     |
+| `decisions/ADR-*.md`           | `decision`               |
+| `invariants/INV-*.md`          | `invariant`              |
+| `rules/RUL-*.md`               | `rule`                   |
+| `scenarios/SCN-*.md`           | `scenario`               |
+| `heuristics/HEU-*.md`          | `heuristic`              |
+| `delta-map/*.md`               | `delta-map`              |
+| `symptoms.md`                  | `symptom-catalog`        |
+| `tunables.md`                  | `tunable-catalog`        |
 
 ## When to update this file
 
@@ -196,5 +237,6 @@ This document is the structural contract for the KB; structural changes should l
 - **Move path or discriminator change between catalogs** — update the affected sections so the rule for sorting entries between them stays explicit.
 - **Deferred decision resolved** — move it out of "Deferred decisions" into the relevant convention section.
 - **Convention change** (e.g., FORMAT.md requirement, frontmatter pattern, README index shape) — update wherever the convention is stated, and check for restatements that need to follow.
+- **Frontmatter-pattern change** — any change to the `type` vocabulary, or the header ordering.
 
 Non-structural content updates — new ADRs, new scenarios, new lessons, new entries to existing catalogs — do not require an update here. That is what the catalog READMEs are for.

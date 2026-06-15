@@ -73,51 +73,11 @@ class TinybarValuesTest {
         assertThrows(IllegalStateException.class, subject::childTransactionTinybarGasPrice);
     }
 
-    @Test
-    void simpleFeesGasPriceOverridesTopLevelTinybarGasPrice() {
-        withSimpleFeesSubject(852L);
-        // 852 tinycents / 7 cents-per-hbar = 121 tinybars
-        assertEquals(852L / CENTS_PER_HBAR, subject.topLevelTinybarGasPrice());
-    }
-
-    @Test
-    void simpleFeesGasPriceOverridesTopLevelTinybarGasPriceFullPrecision() {
-        withSimpleFeesSubject(852L);
-        // override is in tinycents; full-precision method returns FSU scale (×1000), then converted to tinybars
-        assertEquals((852L * 1000) / CENTS_PER_HBAR, subject.topLevelTinybarGasPriceFullPrecision());
-    }
-
-    @Test
-    void simpleFeesGasPriceOverridesTopLevelTinycentGasPrice() {
-        withSimpleFeesSubject(852L);
-        // method returns FSU scale (×1000) to match legacy callers that expect fee-schedule-units
-        assertEquals(852L * 1000, subject.topLevelTinycentGasPrice());
-    }
-
-    @Test
-    void simpleFeesZeroGasPriceGivesZeroForAllGasMethods() {
-        withSimpleFeesSubject(0L);
-        assertEquals(0L, subject.topLevelTinybarGasPrice());
-        assertEquals(0L, subject.topLevelTinybarGasPriceFullPrecision());
-        assertEquals(0L, subject.topLevelTinycentGasPrice());
-    }
-
-    @Test
-    void simpleFeesRbhPriceIsUnaffectedByGasOverride() {
-        withSimpleFeesSubject(852L);
-        // RBH still comes from topLevelResourcePrices (congestionMultiplier=1)
-        assertEquals(RBH_FEE_SCHEDULE_PRICE, subject.topLevelTinycentRbhPrice());
-    }
-
     private void withTransactionSubject() {
         subject = TinybarValues.forTransactionWith(RATE_TO_USE, resourcePrices, childResourcePrices);
     }
 
     private void withQuerySubject() {
         subject = TinybarValues.forQueryWith(RATE_TO_USE);
-    }
-
-    private void withSimpleFeesSubject(long gasPriceTinycents) {
-        subject = TinybarValues.forSimpleFeesTransactionWith(RATE_TO_USE, gasPriceTinycents, resourcePrices, null);
     }
 }

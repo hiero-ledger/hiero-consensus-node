@@ -68,9 +68,6 @@ public class CustomGasCharging {
         requireNonNull(sender);
         requireNonNull(context);
         requireNonNull(worldUpdater);
-        if (!context.shouldChargeGasFees()) {
-            return;
-        }
         if (context.isNoopGasContext() || unusedGas == 0) {
             return;
         }
@@ -124,10 +121,6 @@ public class CustomGasCharging {
         validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
-            if (!context.shouldChargeGasFees()) {
-                sender.incrementNonce();
-                return new GasCharges(intrinsicGas, 0L);
-            }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
 
             // Increment nonce right after the gas is charged
@@ -135,10 +128,7 @@ public class CustomGasCharging {
 
             return new GasCharges(intrinsicGas, allowanceUsed);
         } else {
-            if (context.shouldChargeGasFees()) {
-                chargeWithOnlySender(sender, context, worldUpdater, transaction);
-                return new GasCharges(intrinsicGas, 0L);
-            }
+            chargeWithOnlySender(sender, context, worldUpdater, transaction);
             return new GasCharges(intrinsicGas, 0L);
         }
     }
@@ -167,9 +157,6 @@ public class CustomGasCharging {
         // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false, 0L);
 
-        if (!context.shouldChargeGasFees()) {
-            return;
-        }
         if (transaction.isEthereumTransaction()) {
             final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
             worldUpdater.collectGasFee(transaction.relayerId(), fee, false);
