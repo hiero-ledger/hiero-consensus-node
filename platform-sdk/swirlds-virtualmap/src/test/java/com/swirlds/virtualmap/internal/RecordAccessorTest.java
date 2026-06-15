@@ -5,6 +5,7 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -97,6 +98,19 @@ public class RecordAccessorTest {
         // Set up the state for a 6 leaf in memory tree
         state.setLastLeafPath(10);
         state.setFirstLeafPath(5);
+    }
+
+    @Test
+    @DisplayName("isLeaf method works correctly")
+    void isLeafMethodWorks() {
+        assertTrue(records.isLeaf(5));
+        assertTrue(records.isLeaf(7));
+        assertTrue(records.isLeaf(10));
+
+        assertFalse(records.isLeaf(-1));
+        assertFalse(records.isLeaf(0));
+        assertFalse(records.isLeaf(4));
+        assertFalse(records.isLeaf(11));
     }
 
     @Test

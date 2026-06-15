@@ -22,7 +22,7 @@ class TokenGetInfoUsageTest {
     private final String memo = "Hope";
     private final String name = "WhyWhyWhyWHY";
     private final String symbol = "OKITSFINE";
-    private final TokenID id = IdUtils.asToken("0.0.75231");
+    private final TokenID id = IdUtils.asToken(75231L);
 
     private TokenGetInfoUsage subject;
 
