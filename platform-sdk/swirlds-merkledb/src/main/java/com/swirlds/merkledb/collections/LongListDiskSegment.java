@@ -139,7 +139,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     /// Number of longs per chunk and reserved buffer size are read from the
     /// provided configuration. The file must exist.
     ///
-    /// <p>If the list size in the file is greater than the capacity, an
+    /// If the list size in the file is greater than the capacity, an
     /// {@link IllegalArgumentException} is thrown.
     ///
     /// @param snapshotFile The file to load the long list from
@@ -163,7 +163,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     /// Create a new long list from a snapshot file, with the specified capacity,
     /// number of longs per chunk, and reserved buffer size. The file must exist.
     ///
-    /// <p>If the list size in the file is greater than the capacity, an
+    /// If the list size in the file is greater than the capacity, an
     /// {@link IllegalArgumentException} is thrown.
     ///
     /// @param snapshotFile The file to load the long list from
@@ -264,6 +264,10 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     /// If the long list is created from a snapshot file or with no file at all, calling this
     /// method is not required.
     ///
+    /// This method is not expected to call multiple times. If it is called more than once,
+    /// it will be handled just fine (it means, the method is idempotent), with a warning in
+    /// the logs.
+    ///
     public void takeover() {
         try {
             if (fileLock != null) {
@@ -311,10 +315,10 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
             return;
         }
         try {
-            // Write valid range to the header
+            // The header may be null, if the backing file is not owned by this object,
+            // i.e. takeover() was not called. Not likely, but possible
             if (header != null) {
-                LONG_HANDLE.setVolatile(header.segment(), 0, minValidIndex.get());
-                LONG_HANDLE.setVolatile(header.segment(), Long.BYTES, maxValidIndex.get());
+                header.segment.force();
                 header.arena().close();
                 header = null;
             }
@@ -404,7 +408,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     ///
     /// {@inheritDoc}
     ///
-    /// <p>Closes the chunk's arena, deterministically freeing native memory. Unlike NIO
+    /// Closes the chunk's arena, deterministically freeing native memory. Unlike NIO
     /// direct buffers (which depend on GC to trigger their cleaner), {@link Arena#close()}
     /// releases the backing memory immediately. After this call, any access to the chunk's
     /// segment will throw {@link IllegalStateException}.
@@ -419,28 +423,38 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // =========================================================================
 
     ///
-    /// {@inheritDoc}
+    /// Writes min/max valid range values to the file header. This method can be called
+    /// only when the current object already owns the backing index file on disk.
     ///
+    private void updateHeader() {
+        // The file must be owned by this object at this point
+        assert header != null;
+        LONG_HANDLE.setVolatile(header.segment(), 0, minValidIndex.get());
+        LONG_HANDLE.setVolatile(header.segment(), Long.BYTES, maxValidIndex.get());
+    }
+
     @Override
     public void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
         checkBackingFileOwned();
         super.updateValidRange(newMinValidIndex, newMaxValidIndex);
+        // Update the range in the file header
+        updateHeader();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Performs a volatile read of the long at the given sub-index within the chunk.
-     *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call
-     * (triggered by {@link LongList#updateValidRange} or {@link #close()}), the segment
-     * is no longer accessible and {@link IllegalStateException} is thrown by the
-     * {@link VarHandle} access. This is a benign race: the chunk was removed from
-     * {@code chunkList} because it is outside the valid range, so returning the sentinel
-     * {@link LongList#IMPERMISSIBLE_VALUE} is the correct answer — identical to what
-     * {@link AbstractLongList#get(long, long)} returns when the chunk slot is already
-     * {@code null}.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Performs a volatile read of the long at the given sub-index within the chunk.
+    ///
+    /// If the chunk's arena has been closed by a concurrent {@link #closeChunk} call
+    /// (triggered by {@link LongList#updateValidRange} or {@link #close()}), the segment
+    /// is no longer accessible and {@link IllegalStateException} is thrown by the
+    /// {@link VarHandle} access. This is a benign race: the chunk was removed from
+    /// {@code chunkList} because it is outside the valid range, so returning the sentinel
+    /// {@link LongList#IMPERMISSIBLE_VALUE} is the correct answer — identical to what
+    /// {@link AbstractLongList#get(long, long)} returns when the chunk slot is already
+    /// {@code null}.
+    ///
     @Override
     protected long lookupInChunk(@NonNull final SegmentChunk chunk, final long subIndex) {
         try {
@@ -451,37 +465,38 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Performs a volatile write of the long at the given sub-index within the chunk.
-     *
-     * <p>Unlike {@link #lookupInChunk} and {@link #putIfEqual}, this method does
-     * <b>not</b> catch {@link IllegalStateException} from a closed arena. In production,
-     * {@code put()} and {@code updateValidRange()} are always called sequentially on the
-     * same thread (e.g. within {@code writeLeavesToPathToKeyValue} or {@code writeHashes}),
-     * so the arena cannot be closed between {@code createOrGetChunk} and this call. If an
-     * {@code IllegalStateException} occurs here, it indicates a bug in higher-level
-     * coordination (e.g. a concurrent {@code close()} during flush) and must not be
-     * silently swallowed — a lost write is silent data corruption.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Performs a volatile write of the long at the given sub-index within the chunk.
+    ///
+    /// Unlike {@link #lookupInChunk} and {@link #putIfEqual}, this method does
+    /// **not** catch {@link IllegalStateException} from a closed arena. In production,
+    /// {@code put()} and {@code updateValidRange()} are always called sequentially on the
+    /// same thread (e.g. within {@code writeLeavesToPathToKeyValue} or {@code writeHashes}),
+    /// so the arena cannot be closed between {@code createOrGetChunk} and this call. If an
+    /// {@code IllegalStateException} occurs here, it indicates a bug in higher-level
+    /// coordination (e.g. a concurrent {@code close()} during flush) and must not be
+    /// silently swallowed — a lost write is silent data corruption.
+    ///
     @Override
     protected void putToChunk(final SegmentChunk chunk, final int subIndex, final long value) {
         checkBackingFileOwned();
         LONG_HANDLE.setVolatile(chunk.segment(), (long) subIndex * Long.BYTES, value);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Performs a compare-and-set operation at the given sub-index within the chunk.
-     *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call,
-     * the operation returns {@code false}. This is equivalent to the fast-path in
-     * {@link AbstractLongList#putIfEqual(long, long, long)} that returns {@code false}
-     * when the chunk slot is already {@code null} — the chunk no longer participates
-     * in the valid range.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Performs a compare-and-set operation at the given sub-index within the chunk.
+    ///
+    /// This method may be called in parallel to updating this list's valid range using
+    /// {@link #updateValidRange(long, long)}. For example, a flush is happening on the
+    /// virtual lifecycle thread, and compaction is in progress on a compaction thread. When
+    /// the valid range is updated, some chunks may be cleaned up and closed. Trying to set
+    /// a value in closed chunks results in an illegal state exception. This method should
+    /// be ready to handle those.
+    ///
     @Override
     protected boolean putIfEqual(
             @NonNull final SegmentChunk chunk, final int subIndex, final long oldValue, final long newValue) {
@@ -493,24 +508,24 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // Partial cleanup
     // =========================================================================
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Zeroes out the specified number of entries on the left or right side of the chunk
-     * using {@link MemorySegment#fill(byte)}. The fill uses plain (non-volatile) memory
-     * stores, so a concurrent reader may observe a partially-zeroed region — some entries
-     * may still return stale values while adjacent entries already return zero. This is
-     * acceptable because {@code partialChunkCleanup} is called from
-     * {@link LongList#updateValidRange}, which has already moved the valid-range
-     * boundaries; any stale value a reader sees is for an index that is no longer valid,
-     * and the reader's own valid-range check will discard it. This is consistent with
-     * the behavior of {@link LongListOffHeap}, which uses non-volatile
-     * {@code MemoryUtils.setMemory} for the same operation.
-     *
-     * <p>If the chunk's arena has been closed concurrently (e.g. by {@link #close()}
-     * racing with an in-flight {@link LongList#updateValidRange}), the cleanup is
-     * silently skipped — the chunk is already deallocated, so there is nothing to zero.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Zeroes out the specified number of entries on the left or right side of the chunk
+    /// using {@link MemorySegment#fill(byte)}. The fill uses plain (non-volatile) memory
+    /// stores, so a concurrent reader may observe a partially-zeroed region — some entries
+    /// may still return stale values while adjacent entries already return zero. This is
+    /// acceptable because {@code partialChunkCleanup} is called from
+    /// {@link LongList#updateValidRange}, which has already moved the valid-range
+    /// boundaries; any stale value a reader sees is for an index that is no longer valid,
+    /// and the reader's own valid-range check will discard it. This is consistent with
+    /// the behavior of {@link LongListOffHeap}, which uses non-volatile
+    /// {@code MemoryUtils.setMemory} for the same operation.
+    ///
+    /// If the chunk's arena has been closed concurrently (e.g. by {@link #close()}
+    /// racing with an in-flight {@link LongList#updateValidRange}), the cleanup is
+    /// silently skipped — the chunk is already deallocated, so there is nothing to zero.
+    ///
     @Override
     protected void partialChunkCleanup(
             @NonNull final SegmentChunk chunk, final boolean leftSide, final long entriesToCleanUp) {
@@ -527,6 +542,11 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // File I/O
     // =========================================================================
 
+    ///
+    /// Checks if the current object owns the backing index file on disk, i.e. a new long
+    /// list was created from scratch, or {@link #takeover()} has been called. Throws an
+    /// illegal state exception, if the file is not owned.
+    ///
     private void checkBackingFileOwned() {
         // Null check is cheap wrt performance
         if (fileLock == null) {
@@ -535,13 +555,13 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Reads chunk data from a file channel into a newly allocated segment chunk. The
-     * segment's backing memory is exposed as a {@link ByteBuffer} view for
-     * {@link FileChannel} compatibility, avoiding an extra copy.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Reads chunk data from a file channel into a newly allocated segment chunk. The
+    /// segment's backing memory is exposed as a {@link ByteBuffer} view for
+    /// {@link FileChannel} compatibility, avoiding an extra copy.
+    ///
     @Override
     protected SegmentChunk readChunkData(
             @NonNull final FileChannel fileChannel, final int chunkIndex, final int startIndex, final int endIndex)
@@ -553,18 +573,18 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
         return chunk;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
-     * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
-     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
-     * pre-allocated zero-filled buffer is written instead.
-     *
-     * <p>This method runs exclusively during snapshot, which is sequenced after flush
-     * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
-     * invalidate a chunk's arena during this operation.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
+    /// is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+    /// for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+    /// pre-allocated zero-filled buffer is written instead.
+    ///
+    /// This method runs exclusively during snapshot, which is sequenced after flush
+    /// completion by the virtual pipeline. No concurrent {@link #closeChunk} can
+    /// invalidate a chunk's arena during this operation.
+    ///
     @Override
     protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
         final int totalNumOfChunks = calculateNumberOfChunks(size());
@@ -607,13 +627,13 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     // Off-heap measurement
     // =========================================================================
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Measures the approximate amount of off-heap memory consumed by counting non-null
-     * chunks. The result may deviate by one chunk size if a chunk is concurrently added
-     * or removed during the measurement.
-     */
+    ///
+    /// {@inheritDoc}
+    ///
+    /// Measures the approximate amount of off-heap memory consumed by counting non-null
+    /// chunks. The result may deviate by one chunk size if a chunk is concurrently added
+    /// or removed during the measurement.
+    ///
     @Override
     public long getOffHeapConsumption() {
         int nonEmptyChunkCount = 0;

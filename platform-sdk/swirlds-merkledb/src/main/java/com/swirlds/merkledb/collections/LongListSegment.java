@@ -208,16 +208,22 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Performs a compare-and-set operation at the given sub-index within the chunk.
      *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call,
-     * the operation returns {@code false}. This is equivalent to the fast-path in
-     * {@link AbstractLongList#putIfEqual(long, long, long)} that returns {@code false}
-     * when the chunk slot is already {@code null} — the chunk no longer participates
-     * in the valid range.
+     * <p>This method may be called in parallel to updating this list's valid range using
+     * {@link #updateValidRange(long, long)}. For example, a flush is happening on the
+     * virtual lifecycle thread, and compaction is in progress on a compaction thread. When
+     * the valid range is updated, some chunks may be cleaned up and closed. Trying to set
+     * a value in closed chunks results in an illegal state exception. This method should
+     * be ready to handle those.
      */
     @Override
     protected boolean putIfEqual(
             @NonNull final SegmentChunk chunk, final int subIndex, final long oldValue, final long newValue) {
-        return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
+        try {
+            return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
+        } catch (final IllegalStateException e) {
+            // The segment is closed in a parallel thread
+            return false;
+        }
     }
 
     // =========================================================================

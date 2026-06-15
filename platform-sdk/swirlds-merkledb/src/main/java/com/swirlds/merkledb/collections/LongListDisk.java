@@ -169,9 +169,6 @@ public class LongListDisk extends AbstractLongList<Long> {
         numAllocatedChunks = new AtomicInteger(0);
         initFileChannel(file.getFileName().toString(), fileSystemManager);
         loadFromFile(file);
-        if (tempFile == null) {
-            throw new IllegalStateException("The temp file is not initialized");
-        }
     }
 
     /**
@@ -200,9 +197,6 @@ public class LongListDisk extends AbstractLongList<Long> {
         numAllocatedChunks = new AtomicInteger(0);
         initFileChannel(file.getFileName().toString(), fileSystemManager);
         loadFromFile(file);
-        if (tempFile == null) {
-            throw new IllegalStateException("The temp file is not initialized");
-        }
     }
 
     private void initFileChannel(@NonNull final String fileName, @NonNull final FileSystemManager fileSystemManager) {
@@ -275,6 +269,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         return buffer;
     }
 
+    @NonNull
     Path createTempFile(@NonNull final String sourceFileName, final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
         // FileSystemManager.create() deletes the temp directory created previously. It means,
