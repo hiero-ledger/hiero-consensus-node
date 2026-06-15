@@ -20,7 +20,12 @@ platform-sdk/docs/consensus-layer/
 │   ├── rounds-and-witnesses.md
 │   ├── strongly-seeing.md
 │   ├── birth-round.md
-│   └── ...
+│   ├── coin-rounds.md
+│   ├── judges.md
+│   ├── voting.md
+│   ├── event-lifecycle.md
+│   ├── stale-events.md
+│   └── branching.md
 │
 ├── glossary.md                            single file, ~50 terms
 ├── symptoms.md                            single file (catalog of SYM-NNN entries)
@@ -73,6 +78,7 @@ platform-sdk/docs/consensus-layer/
 │
 ├── delta-map/                             one file per topic, flat
 │   ├── README.md
+│   ├── FORMAT.md
 │   ├── wiring-framework.md
 │   ├── gossip.md
 │   ├── event-intake.md
@@ -80,10 +86,13 @@ platform-sdk/docs/consensus-layer/
 │   ├── hashgraph.md
 │   ├── health-monitor-and-backpressure.md
 │   ├── reasons-not-to-gossip.md
+│   ├── quiescence.md
 │   ├── signed-state-management.md
+│   ├── iss-detection.md
 │   ├── restart-and-pces.md
 │   ├── freeze-and-upgrade.md
-│   └── reconnect.md
+│   ├── reconnect.md
+│   └── sheriff.md
 │
 └── tutor/                                 curriculum content; internal structure deferred
 ```
@@ -165,7 +174,7 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 ### `delta-map/`
 
-Per-topic status of "current code vs. proposed design": done / partial / not started / divergent. Eleven flat files, one per topic. Updated as work progresses.
+Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet. `FORMAT.md` defines the entry shape. Updated as work progresses.
 
 ### `tutor/`
 
@@ -185,7 +194,7 @@ Internal organization of `tutor/` is left to the Tutor implementation — author
 
 Every populated directory has a `README.md` that serves as the canonical index — a table mapping IDs (where applicable) to titles, with brief descriptions. Tools cross-reference by ID; humans navigate by title in listings.
 
-Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
+Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`, `delta-map/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
 
 ## When to update this file
 
