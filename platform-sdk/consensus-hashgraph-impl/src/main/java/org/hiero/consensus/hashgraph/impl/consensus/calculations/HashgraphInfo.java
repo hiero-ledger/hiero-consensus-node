@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,6 +62,7 @@ import java.util.HashMap;
  * consensus. It also contains a {@link RoundInfoPrev RoundInfoPrev} record, which should be used in further
  * calls to {@link EventInfo#update update()} in the next round.
  */
+@java.lang.SuppressWarnings("unused")
 public final class HashgraphInfo {
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
