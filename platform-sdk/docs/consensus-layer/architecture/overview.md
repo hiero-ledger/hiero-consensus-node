@@ -7,7 +7,7 @@ last_reviewed: TBD
 # Architecture overview
 
 This file is the navigation map for the consensus-layer KB. It names the
-modules, names the eleven topics, places them in the module structure, and
+modules, names the thirteen topics, places them in the module structure, and
 shows where the Consensus / Execution boundary runs in current code. It is
 deliberately shallow: each topic gets a sentence or two and a forward link
 to the per-topic file where the depth lives. Motivation and design
@@ -100,7 +100,7 @@ path.
 
 ## Topic map
 
-The eleven topics below are the KB's main navigation axis. The grouping
+The thirteen topics below are the KB's main navigation axis. The grouping
 is for orientation only — it is not a structural ontology, and the
 topics are not strictly disjoint.
 
@@ -135,11 +135,18 @@ topics are not strictly disjoint.
 - [`topics/reasons-not-to-gossip.md`](topics/reasons-not-to-gossip.md) —
   the conditions under which a node refuses to gossip events
   (lagging-behind, fallen-behind, freeze, etc.).
+- [`topics/quiescence.md`](topics/quiescence.md) — pausing self-event
+  creation while the network has no work to do; Execution decides via a
+  `QuiescenceCommand` and the consensus layer only obeys it.
 
 **State and lifecycle**
 
 - [`topics/signed-state-management.md`](topics/signed-state-management.md)
   — round signing, state hashing, signature collection.
+- [`topics/iss-detection.md`](topics/iss-detection.md) — checking this
+  node's state hash for each round against peer signatures, classifying
+  any disagreement (self / other / catastrophic ISS), and the configured
+  halt-or-restart response.
 - [`topics/restart-and-pces.md`](topics/restart-and-pces.md) — PCES
   durability and replay across restarts.
 - [`topics/freeze-and-upgrade.md`](topics/freeze-and-upgrade.md) —
@@ -166,16 +173,14 @@ pulls transactions from Execution through
 [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
 — `getTransactionsForEvent`, and pushes data like status and health.
 
-**Construction-time callbacks (Execution → Consensus).** Execution
-supplies a bundle of consumers to the platform at build time through
-[`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+**Construction-time callback (Execution → Consensus).** Execution
+supplies an optional stale-event consumer to the platform at build time
+through
+[`StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java),
 wired in via
 [`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
-(`withPreconsensusEventCallback`, `withSnapshotOverrideCallback`,
-`withStaleEventCallback`). Consensus invokes these consumers as the
-corresponding events occur (pre-consensus event in topological order,
-consensus-snapshot override at reconnect/restart boundaries, stale
-self-event detected).
+(`withStaleEventConsumer`). Consensus invokes it when a self-event is
+detected as stale.
 
 **Notifications (Consensus → Execution).** Lifecycle events are
 delivered through the notification engine rather than direct calls.
@@ -209,7 +214,7 @@ union of the shapes listed above:
   [`ExecutionLayer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ExecutionLayer.java)
   (data pulls plus state-signature, status, and health calls).
 - Execution → Consensus call-ins at construction time:
-  [`ApplicationCallbacks`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/ApplicationCallbacks.java),
+  [`StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java),
   registered via
   [`PlatformBuilder`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java).
 - Consensus → Execution lifecycle signals via the notification engine
@@ -248,7 +253,9 @@ the framework itself is documented in
 - [`topics/hashgraph.md`](topics/hashgraph.md)
 - [`topics/health-monitor-and-backpressure.md`](topics/health-monitor-and-backpressure.md)
 - [`topics/reasons-not-to-gossip.md`](topics/reasons-not-to-gossip.md)
+- [`topics/quiescence.md`](topics/quiescence.md)
 - [`topics/signed-state-management.md`](topics/signed-state-management.md)
+- [`topics/iss-detection.md`](topics/iss-detection.md)
 - [`topics/restart-and-pces.md`](topics/restart-and-pces.md)
 - [`topics/freeze-and-upgrade.md`](topics/freeze-and-upgrade.md)
 - [`topics/reconnect.md`](topics/reconnect.md)
@@ -262,9 +269,14 @@ the framework itself is documented in
 - Concepts — [`../concepts/`](../concepts/) for foundational vocabulary
   (event, round, birth-round, judge, roster, hashgraph, etc.).
 - Glossary — [`../glossary.md`](../glossary.md) (pending).
-- Invariants — [`../invariants.md`](../invariants.md) (pending).
+- Invariants — [`../invariants/`](../invariants/) (INV catalog:
+  design-guaranteed properties).
+- Rules — [`../rules/`](../rules/) (RUL catalog: implementation-true
+  properties).
 - Decisions — [`../decisions/`](../decisions/) (ADR catalog).
 - Scenarios — [`../scenarios/`](../scenarios/) (SCN catalog).
+- Heuristics — [`../heuristics/`](../heuristics/) (HEU catalog:
+  symptom-keyed diagnostics).
 - Delta map — [`../delta-map/`](../delta-map/) for current-vs-proposed
   status per topic.
 

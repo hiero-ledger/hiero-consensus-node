@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,7 +17,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * A task running on the learner side, which is responsible for sending requests to the teacher.
  *
  * <p>Before these tasks are started, the root node (path 0) request/response exchange is
- * performed synchronously by {@link LearnerPullVirtualTreeView#startLearnerTasks}, so the
+ * performed synchronously by {@link com.swirlds.virtualmap.sync.LearningSynchronizer}, so the
  * traversal order is already fully initialized when this task begins.
  *
  * <p>This task keeps sending requests according to the provided {@link NodeTraversalOrder}.
@@ -31,7 +32,7 @@ public class LearnerPullVirtualTreeSendTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncOutputStream out;
-    private final LearnerPullVirtualTreeView view;
+    private final LearnerTreeExchanger treeExchanger;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
     // this task, decreased in the receiving task
@@ -46,8 +47,8 @@ public class LearnerPullVirtualTreeSendTask {
      * 		the work group that will manage this thread
      * @param out
      * 		the output stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
+     * @param treeExchanger
+     * 		the exchanger used to determine what to send to the teacher
      * @param responsesExpected
      *      number of responses expected from the teacher, increased by one every time a request
      *      is sent
@@ -57,12 +58,12 @@ public class LearnerPullVirtualTreeSendTask {
     public LearnerPullVirtualTreeSendTask(
             final StandardWorkGroup workGroup,
             final AsyncOutputStream out,
-            final LearnerPullVirtualTreeView view,
+            final LearnerTreeExchanger treeExchanger,
             final AtomicLong responsesExpected,
             final AtomicInteger tasksDone) {
         this.workGroup = workGroup;
         this.out = out;
-        this.view = view;
+        this.treeExchanger = treeExchanger;
         this.responsesExpected = responsesExpected;
         this.tasksDone = tasksDone;
     }
@@ -70,7 +71,7 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Start the background thread that sends requests to the teacher.
      */
-    void exec() {
+    public void exec() {
         workGroup.execute(NAME, this::run);
     }
 
@@ -82,7 +83,7 @@ public class LearnerPullVirtualTreeSendTask {
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final long path = view.getNextPathToSend();
+                final long path = treeExchanger.getNextPathToSend();
                 if (path == Path.INVALID_PATH) {
                     // Once the last learner sending task is done, send the teacher a marker
                     // (final) reconnect request and terminate the async out
@@ -98,9 +99,9 @@ public class LearnerPullVirtualTreeSendTask {
                     Thread.sleep(0, 1);
                     continue;
                 }
-                sendRequest(new PullVirtualTreeRequest(path, view.getNodeHash(path)));
+                sendRequest(new PullVirtualTreeRequest(path, treeExchanger.getNodeHash(path)));
                 responsesExpected.incrementAndGet();
-                view.getMapStats().incrementTransfersFromLearner();
+                treeExchanger.getMapStats().incrementTransfersFromLearner();
             }
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner sending task is interrupted");

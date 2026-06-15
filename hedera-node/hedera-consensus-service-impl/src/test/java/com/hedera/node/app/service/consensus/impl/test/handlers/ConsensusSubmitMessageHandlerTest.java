@@ -25,6 +25,7 @@ import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.protobuf.ByteString;
@@ -36,6 +37,7 @@ import com.hedera.hapi.node.consensus.ConsensusMessageChunkInfo;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.CustomFeeLimit;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -412,6 +414,43 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     }
 
     @Test
+    @DisplayName("assessCustomFee keeps two identical fees as separate entries")
+    void assessCustomFeeKeepsDuplicateFees() {
+        final var fee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+
+        final var bodies = customFeeAssessor.assessCustomFee(List.of(fee, fee), payerId);
+
+        assertEquals(2, bodies.size());
+    }
+
+    @Test
+    @DisplayName("Two identical topic custom fees are charged twice, not collapsed")
+    void identicalTopicCustomFeesAreChargedTwice() {
+        final var dupFee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+        givenTopicWithCustomFees(List.of(dupFee, dupFee));
+
+        given(handleContext.body()).willReturn(newSubmitMessageTxnWithHbarMaxFee(2));
+        given(handleContext.consensusNow()).willReturn(consensusTimestamp);
+        // hbar-only fees: payer + dispatch + not-fee-exempt (no token treasury lookup needed)
+        given(handleContext.payer()).willReturn(payerId);
+        given(handleContext.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(SUCCESS);
+        given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(any(Key.class), any())).willReturn(signatureVerification);
+        given(signatureVerification.passed()).willReturn(false);
+
+        subject.handle(handleContext);
+
+        verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
     void testSimpleKeyVerifierFromWithEd25519Key() {
         List<Key> signatories = List.of(ED25519KEY);
 
@@ -500,6 +539,34 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                 .consensusSubmitMessage(submitMessageBuilder.build())
                 .maxCustomFees(maxCustomFees)
                 .build();
+    }
+
+    private TransactionBody newSubmitMessageTxnWithHbarMaxFee(final long hbarLimit) {
+        final var txnId = TransactionID.newBuilder().accountID(payerId).build();
+        final var maxCustomFees = List.of(CustomFeeLimit.newBuilder()
+                .accountId(payerId)
+                .fees(List.of(FixedFee.newBuilder().amount(hbarLimit).build()))
+                .build());
+        final var submitMessageBuilder = ConsensusSubmitMessageTransactionBody.newBuilder()
+                .topicID(TopicID.newBuilder().topicNum(topicEntityNum).build())
+                .message(Bytes.wrap("duplicate-fee-message"));
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .consensusSubmitMessage(submitMessageBuilder.build())
+                .maxCustomFees(maxCustomFees)
+                .build();
+    }
+
+    private void givenTopicWithCustomFees(final List<FixedCustomFee> fees) {
+        topic = topic.copyBuilder().customFees(fees).build();
+        writableTopicState = writableTopicStateWithOneKey();
+        readableTopicState = readableTopicState();
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
+        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
 
     private TransactionBody newDefaultSubmitMessageTxn() {

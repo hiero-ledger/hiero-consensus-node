@@ -258,7 +258,11 @@ operators may search log archives for its vocabulary):
 Pending catalogs:
 
 - Invariants — [TBD: INV-NNN once `../invariants.md` catalog populates].
-- Decisions — [TBD: ADR-NNN once `../decisions/` catalog populates].
+- Decisions:
+  - [ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md) — blocking
+    `onSealConsensusRound` to hand off freeze-block signatures from Execution to consensus.
+  - [ADR-006](../../decisions/ADR-006-coordinated-network-wide-upgrade.md) — why upgrades use a
+    coordinated network-wide freeze rather than rolling upgrades.
 - Scenarios — [TBD: SCN-NNN — freeze-time anomalies (failed save,
   missed freeze round, post-freeze branching, re-freeze on the same
   trigger) are likely scenario seeds].

@@ -56,10 +56,7 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.event.branching to
-            org.hiero.consensus.reconnect.impl;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.event;
     exports com.swirlds.platform.state.nexus to
             org.hiero.consensus.reconnect.impl;
     exports com.swirlds.platform.wiring;
