@@ -405,6 +405,25 @@ jobs:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
+  block-node-regression-skipped-notice:
+    name: Block Node Regression Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Block Node Regression Panel was requested (enable-block-node-regression-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Block Node Regression Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-block-node-regression-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   migration-testing-panel:
     name: Migration Testing Panel
     needs:
@@ -420,6 +439,25 @@ jobs:
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  migration-testing-skipped-notice:
+    name: Migration Testing Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Migration Testing Panel was requested (enable-migration-testing-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Migration Testing Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-migration-testing-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   set-failure-mode:
     name: Set Failure Mode
@@ -444,98 +482,50 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.build.result || 'skipped' }}
-            ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
-            ${{ needs.xts-hammer-tests.result || 'skipped' }}
-            ${{ needs.xts-hapi-tests.result || 'skipped' }}
-            ${{ needs.xts-otter-tests.result || 'skipped' }}
-          )
-          job_failure_modes=(
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.commit-info.result }}
+            ${{ needs.build.result }}
+            ${{ needs.xts-timing-sensitive-tests.result }}
+            ${{ needs.xts-hammer-tests.result }}
+            ${{ needs.xts-hapi-tests.result }}
+            ${{ needs.xts-otter-tests.result }}
+            ${{ needs.hedera-node-jrs-panel.result }}
+            ${{ needs.sdk-tck-regression-panel.result }}
+            ${{ needs.mirror-node-regression-panel.result }}
+            ${{ needs.json-rpc-relay-regression-panel.result }}
+            ${{ needs.block-node-regression-panel.result }}
+            ${{ needs.migration-testing-panel.result }}
+          INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
-          )
-          job_names=(
-            "commit-info"
-            "build"
-            "xts-timing-sensitive-tests"
-            "xts-hammer-tests"
-            "xts-hapi-tests"
-            "xts-otter-tests"
-          )
-
-          # Final outputs
-          failure_mode="none"
-          failed_tests=""
-
-          # go through all of the job statuses and check failure mode (none | workflow | test)
-          # if any job failed (failure-mode != none) then set the failure mode for the workflow
-          # to that jobs failure mode.
-          # only set failure mode once
-          # append the failing job to the failed-tests list.
-
-          for job in "${!job_statuses[@]}"; do
-            status=${job_statuses[$job]}
-            mode=${job_failure_modes[$job]}
-            name=${job_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${mode}" != "none" && "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
-              else
-                failed_tests="${failed_tests}, ${name}"
-              fi
-            fi
-          done
-
-          # if any panel jobs failed, set failure mode to 'test' if not already set to something
-          # other than "none"
-          # Add the failed panel job to the failed-tests list
-
-          panel_statuses=(
-            ${{ needs.hedera-node-jrs-panel.result || 'skipped' }}
-            ${{ needs.sdk-tck-regression-panel.result || 'skipped' }}
-            ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
-            ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
-            ${{ needs.block-node-regression-panel.result || 'skipped' }}
-            ${{ needs.migration-testing-panel.result || 'skipped' }}
-          )
-          panel_names=(
-            "hedera-node-jrs-panel"
-            "sdk-tck-regression-panel"
-            "mirror-node-regression-panel"
-            "json-rpc-relay-regression-panel"
-            "block-node-regression-panel"
-            "migration-testing-panel"
-          )
-
-          for job in "${!panel_statuses[@]}"; do
-            status=${panel_statuses[$job]}
-            name=${panel_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="test"
-              fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
-              else
-                failed_tests="${failed_tests}, ${name}"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"
+            ${{ needs.hedera-node-jrs-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.sdk-tck-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.mirror-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            commit-info
+            build
+            xts-timing-sensitive-tests
+            xts-hammer-tests
+            xts-hapi-tests
+            xts-otter-tests
+            hedera-node-jrs-panel
+            sdk-tck-regression-panel
+            mirror-node-regression-panel
+            json-rpc-relay-regression-panel
+            block-node-regression-panel
+            migration-testing-panel
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

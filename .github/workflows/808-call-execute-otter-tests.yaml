@@ -308,36 +308,27 @@ jobs:
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            "${{ needs.full-otter.result || 'skipped' }}"
-            "${{ needs.fast-otter.result || 'skipped' }}"
-            "${{ needs.chaos-otter.result || 'skipped' }}"
-          )
-
-          job_failure_modes=(
-            "${{ needs.full-otter.outputs.failure-mode || 'none' }}"
-            "${{ needs.fast-otter.outputs.failure-mode || 'none' }}"
-            "${{ needs.chaos-otter.outputs.failure-mode || 'none' }}"
-          )
-
-          failure_mode="none"
-
-          for i in "${!job_statuses[@]}"; do
-            if [[ "${job_statuses[$i]}" == "failure" ]]; then
-              mode="${job_failure_modes[$i]}"
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              elif [[ "${mode}" == "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.full-otter.result }}
+            ${{ needs.fast-otter.result }}
+            ${{ needs.chaos-otter.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.full-otter.outputs.failure-mode || 'none' }}
+            ${{ needs.fast-otter.outputs.failure-mode || 'none' }}
+            ${{ needs.chaos-otter.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            full-otter
+            fast-otter
+            chaos-otter
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
