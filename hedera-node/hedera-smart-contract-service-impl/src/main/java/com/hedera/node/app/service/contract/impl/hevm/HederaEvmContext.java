@@ -14,6 +14,7 @@ import org.hyperledger.besu.evm.frame.BlockValues;
 public record HederaEvmContext(
         long gasPrice, // weibar
         boolean staticCall,
+        boolean shouldChargeGasFees,
         @NonNull HederaEvmBlocks blocks,
         @NonNull TinybarValues tinybarValues,
         @NonNull SystemContractGasCalculator systemContractGasCalculator,
