@@ -3,27 +3,32 @@ package org.hiero.consensus.concurrent.pool;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
- * A group of {@link Thread}s designed to support the following paradigm:
+ * A logic group for parallel tasks execution using {@link ExecutorService} where
+ * tasks can be forked by {@link #fork(Runnable)} or {@link #fork(String, Runnable)}.
+ * <br>
+ * Use {@link #join()} to wait until all tasks are completed.
+ * <br>
+ * If any task throws an exception, all other will be interrupted and exception will be rethrown by {@link #join()}.
  *
- * 1) One or more threads are created to perform a task.
- * 2) Zero or more threads are created by those threads (or other descendant threads) to assist with the task.
- * 3) When the task is finished, all worker threads terminate.
- * 4) If any worker thread throws an exception, all threads stop and the exception is delivered to the calling context.
+ * <p>The API mirrors {@code StructuredTaskScope} with {@code Joiner.awaitAllSuccessfulOrThrow()} preview feature from JDK structured concurrency.
  */
-public class StandardWorkGroup {
+// TODO move to {@code StructuredTaskScope} when that is available in a stable JDK release.
+public class StandardWorkGroup implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(StandardWorkGroup.class);
 
@@ -33,16 +38,29 @@ public class StandardWorkGroup {
     private final boolean logExceptionsToStdErr;
     private final ExecutorService executorService;
 
-    private final ConcurrentFuturePool<Void> futures;
-
-    private volatile boolean hasExceptions;
-
-    private final AtomicBoolean firstException = new AtomicBoolean(true);
+    @Nullable
     private final Runnable abortAction;
-    private final Function<Throwable, Boolean> exceptionListener;
 
-    public StandardWorkGroup(final ThreadManager threadManager, final String groupName, final Runnable abortAction) {
-        this(threadManager, groupName, abortAction, null, false);
+    private final ConcurrentLinkedQueue<Future<?>> futures = new ConcurrentLinkedQueue<>();
+    private final AtomicReference<Throwable> firstException = new AtomicReference<>(null);
+
+    /**
+     * Create a new work group without abort action and logging exceptions.
+     *
+     * <p>See {@link #StandardWorkGroup(ThreadManager, String, Runnable, boolean)}
+     */
+    public StandardWorkGroup(final ThreadManager threadManager, final String groupName) {
+        this(threadManager, groupName, null, false);
+    }
+
+    /**
+     * Create a new work group without logging exceptions.
+     *
+     * <p>See {@link #StandardWorkGroup(ThreadManager, String, Runnable, boolean)}
+     */
+    public StandardWorkGroup(
+            final ThreadManager threadManager, final String groupName, @Nullable final Runnable abortAction) {
+        this(threadManager, groupName, abortAction, false);
     }
 
     /**
@@ -51,39 +69,22 @@ public class StandardWorkGroup {
      * @param threadManager
      * 		responsible for managing thread lifecycle
      * @param groupName
-     * 		the name of the group
+     * 		the name of the group, used for logging and debugging purposes
      * @param abortAction
-     * 		if a non-<code>InterruptedException</code> exception is encountered, execute this method.
-     * 		All threads in the work group are interrupted, but
-     * 		if there is additional cleanup required then this method
-     * 		can be used to perform that cleanup. Method is called at most
-     * 		one time. If argument is null then no additional action is taken.
-     * @param exceptionListener
-     *      If a non-<code>InterruptedException</code> exception is encountered, it is passed to this
-     *      listener. If the listener returns {@code true}, the exception is considered handled, and
-     *      no further action is performed. If the listener returns {@code false}, it indicates the
-     *      exception should be processed by the default handler, which is to log it appropriately
+     *      called exactly once when the first non-{@link InterruptedException} task exception is
+     *      recorded, before worker threads are interrupted via {@code shutdownNow()}. Use this to
+     *      release external resources (e.g. close network sockets) that blocking I/O threads may
+     *      be waiting on and that do not respond to {@link Thread#interrupt()}. May be {@code null}.
+     * @param logExceptionsToStdErr whether to log all tasks exceptions to {@link System#err}.
      */
     public StandardWorkGroup(
             final ThreadManager threadManager,
             final String groupName,
-            final Runnable abortAction,
-            final Function<Throwable, Boolean> exceptionListener) {
-        this(threadManager, groupName, abortAction, exceptionListener, false);
-    }
-
-    public StandardWorkGroup(
-            final ThreadManager threadManager,
-            final String groupName,
-            final Runnable abortAction,
-            final Function<Throwable, Boolean> exceptionListener,
+            @Nullable final Runnable abortAction,
             final boolean logExceptionsToStdErr) {
         this.groupName = groupName;
         this.logExceptionsToStdErr = logExceptionsToStdErr;
-        this.futures = new ConcurrentFuturePool<>(this::handleError);
-
         this.abortAction = abortAction;
-        this.exceptionListener = exceptionListener;
 
         final ThreadConfiguration configuration = new ThreadConfiguration(threadManager)
                 .setComponent("work group " + groupName)
@@ -110,12 +111,13 @@ public class StandardWorkGroup {
      * (excluding {@link InterruptedException}) will be caught by the work group and will result
      * in the termination of all threads in the work group.
      *
+     * <p>Analogous to {@code StructuredTaskScope.fork()}.
+     *
      * @param operation
      * 		the method to run on the thread
      */
-    @SuppressWarnings("unchecked")
-    public void execute(final Runnable operation) {
-        futures.add((Future<Void>) executorService.submit(operation));
+    public void fork(final Runnable operation) {
+        fork(null, operation);
     }
 
     /**
@@ -128,34 +130,110 @@ public class StandardWorkGroup {
      * @param operation
      * 		the method to run on the thread
      */
-    public void execute(final String taskName, final Runnable operation) {
-        final Runnable wrapper = () -> {
-            final String originalThreadName = Thread.currentThread().getName();
-            final String newThreadName = originalThreadName.replaceFirst(DEFAULT_TASK_NAME, taskName);
+    public void fork(final String taskName, final Runnable operation) {
+        try {
+            futures.add(executorService.submit(wrap(taskName, operation)));
+        } catch (final RuntimeException e) {
+            handleError(e);
+            throw e;
+        }
+    }
 
-            try {
+    private Runnable wrap(final String taskName, final Runnable operation) {
+        if (taskName == null) {
+            return () -> {
+                try {
+                    operation.run();
+                } catch (final Throwable e) {
+                    handleError(e);
+                }
+            };
+        } else {
+            return () -> {
+                final String originalThreadName = Thread.currentThread().getName();
+                final String newThreadName = originalThreadName.replaceFirst(DEFAULT_TASK_NAME, taskName);
                 Thread.currentThread().setName(newThreadName);
-                operation.run();
-            } finally {
-                Thread.currentThread().setName(originalThreadName);
+
+                try {
+                    operation.run();
+                } catch (final Throwable e) {
+                    handleError(e);
+                } finally {
+                    Thread.currentThread().setName(originalThreadName);
+                }
+            };
+        }
+    }
+
+    /**
+     * Waits for all submitted tasks to complete, then surfaces the first task exception if any.
+     *
+     * <p>Analogous to {@code StructuredTaskScope.join()} followed by {@code throwIfFailed()}:
+     * blocks until every forked task is done, then throws the first captured task exception.
+     * If the calling thread is interrupted, all running tasks are cancelled immediately via
+     * {@code shutdownNow()}, this method still waits for every task to finish, then restores
+     * the interrupt status and throws {@link InterruptedException} (taking priority over any
+     * task exception).
+     *
+     * @throws InterruptedException if the calling thread is interrupted while waiting;
+     *         all running tasks will have been interrupted before this is thrown
+     * @throws ParallelExecutionException wrapping the first exception thrown by any task
+     */
+    public void join() throws InterruptedException, ParallelExecutionException {
+        boolean interrupted = false;
+
+        for (final Future<?> future : futures) {
+            while (!future.isDone()) {
+                try {
+                    future.get();
+                } catch (final InterruptedException e) {
+                    interrupted = true;
+                    // Propagate the interrupt to all running tasks, then keep waiting for this
+                    // future so every task is guaranteed to finish before we return.
+                    executorService.shutdownNow();
+                } catch (final ExecutionException e) {
+                    break; // defensive — safeOp does not re-throw, so this should not occur
+                } catch (final CancellationException e) {
+                    break; // task was cancelled by shutdownNow
+                }
             }
-        };
+        }
 
-        execute(wrapper);
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+            throw new InterruptedException();
+        }
+
+        final Throwable throwable = firstException.get();
+        if (throwable != null) {
+            throw new ParallelExecutionException(throwable);
+        }
     }
 
-    public boolean hasExceptions() {
-        return hasExceptions;
-    }
+    /**
+     * Shuts down the work group and waits for all tasks to finish.
+     *
+     * <p>Analogous to {@code StructuredTaskScope.close()}: interrupts all running tasks via
+     * {@code shutdownNow()}, then blocks until every task has terminated. Does not throw task
+     * exceptions — intended as the {@code AutoCloseable} guard in a try-with-resources block to
+     * ensure cleanup even when {@link #join()} throws. If interrupted
+     * while waiting, the interrupt flag is restored on return.
+     */
+    @Override
+    public void close() {
+        executorService.shutdownNow();
 
-    public void waitForTermination() throws InterruptedException {
-        futures.waitForCompletion();
-        executorService.shutdown();
-
+        boolean interrupted = false;
         while (!executorService.isTerminated()) {
-            if (executorService.awaitTermination(10, TimeUnit.MILLISECONDS)) {
-                break;
+            try {
+                executorService.awaitTermination(10, TimeUnit.MILLISECONDS);
+            } catch (final InterruptedException e) {
+                interrupted = true;
             }
+        }
+
+        if (interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -165,26 +243,28 @@ public class StandardWorkGroup {
      * @param ex
      * 		an exception
      */
-    public void handleError(final Throwable ex) {
+    private void handleError(final Throwable ex) {
         if (!(ex instanceof InterruptedException)) {
-            boolean exceptionHandled = false;
-            if (exceptionListener != null) {
-                exceptionHandled = exceptionListener.apply(ex);
-            }
-            if (!exceptionHandled) {
+            if (firstException.compareAndSet(null, ex)) {
                 logger.error(EXCEPTION.getMarker(), "Work Group Exception [ groupName = {} ]", groupName, ex);
-                // Log to stderr for testing purposes
-                if (logExceptionsToStdErr) {
-                    ex.printStackTrace(System.err);
+                if (abortAction != null) {
+                    try {
+                        abortAction.run();
+                    } catch (final Exception abortEx) {
+                        logger.warn(
+                                EXCEPTION.getMarker(),
+                                "Work Group abort action failed [ groupName = {} ]",
+                                groupName,
+                                abortEx);
+                    }
                 }
+                executorService.shutdownNow();
+            } else {
+                logger.warn(EXCEPTION.getMarker(), "Work Group Exception [ groupName = {} ]:", groupName, ex);
             }
-
-            hasExceptions = true;
-            if (abortAction != null && firstException.getAndSet(false)) {
-                abortAction.run();
+            if (logExceptionsToStdErr) {
+                ex.printStackTrace(System.err);
             }
-
-            executorService.shutdownNow();
         }
     }
 }

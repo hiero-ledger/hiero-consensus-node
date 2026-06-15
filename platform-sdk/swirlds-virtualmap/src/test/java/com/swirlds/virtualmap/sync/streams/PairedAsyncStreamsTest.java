@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -45,17 +49,17 @@ class PairedAsyncStreamsTest {
 
     @Test
     @DisplayName("Basic Operation: messages round-trip through the socket and done() terminates cleanly")
-    void basicOperation() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "basic", null);
+    void basicOperation() throws IOException, InterruptedException, ParallelExecutionException {
+        try (final PairedStreams streams = new PairedStreams();
+                final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "basic")) {
 
             final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
-                    streams.getLearnerOutput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
+                    streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
-            teacherIn.start();
-            learnerOut.start();
+            teacherIn.start(workGroup);
+            learnerOut.start(workGroup);
 
             final int count = 100;
 
@@ -65,7 +69,7 @@ class PairedAsyncStreamsTest {
                 }
                 learnerOut.done();
             });
-            workGroup.execute("learner-sender", learnerRunnable);
+            workGroup.fork("learner-sender", learnerRunnable);
 
             final AtomicInteger messagesRead = new AtomicInteger();
             OutcomeRunnable teacherRunnable = new OutcomeRunnable(() -> {
@@ -81,9 +85,9 @@ class PairedAsyncStreamsTest {
                             "message should match the value that was serialized");
                 }
             });
-            workGroup.execute("teacher-receiver", teacherRunnable);
+            workGroup.fork("teacher-receiver", teacherRunnable);
 
-            workGroup.waitForTermination();
+            workGroup.join();
 
             learnerRunnable.verifySuccess("learner task");
             teacherRunnable.verifySuccess("teacher task");
@@ -94,19 +98,16 @@ class PairedAsyncStreamsTest {
     @Test
     @DisplayName("Learner disconnect mid-stream propagates error to work group")
     void learnerDisconnectMidStream() throws IOException, InterruptedException {
-        ExceptionCapture exceptionCapture = new ExceptionCapture();
         final PairedStreams streams = new PairedStreams();
-        try {
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "teacher-disconnect", null, exceptionCapture);
-
+        try (final StandardWorkGroup workGroup =
+                new StandardWorkGroup(getStaticThreadManager(), "teacher-disconnect")) {
             final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
-                    streams.getLearnerOutput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
+                    streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
-            teacherIn.start();
-            learnerOut.start();
+            teacherIn.start(workGroup);
+            learnerOut.start(workGroup);
 
             // Teacher task signals when the first message has been observed so the main thread
             // can disconnect the learner only after the round-trip is complete — avoids the
@@ -116,25 +117,28 @@ class PairedAsyncStreamsTest {
                 final byte[] first = teacherIn.readOrWait(YieldStrategy.PARK);
                 assertNotNull(first, "first message should arrive before disconnect");
                 firstReceived.countDown();
-                // second read blocks until the work group interrupts the task after EOF
-                teacherIn.readOrWait(YieldStrategy.PARK);
+                // second read blocks until the work group interrupts the task after EOF and marks stream as done
+                Thread.sleep(DEFAULT_TIMEOUT.toMillis());
             });
-            workGroup.execute("teacher-task", teacherRunnable);
+            workGroup.fork("teacher-task", teacherRunnable);
 
             learnerOut.sendAsync(serializeLong(1));
             assertTrue(
                     firstReceived.await(5, TimeUnit.SECONDS), "teacher should observe first message before disconnect");
 
             streams.disconnectLearner();
-            workGroup.waitForTermination();
+
+            try {
+                workGroup.join();
+                fail("Should have thrown a ParallelExecutionException");
+            } catch (ParallelExecutionException ex) {
+                assertInstanceOf(UncheckedIOException.class, ex.getCause(), "UncheckedIOException should be captured");
+                assertInstanceOf(EOFException.class, ex.getCause().getCause(), "EOFException should be a cause");
+            }
 
             assertEquals(AsyncInputStream.Status.DONE, teacherIn.getStatus(), "input stream should be closed");
             assertEquals(AsyncOutputStream.Status.DONE, learnerOut.getStatus(), "output stream should be closed");
             teacherRunnable.verifyInterrupted("teacher task");
-            assertTrue(workGroup.hasExceptions(), "Work group should record an exception after teacher disconnect");
-            assertEquals(1, exceptionCapture.getExceptions().size(), "one exception should be captured");
-            assertInstanceOf(
-                    EOFException.class, exceptionCapture.getExceptions().peek(), "EOFException should be captured");
         } finally {
             closeIgnoringIoException(streams);
         }
@@ -145,17 +149,15 @@ class PairedAsyncStreamsTest {
     @DisplayName("Teacher disconnect mid-stream propagates error to work group")
     void teacherDisconnectMidStream() throws IOException, InterruptedException {
         final PairedStreams streams = new PairedStreams();
-        try {
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "learner-disconnect", null);
-
+        try (final StandardWorkGroup workGroup =
+                new StandardWorkGroup(getStaticThreadManager(), "learner-disconnect")) {
             final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
             final AsyncOutputStream learnerOut = new AsyncOutputStream(
-                    streams.getLearnerOutput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
+                    streams.getLearnerOutput(), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
 
-            teacherIn.start();
-            learnerOut.start();
+            teacherIn.start(workGroup);
+            learnerOut.start(workGroup);
 
             // Close the teacher socket so the learner's write/flush fails with an IOException.
             // Keep pumping messages on a background thread until the work group records the error
@@ -167,15 +169,19 @@ class PairedAsyncStreamsTest {
                     learnerOut.sendAsync(serializeLong(i));
                 }
             });
-            workGroup.execute(learnerRunnable);
+            workGroup.fork(learnerRunnable);
 
-            workGroup.waitForTermination();
+            try {
+                workGroup.join();
+                fail("Should have thrown a ParallelExecutionException");
+            } catch (ParallelExecutionException ex) {
+                assertInstanceOf(UncheckedIOException.class, ex.getCause(), "UncheckedIOException should be captured");
+                assertInstanceOf(SocketException.class, ex.getCause().getCause(), "SocketException should be a cause");
+            }
 
             assertEquals(AsyncInputStream.Status.DONE, teacherIn.getStatus(), "input stream should be closed");
             assertEquals(AsyncOutputStream.Status.DONE, learnerOut.getStatus(), "output stream should be closed");
             learnerRunnable.verifyNotSuccess("learner task");
-
-            assertTrue(workGroup.hasExceptions(), "Work group should record an exception after teacher disconnect");
         } finally {
             closeIgnoringIoException(streams);
         }
@@ -183,21 +189,20 @@ class PairedAsyncStreamsTest {
 
     @Test
     @DisplayName("Producer outpaces a slow consumer: all messages arrive in order, done() terminates")
-    void slowConsumerBackpressureProducer() throws IOException, InterruptedException {
-        try (final PairedStreams streams = new PairedStreams()) {
-            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "slow-consumer", null);
+    void slowConsumerBackpressureProducer() throws IOException, InterruptedException, ParallelExecutionException {
+        try (final PairedStreams streams = new PairedStreams();
+                final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "slow-consumer")) {
 
             // Small queue so the producer saturates quickly. Generous sendAsync timeout so
             // backpressure blocks the producer instead of throwing while the consumer catches up.
             final int bufferSize = 8;
             final int count = 1000;
-            final AsyncInputStream in =
-                    new AsyncInputStream(streams.getTeacherInput(), workGroup, bufferSize, DEFAULT_TIMEOUT);
+            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), bufferSize, DEFAULT_TIMEOUT);
             final AsyncOutputStream out = new AsyncOutputStream(
-                    streams.getLearnerOutput(), workGroup, bufferSize, DEFAULT_FLUSH_INTERVAL, Duration.ofSeconds(30));
+                    streams.getLearnerOutput(), bufferSize, DEFAULT_FLUSH_INTERVAL, Duration.ofSeconds(30));
 
-            in.start();
-            out.start();
+            in.start(workGroup);
+            out.start(workGroup);
 
             final AtomicInteger nextExpected = new AtomicInteger(0);
             final Thread consumer = new Thread(() -> {
@@ -228,7 +233,7 @@ class PairedAsyncStreamsTest {
 
             out.done();
             consumer.join(Duration.ofSeconds(30).toMillis());
-            workGroup.waitForTermination();
+            workGroup.join();
 
             assertEquals(count, nextExpected.get(), "All messages should have been received in order");
         }
@@ -239,10 +244,7 @@ class PairedAsyncStreamsTest {
     @DisplayName("Socket SO_TIMEOUT on the input side surfaces as SocketTimeoutException to the work group")
     void socketTimeoutOnBackgroundReadPropagatesToWorkGroup() throws IOException, InterruptedException {
         final PairedStreams streams = new PairedStreams();
-        try {
-            final ExceptionCapture exceptionCapture = new ExceptionCapture();
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "socket-timeout", null, exceptionCapture);
+        try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "socket-timeout")) {
 
             // Short SO_TIMEOUT on the teacher socket; the learner never writes anything so the
             // background reader's readInt() will block on the socket until SO_TIMEOUT fires and
@@ -250,21 +252,25 @@ class PairedAsyncStreamsTest {
             streams.setTeacherTimeout(100);
 
             final AsyncInputStream teacherIn =
-                    new AsyncInputStream(streams.getTeacherInput(), workGroup, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
-            teacherIn.start();
+                    new AsyncInputStream(streams.getTeacherInput(), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
+            teacherIn.start(workGroup);
 
-            workGroup.waitForTermination();
+            try {
+                workGroup.join();
+                fail("Should have thrown a ParallelExecutionException");
+            } catch (ParallelExecutionException e) {
+                assertInstanceOf(
+                        UncheckedIOException.class,
+                        e.getCause(),
+                        "the recorded exception should be UncheckedIOException");
+                assertInstanceOf(
+                        SocketTimeoutException.class, e.getCause().getCause(), "SocketException should be a cause");
+            }
 
             assertEquals(
                     AsyncInputStream.Status.DONE,
                     teacherIn.getStatus(),
                     "background reader should exit after socket timeout");
-            assertTrue(workGroup.hasExceptions(), "work group should record the SocketTimeoutException");
-            assertEquals(1, exceptionCapture.getExceptions().size(), "exactly one exception expected");
-            assertInstanceOf(
-                    SocketTimeoutException.class,
-                    exceptionCapture.getExceptions().peek(),
-                    "the recorded exception should be SocketTimeoutException");
         } finally {
             closeIgnoringIoException(streams);
         }

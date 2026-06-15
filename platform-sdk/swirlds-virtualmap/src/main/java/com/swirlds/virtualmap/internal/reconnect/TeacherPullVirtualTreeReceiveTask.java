@@ -13,6 +13,7 @@ import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,7 +37,6 @@ public class TeacherPullVirtualTreeReceiveTask {
 
     private static final String NAME = "reconnect-teacher-receiver";
 
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final RecordAccessor teacherView;
@@ -50,7 +50,6 @@ public class TeacherPullVirtualTreeReceiveTask {
      *
      * @param time                  the wall clock time
      * @param reconnectConfig       the configuration for reconnect
-     * @param workGroup             the work group managing the reconnect
      * @param in                    the input stream
      * @param out                   the output stream
      * @param teacherView           view of teacher state
@@ -58,12 +57,10 @@ public class TeacherPullVirtualTreeReceiveTask {
     public TeacherPullVirtualTreeReceiveTask(
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final RecordAccessor teacherView,
             final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.teacherView = teacherView;
@@ -82,8 +79,9 @@ public class TeacherPullVirtualTreeReceiveTask {
     /**
      * Start the thread that sends lessons and queries to the learner.
      */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
+    public void exec(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
+        workGroup.fork(NAME, this::run);
     }
 
     /**
@@ -149,8 +147,6 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }
