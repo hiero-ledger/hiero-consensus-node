@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
@@ -20,11 +21,19 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -44,6 +53,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static final String GENESIS_NETWORK_JSON = "genesis-network.json";
     public static final String OVERRIDE_NETWORK_JSON = "override-network.json";
     public static final Pattern ROUND_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final int STARTUP_NETWORK_JSON_MAX_FIELD_SIZE = 64 * 1024 * 1024;
 
     private final ConfigProvider configProvider;
 
@@ -58,6 +68,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public enum InfoType {
         ROSTER,
         NODE_DETAILS,
+        TSS,
     }
 
     /**
@@ -68,6 +79,10 @@ public class DiskStartupNetworks implements StartupNetworks {
         OVERRIDE,
         MIGRATION,
     }
+
+    private record NetworkLoad(Optional<Network> network, boolean cached) {}
+
+    private final Map<Path, Network> cachedNetworks = new HashMap<>();
 
     public DiskStartupNetworks(@NonNull final ConfigProvider configProvider) {
         this.configProvider = requireNonNull(configProvider);
@@ -105,17 +120,27 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     @Override
-    public void setOverrideRound(final long roundNumber) {
+    public synchronized void setOverrideRound(final long roundNumber) {
         final var config = configProvider.getConfiguration();
-        final var path = networksPath(config, OVERRIDE_NETWORK_JSON);
+        final var path =
+                networksPath(config, OVERRIDE_NETWORK_JSON).toAbsolutePath().normalize();
         if (Files.exists(path)) {
-            final var roundDir = networksPath(config, "" + roundNumber);
-            final var scopedPath = roundDir.resolve(OVERRIDE_NETWORK_JSON);
+            final var cachedNetwork = cachedNetworks.remove(path);
+            final var roundDir =
+                    networksPath(config, "" + roundNumber).toAbsolutePath().normalize();
+            final var scopedPath =
+                    roundDir.resolve(OVERRIDE_NETWORK_JSON).toAbsolutePath().normalize();
             try {
                 Files.createDirectories(roundDir);
                 Files.move(path, scopedPath);
+                if (cachedNetwork != null) {
+                    cachedNetworks.put(scopedPath, cachedNetwork);
+                }
                 log.info("Moved override network file to {}", scopedPath);
             } catch (IOException e) {
+                if (cachedNetwork != null) {
+                    cachedNetworks.put(path, cachedNetwork);
+                }
                 log.warn("Failed to move override network file", e);
             }
         }
@@ -126,6 +151,11 @@ public class DiskStartupNetworks implements StartupNetworks {
         // from that state we will fail to repeat the post-upgrade transplant
         // dispatches and hit an ISS immediately after restart
         lastOverrideRoundNumber = roundNumber;
+    }
+
+    @Override
+    public synchronized void clearCachedNetworks() {
+        cachedNetworks.clear();
     }
 
     @Override
@@ -159,6 +189,7 @@ public class DiskStartupNetworks implements StartupNetworks {
         } catch (IOException e) {
             log.warn("Failed to list round override network files", e);
         }
+        clearCachedNetworks();
     }
 
     @Override
@@ -177,12 +208,43 @@ public class DiskStartupNetworks implements StartupNetworks {
      */
     public static void writeNetworkInfo(
             @NonNull final State state, @NonNull final Path path, @NonNull final Set<InfoType> infoTypes) {
+        writeNetworkInfo(state, path, withoutTss(infoTypes), null, -1L);
+    }
+
+    /**
+     * Writes a JSON representation of the {@link Network} information in the given state to a given path.
+     *
+     * @param state the state to write network information from.
+     * @param path the path to write the JSON network information to.
+     * @param infoTypes the types of network information to include
+     * @param config the configuration to use when including local TSS key material
+     * @param selfNodeId the node id whose local private key material should be updated in the JSON file
+     */
+    public static void writeNetworkInfo(
+            @NonNull final State state,
+            @NonNull final Path path,
+            @NonNull final Set<InfoType> infoTypes,
+            @Nullable final Configuration config,
+            final long selfNodeId) {
         requireNonNull(state);
+        requireNonNull(path);
+        requireNonNull(infoTypes);
+        networkInfoFrom(state, infoTypes).ifPresent(network -> {
+            if (infoTypes.contains(InfoType.TSS)) {
+                tryToExportWithTssMetadata(state, network, path, config, selfNodeId);
+            } else {
+                tryToExport(network, path);
+            }
+        });
+    }
+
+    private static Optional<Network> networkInfoFrom(
+            @NonNull final State state, @NonNull final Set<InfoType> infoTypes) {
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
         final long round = roundOf(state);
-        Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).ifPresent(activeRoster -> {
+        return Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).map(activeRoster -> {
             final var network = Network.newBuilder();
             final List<NodeMetadata> nodeMetadata = new ArrayList<>();
             activeRoster.rosterEntries().forEach(entry -> {
@@ -192,8 +254,16 @@ public class DiskStartupNetworks implements StartupNetworks {
                         infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
             });
             network.nodeMetadata(nodeMetadata);
-            tryToExport(network.build(), path);
+            return network.build();
         });
+    }
+
+    private static EnumSet<InfoType> withoutTss(@NonNull final Set<InfoType> infoTypes) {
+        requireNonNull(infoTypes);
+        final EnumSet<InfoType> effectiveInfoTypes =
+                infoTypes.isEmpty() ? EnumSet.noneOf(InfoType.class) : EnumSet.copyOf(infoTypes);
+        effectiveInfoTypes.remove(InfoType.TSS);
+        return effectiveInfoTypes;
     }
 
     /**
@@ -202,11 +272,63 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @param path the path to export the network to
      */
     public static void tryToExport(@NonNull final Network network, @NonNull final Path path) {
-        try (final var fout = Files.newOutputStream(path)) {
-            Network.JSON.write(network, new WritableStreamingData(fout));
+        requireNonNull(network);
+        requireNonNull(path);
+        try {
+            final var absolutePath = path.toAbsolutePath();
+            Files.createDirectories(requireNonNull(absolutePath.getParent()));
+            final var tmpPath = Files.createTempFile(
+                    absolutePath.getParent(), absolutePath.getFileName().toString(), ".tmp");
+            try {
+                try (final var fout = Files.newOutputStream(tmpPath)) {
+                    Network.JSON.write(network, new WritableStreamingData(fout));
+                }
+                try {
+                    Files.move(
+                            tmpPath, absolutePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException ignore) {
+                    Files.move(tmpPath, absolutePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(tmpPath);
+            }
         } catch (IOException e) {
             log.warn("Failed to write network info", e);
         }
+    }
+
+    private static void tryToExportWithTssMetadata(
+            @NonNull final State state,
+            @NonNull final Network network,
+            @NonNull final Path path,
+            @Nullable final Configuration config,
+            final long selfNodeId) {
+        requireNonNull(state);
+        requireNonNull(network);
+        requireNonNull(path);
+        if (config == null || selfNodeId < 0) {
+            log.warn("Cannot include TSS metadata without configuration and self node id");
+            tryToExport(network, path);
+            return;
+        }
+        final var absolutePath = path.toAbsolutePath();
+        final var lockPath = lockPathFor(absolutePath);
+        try {
+            Files.createDirectories(requireNonNull(lockPath.getParent()));
+            try (final var channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    final FileLock ignored = channel.lock()) {
+                final var existingNetwork = loadNetworkFrom(absolutePath).orElse(null);
+                final var enrichedNetwork =
+                        TssStartupNetworks.enrichFromState(state, network, config, selfNodeId, existingNetwork);
+                tryToExport(enrichedNetwork, absolutePath);
+            }
+        } catch (IOException e) {
+            log.warn("Failed to write network info with TSS metadata", e);
+        }
+    }
+
+    private static Path lockPathFor(@NonNull final Path path) {
+        return path.resolveSibling(path.getFileName().toString() + ".lock");
     }
 
     /**
@@ -220,17 +342,34 @@ public class DiskStartupNetworks implements StartupNetworks {
      */
     private Optional<Network> loadNetwork(
             @NonNull final AssetUse use, @NonNull final Configuration config, @NonNull final String... segments) {
-        final var path = networksPath(config, segments);
+        final var path = networksPath(config, segments).toAbsolutePath().normalize();
         log.info("Checking for {} network info at {}", use, path.toAbsolutePath());
-        final var maybeNetwork = loadNetworkFrom(path);
-        maybeNetwork.ifPresentOrElse(
-                network -> log.info(
-                        "  -> Parsed {} network info for N={} nodes from {}",
-                        use,
-                        network.nodeMetadata().size(),
-                        path.toAbsolutePath()),
-                () -> log.info("  -> N/A"));
-        return maybeNetwork;
+        final var load = loadNetworkWithCache(path);
+        load.network()
+                .ifPresentOrElse(
+                        network -> log.info(
+                                "  -> {} {} network info for N={} nodes from {}",
+                                load.cached() ? "Reused cached" : "Parsed",
+                                use,
+                                network.nodeMetadata().size(),
+                                path.toAbsolutePath()),
+                        () -> log.info("  -> N/A"));
+        return load.network();
+    }
+
+    private synchronized NetworkLoad loadNetworkWithCache(@NonNull final Path path) {
+        requireNonNull(path);
+        if (!Files.exists(path)) {
+            cachedNetworks.remove(path);
+            return new NetworkLoad(Optional.empty(), false);
+        }
+        final var cachedNetwork = cachedNetworks.get(path);
+        if (cachedNetwork != null) {
+            return new NetworkLoad(Optional.of(cachedNetwork), true);
+        }
+        final var network = loadNetworkFrom(path);
+        network.ifPresent(parsedNetwork -> cachedNetworks.put(path, parsedNetwork));
+        return new NetworkLoad(network, false);
     }
 
     /**
@@ -242,7 +381,12 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static Optional<Network> loadNetworkFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                return Optional.of(Network.JSON.parse(new ReadableStreamingData(fin)));
+                return Optional.of(Network.JSON.parse(
+                        new ReadableStreamingData(fin),
+                        true,
+                        false,
+                        DEFAULT_MAX_DEPTH,
+                        STARTUP_NETWORK_JSON_MAX_FIELD_SIZE));
             } catch (Exception e) {
                 log.warn("Failed to load {} network info from {}", path.toAbsolutePath(), e);
             }

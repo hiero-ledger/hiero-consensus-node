@@ -2,9 +2,7 @@
 package com.swirlds.platform.wiring;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -20,6 +18,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -29,16 +28,13 @@ import org.hiero.consensus.state.signed.SignedState;
  *
  * @param components
  */
-public record PlatformCoordinator(
-        @NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
-        implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
 
     /**
      * Constructor
      */
     public PlatformCoordinator {
         Objects.requireNonNull(components);
-        Objects.requireNonNull(callbacks);
     }
 
     /**
@@ -58,7 +54,6 @@ public record PlatformCoordinator(
         components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
         components.eventCreatorModule().flush();
-        components.branchDetectorWiring().flush();
     }
 
     /**
@@ -143,9 +138,6 @@ public record PlatformCoordinator(
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
         components.hashgraphModule().consensusSnapshotInputWire().inject(consensusSnapshot);
-        if (callbacks.snapshotOverrideConsumer() != null) {
-            callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
-        }
     }
 
     /**

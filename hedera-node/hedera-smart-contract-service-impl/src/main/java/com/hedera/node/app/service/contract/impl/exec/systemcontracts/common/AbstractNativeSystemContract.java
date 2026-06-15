@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -17,6 +18,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtil
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txResultFailedFor;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txSuccessResultOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.PRECOMPILE_ERROR;
@@ -33,6 +35,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -127,20 +130,26 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             final var insufficientGas = frame.getRemainingGas() < gasRequirement;
             final var dispatchedRecordBuilder = pricedResult.fullResult().recordBuilder();
             if (dispatchedRecordBuilder != null) {
+                // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support
+                // contractCallResult.
+                final var streamMode =
+                        configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
                 if (insufficientGas) {
                     dispatchedRecordBuilder.status(INSUFFICIENT_GAS);
                     final var callData = tuweniToPbjBytes(input);
-                    dispatchedRecordBuilder
-                            .contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
-                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()))
-                            .evmCallTransactionResult(pricedResult.txAsResultOfInsufficientGasRemaining(
-                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()));
+                    if (streamMode != BLOCKS) {
+                        dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
+                                attempt.senderId(), contractID, callData, frame.getRemainingGas()));
+                    }
+                    dispatchedRecordBuilder.evmCallTransactionResult(pricedResult.txAsResultOfInsufficientGasRemaining(
+                            attempt.senderId(), contractID, callData, frame.getRemainingGas()));
                 } else {
-                    dispatchedRecordBuilder
-                            .contractCallResult(pricedResult.asResultOfCall(
-                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()))
-                            .evmCallTransactionResult(pricedResult.txAsResultOfCall(
-                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    if (streamMode != BLOCKS) {
+                        dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfCall(
+                                attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    }
+                    dispatchedRecordBuilder.evmCallTransactionResult(pricedResult.txAsResultOfCall(
+                            attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
                 }
             } else if (pricedResult.isViewCall()) {
                 final var proxyWorldUpdater = proxyUpdaterFor(frame);

@@ -139,7 +139,12 @@ public class HintsControllerImpl implements HintsController {
         this.configurationSupplier = requireNonNull(configuration);
 
         final var crsState = hintsStore.getCrsState();
-        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
+        // Also rebuild finalCrsFuture when the persisted stage is WAITING_FOR_ADOPTING_FINAL_CRS:
+        // a restart in that stage would otherwise leave finalCrsFuture null, so
+        // validateWeightOfContributions() would see weight 0 once contributionEndTime elapses and
+        // erroneously call restartFromFirstNode(), writing a state change that did not occur on the
+        // original run -> SELF_ISS on the rebuilt node.
+        if (crsState.stage() == GATHERING_CONTRIBUTIONS || crsState.stage() == WAITING_FOR_ADOPTING_FINAL_CRS) {
             final var crsPublications = hintsStore.getOrderedCrsPublications(weights.sourceNodeIds());
             crsPublications.forEach((nodeId, publication) -> {
                 if (publication != null) {
@@ -360,6 +365,10 @@ public class HintsControllerImpl implements HintsController {
                                 ? finalCrsFuture.join().crs()
                                 : hintsStore.getCrsState().crs();
                         final var updatedCrs = library.updateCrs(previousCrs, generateEntropy());
+                        if (updatedCrs == null) {
+                            log.warn("Library returned null while updating CRS; skipping CRS publication");
+                            return;
+                        }
                         final var newCrs = decodeCrsUpdate(previousCrs.length(), updatedCrs);
                         submissions
                                 .submitCrsUpdate(newCrs.crs(), newCrs.proof())
@@ -742,6 +751,12 @@ public class HintsControllerImpl implements HintsController {
                                 aggregatedWeights,
                                 numParties);
                         final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                        if (output == null) {
+                            log.warn(
+                                    "Library returned null preprocessing output for construction #{}; skipping vote",
+                                    construction.constructionId());
+                            return;
+                        }
                         final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                 .verificationKey(Bytes.wrap(output.verificationKey()))
                                 .aggregationKey(Bytes.wrap(output.aggregationKey()))

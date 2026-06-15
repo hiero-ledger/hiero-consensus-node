@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,6 +22,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -53,7 +53,7 @@ class PcesEventGraphSourceTest {
         pcesLocation = baseDir.resolve(Path.of("preconsensus-events"));
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(NODE_IDS);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final Roster roster = generateRoster(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, NUM_EVENTS);
     }
@@ -89,6 +89,37 @@ class PcesEventGraphSourceTest {
         // getAllEvents consumes the source (streaming behavior)
         assertFalse(source.hasNext(), "Source should be exhausted after getAllEvents");
         assertEquals(NUM_EVENTS, allEvents.size());
+    }
+
+    @Test
+    void resetRestartsIterationFromTheBeginning() {
+        final PlatformContext context =
+                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+
+        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
+
+        // Consume the source fully.
+        final List<PlatformEvent> firstPass = new ArrayList<>();
+        source.forEachRemaining(firstPass::add);
+        assertEquals(NUM_EVENTS, firstPass.size());
+        assertFalse(source.hasNext(), "Source should be exhausted before reset");
+
+        // Reset and consume again.
+        source.reset();
+        assertTrue(source.hasNext(), "Source should have events again after reset");
+
+        final List<PlatformEvent> secondPass = new ArrayList<>();
+        source.forEachRemaining(secondPass::add);
+
+        // The reset source must reproduce the same events in the same order. Raw PCES events are not hashed, so
+        // compare the underlying gossip event rather than the (hash-dependent) descriptor.
+        assertEquals(firstPass.size(), secondPass.size(), "Reset should reproduce the same number of events");
+        for (int i = 0; i < firstPass.size(); i++) {
+            assertEquals(
+                    firstPass.get(i).getGossipEvent(),
+                    secondPass.get(i).getGossipEvent(),
+                    "Reset should reproduce the same events in the same order");
+        }
     }
 
     @Test

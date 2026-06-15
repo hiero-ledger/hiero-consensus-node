@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -33,6 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
@@ -59,6 +60,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
@@ -93,11 +95,16 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.EvmHookCall;
+import com.hederahashgraph.api.proto.java.HookCall;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -152,8 +159,26 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(EMIT_SENDER_ORIGIN.getInfo());
         testLifecycle.doAdhoc(ADDRESS_LOGS_HOOK.getInfo());
 
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> malformedHookCallWithoutHookIdFailsPureChecks() {
+        return hapiTest(
+                cryptoCreate("party"),
+                cryptoCreate("counterparty"),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(5_000_000L)
+                                                        .setData(ByteString.EMPTY))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("counterparty"))
+                                        .setAmount(+123L))))
+                        .hasKnownStatus(INVALID_HOOK_CALL));
     }
 
     @HapiTest
@@ -1418,6 +1443,34 @@ public class Hip1195BasicTests {
                 assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 contractUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
                 assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> refundAndChargingAreBothCappedAtTxGasLimit() {
+        final var senderBefore = new AtomicLong();
+        final var senderAfter = new AtomicLong();
+        final var receiverBefore = new AtomicLong();
+        final var receiverAfter = new AtomicLong();
+        return hapiTest(
+                cryptoCreate("sender")
+                        .balance(ONE_MILLION_HBARS)
+                        .withHooks(accountAllowanceHook(1L, FALSE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("receiver").withHooks(accountAllowanceHook(3L, TRUE_ALLOWANCE_HOOK.name())),
+                getAccountBalance("sender").exposingBalanceTo(senderBefore::set),
+                getAccountBalance("receiver").exposingBalanceTo(receiverBefore::set),
+                doWithStartupConfig("contracts.maxGasPerTransaction", property -> cryptoTransfer(
+                                movingHbar(1).between("sender", "receiver"))
+                        .withPreHookFor("sender", 1L, 25_000L, "")
+                        .withPreHookFor("receiver", 3L, 3 * Long.parseLong(property), "")
+                        .payingWith("sender")
+                        .fee(500 * THOUSAND_HBAR)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                getAccountBalance("sender").exposingBalanceTo(senderAfter::set),
+                getAccountBalance("receiver").exposingBalanceTo(receiverAfter::set),
+                withOpContext((spec, opLog) -> {
+                    assertEquals(receiverBefore.get(), receiverAfter.get(), "receiver balance should be unchanged");
+                    assertTrue(senderBefore.get() - senderAfter.get() > 0, "sender balance should be debited");
+                }));
     }
 
     private SpecOperation assertHookIdList(@NonNull final String account, @NonNull final List<Long> expectedHookIds) {

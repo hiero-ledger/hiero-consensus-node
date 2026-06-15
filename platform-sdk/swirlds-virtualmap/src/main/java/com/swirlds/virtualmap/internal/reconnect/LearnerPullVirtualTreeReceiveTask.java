@@ -3,9 +3,12 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -30,13 +33,11 @@ public class LearnerPullVirtualTreeReceiveTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
-    private final LearnerPullVirtualTreeView view;
+    private final LearnerTreeExchanger treeExchanger;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
     // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
-
-    private final Runnable completeListener;
 
     private final Duration allMessagesReceivedTimeout;
 
@@ -47,44 +48,47 @@ public class LearnerPullVirtualTreeReceiveTask {
      * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
+     * @param treeExchanger
+     * 		the exchanger used to callback on tree node received
      */
     public LearnerPullVirtualTreeReceiveTask(
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
-            final LearnerPullVirtualTreeView view,
-            final AtomicLong expectedResponses,
-            final Runnable completeListener) {
+            final LearnerTreeExchanger treeExchanger,
+            final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;
-        this.view = view;
+        this.treeExchanger = treeExchanger;
         this.expectedResponses = expectedResponses;
-        this.completeListener = completeListener;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
+    /**
+     * Start the background thread that receives responses from the teacher.
+     */
     public void exec() {
         workGroup.execute(NAME, this::run);
     }
 
+    /**
+     * Main loop for the receiver thread. Reads responses from the async input stream,
+     * tracks reconnect statistics, and delegates to the learner view. Terminates when the
+     * stream signals completion via {@link Path#INVALID_PATH}.
+     */
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final PullVirtualTreeResponse response =
-                        in.readAnticipatedMessage(() -> new PullVirtualTreeResponse(view));
-                if (response == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
+                if (responseBytes == null) {
+                    break;
                 }
-                final long path = response.getPath();
+                final PullVirtualTreeResponse response =
+                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+                final long path = response.path();
                 if (path != Path.INVALID_PATH) {
-                    view.responseReceived(response);
+                    treeExchanger.responseReceived(response);
                 }
                 expectedResponses.decrementAndGet();
                 if (path == Path.INVALID_PATH) {
@@ -101,7 +105,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                                     "Timed out waiting for view all remaining view messages to be processed");
                         }
                     }
-                    completeListener.run();
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
             }

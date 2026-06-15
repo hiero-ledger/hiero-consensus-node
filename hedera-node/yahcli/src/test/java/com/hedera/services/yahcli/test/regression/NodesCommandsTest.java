@@ -35,10 +35,15 @@ public class NodesCommandsTest {
     @HapiTest
     final Stream<DynamicTest> basicNodeCommandsTest() {
         final var newNodeNum = new AtomicLong();
+        final var nodeAccountNum = new AtomicLong();
         final var adminKey = getUniqueAdminKey();
         final var adminKeyFileName = adminKey + ".pem";
         final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
+                cryptoCreate("basicNodeAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("basicNodeAccount"),
                 newKeyNamed(adminKey)
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -47,7 +52,7 @@ public class NodesCommandsTest {
                         yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeAccountNum.get()),
                                         "-d",
                                         "Test node",
                                         "-k",
@@ -83,6 +88,7 @@ public class NodesCommandsTest {
     @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateNodeAccountIdCommandTest() {
         final var newNodeNum = new AtomicLong();
+        final var nodeCreateAccNum = new AtomicLong();
         final var zeroBalanceAccNum = new AtomicLong();
         final var newAccNum = new AtomicLong();
 
@@ -108,6 +114,11 @@ public class NodesCommandsTest {
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> newAccNum.set(id.getAccountNum())),
                 saveAccountKeyToFile(newAccount),
+                // create account to assign at node-creation time
+                cryptoCreate("nodeCreateAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeCreateAccNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("nodeCreateAccount"),
 
                 // Create new node
                 doingContextual(spec -> allRunFor(
@@ -115,7 +126,7 @@ public class NodesCommandsTest {
                         yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeCreateAccNum.get()),
                                         "-d",
                                         "Test node",
                                         "-k",
@@ -173,10 +184,15 @@ public class NodesCommandsTest {
     final Stream<DynamicTest> createNodeWithAssociatedRegisteredNode() {
         final var registeredNodeId = new AtomicLong();
         final var newNodeNum = new AtomicLong();
+        final var nodeAccountNum = new AtomicLong();
         final var adminKeyFileName = "create_areg_dab.pem";
         final var rnAdminKeyFile = "create_areg_rn.pem";
         final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
+                cryptoCreate("createAssocNodeAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("createAssocNodeAccount"),
                 newKeyNamed("create_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -197,7 +213,7 @@ public class NodesCommandsTest {
                         sourcing(() -> yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeAccountNum.get()),
                                         "-d",
                                         "Node with associated registered node",
                                         "-k",
@@ -225,10 +241,15 @@ public class NodesCommandsTest {
     final Stream<DynamicTest> updateNodeAssociatedRegisteredNodes() {
         final var registeredNodeId = new AtomicLong();
         final var newNodeNum = new AtomicLong();
+        final var nodeAccountNum = new AtomicLong();
         final var adminKeyFileName = "update_areg_dab.pem";
         final var rnAdminKeyFile = "update_areg_rn.pem";
         final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
+                cryptoCreate("updateAssocNodeAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("updateAssocNodeAccount"),
                 newKeyNamed("update_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -249,7 +270,7 @@ public class NodesCommandsTest {
                         yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeAccountNum.get()),
                                         "-d",
                                         "Node to update associations",
                                         "-k",
@@ -283,9 +304,14 @@ public class NodesCommandsTest {
 
     @LeakyHapiTest
     final Stream<DynamicTest> createNodeWithNonExistentAssociatedRegisteredNodeFails() {
+        final var nodeAccountNum = new AtomicLong();
         final var adminKeyFileName = "create_bogus_areg_dab.pem";
         final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
+                cryptoCreate("createBogusAssocNodeAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("createBogusAssocNodeAccount"),
                 newKeyNamed("create_bogus_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -294,7 +320,7 @@ public class NodesCommandsTest {
                         yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeAccountNum.get()),
                                         "-d",
                                         "Node with bogus associated registered node",
                                         "-k",
@@ -316,9 +342,14 @@ public class NodesCommandsTest {
     @LeakyHapiTest
     final Stream<DynamicTest> updateNodeWithNonExistentAssociatedRegisteredNodeFails() {
         final var newNodeNum = new AtomicLong();
+        final var nodeAccountNum = new AtomicLong();
         final var adminKeyFileName = "update_bogus_areg_dab.pem";
         final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
+                cryptoCreate("updateBogusAssocNodeAccount")
+                        .balance(100_000_000L)
+                        .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("updateBogusAssocNodeAccount"),
                 newKeyNamed("update_bogus_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -327,7 +358,7 @@ public class NodesCommandsTest {
                         yahcliNodes(
                                         "create",
                                         "-a",
-                                        "23",
+                                        Long.toString(nodeAccountNum.get()),
                                         "-d",
                                         "Node to update with bogus association",
                                         "-k",

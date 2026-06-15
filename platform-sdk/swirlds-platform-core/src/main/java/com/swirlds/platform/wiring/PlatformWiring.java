@@ -9,14 +9,10 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -32,11 +28,14 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -57,7 +56,7 @@ public class PlatformWiring {
             @NonNull final PlatformContext platformContext,
             @NonNull final ExecutionLayer execution,
             @NonNull final PlatformComponents components,
-            @NonNull final ApplicationCallbacks callbacks) {
+            @Nullable final StaleEventConsumer staleEventConsumer) {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(execution);
         Objects.requireNonNull(components);
@@ -110,15 +109,6 @@ public class PlatformWiring {
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
         components
-                .eventIntakeModule()
-                .validatedEventsOutputWire()
-                .solderTo(components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
-        components
-                .branchDetectorWiring()
-                .getOutputWire()
-                .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
-
-        components
                 .model()
                 .buildHeartbeatWire(platformContext
                         .getConfiguration()
@@ -131,10 +121,10 @@ public class PlatformWiring {
                 .createdEventOutputWire()
                 .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
-        if (callbacks.staleEventConsumer() != null) {
+        if (staleEventConsumer != null) {
             final OutputWire<PlatformEvent> staleEvent =
                     components.hashgraphModule().staleEventOutputWire();
-            staleEvent.solderTo("staleEventCallback", "stale events", callbacks.staleEventConsumer());
+            staleEvent.solderTo("staleEventCallback", "stale events", staleEventConsumer::processStaleEvent);
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
@@ -354,15 +344,6 @@ public class PlatformWiring {
                         INJECT);
 
         solderNotifier(components);
-
-        if (callbacks.preconsensusEventConsumer() != null) {
-            components
-                    .eventIntakeModule()
-                    .validatedEventsOutputWire()
-                    .solderTo(
-                            "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
-        }
-
         buildUnsolderedWires(components);
     }
 
@@ -379,10 +360,6 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
-        eventWindowOutputWire.solderTo(
-                components.branchDetectorWiring().getInputWire(BranchDetector::updateEventWindow), INJECT);
-        eventWindowOutputWire.solderTo(
-                components.branchReporterWiring().getInputWire(BranchReporter::updateEventWindow), INJECT);
     }
 
     /**
@@ -418,8 +395,6 @@ public class PlatformWiring {
         components.issDetectorWiring().getInputWire(IssDetector::overridingState);
         components.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
-        components.branchDetectorWiring().getInputWire(BranchDetector::clear);
-        components.branchReporterWiring().getInputWire(BranchReporter::clear);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
     }

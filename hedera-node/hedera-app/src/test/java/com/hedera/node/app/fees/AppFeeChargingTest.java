@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -61,6 +63,16 @@ class AppFeeChargingTest {
         subject.charge(ctx, result, FEES);
 
         verify(ctx).charge(PAYER_ID, FEES, CREATOR_ID, null);
+    }
+
+    @Test
+    void rollbackIsNoop() {
+        assertDoesNotThrow(() -> subject.rollback());
+    }
+
+    @Test
+    void customizationIsIdentity() {
+        assertSame(ctx, subject.customized(ctx));
     }
 
     @Test

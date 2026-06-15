@@ -264,8 +264,14 @@ public class IssueRegressionTests {
                                 .payingWith(payer)
                                 .via("txnB")
                                 .hasAnyKnownStatus()),
-                getTxnRecord("txnA").logged(),
-                getTxnRecord("txnB").logged());
+                withOpContext((spec, ctxLog) -> {
+                    if (spec.registry().getMaybeTxnId("txnA").isPresent()) {
+                        allRunFor(spec, getTxnRecord("txnA").logged());
+                    }
+                    if (spec.registry().getMaybeTxnId("txnB").isPresent()) {
+                        allRunFor(spec, getTxnRecord("txnB").logged());
+                    }
+                }));
     }
 
     @HapiTest
@@ -332,7 +338,8 @@ public class IssueRegressionTests {
                         .payingWith(payer)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("simpleContractCreate"),
-                validateChargedUsd("legacyContractCreate", 0.7505),
+                // simple fees are always used now, so the toggle no longer changes the charged fee
+                validateChargedUsd("legacyContractCreate", 1.02),
                 validateChargedUsd("simpleContractCreate", 1.02));
     }
 

@@ -17,14 +17,33 @@ permissions:
 
 jobs:
   # Trigger the MATS Tests
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   trigger-mats-tests:
     name: MQ MATS
+    needs:
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
       enable-snyk-scan: "true" # for Snyk
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
@@ -36,11 +55,14 @@ jobs:
   # Trigger the MQ XTS Tests
   trigger-merge-queue-xts-tests:
     name: MQ XTS
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
-      branch_name: ${{ github.ref_name }}
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      branch-name: ${{ github.ref_name }}
+      solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
       solo-ge-0440: "true"
       helm-release-name: "mirror-1"
       custom-job-label: "Merge Queue XTS:"
@@ -50,6 +72,8 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -69,17 +93,21 @@ jobs:
   # Trigger the MQ Performance/Longevity Tests
   trigger-merge-queue-performance-tests:
     name: MQPT
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ vars.MQPT_CLUSTER }}"
+      test-asset: "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
       add-settings: ""
       run_NLGDparams: "-Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m"
       delete-namespace: true
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}

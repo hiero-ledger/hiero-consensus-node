@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -15,9 +14,8 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
+import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
@@ -141,9 +139,8 @@ class VirtualMapRehashTest extends VirtualTestBase {
         chunk0.setHashAtPath(1, wrongHash);
         dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
 
-        // This should throw MerkleSynchronizationException caused by TimeoutException
-        final MerkleSynchronizationException exception =
-                assertThrows(MerkleSynchronizationException.class, vm::fullLeafRehashIfNecessary);
+        // This should throw RuntimeException caused by TimeoutException
+        final RuntimeException exception = assertThrows(RuntimeException.class, vm::fullLeafRehashIfNecessary);
         assertInstanceOf(
                 TimeoutException.class,
                 exception.getCause(),

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import static java.util.concurrent.CompletableFuture.completedFuture;
+
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -9,6 +12,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
@@ -41,6 +45,24 @@ import java.util.stream.Stream;
  * may have a consensus time that lies outside the "typical" block boundary.
  */
 public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
+    /**
+     * Lifecycle hooks for record stream block boundaries.
+     */
+    interface Lifecycle {
+        /**
+         * Called when a record stream block is opened.
+         *
+         * @param state the state at the start of the block
+         */
+        void onOpenBlock(@NonNull State state);
+
+        /**
+         * Called when a record stream block is closed.
+         *
+         * @param state the state at the end of the block
+         */
+        void onCloseBlock(@NonNull State state);
+    }
 
     /**
      * Inform {@link BlockRecordManager} of the new consensus time at the beginning of a new transaction. This should
@@ -126,10 +148,85 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void endRound(@NonNull State state);
 
     /**
+     * Closes the currently-open record file, if present, and advances {@link BlockInfo} to a
+     * "no open record block" state ({@code firstConsTimeOfCurrentBlock = EPOCH}).
+     *
+     * <p>This method is used at consensus round seal boundaries to align record-stream files with
+     * the round being sealed. In {@code BOTH} mode, the caller
+     * first asks block streaming whether the sealed round closes a block; when true, this method is
+     * invoked so the record file closes at the same boundary. In {@code RECORDS} mode, the caller
+     * invokes this method during seal handling when the idleness/age policy says the open record file
+     * should be closed before reporting seal completion.
+     *
+     * <p>Operationally, this method:
+     * <ol>
+     *   <li>Returns immediately if no record file is open (derived from
+     *   {@code firstConsTimeOfCurrentBlock == EPOCH}).</li>
+     *   <li>Finalizes wrapped-record hash bookkeeping for the just-finished record block (state and/or
+     *   disk features as configured).</li>
+     *   <li>Calls {@link BlockRecordStreamProducer#finishCurrentBlock()} to close the writer without
+     *   opening a replacement file.</li>
+     *   <li>Persists updated {@link BlockInfo} with the closed-block metadata and clears current-block
+     *   tracking fields.</li>
+     * </ol>
+     *
+     * <p>The key guarantee is that after a successful return, the record stream has no open file,
+     * and state reflects that closed condition. This keeps post-seal record-file boundaries consistent
+     * with block/seal boundaries so {@code Hedera#onSealConsensusRound(...)} can accurately signal to
+     * the platform when a signed state may be created from the sealed round.
+     */
+    void closeCurrentRecordFileIfOpen(@NonNull State state);
+
+    /**
+     * Seal-time variant of {@link #closeCurrentRecordFileIfOpen(State)} used by {@code RECORDS} mode.
+     *
+     * <p>Behavior:
+     * <ol>
+     *   <li>If no block is open, this is a no-op and returns {@code true}.</li>
+     *   <li>If a block is open and the sealed-round consensus timestamp is at or after
+     *   {@code firstConsTimeOfCurrentBlock + logPeriod}.</li>
+     *   <li>Otherwise, it leaves the current record file open and returns {@code false}.</li>
+     * </ol>
+     *
+     * <p>When closure criteria are met, the method closes the current record file and updates
+     * {@link BlockInfo} to the closed-file state ({@code firstConsTimeOfCurrentBlock = EPOCH}), then
+     * returns {@code true}.
+     *
+     * <p>The purpose is to allow closure of an open record file that would otherwise remain open
+     * until another user transaction is handled, so that at seal time
+     * {@code Hedera#onSealConsensusRound(...)} can accurately signal to the platform that a signed
+     * state may be created from this round.
+     *
+     * @param state the mutable state to update
+     * @param roundConsensusTimestamp the sealed round consensus timestamp
+     * @return {@code true} if no block is open or if closure occurs; otherwise {@code false}
+     */
+    boolean closeCurrentRecordFileIfConsTimeElapsed(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
+
+    /**
      * Closes this BlockRecordManager and wait for any threads to finish.
      */
     @Override
     void close();
+
+    /**
+     * Returns a future that completes when this manager has no open wrapped record block writers.
+     *
+     * @return a future that completes when no WRB writers are open
+     */
+    @NonNull
+    default CompletableFuture<Void> noOpenWrbWritersFuture() {
+        return completedFuture(null);
+    }
+
+    /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
 
     /**
      * Get the consensus time of the latest handled transaction, or EPOCH if no transactions have been handled yet
@@ -154,48 +251,4 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      */
     void syncFinalizedMigrationHashes(
             @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
-
-    /**
-     * Syncs the voting metadata fields into the in-memory BlockInfo cache. Used to ensure
-     * {@code putLastBlockInfo} calls don't write stale cached values.
-     *
-     * @param votingComplete whether voting is complete
-     * @param votingCompletionDeadlineBlockNumber the deadline block number for voting completion
-     */
-    void syncVotingMetadata(boolean votingComplete, long votingCompletionDeadlineBlockNumber);
-
-    /**
-     * Hook to compute wrapped record-file block data for the current in-progress record block
-     * prior to a freeze. In such an event, this method has one of two possible responsibilities:
-     * <ol>
-     *   <li>If live wrapped record hash computation is enabled, it must persist the current wrapped
-     *   block's hash to state.</li>
-     *   <li>If live wrapped record hash computation is disabled, but writing wrapped record block
-     *   hashes to disk is enabled, it must write the current wrapped record's component hashes to
-     *   the wrapped hashes file on disk.</li>
-     * </ol>
-     * Note that the 'live' check is intentionally preferred over the 'disk' check, because if live
-     * computation is enabled, there's no need to write data to the disk file.
-     *
-     * @param state the state to persist BlockInfo to
-     */
-    void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state);
-
-    /**
-     * Persists wrapped record-file block hash inputs for the current in-progress block to the on-disk wrapped-hashes
-     * file when {@link com.hedera.node.config.data.BlockRecordStreamConfig#writeWrappedRecordFileBlockHashesToDisk()
-     * writeWrappedRecordFileBlockHashesToDisk} is enabled.
-     *
-     * <p>This freeze hook treats the open record block as if it were about to close: it snapshots the block number
-     * ({@code lastBlockNumber + 1}), the block's first consensus time, the record stream running hash at end of the
-     * round, and the in-memory record stream items and sidecars accumulated for that block, then appends that payload
-     * asynchronously for downstream wrapped-hash computation.
-     *
-     * <p>Called from the handle workflow at the end of a freeze round (after user transactions for the round have been
-     * streamed). If the disk feature flag is off, this method returns immediately without I/O.
-     *
-     * @param state the mutable state at the end of the freeze round (mirrors
-     *              {@link #writeFreezeBlockWrappedRecordFileBlockHashesToState(State)}; the implementation may not read it)
-     */
-    void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull State state);
 }

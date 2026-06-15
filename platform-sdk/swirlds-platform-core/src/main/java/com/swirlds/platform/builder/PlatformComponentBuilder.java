@@ -5,15 +5,9 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
-import com.swirlds.common.merkle.utility.SerializableLong;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.branching.DefaultBranchDetector;
-import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -39,7 +33,10 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -79,8 +76,6 @@ public class PlatformComponentBuilder {
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
-    private BranchDetector branchDetector;
-    private BranchReporter branchReporter;
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
 
@@ -198,8 +193,11 @@ public class PlatformComponentBuilder {
     @NonNull
     public ConsensusEventStream buildConsensusEventStream() {
         if (consensusEventStream == null) {
+            final PlatformContext platformContext = blocks.platformContext();
             consensusEventStream = new DefaultConsensusEventStream(
-                    blocks.platformContext(),
+                    platformContext.getTime(),
+                    platformContext.getConfiguration(),
+                    platformContext.getMetrics(),
                     blocks.selfId(),
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
@@ -517,71 +515,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a branch detector in place of the platform's default branch detector.
-     *
-     * @param branchDetector the branch detector to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withBranchDetector(@NonNull final BranchDetector branchDetector) {
-        throwIfAlreadyUsed();
-        if (this.branchDetector != null) {
-            throw new IllegalStateException("Branch detector has already been set");
-        }
-        this.branchDetector = Objects.requireNonNull(branchDetector);
-        return this;
-    }
-
-    /**
-     * Build the branch detector if it has not yet been built. If one has been provided via
-     * {@link #withBranchDetector(BranchDetector)}, that detector will be used. If this method is called more than once,
-     * only the first call will build the branch detector. Otherwise, the default detector will be created and
-     * returned.
-     *
-     * @return the branch detector
-     */
-    @NonNull
-    public BranchDetector buildBranchDetector() {
-        if (branchDetector == null) {
-            branchDetector = new DefaultBranchDetector(blocks.rosterHistory().getCurrentRoster());
-        }
-        return branchDetector;
-    }
-
-    /**
-     * Provide a branch reporter in place of the platform's default branch reporter.
-     *
-     * @param branchReporter the branch reporter to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withBranchReporter(@NonNull final BranchReporter branchReporter) {
-        throwIfAlreadyUsed();
-        if (this.branchReporter != null) {
-            throw new IllegalStateException("Branch reporter has already been set");
-        }
-        this.branchReporter = Objects.requireNonNull(branchReporter);
-        return this;
-    }
-
-    /**
-     * Build the branch reporter if it has not yet been built. If one has been provided via
-     * {@link #withBranchReporter(BranchReporter)}, that reporter will be used. If this method is called more than once,
-     * only the first call will build the branch reporter. Otherwise, the default reporter will be created and
-     * returned.
-     *
-     * @return the branch reporter
-     */
-    @NonNull
-    public BranchReporter buildBranchReporter() {
-        if (branchReporter == null) {
-            branchReporter = new DefaultBranchReporter(
-                    blocks.platformContext(), blocks.rosterHistory().getCurrentRoster());
-        }
-        return branchReporter;
-    }
-
-    /**
      * Provide a state signer in place of the platform's default state signer.
      *
      * @param stateSigner the state signer to use
@@ -644,7 +577,8 @@ public class PlatformComponentBuilder {
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
-                    blocks.selfId());
+                    blocks.selfId(),
+                    blocks.transactionOffsetNanos());
         }
         return transactionHandler;
     }

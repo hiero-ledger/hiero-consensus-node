@@ -54,15 +54,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HintsControllerImplTest {
+    private static final byte[] VALID_AGGREGATION_KEY_BYTES = new byte[49];
     private static final int TARGET_ROSTER_SIZE = 16;
     private static final int EXPECTED_PARTY_SIZE = partySizeForRosterNodeCount(TARGET_ROSTER_SIZE);
     private static final long SELF_ID = 42L;
     private static final long CONSTRUCTION_ID = 123L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final Instant PREPROCESSING_START_TIME = Instant.ofEpochSecond(1_111_111L, 222);
-    private static final AggregationAndVerificationKeys ENCODED_PREPROCESSED_KEYS = new AggregationAndVerificationKeys(
-            Bytes.wrap("VK").toByteArray(), Bytes.wrap("AK").toByteArray());
-    private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
+    private static final AggregationAndVerificationKeys ENCODED_PREPROCESSED_KEYS =
+            new AggregationAndVerificationKeys(Bytes.wrap("VK").toByteArray(), VALID_AGGREGATION_KEY_BYTES);
+    private static final Bytes AGGREGATION_KEY = Bytes.wrap(VALID_AGGREGATION_KEY_BYTES);
+    private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(AGGREGATION_KEY, Bytes.wrap("VK"));
     private static final TssKeyPair BLS_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final HintsConstruction UNFINISHED_CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
@@ -311,7 +313,7 @@ class HintsControllerImplTest {
     @Test
     void setsSchemeAndActiveConstructionGivenWinningVote() {
         setupWith(CONSTRUCTION_WITH_START_TIME);
-        final var keys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
+        final var keys = new PreprocessedKeys(AGGREGATION_KEY, Bytes.wrap("VK"));
         final var vote = PreprocessingVote.newBuilder().preprocessedKeys(keys).build();
 
         given(weights.sourceWeightOf(1L)).willReturn(2L);
@@ -328,7 +330,7 @@ class HintsControllerImplTest {
     @Test
     void setsSchemeAndBothConstructionsGivenVoteAndWinningCongruenceWithActiveId() {
         setupWith(CONSTRUCTION_WITH_START_TIME);
-        final var keys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
+        final var keys = new PreprocessedKeys(AGGREGATION_KEY, Bytes.wrap("VK"));
         final var vote = PreprocessingVote.newBuilder().preprocessedKeys(keys).build();
 
         given(weights.sourceWeightOf(1L)).willReturn(1L);
@@ -540,8 +542,8 @@ class HintsControllerImplTest {
                 .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
         lenient()
                 .when(store.getOrderedCrsPublications(any()))
-                .thenReturn(
-                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
+                .thenReturn(new TreeMap<>(
+                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT)));
         subject = new HintsControllerImpl(
                 SELF_ID,
                 BLS_KEY_PAIR.privateKey(),

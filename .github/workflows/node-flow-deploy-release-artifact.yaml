@@ -28,6 +28,14 @@ permissions:
   actions: read
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
@@ -37,7 +45,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -71,6 +79,7 @@ jobs:
     name: Release [Tag]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
     needs:
+      - extract-jdk-version
       - prepare-tag-release
     with:
       version-policy: specified
@@ -79,6 +88,8 @@ jobs:
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
       ref: ${{ github.ref }}
       ref-name: ${{ github.ref_name }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -104,7 +115,7 @@ jobs:
       - prepare-tag-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -157,6 +168,8 @@ jobs:
   release-branch:
     name: Release [Branch]
     uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
+    needs:
+      - extract-jdk-version
     if: ${{ github.event_name == 'workflow_dispatch' }}
     with:
       version-policy: branch-commit
@@ -165,6 +178,8 @@ jobs:
       ref: ${{ inputs.ref }}
       ref-name: ${{ inputs.ref-name }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -189,17 +204,14 @@ jobs:
     needs:
       - release-branch
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
 
       - name: Check Prep XTS Job State
         id: check-xts-job
@@ -231,17 +243,14 @@ jobs:
     needs:
       - release-branch
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
 
       - name: Check Integration Job State
         id: check-integration-job
@@ -280,17 +289,15 @@ jobs:
       (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
       !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         continue-on-error: true
@@ -331,17 +338,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
         run: |
-          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
-            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
-
-          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
-            echo "No Slack user found for email: ${EMAIL}"
-            SLACK_USER_ID="No matching slack user found"
-          else
-            echo "Found slack user for email: ${EMAIL}"
-            SLACK_USER_ID="<@${SLACK_USER_ID}>"
-          fi
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
@@ -373,7 +370,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -389,98 +386,15 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":exclamation: Hiero Consensus Node - Deploy Production Release Failure Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Release [Branch]*: ${{ needs.release-branch.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Deploy XTS CI Trigger*: ${{ needs.deploy-xts-ci-trigger.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          RELEASE_BRANCH_RESULT: ${{ needs.release-branch.result }}
+          DEPLOY_XTS_TRIGGER_RESULT: ${{ needs.deploy-xts-ci-trigger.result }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
+          COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-deploy-release-failure.json.tpl -o slack_payload.json
 
       - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0

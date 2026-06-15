@@ -7,11 +7,6 @@ on:
         description: "The git ref (branch or tag) to checkout"
         required: false
         default: ""
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: boolean
-        required: false
-        default: true
       enable-dependency-check:
         description: "Dependency Check Enabled"
         type: boolean
@@ -72,28 +67,36 @@ defaults:
     shell: bash
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   mats-tests:
     name: MATS Tests
+    needs:
+      - extract-jdk-version
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      enable-spotless-check: "${{ inputs.enable-spotless-check || 'false' }}"
       enable-dependency-check: "${{ inputs.enable-dependency-check || 'false' }}"
       enable-unit-tests: "${{ inputs.enable-unit-tests || 'false' }}"
       enable-integration-tests: "${{ inputs.enable-integration-tests || 'false' }}"
       enable-hapi-tests: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-token: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-time-consuming: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-otter-tests: "${{ inputs.enable-otter-tests || 'false' }}"
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
-      java-version: "25"
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
     secrets:
@@ -103,14 +106,3 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  report-flaky-tests:
-    name: Report Flaky Tests
-    needs:
-      - mats-tests
-    if: ${{ !cancelled() && always() }}
-    uses: ./.github/workflows/800-call-report-flaky-test.yaml
-    with:
-      workflow-context: dry-run
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}

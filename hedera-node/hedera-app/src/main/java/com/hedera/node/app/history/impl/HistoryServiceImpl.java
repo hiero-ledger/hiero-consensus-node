@@ -20,9 +20,11 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.history.schemas.V0730HistorySchema;
+import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -31,14 +33,22 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService {
+    private static final Logger logger = LogManager.getLogger(HistoryServiceImpl.class);
+
     private final HistoryServiceComponent component;
+
+    private final Supplier<Network> genesisNetworkSupplier;
 
     /**
      * If not null, the proof of the history ending at the current roster.
@@ -54,12 +64,29 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HistoryLibrary library) {
+        this(metrics, executor, appContext, library, () -> null);
+    }
+
+    public HistoryServiceImpl(
+            @NonNull final Metrics metrics,
+            @NonNull final Executor executor,
+            @NonNull final AppContext appContext,
+            @NonNull final HistoryLibrary library,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
+        this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
     public HistoryServiceImpl(@NonNull final HistoryServiceComponent component) {
+        this(component, () -> null);
+    }
+
+    @VisibleForTesting
+    public HistoryServiceImpl(
+            @NonNull final HistoryServiceComponent component, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
+        this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
     }
 
     @Override
@@ -152,7 +179,7 @@ public class HistoryServiceImpl implements HistoryService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V071HistorySchema(this));
-        registry.register(new V0730HistorySchema());
+        registry.register(new V0730HistorySchema(this));
     }
 
     @Override
@@ -160,6 +187,16 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
+        final var maybeGenesisNetwork = genesisTssNetwork();
+        if (maybeGenesisNetwork.isPresent()) {
+            logger.warn("Initializing dev-only history genesis state and runtime from startup network JSON");
+            final var activeConstruction =
+                    TssStartupNetworks.initializeHistoryState(writableStates, maybeGenesisNetwork.orElseThrow());
+            if (activeConstruction.hasTargetProof()) {
+                setLatestHistoryProof(activeConstruction.targetProofOrThrow());
+            }
+            return true;
+        }
         writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
         writableStates
                 .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
@@ -167,7 +204,30 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(ProtoBytes.DEFAULT);
+        // Persist the configured WRAPS proving key hash if present; otherwise initialize to empty.
+        // We must match what V0730HistorySchema.restart() would put on a restart of a never-yet-
+        // joined node, so that a node that joins via restart sees the same WRAPS hash state as
+        // nodes that were present at genesis. If genesis only wrote DEFAULT and restart wrote the
+        // configured hash, the restarted node's round-1 state would diverge from the network's
+        // -> SELF_ISS for round 1.
+        final var configuredHash = configuration.getConfigData(TssConfig.class).wrapsProvingKeyHash();
+        final var wrapsHash = configuredHash.isBlank()
+                ? ProtoBytes.DEFAULT
+                : ProtoBytes.newBuilder().value(Bytes.fromHex(configuredHash)).build();
+        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(wrapsHash);
         return true;
+    }
+
+    private Optional<Network> genesisTssNetwork() {
+        try {
+            final var network = genesisNetworkSupplier.get();
+            if (network == null) {
+                return Optional.empty();
+            }
+            return TssStartupNetworks.hasTssMetadata(network) ? Optional.of(network) : Optional.empty();
+        } catch (IllegalStateException e) {
+            logger.debug("No genesis startup network available for history bootstrap", e);
+            return Optional.empty();
+        }
     }
 }

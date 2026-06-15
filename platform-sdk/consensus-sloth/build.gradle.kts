@@ -23,7 +23,15 @@ testFixturesModuleInfo {
 
 tasks.testFixturesJar {
     inputs.files(configurations.testFixturesRuntimeClasspath)
-    manifest { attributes("Main-Class" to "org.hiero.sloth.fixtures.container.docker.DockerMain") }
+    manifest {
+        attributes(
+            "Main-Class" to "org.hiero.sloth.fixtures.container.docker.DockerMain",
+            // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+            // restricted-method warning for callers in the unnamed module of this JAR
+            // when launched via `java -jar` from the Docker image.
+            "Enable-Native-Access" to "ALL-UNNAMED",
+        )
+    }
     doFirst {
         manifest.attributes(
             "Class-Path" to
@@ -104,11 +112,16 @@ tasks.named<Test>("testPerformance") {
     // Forward sloth.* project properties from the Gradle command line to the test JVM.
     // Allows overriding BenchmarkParameters from the command line, e.g.:
     //   ./gradlew :consensus-sloth:testPerformance -Psloth.tps=100 -Psloth.benchmarkTime=60s
-    // sloth.env is excluded here as it is already set by the test suite configuration above.
     // Note: project properties (-P) are used instead of system properties (-D) because -D flags
     // are set on the Gradle client JVM and are not reliably forwarded to the daemon's
     // System.getProperties().
     project.properties
-        .filterKeys { it.startsWith("sloth.") && it != "sloth.env" }
+        .filterKeys { it.startsWith("sloth.") }
         .forEach { (key, value) -> systemProperty(key, value.toString()) }
+
+    // Allow running @Disabled tests for manual remote runs, e.g.:
+    //   ./gradlew :consensus-sloth:testPerformance -PincludeDisabled
+    if (project.hasProperty("includeDisabled")) {
+        systemProperty("junit.jupiter.conditions.deactivate", "org.junit.*Disabled*")
+    }
 }

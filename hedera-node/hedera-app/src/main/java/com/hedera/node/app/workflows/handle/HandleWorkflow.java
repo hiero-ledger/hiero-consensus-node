@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -75,6 +76,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -85,7 +87,6 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -109,6 +110,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -134,6 +136,7 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
+    private final int txnOffsetNanos;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -181,8 +184,8 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
-    // Flag to indicate whether jumpstart hash voting setup has already been attempted
-    private boolean jumpstartHashVotingSetupDone;
+
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -228,7 +231,9 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeManager nodeFeeManager) {
+            @NonNull final NodeFeeManager nodeFeeManager,
+            @Named("transactionOffsetNanos") final int transactionOffsetNanos) {
+        this.txnOffsetNanos = transactionOffsetNanos;
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -326,19 +331,6 @@ public class HandleWorkflow {
             }
         }
 
-        if (!jumpstartHashVotingSetupDone) {
-            final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
-            if (deadline.isPresent()) {
-                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
-                logger.info(
-                        "Jumpstart hash voting initialized with deadline {}",
-                        deadline.stream().mapToObj(Long::toString));
-            } else {
-                logger.info("Skipping jumpstart hash voting setup");
-            }
-            jumpstartHashVotingSetupDone = true;
-        }
-
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
         // ensure we don't do this in the same round as externalizing migration state changes to
         // avoid complicated edge cases in setting consensus times for block items
@@ -371,8 +363,9 @@ public class HandleWorkflow {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
@@ -428,19 +421,6 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze.
-                if (configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockRecordStreamConfig.class)
-                        .liveWritePrevWrappedRecordHashes()) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
-                }
-                if (configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockRecordStreamConfig.class)
-                        .writeWrappedRecordFileBlockHashesToDisk()) {
-                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
-                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -647,12 +627,16 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        }
+        final var functionality = topLevelTxn.functionality();
+        final boolean isNodeSubmittedTransaction = functionality == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                || functionality == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+        if (streamMode != BLOCKS && startsNewRecordFile && !isNodeSubmittedTransaction) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
-        if (streamMode != BLOCKS) {
+        if (streamMode != BLOCKS && !isNodeSubmittedTransaction) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
         }
@@ -665,7 +649,9 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
-        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        if (!isNodeSubmittedTransaction) {
+            executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        }
 
         return true;
     }
@@ -743,14 +729,11 @@ public class HandleWorkflow {
             final var config = configProvider.getConfiguration();
             final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
             final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-            // Since the next platform-assigned consensus time may be as early as (now + separationNanos),
-            // we must ensure that even if the last scheduled execution time is followed by the maximum
+            // We must ensure that even if the last scheduled execution time is followed by the maximum
             // number of child transactions, the last child's assigned time will be strictly before the
-            // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
+            // first of the next consensus time's possible preceding children
             final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - schedulingConfig.reservedSystemTxnNanos()
-                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
+                    - (consensusConfig.handleMaxFollowingRecords() + txnOffsetNanos));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
             var lastTime = streamMode == RECORDS
@@ -762,7 +745,7 @@ public class HandleWorkflow {
             if (consensusNow.isAfter(lastTime)) {
                 lastTime = consensusNow;
             }
-            var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+            var nextTime = lastTime.plusNanos(txnOffsetNanos);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
@@ -809,7 +792,7 @@ public class HandleWorkflow {
                 lastTime = streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime();
-                nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                nextTime = lastTime.plusNanos(txnOffsetNanos);
                 n--;
             }
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
@@ -884,7 +867,10 @@ public class HandleWorkflow {
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                if (parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                        && parentTxn.functionality() != HederaFunctionality.MIGRATION_ROOT_HASH_VOTE) {
+                    stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                }
                 logPreDispatch(parentTxn);
                 final var hollowAccountCompletionsDetails =
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
@@ -1245,6 +1231,17 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
+    }
+
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
+            return;
+        }
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        tssReconcileFailureLogging.reset();
     }
 
     /**

@@ -9,9 +9,9 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
@@ -43,7 +43,7 @@ public class CombinedOptimizationsExperiment {
     @Benchmark
     void combinedAllOptimizations(@NonNull final TestEnvironment env) {
         log.info("=== Combined Experiment: All Optimizations ===");
-        runBenchmark(env, "combinedAllOptimizations", (network, params) -> {
+        runBenchmark(env, "combinedAllOptimizations", true, (network, params) -> {
             // Apply all config optimizations
             network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)

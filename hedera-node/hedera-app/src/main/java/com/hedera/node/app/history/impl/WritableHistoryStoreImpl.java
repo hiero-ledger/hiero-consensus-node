@@ -40,6 +40,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -131,6 +132,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public void addProofVote(final long nodeId, final long constructionId, @NonNull final HistoryProofVote vote) {
         requireNonNull(vote);
         votes.put(new ConstructionNodeId(constructionId, nodeId), vote);
+    }
+
+    @Override
+    public void clearProofVotes(final long constructionId, @NonNull final SortedSet<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        nodeIds.forEach(nodeId -> votes.remove(new ConstructionNodeId(constructionId, nodeId)));
     }
 
     @Override

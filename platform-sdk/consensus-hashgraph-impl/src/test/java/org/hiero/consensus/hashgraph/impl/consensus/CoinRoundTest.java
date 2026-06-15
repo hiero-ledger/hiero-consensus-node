@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
-
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -33,10 +32,11 @@ public class CoinRoundTest {
             + "Since ancient threshold migration we no longer support these old files. "
             + "Once a coin round occurs with birth rounds new PCES files can be added and this test can be re-enabled.")
     void coinRound(final String resources) throws URISyntaxException, IOException {
-        final PlatformContext context = createDefaultPlatformContext();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Path dir = ResourceLoader.getFile(resources + "events");
-        final TestIntake intake = new TestIntake(context, Roster.newBuilder().build());
+        final TestIntake intake =
+                new TestIntake(configuration, Roster.newBuilder().build());
         try (final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(dir)) {
             while (eventIterator.hasNext()) {
                 final PlatformEvent event = eventIterator.next();

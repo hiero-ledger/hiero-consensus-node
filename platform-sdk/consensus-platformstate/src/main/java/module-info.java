@@ -9,6 +9,5 @@ module org.hiero.consensus.platformstate {
     requires transitive org.hiero.consensus.model;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
-    requires com.swirlds.common;
     requires static transitive com.github.spotbugs.annotations;
 }

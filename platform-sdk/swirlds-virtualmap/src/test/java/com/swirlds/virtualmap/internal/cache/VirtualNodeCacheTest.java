@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.cache;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_LEAF_RECORD;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,17 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -529,93 +530,72 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // Now, we will release the oldest, cache0
         cache0.release();
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(cache1, asList(null, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1));
-                },
+                () -> validateLeaves(cache1, asList(null, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1)),
                 Duration.ofSeconds(1),
                 "expected cache1 to eventually become clean");
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(
-                            cache2,
-                            asList(
-                                    dateLeaf1,
-                                    appleLeaf1,
-                                    eggplantLeaf1,
-                                    cherryLeaf2,
-                                    figLeaf2,
-                                    bananaLeaf2,
-                                    grapeLeaf2));
-                },
+                () -> validateLeaves(
+                        cache2,
+                        asList(dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2)),
                 Duration.ofSeconds(1),
                 "expected cache2 to eventually become clean");
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(
-                            cache3,
-                            asList(
-                                    dogLeaf3,
-                                    grapeLeaf3,
-                                    eggplantLeaf1,
-                                    cherryLeaf2,
-                                    foxLeaf3,
-                                    bananaLeaf3updated,
-                                    appleLeaf3updated));
-                },
+                () -> validateLeaves(
+                        cache3,
+                        asList(
+                                dogLeaf3,
+                                grapeLeaf3,
+                                eggplantLeaf1,
+                                cherryLeaf2,
+                                foxLeaf3,
+                                bananaLeaf3updated,
+                                appleLeaf3updated)),
                 Duration.ofSeconds(1),
                 "expected cache3 to eventually become clean");
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(
-                            cache4,
-                            asList(
-                                    dogLeaf3,
-                                    grapeLeaf3,
-                                    eggplantLeaf1,
-                                    cherryLeaf2,
-                                    foxLeaf3,
-                                    bananaLeaf3updated,
-                                    appleLeaf3updated));
-                },
+                () -> validateLeaves(
+                        cache4,
+                        asList(
+                                dogLeaf3,
+                                grapeLeaf3,
+                                eggplantLeaf1,
+                                cherryLeaf2,
+                                foxLeaf3,
+                                bananaLeaf3updated,
+                                appleLeaf3updated)),
                 Duration.ofSeconds(1),
                 "expected cache4 to eventually become clean");
 
         // Now we will release the next oldest, cache 1
         cache1.release();
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(cache2, asList(null, null, null, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2));
-                },
+                () -> validateLeaves(cache2, asList(null, null, null, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2)),
                 Duration.ofSeconds(1),
                 "expected cache2 to eventually become clean");
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(
-                            cache3,
-                            asList(
-                                    dogLeaf3,
-                                    grapeLeaf3,
-                                    null,
-                                    cherryLeaf2,
-                                    foxLeaf3,
-                                    bananaLeaf3updated,
-                                    appleLeaf3updated));
-                },
+                () -> validateLeaves(
+                        cache3,
+                        asList(
+                                dogLeaf3,
+                                grapeLeaf3,
+                                null,
+                                cherryLeaf2,
+                                foxLeaf3,
+                                bananaLeaf3updated,
+                                appleLeaf3updated)),
                 Duration.ofSeconds(1),
                 "expected cache3 to eventually become clean");
         assertEventuallyDoesNotThrow(
-                () -> {
-                    validateLeaves(
-                            cache4,
-                            asList(
-                                    dogLeaf3,
-                                    grapeLeaf3,
-                                    null,
-                                    cherryLeaf2,
-                                    foxLeaf3,
-                                    bananaLeaf3updated,
-                                    appleLeaf3updated));
-                },
+                () -> validateLeaves(
+                        cache4,
+                        asList(
+                                dogLeaf3,
+                                grapeLeaf3,
+                                null,
+                                cherryLeaf2,
+                                foxLeaf3,
+                                bananaLeaf3updated,
+                                appleLeaf3updated)),
                 Duration.ofSeconds(1),
                 "expected cache to eventually become clean");
     }
@@ -779,7 +759,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Fast copy correctness tests")
-    void fastCopyCorrectness() throws InterruptedException {
+    void fastCopyCorrectness() {
         // put A->APPLE into the oldest cache
         final VirtualNodeCache cache0 = cache;
         final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
@@ -1118,7 +1098,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final List<VirtualLeafBytes> dirtyLeaves =
                 cache1.dirtyLeavesForFlush(1, 1).toList();
         assertEquals(1, dirtyLeaves.size(), "incorrect number of dirty leaves");
-        assertEquals(aardvarkLeaf1, dirtyLeaves.get(0), "there should be no dirty leaves");
+        assertEquals(aardvarkLeaf1, dirtyLeaves.getFirst(), "there should be no dirty leaves");
     }
 
     /**
@@ -1998,7 +1978,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // One last copy, so we can get the dirty leaves without an exception
         final VirtualMap map4 = map3.copy();
 
-        final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().collect(Collectors.toList());
+        final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().toList();
         assertEquals(0, deletedLeaves0.size(), "No deleted leaves in cache0");
 
         cache0.seal();
@@ -2039,7 +2019,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final List<CacheInfo> snapshots = caches.stream()
                 .map(original ->
                         new CacheInfo(original.cache.snapshot(), original.firstLeafPath, original.lastLeafPath))
-                .collect(Collectors.toList());
+                .toList();
 
         // Release the older caches
         caches.forEach(cacheInfo -> {
@@ -2929,7 +2909,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         final List<VirtualLeafBytes> deleted = snapshot.deletedLeaves().toList();
         assertEquals(1, deleted.size(), "Snapshot should report exactly one deleted leaf");
-        assertEquals(A_KEY, deleted.get(0).keyBytes(), "The deleted leaf should be apple");
+        assertEquals(A_KEY, deleted.getFirst().keyBytes(), "The deleted leaf should be apple");
     }
 
     @Test
@@ -2973,7 +2953,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @SuppressWarnings("unchecked")
     private TestValue lookupValue(final VirtualNodeCache cache, final Bytes key) {
         final VirtualLeafBytes<TestValue> leaf = cache.lookupLeafByKey(key);
-        return leaf == null ? null : leaf.value(TestValueCodec.INSTANCE);
+        return leaf == null ? null : leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE);
     }
 
     private Hash lookupHash(final VirtualNodeCache cache, final long path) {
@@ -3096,17 +3076,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         }
     }
 
-    private static class CacheInfo {
-        VirtualNodeCache cache;
-        long firstLeafPath;
-        long lastLeafPath;
-
-        CacheInfo(final VirtualNodeCache cache, final long first, final long last) {
-            this.cache = cache;
-            this.firstLeafPath = first;
-            this.lastLeafPath = last;
-        }
-    }
+    private record CacheInfo(VirtualNodeCache cache, long firstLeafPath, long lastLeafPath) {}
 
     private static class TrackingHashChunkLoader implements CheckedFunction<Long, VirtualHashChunk, IOException> {
 

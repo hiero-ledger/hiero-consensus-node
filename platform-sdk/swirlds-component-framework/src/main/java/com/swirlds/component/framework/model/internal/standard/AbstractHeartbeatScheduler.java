@@ -4,7 +4,6 @@ package com.swirlds.component.framework.model.internal.standard;
 import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCommonHyperlink;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -15,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.utility.InstantUtils;
 
 /**
  * A scheduler that produces heartbeats at a specified rate.

@@ -26,17 +26,16 @@ jobs:
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read Trigger Time
         id: time
-        uses: mikefarah/yq@c59fa8de59f1f5a16fdbfd1e2a6e97a1b42a64b9 # v4.45.2
+        uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4.53.3
         with:
           cmd: yq '.release.branching.execution.time' '${{ env.WORKFLOW_CONFIG_FILE }}'
 
@@ -81,13 +80,12 @@ jobs:
 
     if: ${{ needs.check-trigger.outputs.triggered == 'true' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Branch Creation Check
         id: branch-creation
@@ -104,16 +102,13 @@ jobs:
 
     if: ${{ needs.check-branch.outputs.branch-create == 'true' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
 
       - name: Create Branch
         id: branch
@@ -190,32 +185,35 @@ jobs:
                 ]
               }
 
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   create-tag:
     name: Create Release Tag
     runs-on: hl-cn-default-lin-sm
     needs:
       - check-branch
       - create-branch
-
+      - extract-jdk-version
     if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ needs.check-branch.outputs.branch-name }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: 25
+          checkout: "true"
+          checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          setup-gradle: "true"
 
       - name: Install Semantic Version Tools
         run: |

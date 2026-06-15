@@ -1,22 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
+import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
+import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,13 +38,14 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@SuppressWarnings("unused")
 class DataFileCollectionCompactionTest {
 
     // Would be nice to add a test to make sure files get deleted
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    /** Temporary directory provided by JUnit */
+    /**
+     * Temporary directory provided by JUnit
+     */
     @TempDir
     Path tempFileDir;
 
@@ -127,7 +135,7 @@ class DataFileCollectionCompactionTest {
                 return true;
             }
         };
-        final var compactor = new DataFileCompactor(storeName, coll, indexUpdater, null, null, null, null);
+        final var compactor = new DataFileCompactor(coll, indexUpdater, null, null, null, null);
         compactor.compactFiles(indexUpdater, getFilesToMerge(coll), 1);
 
         long prevKey = -1;
@@ -218,8 +226,7 @@ class DataFileCollectionCompactionTest {
                 }
             };
 
-            final DataFileCompactor compactor =
-                    new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
+            final DataFileCompactor compactor = new DataFileCompactor(store, indexUpdater, null, null, null, null);
 
             try {
                 compactor.compactFiles(indexUpdater, filesToMerge, 1);
@@ -269,8 +276,7 @@ class DataFileCollectionCompactionTest {
                 }
             };
 
-            final DataFileCompactor compactor =
-                    new DataFileCompactor(storeName, store2, indexUpdater, null, null, null, null);
+            final DataFileCompactor compactor = new DataFileCompactor(store2, indexUpdater, null, null, null, null);
 
             if (filesToMerge.size() > 1) {
                 compactor.compactFiles(indexUpdater, filesToMerge, 1);
@@ -328,7 +334,7 @@ class DataFileCollectionCompactionTest {
 
                 if (filesToMerge.size() > 1) {
                     final DataFileCompactor compactor =
-                            new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
+                            new DataFileCompactor(store, indexUpdater, null, null, null, null);
                     try {
                         compactor.compactFiles(indexUpdater, filesToMerge, 1);
                     } catch (Exception ex) {
@@ -404,7 +410,7 @@ class DataFileCollectionCompactionTest {
 
                 if (filesToMerge.size() > 1) {
                     final DataFileCompactor compactor =
-                            new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
+                            new DataFileCompactor(store, indexUpdater, null, null, null, null);
                     try {
                         compactor.compactFiles(indexUpdater, filesToMerge, 1);
                     } catch (Exception ex) {
@@ -451,121 +457,124 @@ class DataFileCollectionCompactionTest {
         String storeName = "testMergeSnapshotRestore";
         final Path testDir = tempFileDir.resolve(storeName);
         Files.createDirectories(testDir);
-        final LongListOffHeap index = new LongListOffHeap(numValues, numFiles * numValues, 0);
-        index.updateValidRange(0, numFiles * numValues - 1);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
-        final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
-        // Create a few files initially
-        for (int i = 0; i < numFiles; i++) {
+        try (final LongListSegment index = new LongListSegment(numValues, numFiles * numValues, 0)) {
+            index.updateValidRange(0, numFiles * numValues - 1);
+            final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+            final DataFileCompactor compactor = new DataFileCompactor(store, index, null, null, null, null);
+            // Create a few files initially
+            for (int i = 0; i < numFiles; i++) {
+                store.startWriting();
+                for (int j = 0; j < numValues; j++) {
+                    final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j});
+                    index.put(i * numValues + j, dataLocation);
+                }
+                store.updateValidKeyRange(0, index.size());
+                store.endWriting();
+            }
+            // Start compaction
+            // Test scenario 0: start merging with mergingPaused semaphore locked, so merging
+            // won't proceed more than to the first index update
+            if (testParam == 0) {
+                compactor.pauseCompaction();
+            }
+            final int filesCountBeforeMerge = store.getAllCompletedFiles().size();
+            assertEquals(numFiles, filesCountBeforeMerge);
+            final CountDownLatch mergeCompleteLatch = new CountDownLatch(1);
+            final CountDownLatch newFileWriteCompleteLatch = new CountDownLatch(1);
+            final ExecutorService exec = Executors.newSingleThreadExecutor();
+            final Future<?> f = exec.submit(() -> {
+                try {
+                    final List<DataFileReader> filesToMerge = getFilesToMerge(store);
+                    // Data file collection may create a new file before the compaction starts
+                    assertTrue(filesToMerge.size() == numFiles || filesToMerge.size() == numFiles + 1);
+                    compactor.compactFiles(index, filesToMerge, 1);
+                    // Wait for the new file to be available. Without this wait, there
+                    // may be 1 or 2
+                    // files available for merge, as this thread may be complete before
+                    // endWriting()
+                    // below is called
+                    newFileWriteCompleteLatch.await();
+                    // 2 = new file with updated values below + one or two files created
+                    // during merge,
+                    // it depends on where pauseCompaction() happens inside
+                    // compactFiles() above
+                    // depending on the test scenario there may be 1, 2 or 3 files
+                    assertTrue(
+                            List.of(1, 2, 3)
+                                    .contains(store.getAllCompletedFiles().size()),
+                            "Unexpected files after compaction: " + store.getAllCompletedFiles());
+                } catch (final Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    // Make sure the main thread is unblocked regardless. If any
+                    // exceptions are thrown
+                    // above, they will be checked in the end of the test
+                    mergeCompleteLatch.countDown();
+                }
+            });
+            // Test scenario 1: let compaction and update run in parallel for a while
+            if (testParam == 1) {
+                compactor.pauseCompaction();
+            }
+            // Update values as if it was a flush before a snapshot. It will create a new file in the
+            // store
+            // in parallel to writing to another file during compaction
             store.startWriting();
-            for (int j = 0; j < numValues; j++) {
-                final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j});
-                index.put(i * numValues + j, dataLocation);
+            for (int i = 0; i < numFiles; i++) {
+                for (int j = 0; j < numValues; j++) {
+                    final long dataLocation =
+                            storeDataItem(store, new long[] {i * numValues + j, i * numValues + j + 1});
+                    index.put(i * numValues + j, dataLocation);
+                }
             }
             store.updateValidKeyRange(0, index.size());
             store.endWriting();
-        }
-        // Start compaction
-        // Test scenario 0: start merging with mergingPaused semaphore locked, so merging
-        // won't proceed more than to the first index update
-        if (testParam == 0) {
-            compactor.pauseCompaction();
-        }
-        final int filesCountBeforeMerge = store.getAllCompletedFiles().size();
-        assertEquals(numFiles, filesCountBeforeMerge);
-        final CountDownLatch mergeCompleteLatch = new CountDownLatch(1);
-        final CountDownLatch newFileWriteCompleteLatch = new CountDownLatch(1);
-        final ExecutorService exec = Executors.newSingleThreadExecutor();
-        final Future<?> f = exec.submit(() -> {
-            try {
-                final List<DataFileReader> filesToMerge = getFilesToMerge(store);
-                // Data file collection may create a new file before the compaction starts
-                assertTrue(filesToMerge.size() == numFiles || filesToMerge.size() == numFiles + 1);
-                compactor.compactFiles(index, filesToMerge, 1);
-                // Wait for the new file to be available. Without this wait, there
-                // may be 1 or 2
-                // files available for merge, as this thread may be complete before
-                // endWriting()
-                // below is called
-                newFileWriteCompleteLatch.await();
-                // 2 = new file with updated values below + one or two files created
-                // during merge,
-                // it depends on where pauseCompaction() happens inside
-                // compactFiles() above
-                // depending on the test scenario there may be 1, 2 or 3 files
-                assertTrue(
-                        List.of(1, 2, 3).contains(store.getAllCompletedFiles().size()),
-                        "Unexpected files after compaction: " + store.getAllCompletedFiles());
-            } catch (final Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                // Make sure the main thread is unblocked regardless. If any
-                // exceptions are thrown
-                // above, they will be checked in the end of the test
-                mergeCompleteLatch.countDown();
+            newFileWriteCompleteLatch.countDown();
+            // Test scenario 2: lock the semaphore just before taking a snapshot. Compaction may still
+            // be
+            // in progress or may be completed
+            if (testParam == 2) {
+                compactor.pauseCompaction();
             }
-        });
-        // Test scenario 1: let compaction and update run in parallel for a while
-        if (testParam == 1) {
-            compactor.pauseCompaction();
-        }
-        // Update values as if it was a flush before a snapshot. It will create a new file in the
-        // store
-        // in parallel to writing to another file during compaction
-        store.startWriting();
-        for (int i = 0; i < numFiles; i++) {
-            for (int j = 0; j < numValues; j++) {
-                final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j + 1});
-                index.put(i * numValues + j, dataLocation);
+            // Test scenario 3: wait for compaction to complete, then take a snapshot
+            if (testParam == 3) {
+                mergeCompleteLatch.await();
+                compactor.pauseCompaction();
             }
-        }
-        store.updateValidKeyRange(0, index.size());
-        store.endWriting();
-        newFileWriteCompleteLatch.countDown();
-        // Test scenario 2: lock the semaphore just before taking a snapshot. Compaction may still
-        // be
-        // in progress or may be completed
-        if (testParam == 2) {
-            compactor.pauseCompaction();
-        }
-        // Test scenario 3: wait for compaction to complete, then take a snapshot
-        if (testParam == 3) {
-            mergeCompleteLatch.await();
-            compactor.pauseCompaction();
-        }
-        // Snapshot. It's in the middle of compaction, as compaction should be stopped at this point
-        // waiting
-        // to acquire mergingPaused semaphore
-        final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
-        Files.createDirectories(snapshotDir);
-        index.writeToFile(snapshotDir.resolve("index.ll"));
-        store.snapshot(snapshotDir);
-        // Release the semaphore to unpause merging and wait for it to complete
-        compactor.resumeCompaction();
-        if (testParam != 3) {
-            mergeCompleteLatch.await();
-        }
-        // Close the store
-        store.close();
+            // Snapshot. It's in the middle of compaction, as compaction should be stopped at this point
+            // waiting
+            // to acquire mergingPaused semaphore
+            final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
+            Files.createDirectories(snapshotDir);
+            index.writeToFile(snapshotDir.resolve("index.ll"));
+            store.snapshot(snapshotDir);
+            // Release the semaphore to unpause merging and wait for it to complete
+            compactor.resumeCompaction();
+            if (testParam != 3) {
+                mergeCompleteLatch.await();
+            }
+            // Close the store
+            store.close();
 
-        // Restore
-        final LongListOffHeap index2 =
-                new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
-        final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
-        // Check index size
-        assertEquals(numFiles * numValues, index2.size());
-        // Check the values
-        for (int i = 0; i < index2.size(); i++) {
-            final long dataLocation = index2.get(i);
-            final long[] value = readDataItem(store2, dataLocation);
-            assertNotNull(value);
-            assertEquals(i, value[0]);
-            assertEquals(i + 1, value[1]);
-        }
-        store2.close();
+            // Restore
+            final LongListOffHeap index2 = new LongListOffHeap(
+                    snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
+            final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
+            // Check index size
+            assertEquals(numFiles * numValues, index2.size());
+            // Check the values
+            for (int i = 0; i < index2.size(); i++) {
+                final long dataLocation = index2.get(i);
+                final long[] value = readDataItem(store2, dataLocation);
+                assertNotNull(value);
+                assertEquals(i, value[0]);
+                assertEquals(i + 1, value[1]);
+            }
+            store2.close();
 
-        // Check exceptions from the compaction thread
-        f.get();
+            // Check exceptions from the compaction thread
+            f.get();
+        }
     }
 
     @Test
@@ -576,7 +585,7 @@ class DataFileCollectionCompactionTest {
         String storeName = "testInconsistentIndex";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
-        final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
+        final DataFileCompactor compactor = new DataFileCompactor(store, index, null, null, null, null);
 
         final int numFiles = 10; // should be greater than min number of files to compact
         index.updateValidRange(0, MAXKEYS - 1);
@@ -662,6 +671,176 @@ class DataFileCollectionCompactionTest {
         } finally {
             store2.close();
         }
+    }
+
+    // ========================================================================
+    // HDHM bucket deduplication during compaction
+    // ========================================================================
+
+    @Test
+    @DisplayName("Compaction with dedup: mirrored entries produce a single copy")
+    void testCompactionDeduplicatesMirroredEntries() throws Exception {
+        final int bucketCount = 8;
+        final int half = bucketCount / 2;
+        final String storeName = "testDedup";
+        final Path testDir = tempFileDir.resolve(storeName);
+        final int metadataSizeDiff = 4;
+        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+
+        // Create a LongList to act as bucket index
+        final LongListHeap index = new LongListHeap(
+                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+        index.updateValidRange(0, bucketCount - 1);
+
+        // Write one file with 4 buckets
+        store.startWriting();
+        final long[] locations = new long[half];
+        for (int i = 0; i < half; i++) {
+            locations[i] = storeDataItem(store, new long[] {i, i * 100});
+        }
+        store.updateValidKeyRange(0, bucketCount);
+        store.endWriting();
+
+        // Set up index: lower half points to data, upper half mirrors lower (unsanitized doubling)
+        for (int i = 0; i < half; i++) {
+            index.put(i, locations[i]);
+            index.put(i + half, locations[i]); // mirrored
+        }
+
+        // Compact with dedup enabled
+        final DataFileCompactor compactor =
+                new DataFileCompactor(store, index, null, null, null, null, true, bucketCount);
+
+        final List<DataFileReader> filesToCompact = store.getAllCompletedFiles();
+        final List<Path> newFiles = compactor.compactFiles(index, filesToCompact, 1);
+
+        // Verify: output should not be larger than input
+        final long inputSize = getSizeOfFiles(filesToCompact);
+        final long outputSize = getSizeOfFilesByPath(newFiles);
+        assertTrue(
+                outputSize <= inputSize + metadataSizeDiff,
+                "Output (" + outputSize + ") should not exceed input (" + inputSize + ") with dedup");
+
+        // Verify: both halves of the index point to the SAME new location
+        for (int i = 0; i < half; i++) {
+            final long low = index.get(i, 0);
+            final long high = index.get(i + half, 0);
+            assertEquals(
+                    low, high, "Mirrored entries at " + i + " and " + (i + half) + " should point to same location");
+            assertTrue(low != 0, "Entry should not be zero after compaction");
+            // Verify the new location points to the new file, not the old one
+            assertTrue(low != locations[i], "Entry should point to new file after compaction");
+        }
+
+        store.close();
+    }
+
+    @Test
+    @DisplayName("Compaction with dedup: sanitized entries are both preserved")
+    void testCompactionPreservesSanitizedEntries() throws Exception {
+        final int bucketCount = 8;
+        final int half = bucketCount / 2;
+        final String storeName = "testDedupSanitized";
+        final Path testDir = tempFileDir.resolve(storeName);
+        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+
+        final LongListHeap index = new LongListHeap(
+                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+        index.updateValidRange(0, bucketCount - 1);
+
+        // Write one file with 8 distinct buckets (all sanitized — no mirrors)
+        store.startWriting();
+        final long[] locations = new long[bucketCount];
+        for (int i = 0; i < bucketCount; i++) {
+            locations[i] = storeDataItem(store, new long[] {i, i * 200});
+        }
+        store.updateValidKeyRange(0, bucketCount);
+        store.endWriting();
+
+        // All entries are distinct — no mirroring
+        for (int i = 0; i < bucketCount; i++) {
+            index.put(i, locations[i]);
+        }
+
+        final DataFileCompactor compactor =
+                new DataFileCompactor(store, index, null, null, null, null, true, bucketCount);
+
+        final List<DataFileReader> filesToCompact = store.getAllCompletedFiles();
+        compactor.compactFiles(index, filesToCompact, 1);
+
+        // Verify: all 8 entries should point to distinct new locations
+        final Set<Long> newLocations = new HashSet<>();
+        for (int i = 0; i < bucketCount; i++) {
+            final long loc = index.get(i, 0);
+            assertTrue(loc != 0, "Entry " + i + " should not be zero");
+            assertTrue(loc != locations[i], "Entry " + i + " should point to new file");
+            newLocations.add(loc);
+        }
+        assertEquals(
+                bucketCount,
+                newLocations.size(),
+                "All entries should have distinct locations (no dedup for sanitized entries)");
+
+        store.close();
+    }
+
+    @Test
+    @DisplayName("Compaction with dedup: mixed mirrored and sanitized entries")
+    void testCompactionDedupMixedEntries() throws Exception {
+        final int bucketCount = 8;
+        final int half = bucketCount / 2;
+        final int metadataSizeDiff = 4;
+        String storeName = "testDedupMixed";
+        final Path testDir = tempFileDir.resolve(storeName);
+        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+
+        final LongListHeap index = new LongListHeap(
+                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+        index.updateValidRange(0, bucketCount - 1);
+
+        // Write one file with 6 data items
+        store.startWriting();
+        final long[] locations = new long[6];
+        for (int i = 0; i < 6; i++) {
+            locations[i] = storeDataItem(store, new long[] {i, i * 300});
+        }
+        store.updateValidKeyRange(0, bucketCount);
+        store.endWriting();
+
+        // Entries 0,1: mirrored (unsanitized)
+        index.put(0, locations[0]);
+        index.put(half, locations[0]); // mirror of 0
+        index.put(1, locations[1]);
+        index.put(1 + half, locations[1]); // mirror of 1
+
+        // Entries 2,3: sanitized (distinct locations)
+        index.put(2, locations[2]);
+        index.put(2 + half, locations[3]); // different from entry 2
+        index.put(3, locations[4]);
+        index.put(3 + half, locations[5]); // different from entry 3
+
+        final DataFileCompactor compactor =
+                new DataFileCompactor(store, index, null, null, null, null, true, bucketCount);
+
+        final List<DataFileReader> filesToCompact = store.getAllCompletedFiles();
+        final List<Path> newFiles = compactor.compactFiles(index, filesToCompact, 1);
+
+        // Mirrored entries should point to same new location
+        assertEquals(index.get(0, 0), index.get(half, 0), "Mirrored pair 0 should share location");
+        assertEquals(index.get(1, 0), index.get(1 + half, 0), "Mirrored pair 1 should share location");
+
+        // Sanitized entries should point to distinct new locations
+        assertNotEquals(index.get(2, 0), index.get(2 + half, 0), "Sanitized pair 2 should have distinct locations");
+        assertNotEquals(index.get(3, 0), index.get(3 + half, 0), "Sanitized pair 3 should have distinct locations");
+
+        // Output should be smaller than without dedup (6 items written instead of 8)
+        final long inputSize = getSizeOfFiles(filesToCompact);
+        final long outputSize = getSizeOfFilesByPath(newFiles);
+        assertTrue(
+                outputSize <= inputSize + metadataSizeDiff,
+                "Output should not exceed input with dedup on mixed entries");
+
+        store.close();
     }
 
     private static List<DataFileReader> getFilesToMerge(DataFileCollection store) {

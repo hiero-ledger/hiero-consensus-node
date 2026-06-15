@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
@@ -47,15 +46,9 @@ class HandleExceptionTest {
     @Test
     void replaysWhenRollbackCallbackIsPresent() {
         final var replayed = new AtomicBoolean(false);
-        final var ex = new HandleException(MEMO_TOO_LONG, (ctx, dispatch) -> replayed.set(true));
-        final var childDispatch = new HandleException.ChildDispatch() {
-            @Override
-            public <T extends StreamBuilder> T dispatch(final DispatchOptions<T> options) {
-                return null;
-            }
-        };
-
-        ex.maybeReplay(mock(FeeCharging.Context.class), childDispatch);
+        final var ex = new HandleException(MEMO_TOO_LONG, (_, _) -> replayed.set(true));
+        final var handleContext = mock(HandleContext.class);
+        ex.maybeReplay(mock(FeeCharging.Context.class), handleContext);
 
         assertTrue(replayed.get());
     }

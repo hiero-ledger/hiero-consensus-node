@@ -792,7 +792,7 @@ public class AtomicBatchNegativeTest {
                     // Source this transaction so the start time doesn't expire before the batch is submitted
                     sourcing(() -> atomicBatch(freezeOnly()
                                     .payingWith(GENESIS)
-                                    .startingIn(10)
+                                    .startingIn(60)
                                     .seconds()
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
@@ -810,7 +810,7 @@ public class AtomicBatchNegativeTest {
                                     cryptoCreate("foo").batchKey("batchOperator"),
                                     freezeOnly()
                                             .payingWith(GENESIS)
-                                            .startingIn(10)
+                                            .startingIn(60)
                                             .seconds()
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))

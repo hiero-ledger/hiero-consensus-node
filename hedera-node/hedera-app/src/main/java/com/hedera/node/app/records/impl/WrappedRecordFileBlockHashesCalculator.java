@@ -26,7 +26,22 @@ import java.util.List;
 public final class WrappedRecordFileBlockHashesCalculator {
     private WrappedRecordFileBlockHashesCalculator() {}
 
+    /**
+     * Computes the wrapped record file block hashes only. Equivalent to calling
+     * {@link #computeWithItems(WrappedRecordFileBlockHashesComputationInput)} and discarding the items.
+     */
     public static WrappedRecordFileBlockHashes compute(@NonNull final WrappedRecordFileBlockHashesComputationInput in) {
+        return computeWithItems(in).hashes();
+    }
+
+    /**
+     * Computes the wrapped record file block hashes together with the {@link BlockItem}s
+     * (the {@link BlockHeader} and the {@link RecordFileItem}) that were used to derive them.
+     * Callers that need to forward those items to a {@code BlockItemWriter} should use this overload
+     * to avoid rebuilding them.
+     */
+    public static WrappedRecordFileBlockResult computeWithItems(
+            @NonNull final WrappedRecordFileBlockHashesComputationInput in) {
         requireNonNull(in);
         if (in.recordStreamItems().isEmpty()) {
             throw new IllegalArgumentException("recordStreamItems must not be empty");
@@ -58,18 +73,26 @@ public final class WrappedRecordFileBlockHashesCalculator {
         final var header = BlockHeader.newBuilder()
                 .hapiProtoVersion(in.hapiProtoVersion())
                 .number(in.blockNumber())
-                .blockTimestamp(in.blockCreationTime())
+                .blockTimestamp(firstConsensusTimestamp)
                 .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
 
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
         final var recordFileBlockItem =
                 BlockItem.newBuilder().recordFile(recordFileItem).build();
 
+        // Serialize each item once: the same bytes are hashed here and returned for the caller to forward to a
+        // BlockItemWriter, avoiding a redundant re-serialization on the WRB streaming path.
+        final Bytes headerItemBytes = BlockItem.PROTOBUF.toBytes(headerItem);
+        final Bytes recordFileItemBytes = BlockItem.PROTOBUF.toBytes(recordFileBlockItem);
+
         final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
-        hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
+        hasher.addLeaf(headerItemBytes.toByteArray());
+        hasher.addLeaf(recordFileItemBytes.toByteArray());
         final Bytes outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
 
-        return new WrappedRecordFileBlockHashes(in.blockNumber(), consensusTimestampHash, outputItemsTreeRootHash);
+        final var hashes =
+                new WrappedRecordFileBlockHashes(in.blockNumber(), consensusTimestampHash, outputItemsTreeRootHash);
+        return new WrappedRecordFileBlockResult(
+                hashes, headerItem, recordFileBlockItem, headerItemBytes, recordFileItemBytes);
     }
 }

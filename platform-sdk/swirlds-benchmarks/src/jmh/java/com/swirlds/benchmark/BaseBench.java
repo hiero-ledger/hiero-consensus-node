@@ -2,8 +2,6 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
@@ -20,6 +18,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -35,39 +35,68 @@ public abstract class BaseBench {
 
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
-    @Param({"100"})
-    public int numFiles = 500;
+    /**
+     * Number of outer iterations. Meaning depends on the benchmark:
+     * data files written, VirtualMap copy-cycles, etc.
+     * <p>
+     * {@code numFiles × numRecords} is the total number of operations.
+     * Full-population benchmarks also use this product as the map size.
+     */
+    @Param({"500"})
+    public int numFiles;
 
-    @Param({"100000"})
-    public int numRecords = 10_000;
+    /**
+     * Number of operations per iteration.
+     *
+     * @see #numFiles
+     */
+    @Param({"10000"})
+    public int numRecords;
 
-    @Param({"1000000"})
-    public int maxKey = 10_000_000;
-
-    @Param({"8"})
-    public int keySize = 32;
-
-    @Param({"128"})
-    public int recordSize = 1024;
+    /**
+     * Upper bound of the key space for random-access and low-level storage benchmarks.
+     * <p>
+     * In random-access benchmarks ({@code CryptoBench},
+     * {@code VirtualMapBench.update/create/delete}), keys are drawn from
+     * {@code [0, maxKey)}. The ratio to {@code numFiles × numRecords}
+     * controls density: smaller means update-heavy, larger means create-heavy.
+     * <p>
+     * In {@code VirtualMapBench.read()}, used as the exact map population
+     * size — all keys in {@code [0, maxKey)} are inserted, then read
+     * randomly. Map copies during population are spaced to avoid OOM.
+     * <p>
+     * In low-level storage benchmarks ({@code DataFileCollectionBench},
+     * {@code HalfDiskMapBench}, {@code KeyValueStoreBench}), used as
+     * the physical index capacity.
+     * <p>
+     * Not used by {@code ReconnectBench}, which derives map size
+     * from {@code numFiles × numRecords}.
+     */
+    @Param({"10000000"})
+    public int maxKey;
 
     @Param({"32"})
-    public int numThreads = 32;
+    public int keySize;
+
+    @Param({"1024"})
+    public int recordSize;
+
+    @Param({"32"})
+    public int numThreads;
 
     abstract String benchmarkName();
 
-    private static final int SKEW = 2;
     private static final int RECORD_SIZE_MIN = 8;
 
     /* Directory for the entire benchmark */
     private static Path benchDir;
-    /* Directory for each iteration */
-    private Path testDir;
+
     /* Verify benchmark results */
     protected boolean verify;
 
-    private boolean keepTestDir;
-
     protected static Configuration configuration;
+
+    protected static FileSystemManager fileSystemManager;
 
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
@@ -111,7 +140,7 @@ public abstract class BaseBench {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
 
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
+        fileSystemManager = new FileSystemManager(benchDir);
 
         try {
             ConstructableRegistration.registerAllConstructables();
@@ -187,6 +216,8 @@ public abstract class BaseBench {
         onTrialTearDown();
 
         BenchmarkMetrics.stop();
+
+        Utils.deleteRecursively(benchDir.resolve("tmp"));
         if (!getBenchmarkConfig().saveDataDirectory()) {
             Utils.deleteRecursively(benchDir);
         }
@@ -207,8 +238,7 @@ public abstract class BaseBench {
 
     /**
      * JMH invocation-level teardown. Calls {@link #onInvocationTearDown()}, does base invocation
-     * teardown, and deletes the test directory (unless {@link #preserveTestDir()}
-     * was called during the invocation).
+     * teardown.
      *
      * <p><b>Important:</b> see {@link #setupTrial()} for why subclasses must not add
      * their own {@code @TearDown} annotations.
@@ -226,12 +256,6 @@ public abstract class BaseBench {
             // Class histogram is interesting before closing
             Utils.printClassHistogram(15);
         }
-
-        // Always clean up testDir at the end unless explicitly preserved
-        if (!keepTestDir && testDir != null) {
-            Utils.deleteRecursively(testDir);
-        }
-        keepTestDir = false;
     }
 
     /**
@@ -248,52 +272,10 @@ public abstract class BaseBench {
         // no-op by default
     }
 
-    // ── Test directory utilities ─────────────────────────────────────
-
-    /**
-     * Call from a @Benchmark method to preserve the test directory for this invocation.
-     * Useful for benchmarks like {@code read()} where data is reused across invocations.
-     */
-    protected void preserveTestDir() {
-        this.keepTestDir = true;
-    }
+    // ── Benchmark directory utilities ─────────────────────────────────────
 
     public static Path getBenchDir() {
         return benchDir;
-    }
-
-    public Path getTestDir() {
-        return testDir;
-    }
-
-    public void setTestDir(String name) {
-        testDir = benchDir.resolve(name);
-    }
-
-    // ── Misc ─────────────────────────────────────
-
-    private long currentKey;
-    private long currentRecord;
-
-    protected void resetKeys() {
-        currentKey = -1L;
-        currentRecord = 0L;
-    }
-
-    /**
-     * Randomly select next key id in ascending order.
-     * numRecords values will be uniformly distributed between 0 and maxKey when SKEW == 1.
-     * With larger SKEW, more values will be selected from the lower half of the interval.
-     *
-     * @return Next key id > lastKey and < maxKey
-     */
-    protected long nextAscKey() {
-        for (; ; ) {
-            if (Utils.randomLong(maxKey - ++currentKey) < (numRecords - currentRecord) * SKEW) {
-                ++currentRecord;
-                return currentKey;
-            }
-        }
     }
 
     /**

@@ -5,13 +5,13 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Dallas_n10"
-        description: "Test on given MQ Machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        default: "MQPT10"
+        description: "Test on given MQ Machine (MQPT10-12)"
         type: choice
         options:
-          - Dallas_n10
-          - Dallas_n11
-          - Dallas_n12
+          - MQPT10
+          - MQPT11
+          - MQPT12
 defaults:
   run:
     shell: bash
@@ -23,22 +23,43 @@ permissions:
   statuses: write
 
 jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   run-merge-queue-performance-test:
     name: MQ Performance Test
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
       add-settings: ""
       run_NLGDparams: "-Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m"
       delete-namespace: true
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   get-commit-info:
     name: Get Commit Information
@@ -49,17 +70,14 @@ jobs:
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
       commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          fetch-depth: "0"
-          ref: ${{ github.ref }}
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -72,17 +90,7 @@ jobs:
           COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
-          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
-            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
-
-          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
-            echo "No Slack user found for email: ${EMAIL}"
-            SLACK_USER_ID="No matching slack user found"
-          else
-            echo "Found slack user for email: ${EMAIL}"
-            SLACK_USER_ID="<@${SLACK_USER_ID}>"
-          fi
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
@@ -100,9 +108,39 @@ jobs:
       !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+
+      - name: Checkout Templates
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/workflows/templates
+          sparse-checkout-cone-mode: false
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":tada: MQPT - Merge Queue Performance Test (${{ github.ref }}) Passed"
+          STATUS_TEXT: "*MQPT Job Succeeded. Test panel status below*"
+          RUN_TEST_LABEL: "Run Merge Queue Performance Test"
+          RUN_TEST_RESULT: ${{ needs.run-merge-queue-performance-test.outputs.result }}
+          INFO_SECTION_TEXT: "*Workflow, Tag, and Commit Information*"
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-mqpt-success.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -110,88 +148,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":tada: MQPT - Merge Queue Performance Test (${{ github.ref }}) Passed",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*MQPT Job Succeeded. Test panel status below*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Run Merge Queue Performance Test"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.run-merge-queue-performance-test.outputs.result  }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow, Tag, and Commit Information*"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Tag*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.get-commit-info.outputs.commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report MQPT execution failure
@@ -207,17 +164,15 @@ jobs:
       !cancelled() && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ github.ref }}
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         env:
@@ -282,7 +237,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true # continue on error so we can get the incident reporting
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -298,106 +253,19 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":grey_exclamation: MQPT - Merge Queue Performance Test (${{ github.ref }}) Failed",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*MQPT Job Resulted in failure. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Run Merge Queue Performance Test"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.run-merge-queue-performance-test.outputs.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Get Commit Information"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.get-commit-info.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow, Tag, and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Tag*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.get-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.get-commit-info.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          HEADER_TEXT: ":grey_exclamation: MQPT - Merge Queue Performance Test (${{ github.ref }}) Failed"
+          STATUS_TEXT: "*MQPT Job Resulted in failure. See status below.*"
+          RUN_TEST_LABEL: "Run Merge Queue Performance Test"
+          RUN_TEST_RESULT: ${{ needs.run-merge-queue-performance-test.outputs.result }}
+          COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
+          INFO_SECTION_TEXT: "*Workflow, Tag, and Commit Information*"
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-mqpt-failure.json.tpl -o slack_payload.json
 
       - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0

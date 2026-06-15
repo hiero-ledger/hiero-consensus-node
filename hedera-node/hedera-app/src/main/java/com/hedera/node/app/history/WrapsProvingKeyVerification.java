@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -47,6 +48,8 @@ public class WrapsProvingKeyVerification {
 
     static final String WRAPS_ARTIFACTS_ENV_VAR = "TSS_LIB_WRAPS_ARTIFACTS_PATH";
     public static final int READ_BUFFER_SIZE = 50 * 1024 * 1024; // ~50 MB
+    static final Set<String> REQUIRED_ARTIFACT_FILES =
+            Set.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin");
 
     private final Executor downloadExecutor;
 
@@ -214,7 +217,9 @@ public class WrapsProvingKeyVerification {
     /**
      * Validates that the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable (which the native
      * WRAPS library reads to locate unpacked artifacts) is consistent with the extraction directory
-     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file).
+     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file). Relative paths are resolved
+     * against the working directory before comparison, so the default relative
+     * {@code tss.wrapsProvingKeyPath} is compatible with an absolute env var value.
      *
      * @param provingKeyPath the configured path to the packed proving key archive
      * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
@@ -236,8 +241,8 @@ public class WrapsProvingKeyVerification {
                     WRAPS_ARTIFACTS_ENV_VAR);
             return;
         }
-        final var envPath = Paths.get(envArtifactsPath).normalize();
-        final var normalizedTarget = extractionTarget.normalize();
+        final var envPath = Paths.get(envArtifactsPath).toAbsolutePath().normalize();
+        final var normalizedTarget = extractionTarget.toAbsolutePath().normalize();
         if (!envPath.startsWith(normalizedTarget)) {
             throw new IllegalStateException(WRAPS_ARTIFACTS_ENV_VAR + " (" + envArtifactsPath
                     + ") is not under the extraction directory (" + normalizedTarget
@@ -271,7 +276,23 @@ public class WrapsProvingKeyVerification {
         if (envArtifactsPath != null && !envArtifactsPath.isBlank()) {
             final var artifactsDir = Paths.get(envArtifactsPath);
             if (Files.isDirectory(artifactsDir)) {
-                log.info("Verified WRAPS artifacts directory exists at {}", artifactsDir);
+                final var missingArtifacts = REQUIRED_ARTIFACT_FILES.stream()
+                        .filter(name -> !Files.isRegularFile(artifactsDir.resolve(name)))
+                        .toList();
+                if (missingArtifacts.isEmpty()) {
+                    log.info(
+                            "Verified WRAPS artifacts directory at {} contains {}",
+                            artifactsDir,
+                            REQUIRED_ARTIFACT_FILES);
+                } else {
+                    log.error(
+                            "After extraction, {} ({}) is missing required WRAPS artifact files {}. "
+                                    + "Expected at least {} from the WRAPS v1.0.0 artifact set.",
+                            WRAPS_ARTIFACTS_ENV_VAR,
+                            envArtifactsPath,
+                            missingArtifacts,
+                            REQUIRED_ARTIFACT_FILES);
+                }
             } else {
                 log.error(
                         "After extraction, {} ({}) does not exist as a directory. "

@@ -141,4 +141,11 @@ class QueryHederaNativeOperationsTest {
     void authorizingSimpleKeysTest() {
         assertSame(NO_AUTHORIZING_KEYS, subject.authorizingSimpleKeys());
     }
+
+    @Test
+    void ledgerId_delegatesToContext() {
+        final var expected = Bytes.fromHex("deadbeef");
+        given(context.ledgerId()).willReturn(expected);
+        assertEquals(expected, subject.ledgerId());
+    }
 }

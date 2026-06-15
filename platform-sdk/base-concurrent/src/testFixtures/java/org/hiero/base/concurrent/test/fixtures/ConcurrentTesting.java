@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 
 import java.time.Duration;
 import java.util.ArrayList;

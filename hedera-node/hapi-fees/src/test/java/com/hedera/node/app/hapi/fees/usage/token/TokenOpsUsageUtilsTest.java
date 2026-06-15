@@ -225,7 +225,7 @@ class TokenOpsUsageUtilsTest {
         }
         if (withCustomFees) {
             builder.addCustomFees(CustomFee.newBuilder()
-                    .setFeeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
+                    .setFeeCollectorAccountId(IdUtils.asAccount(1234L))
                     .setFixedFee(FixedFee.newBuilder().setAmount(123)));
         }
         if (withAutoRenewAccount) {
@@ -297,9 +297,9 @@ class TokenOpsUsageUtilsTest {
     private static final String symbol = "DUMMYTOKEN";
     private static final String name = "DummyToken";
     private static final String memo = "A simple test token create";
-    private static final AccountID autoRenewAccount = asAccount("0.0.10001");
-    private static final AccountID accountID = asAccount("0.0.10002");
-    private static final TokenID tokenId = IdUtils.asToken("0.0.20001");
+    private static final AccountID autoRenewAccount = asAccount(10001L);
+    private static final AccountID accountID = asAccount(10002L);
+    private static final TokenID tokenId = IdUtils.asToken(20001L);
 
     private static final long now = 1_234_567L;
 }

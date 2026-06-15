@@ -17,6 +17,11 @@ on:
         type: boolean
         required: false
         default: false
+      reset-enabled:
+        description: "Reset the network (instead of upgrade) on a major/minor version change"
+        type: boolean
+        required: false
+        default: false
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -49,7 +54,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -114,7 +119,7 @@ jobs:
           service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
 
       - name: Validate Release Artifact Exist
@@ -128,7 +133,7 @@ jobs:
         id: jenkins-preview-request
         env:
           PRE_JSON_REQUEST: ${{ toJSON(github.event) }}
-        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}"' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
+        run: echo "request=$(jq --compact-output '.ref = "v${{ inputs.new-version }}" | .reset = ${{ inputs.reset-enabled }}' <<<"${PRE_JSON_REQUEST}")" >>"${GITHUB_OUTPUT}"
 
       - name: Notify Jenkins of Release (Preview Network)
         id: jenkins-preview

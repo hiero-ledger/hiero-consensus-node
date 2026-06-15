@@ -32,7 +32,7 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
 
     /**
      * Create a metric key for a {@link LongAccumulatorGauge} with the given name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -66,14 +66,14 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
     }
 
     /**
-     * Create a builder for a {@link LongAccumulatorGauge} with the given metric key for accumulating maximum {@code double} value.
+     * Create a builder for a {@link LongAccumulatorGauge} with the given metric key for accumulating maximum {@code long} value.
      * Default initial value is set to {@code Long.MIN_VALUE}.
      *
      * @param key the metric key
      * @return the builder
      */
     @NonNull
-    static Builder maxBuilder(@NonNull MetricKey<LongAccumulatorGauge> key) {
+    public static Builder maxBuilder(@NonNull MetricKey<LongAccumulatorGauge> key) {
         return new Builder(key, Long::max).setDefaultInitValue(Long.MIN_VALUE);
     }
 

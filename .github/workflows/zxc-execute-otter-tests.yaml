@@ -32,7 +32,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25"
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -80,9 +79,11 @@ jobs:
     name: "Full Otter Tests"
     runs-on: hl-cn-otter-full-lin
     if: ${{ inputs.enable-full-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -92,6 +93,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -129,13 +131,28 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   fast-otter:
     name: "Fast Otter Tests"
     runs-on: hl-cn-otter-fast-lin
     if: ${{ inputs.enable-fast-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -145,6 +162,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -190,13 +208,28 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   chaos-otter:
     name: "Chaos Otter Tests"
     runs-on: hl-cn-otter-chaos-lin
     if: ${{ inputs.enable-chaos-otter-tests }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: ${{ inputs.ref || '' }}
@@ -206,6 +239,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -251,6 +285,19 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -261,32 +308,27 @@ jobs:
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            "${{ needs.full-otter.result || 'skipped' }}"
-            "${{ needs.fast-otter.result || 'skipped' }}"
-            "${{ needs.chaos-otter.result || 'skipped' }}"
-          )
-
-          # final outputs
-          failure_mode="none"
-
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${job_statuses[@]}"; then
-            failure_mode="general"
-          fi
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.full-otter.result }}
+            ${{ needs.fast-otter.result }}
+            ${{ needs.chaos-otter.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.full-otter.outputs.failure-mode || 'none' }}
+            ${{ needs.fast-otter.outputs.failure-mode || 'none' }}
+            ${{ needs.chaos-otter.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            full-otter
+            fast-otter
+            chaos-otter
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

@@ -17,7 +17,6 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "25"
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -71,7 +70,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -81,6 +80,7 @@ jobs:
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
           setup-gradle: "true"
+          setup-testlens: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
@@ -130,35 +130,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          workflow_statuses=(
-            "${{ steps.prepare-runner.outcome || 'skipped' }}"
-            "${{ steps.publish-unit-test-report.outcome || 'skipped' }}"
-            "${{ steps.upload-artifacts.outcome || 'skipped' }}"
-            "${{ steps.publish-codecov.outcome || 'skipped' }}"
-            "${{ steps.publish-codacy.outcome || 'skipped' }}"
-            "${{ steps.upload-test-reports.outcome || 'skipped' }}"
-          )
-          general_statuses=(
-            "${{ steps.gradle-test.outcome || 'skipped' }}"
-          )
-
-          failure_mode="none"
-
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${general_statuses[@]}"; then
-            failure_mode="general"
-          fi
-
-          if has_failure "${workflow_statuses[@]}"; then
-            failure_mode="workflow"
-          fi
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.gradle-test.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: >-
+            ${{ steps.prepare-runner.outcome }}
+            ${{ steps.publish-unit-test-report.outcome }}
+            ${{ steps.upload-artifacts.outcome }}
+            ${{ steps.publish-codecov.outcome }}
+            ${{ steps.publish-codacy.outcome }}
+            ${{ steps.upload-test-reports.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

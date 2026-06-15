@@ -58,7 +58,7 @@ public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
 
     private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
-    private SimpleFeeCalculator simpleFeeCalculator;
+    private volatile SimpleFeeCalculator simpleFeeCalculator;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
     private final Set<QueryFeeCalculator> queryFeeCalculators;
@@ -129,7 +129,7 @@ public final class FeeManager {
         // Parse the current and next fee schedules
         final CurrentAndNextFeeSchedule schedules;
         try {
-            schedules = CurrentAndNextFeeSchedule.PROTOBUF.parse(bytes.toReadableSequentialData());
+            schedules = CurrentAndNextFeeSchedule.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
         } catch (final BufferUnderflowException | ParseException ex) {
             return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
         }
@@ -188,11 +188,11 @@ public final class FeeManager {
      *
      * @param bytes The new simple fee schedule file content.
      */
-    public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
+    public synchronized ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
         // Parse the current and next fee schedules
         try {
             final org.hiero.hapi.support.fees.FeeSchedule schedule =
-                    org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
+                    org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parseStrict(bytes);
             if (isValid(schedule)) {
                 logger.info("Successfully validated simple fee schedule.");
                 this.simpleFeesSchedule = schedule;
@@ -342,5 +342,10 @@ public final class FeeManager {
     @NonNull
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
+    }
+
+    @NonNull
+    public org.hiero.hapi.support.fees.FeeSchedule getSimpleFeesSchedule() {
+        return simpleFeesSchedule != null ? simpleFeesSchedule : org.hiero.hapi.support.fees.FeeSchedule.DEFAULT;
     }
 }

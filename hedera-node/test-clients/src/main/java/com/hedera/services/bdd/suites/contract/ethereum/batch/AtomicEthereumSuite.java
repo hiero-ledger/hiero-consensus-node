@@ -104,6 +104,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -218,7 +219,7 @@ class AtomicEthereumSuite {
                         .hasPriority(recordWith().transfers(includingDeduction("HAPI fees", RELAYER))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.ethTransaction.zeroHapiFees.enabled"})
     final Stream<DynamicTest> baseRelayerCostAsExpected() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -442,6 +443,72 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> rollbackInBatchRechargesAllAssessedFees() {
+        final long smallGasLimit = 22_000L;
+        final AtomicLong relayerFee = new AtomicLong();
+        final AtomicLong senderFee = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .via("referenceTx")
+                        .nonce(0)
+                        .gasPrice(GAS_PRICE)
+                        .maxGasAllowance(smallGasLimit / 2 * 71)
+                        .gasLimit(smallGasLimit)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("referenceTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                relayerFee.set(-aa.getAmount());
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                senderFee.set(-aa.getAmount());
+                            }
+                        })),
+                atomicBatch(ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .signingWith(SECP_256K1_SOURCE_KEY)
+                                .payingWith(RELAYER)
+                                .via("batchTx")
+                                .nonce(1)
+                                .gasPrice(GAS_PRICE)
+                                .maxGasAllowance(smallGasLimit / 2 * 71)
+                                .gasLimit(smallGasLimit)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .sending(DEPOSIT_AMOUNT)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord("batchTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                assertEquals(
+                                        relayerFee.get(),
+                                        -aa.getAmount(),
+                                        "Relayer fee should be the same as reference transaction");
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                assertEquals(
+                                        senderFee.get(),
+                                        -aa.getAmount(),
+                                        "Sender fee should be the same as reference transaction");
+                            }
+                        })));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> invalidTxData() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -524,7 +591,7 @@ class AtomicEthereumSuite {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.ethTransaction.zeroHapiFees.enabled"})
     final Stream<DynamicTest> etx031InvalidNonceEthereumTxFailsAndChargesRelayer() {
         final var relayerSnapshot = "relayer";
         final var senderSnapshot = "sender";

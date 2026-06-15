@@ -25,7 +25,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
 
     /**
      * Create a metric key for a {@link DoubleCounter} with the given name.<br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -48,7 +48,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
 
     /**
      * Create a builder for a {@link DoubleCounter} with the given metric name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the builder

@@ -26,13 +26,14 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.29.0";
+    private static final String BLOCK_NODE_VERSION = "0.35.1";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
-    private static final int HEALTH_PORT = 16007;
     private static final String MAVEN_CENTRAL_BASE_URL = "https://repo1.maven.org/maven2";
     private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
+    private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/node";
+    private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
@@ -50,19 +51,19 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                     MAVEN_CENTRAL_BASE_URL
                             + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar"),
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
-            // Transitive deps of the verification plugin (new in 0.29.0)
+            // Transitive deps of the verification plugin
             Map.entry(
-                    "hedera-cryptography-wraps-3.6.0.jar",
+                    "hedera-cryptography-wraps-3.8.1.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.6.0/hedera-cryptography-wraps-3.6.0.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.8.1/hedera-cryptography-wraps-3.8.1.jar"),
             Map.entry(
-                    "hedera-cryptography-hints-3.6.0.jar",
+                    "hedera-cryptography-hints-3.8.1.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.6.0/hedera-cryptography-hints-3.6.0.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.8.1/hedera-cryptography-hints-3.8.1.jar"),
             Map.entry(
-                    "hedera-common-nativesupport-3.6.0.jar",
+                    "hedera-common-nativesupport-3.8.1.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.6.0/hedera-common-nativesupport-3.6.0.jar"),
+                            + "/com/hedera/common/hedera-common-nativesupport/3.8.1/hedera-common-nativesupport-3.8.1.jar"),
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
@@ -70,32 +71,42 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
 
     /**
      * Creates a new block node container with the default image.
+     *
      * @param blockNodeId the id of the block node
      * @param port the internal port of the block node container to expose
+     * @param rsaBootstrapJson JSON content for the RSA bootstrap roster file, or {@code null} to skip
      */
-    public BlockNodeContainer(final long blockNodeId, final int port) {
-        this(DEFAULT_IMAGE_NAME, blockNodeId, port);
+    public BlockNodeContainer(final long blockNodeId, final int port, final String rsaBootstrapJson) {
+        this(DEFAULT_IMAGE_NAME, blockNodeId, port, rsaBootstrapJson);
     }
 
     /**
      * Creates a new block node container with the specified image.
      *
      * @param dockerImageName the docker image to use
+     * @param rsaBootstrapJson JSON content for the RSA bootstrap roster file, or {@code null} to skip
      */
-    private BlockNodeContainer(DockerImageName dockerImageName, final long blockNodeId, final int port) {
+    private BlockNodeContainer(
+            DockerImageName dockerImageName, final long blockNodeId, final int port, final String rsaBootstrapJson) {
         super(dockerImageName);
 
         final Path pluginsDir = ensurePluginsAvailable();
         this.withFileSystemBind(pluginsDir.toString(), pluginsDirInContainer(), BindMode.READ_ONLY);
 
+        if (rsaBootstrapJson != null) {
+            final Path stateDir = prepareStateDir(rsaBootstrapJson);
+            this.withFileSystemBind(stateDir.toString(), STATE_DIR_IN_CONTAINER, BindMode.READ_WRITE);
+        }
+
         // Expose the gRPC port for block node communication
         this.addFixedExposedPort(port, GRPC_PORT);
-        // Also expose the health check port
-        this.addExposedPort(HEALTH_PORT);
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
-                // Use HTTP health check on the health port to verify the service is ready
-                .waitingFor(Wait.forHttp("/-/healthy").forPort(HEALTH_PORT).withStartupTimeout(Duration.ofMinutes(2)));
+                // The health endpoint is served on the same HTTP/2 port as gRPC (40840), which is
+                // incompatible with testcontainers' HTTP/1.1 wait strategy. Use a log-message check
+                // instead; BlockNodeNetwork.awaitGrpcReadiness() provides the gRPC-level confirmation.
+                .waitingFor(Wait.forLogMessage(".*Started BlockNode Server.*", 1)
+                        .withStartupTimeout(Duration.ofMinutes(2)));
     }
 
     private static String pluginsDirInContainer() {
@@ -153,6 +164,37 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 .resolve("plugins")
                 .toAbsolutePath()
                 .normalize();
+    }
+
+    /**
+     * Writes the RSA bootstrap JSON to the block node state directory and returns the directory path.
+     * The file is written as {@value RSA_BOOTSTRAP_FILE_NAME} so the block node app picks it up
+     * from its default {@code app.state.rsaBootstrapFilePath} without any config override.
+     */
+    private static Path prepareStateDir(final String rsaBootstrapJson) {
+        synchronized (PLUGINS_LOCK) {
+            final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
+            final Path stateDir;
+            if (scopeRoot == null) {
+                stateDir = Path.of("build", "block-node", BLOCK_NODE_VERSION, "node")
+                        .toAbsolutePath()
+                        .normalize();
+            } else {
+                stateDir = scopeRoot
+                        .resolve("block-node")
+                        .resolve(BLOCK_NODE_VERSION)
+                        .resolve("node")
+                        .toAbsolutePath()
+                        .normalize();
+            }
+            try {
+                Files.createDirectories(stateDir);
+                Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
+            } catch (final IOException e) {
+                throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
+            }
+            return stateDir;
+        }
     }
 
     private static void downloadIfMissing(final HttpClient client, final String url, final Path destination)

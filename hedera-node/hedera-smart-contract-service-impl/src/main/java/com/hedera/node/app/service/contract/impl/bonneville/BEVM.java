@@ -2,20 +2,16 @@
 package com.hedera.node.app.service.contract.impl.bonneville;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
-import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
-import java.io.FileDescriptor;
-import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
@@ -23,8 +19,6 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -33,9 +27,7 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.BlockHashOperation;
-import org.hyperledger.besu.evm.operation.ChainIdOperation;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 /**
  * Main Interpreter Loop and Instance
@@ -44,28 +36,18 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
  */
 // spotless:off
 class BEVM {
-    final BonnevilleEVM _bonneville;
-
-    final Operation[] _operations;
+    final TopXTN _top;
 
     final GasCalculator _gasCalc;
-
-    final FeatureFlags _flags;
-    final AddressChecks _adrChk;
-
-    // ChainID from BESU, not *CustomChainID*
-    final long _chainID;
 
     // per-contract temp storage
     final Memory _mem;
 
     // Wrap a UInt256 in a Supplier for short-term usage, without allocating
     // per-bytecode.
-    final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
+    final TopXTN.Wrap _wrap0 = new TopXTN.Wrap(), _wrap1 = new TopXTN.Wrap();
 
     // Per-invocation fields
-
-    ActionSidecarContentTracer _tracer;
 
     MessageFrame _frame;
 
@@ -76,38 +58,19 @@ class BEVM {
     long _gas;
 
     // Map from Address to Account
-    WorldUpdater _updater;
+    ProxyWorldUpdater _updater;
 
     // Recipient
     Address _recvAddr; // Receiver Address
-    Account _recvAcct; // Receiver Account
+    AbstractMutableEvmAccount _recvAcct; // Receiver Account
 
-    // Some context flags
-    Address _hookOwner;
-    Configuration _config;
-
-    // Tracking side-car data per-frame
-    boolean _hasSideCar;
-    // Tracking side-car state per-load/store
-    boolean _hasStateSideCar;
     // Tracker for load/store
     StorageAccessTracker _tracker;
     // Frame is static (no sender)
     boolean _isStatic;
 
-    // Thread local {Address,UInt256} interned pairs
-    private final ThreadLocal<AdrKey.AdrKeyIntern> ADRKEYS = ThreadLocal.withInitial(AdrKey.AdrKeyIntern::new);
-
-    // Top-level shared warm-address stack.  This is a stack of warmed-up
-    // addresses used in gas cost accounting.  It gets popped if a contract
-    // reverts, un-warming addresses the reverted contract warmed.
-    final ArrayList<AdrKey> _warmAdrStkTopLevel = new ArrayList<>();
-    // Nested warm-address stack which points to some top-level stack.  Child
-    // contracts have child BEVMs and those must use the original top-level
-    // warm-stack.
-    ArrayList<AdrKey> _warmAdrStk;
-    // Stack depth on entry, used to unwind on Revert
-    int _warmAdrStkPtr;
+    // Warmed-up (Address,UInt256) key pairs, Stack depth on entry, used to unwind on Revert
+    int _adrkeys;
 
     // Last Storage key, value.  Used to inform the Frame that storage was updated.
     UInt256 _lastSKey, _lastSVal;
@@ -117,32 +80,22 @@ class BEVM {
 
     ContractID _contractId;
 
-    // BEVMs are allocated once per executing frame, and are recycled via a
+    // BEVMs are allocated once per executing frame and are recycled via a
     // thread-local pool managed by Bonneville.
-    BEVM(BonnevilleEVM bevm, Operation[] operations) {
-        _bonneville = bevm;
-        _operations = operations;
+    BEVM(TopXTN top/*BonnevilleEVM bevm, Operation[] operations*/) {
+        _top = top;
 
-        _flags = bevm._flags; // Feature Flags
-
-        _gasCalc = bevm.getGasCalculator();
+        // Faster access for a common field
+        _gasCalc = top._bonneville.getGasCalculator();
         // If SSTore minimum gas is ever not-zero, will need to check in sStore
         if( _gasCalc.getVeryLowTierGasCost() > 10 ) throw new TODO("Need to restructure how gas is computed");
 
         // Local temp storage
         _mem = new Memory();
-
-        // Address Check
-        _adrChk = bevm._adrChk;
-
-        // ChainID from BESU, if no custom op overrides
-        _chainID = operations[0x46] instanceof ChainIdOperation chain
-            ? chain.getChainId().getLong(0)
-            : 0;
     }
 
     // Setup for a new contract execution
-    BEVM init(BEVM parent, CodeV2 code, MessageFrame frame, ActionSidecarContentTracer tracer) {
+    BEVM init(CodeV2 code, MessageFrame frame, Address parentContract) {
         // the BESU/Hedera Frame; hope someday to remove this
         _frame = frame;
 
@@ -156,7 +109,7 @@ class BEVM {
         _gas = frame.getRemainingGas();
 
         // Map from Address to Account.
-        _updater = frame.getWorldUpdater();
+        _updater = (ProxyWorldUpdater)frame.getWorldUpdater();
 
         // Account receiver.  Can be null for various broken calls
         _recvAddr = frame.getRecipientAddress();
@@ -165,27 +118,6 @@ class BEVM {
 
         // Temp memory this contract starts empty
         assert _mem._len == 0;
-
-        // Has a config?
-        _config = parent == null
-            ? frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)
-            : parent._config;
-
-        // Has a hook owner Address?
-        _hookOwner = parent == null
-            ? frame.getContextVariable(FrameUtils.HOOK_OWNER_ADDRESS)
-            : parent._hookOwner;
-
-        // Side-car tracking (despite the tracer name, it tracks sidecars)
-        _tracer = tracer;
-        // Usually action sidecars
-        _hasSideCar = parent == null
-            ? frame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE)
-            : parent._hasSideCar;
-
-        // Custom sidecar for state changes
-        _hasStateSideCar = _config != null && _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
-        assert _hasSideCar || !_hasStateSideCar; // If tracking state changes, must track contract calls
 
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
@@ -197,36 +129,22 @@ class BEVM {
         _callData = _frame.getInputData().toArrayUnsafe();
 
         // TODO: Could get lazier here
-        _contractId = _updater instanceof ProxyWorldUpdater pwu
-            ? pwu.getHederaContractIdNotThrowing(_recvAddr)
-            : null;
+        _contractId = _updater.getHederaContractIdNotThrowing(_recvAddr);
 
-        // If top-level, use the top-level warm-address stack.
-        // If NOT top-level, pass down the top-level stack.
-        if( parent == null ) {
-            assert ADRKEYS.get().allColdSlots();
-            assert _warmAdrStkTopLevel.isEmpty();
-            _warmAdrStk = _warmAdrStkTopLevel;
-            _warmAdrStkPtr = 0;
-        } else {
-            _warmAdrStk = parent._warmAdrStk;
-            _warmAdrStkPtr = _warmAdrStk.size();
-            isWarm(parent._frame.getContractAddress());
-        }
-        isWarm(_frame.getSenderAddress());
-        isWarm(_frame.getContractAddress());
+        // Size of the warmed-up address list
+        _adrkeys = _top._adrkeys;
+        // Warm-up some common things
+        if( parentContract != null )
+            _top.isWarm(parentContract);
+        _top.isWarm(frame.getSenderAddress());
+        _top.isWarm(frame.getContractAddress());
 
         assert _lastSKey == null && _lastSVal == null;
         return this;
     }
 
-    void reset(boolean topLevel) {
-        if (topLevel) {
-            for (AdrKey ak : _warmAdrStkTopLevel) ak._warm = false;
-            _warmAdrStkTopLevel.clear();
-        } else {
-            _warmAdrStk = null;
-        }
+    void reset() {
+        _adrkeys = 0;
         _mem.reset();
         _frame = null;
         _code = null;
@@ -280,12 +198,14 @@ class BEVM {
 
     // Push a UInt256
     private ExceptionalHaltReason push(UInt256 val) {
-        return push(UI256.getLong(val, 3), UI256.getLong(val, 2), UI256.getLong(val, 1), UI256.getLong(val, 0));
+        int x = _top.ui256x(val);
+        //if( x < 0 ) return push(-x-1);
+        return push( _top.x0(x), _top.x1(x), _top.x2(x), _top.x3(x));
     }
 
     // Address.delegate
     // -- delegate is ArrayWrappingBytes
-    // -- -- wrapped bytes has offset 0, len== 20 == bytes[].length
+    // -- -- wrapped bytes have offset 0, len== 20 == bytes[].length
     // 4 calls to getLong() accumulating bytes
     //
     ExceptionalHaltReason push(Address adr) {
@@ -386,37 +306,42 @@ class BEVM {
     private UInt256 popUInt256() {
         assert _sp > 0; // Caller already checked for stack underflow
         long x0 = STK0[--_sp], x1 = STK1[_sp], x2 = STK2[_sp], x3 = STK3[_sp];
-        return UI256.intern(x0, x1, x2, x3);
+        return _top.uint256(x0, x1, x2, x3);
     }
 
     Wei popWei() {
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-        return Wei.wrap(UI256.intern(val0, val1, val2, val3));
+        return Wei.wrap(_top.uint256(val0, val1, val2, val3));
     }
 
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = null; // new SB();
-        PrintStream oldSysOut = System.out;
-        if( trace != null) {
-            System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out)));
-            if( topLevel) System.out.println(BonnevilleEVM.TOP_SEP);
-        }
+        SB trace = _top._bonneville._trace;
+        PrintStream stdOut = _top._bonneville._stdOut;
+        if( trace != null && topLevel )
+            stdOut.println(BonnevilleEVM.TOP_SEP);
 
+        // Preload a bunch of invariant fields from TopXTN and Bonneville
+        byte[] opGas = _top._bonneville._opGas;
+        byte[] opStackMin = _top._bonneville._opStackMin;
+        ActionSidecarContentTracer tracer = _top._tracer;
+        Operation[] operations = _top._bonneville._operations;
+
+        // Setup basic interpreter state
         int pc = 0;
         ExceptionalHaltReason halt = null;
         byte[] codes = _code._codes;
-        byte[] opGas = _bonneville._opGas;
-        byte[] opStackMin = _bonneville._opStackMin;
+        int off = _code._off;
 
+        // Interpret opcodes unto death
         while( halt == null ) {
-            int op = pc < codes.length ? codes[pc] & 0xFF : 0;
-            preTrace(trace, pc, op);
+            int op = pc+off < codes.length ? codes[pc+off] & 0xFF : 0;
+            preTrace(pc, op);
             pc++;
 
-            if( _tracer != null )
-                _tracer.tracePreExecution(_frame);
+            if( tracer != null )
+                tracer.tracePreExecution(_frame);
 
             // Cover most stack checks
             int need = opStackMin[op] & 0xFF;
@@ -549,22 +474,22 @@ class BEVM {
 
             if( trace != null ) {
                 if( !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
-                    postTrace(trace);
+                    postTrace();
                     if( halt != null && halt != ExceptionalHaltReason.NONE )
                         trace.p(" ").p(halt.toString());
-                    System.out.println(trace);
+                    stdOut.println(trace);
                 }
                 trace.clear();
             }
-            if( _tracer != null && _hasSideCar )
-                _tracer.tracePerOpcode(_frame,oldGas-_gas,halt,_operations[op]);
+            if( tracer != null && _top._hasSideCar )
+                tracer.tracePerOpcode(_frame,oldGas-_gas,halt,operations[op]);
 
         } // End while( halt!=null )...
 
         if( trace != null ) {
-            System.out.println();
-            if( topLevel) System.out.println(BonnevilleEVM.TOP_SEP);
-            System.setOut(oldSysOut);
+            stdOut.println();
+            if( topLevel ) stdOut.println(BonnevilleEVM.TOP_SEP);
+            stdOut.flush();
         }
 
         // Set mutable state back into Frame after executing
@@ -579,17 +504,16 @@ class BEVM {
         return this;
     }
 
-    private void preTrace(SB trace, int pc, int op) {
-        if( trace != null)
-            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) _gas).p(" ").hex2(_sp).p(" -> ");
+    private void preTrace(int pc, int op) {
+        if( _top._bonneville._trace != null)
+            _top._bonneville._trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) _gas).p(" ").hex2(_sp).p(" -> ");
     }
 
-    SB postTrace(SB trace) {
-        trace.hex2(_sp);
+    void postTrace() {
+        _top._bonneville._trace.hex2(_sp);
         // Dump TOS
         if( _sp > 0 )
-            trace.p(" 0x").hex8(STK3[_sp - 1]).hex8(STK2[_sp - 1]).hex8(STK1[_sp - 1]).hex8(STK0[_sp - 1]);
-        return trace;
+            _top._bonneville._trace.p(" 0x").hex8(STK3[_sp - 1]).hex8(STK2[_sp - 1]).hex8(STK1[_sp - 1]).hex8(STK0[_sp - 1]);
     }
 
     // ---------------------
@@ -721,7 +645,7 @@ class BEVM {
         // BigInteger fallback
         _sp += 2; // Re-push bytes
         var dividend = new BigInteger(1, popBytes().toArrayUnsafe());
-        var divisor = new BigInteger(1, popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(1, popBytes().toArrayUnsafe());
         return push(dividend.divide(divisor));
     }
 
@@ -736,10 +660,7 @@ class BEVM {
             if( rhs0 == 0) return push0();
             if( rhs0 == 1) return push(lhs0, lhs1, lhs2, lhs3);
         }
-        int rbc0 = Long.bitCount(rhs0),
-                rbc1 = Long.bitCount(rhs1),
-                rbc2 = Long.bitCount(rhs2),
-                rbc3 = Long.bitCount(rhs3);
+        int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0 + rbc1 + rbc2 + rbc3 == 1) {
             int shf = shf(rbc0, rbc1, rbc2, rbc3, rhs0, rhs1, rhs2, rhs3);
             return sar(shf, lhs0, lhs1, lhs2, lhs3);
@@ -854,7 +775,7 @@ class BEVM {
     // Sgn extend
     private ExceptionalHaltReason sign() {
         int x = popInt();
-        // Push the sign-extend of val, starting from byte x.  if x>=32, then v
+        // Push the sign-extend of val, starting from byte x.  If x>=32, then v
         // is used no-change.  If x==31 then we would only extend the high byte.
         if( x >= 31) return null;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
@@ -1083,9 +1004,10 @@ class BEVM {
     // Balance
     private ExceptionalHaltReason balance() {
         var address = popAddress();
-        boolean isSystem = _adrChk!=null && _adrChk.isSystemAccount(address);
+        AddressChecks adrChk = _top._bonneville._adrChk;
+        boolean isSystem = adrChk!=null && adrChk.isSystemAccount(address);
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            ((!isSystem && isWarm(address))
+            ((!isSystem && _top.isWarm(address))
              ? _gasCalc.getWarmStorageReadCost()
              : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
@@ -1093,7 +1015,7 @@ class BEVM {
 
         if( isSystem) return push0();
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0();
         return push((UInt256) acct.getBalance().toBytes());
     }
@@ -1148,7 +1070,7 @@ class BEVM {
 
     // Push size of code
     private ExceptionalHaltReason codeSize() {
-        return push(_code._codes.length);
+        return push(_code._len);
     }
 
     // Copy code into Memory
@@ -1161,7 +1083,7 @@ class BEVM {
         var halt = useGas(copyCost(memOff, len, 3));
         if( halt != null) return halt;
 
-        _mem.write(memOff, _code._codes, srcOff, len);
+        _mem.write(memOff, _code._codes, srcOff+_code._off, len);
         return null;
     }
 
@@ -1171,22 +1093,23 @@ class BEVM {
         if( _gas < gas) return ExceptionalHaltReason.INSUFFICIENT_GAS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk != null ) {
-            if( _adrChk.isNonUserAccount(address) ) return push0();
+        AddressChecks adrChk = _top._bonneville._adrChk;
+        if( adrChk != null ) {
+            if( adrChk.isNonUserAccount(address) ) return push0();
             assert assertValidSolidity(address);
         }
 
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        if( isWarm(address) )
+        if( _top.isWarm(address) )
             gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getWarmStorageReadCost();
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
-        return push(acct.getCode().size());
+        return push(acct.getCodeSize());
     }
 
     private ExceptionalHaltReason customExtCodeCopy() {
@@ -1199,8 +1122,9 @@ class BEVM {
         var gas = copyCost(doff, len, 0) + _gasCalc.getColdAccountAccessCost();
         if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk != null) {
-            if( _adrChk.isNonUserAccount(address) ) return push0();
+        AddressChecks adrChk = _top._bonneville._adrChk;
+        if( adrChk != null) {
+            if( adrChk.isNonUserAccount(address) ) return push0();
             assert assertValidSolidity(address);
         }
         return extCodeCopy(address, doff, soff, len);
@@ -1211,11 +1135,11 @@ class BEVM {
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
         long gas = copyCost(doff, len, 0)
-            + (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            + (_top.isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct != null) _mem.write(doff, acct.getCode().toArray(), soff, len);
         return null;
     }
@@ -1226,8 +1150,9 @@ class BEVM {
         if( _gas < gas) return ExceptionalHaltReason.INSUFFICIENT_GAS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk != null) {
-            if( _adrChk.isNonUserAccount(address)) return push0();
+        AddressChecks adrChk = _top._bonneville._adrChk;
+        if( adrChk != null) {
+            if( adrChk.isNonUserAccount(address)) return push0();
             assert assertValidSolidity(address);
         }
 
@@ -1235,20 +1160,20 @@ class BEVM {
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
         gas = _gasCalc.getExtCodeSizeOperationGasCost()
-            + (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            + (_top.isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
         return push32(acct.getCodeHash().toArrayUnsafe());
     }
 
-    private boolean assertValidSolidity(Address adr) {
+    boolean assertValidSolidity(Address adr) {
         // CNC notes - I am unable to find a test case which triggers this
         // original code, it may no longer be possible.  Asserting it cannot
         // happen, but including the old handler code, commented out.
-        return !contractRequired(adr) || _adrChk.isPresent(adr, _frame);
+        return !contractRequired(adr) || _top._bonneville._adrChk.isPresent(adr, _frame);
         // FrameUtils.invalidAddressContext(_frame).set(address,InvalidAddressContext.InvalidAddressType.NonCallTarget);
         // return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
     }
@@ -1308,13 +1233,12 @@ class BEVM {
         _frame.setRevertReason(reason);
         _frame.setState(MessageFrame.State.REVERT);
         // Undo all the warmed-up addresses in this contract
-        while( _warmAdrStk.size() > _warmAdrStkPtr )
-            _warmAdrStk.removeLast()._warm = false;
+        _top._adrkeys = _adrkeys;
         return ExceptionalHaltReason.NONE;
     }
 
     private ExceptionalHaltReason customSelfDestruct() {
-        if( _operations[0xFF] instanceof CustomSelfDestructOperation csdo ) {
+        if( _top._bonneville._operations[0xFF] instanceof CustomSelfDestructOperation csdo ) {
             Address beneAdr = popAddress();
             // TODO: Inline & cleanup.
             Operation.OperationResult opr = csdo.execute(_frame, beneAdr);
@@ -1400,14 +1324,14 @@ class BEVM {
     private ExceptionalHaltReason blockHash() {
         long soughtBlock = popLong();
 
-        if( _operations[0x40] instanceof BlockHashOperation) {
+        if( _top._bonneville._operations[0x40] instanceof BlockHashOperation) {
             if( soughtBlock == Long.MAX_VALUE ) return push0();
 
             BlockValues blockValues = _frame.getBlockValues();
             long currentBlockNumber = blockValues.getNumber();
             BlockHashLookup blockHashLookup = _frame.getBlockHashLookup();
             if( !(0L <= soughtBlock && soughtBlock < currentBlockNumber &&
-                  // Mirror Node has a different has blockHash implemnentation
+                  // Mirror Node has a different blockHash implementation
                   // without the 256 lookback limit, and will need a
                   // different lookup here.
                   soughtBlock >= currentBlockNumber - blockHashLookup.getLookback()/*256*/) )
@@ -1433,17 +1357,12 @@ class BEVM {
     }
 
     private ExceptionalHaltReason PRNGSeed() {
-        if( _updater instanceof ProxyWorldUpdater pwu ) {
-            com.hedera.pbj.runtime.io.buffer.Bytes entropy = pwu.enhancement().operations().entropy();
-            long x0 = entropy.getLong( 0);
-            long x1 = entropy.getLong( 8);
-            long x2 = entropy.getLong(16);
-            long x3 = entropy.getLong(24);
-            return push(x0, x1, x2, x3);
-        }
-        // BESU impl
-        //return push(_frame.getBlockValues().getMixHashOrPrevRandao());
-        return push0();
+        com.hedera.pbj.runtime.io.buffer.Bytes entropy = _updater.enhancement().operations().entropy();
+        long x0 = entropy.getLong( 0);
+        long x1 = entropy.getLong( 8);
+        long x2 = entropy.getLong(16);
+        long x3 = entropy.getLong(24);
+        return push(x0, x1, x2, x3);
     }
 
     private ExceptionalHaltReason gasLimit() {
@@ -1452,9 +1371,9 @@ class BEVM {
 
     private ExceptionalHaltReason customChainId() {
         // Check for having a custom chain id
-        long chainIdAsInt = _config != null
-            ? _config.getConfigData(ContractsConfig.class).chainId()
-            : _chainID; // BESU default chain ID
+        long chainIdAsInt = _top._config != null
+            ? _top._config.getConfigData(ContractsConfig.class).chainId()
+            : _top._bonneville._chainID; // BESU default chain ID
         return push(chainIdAsInt);
     }
 
@@ -1558,26 +1477,6 @@ class BEVM {
     // ---------------------
     // Permanent Storage ops.
 
-    // Storage "slots" are keyed by (Address,UInt256) and are cold until first
-    // touched.  "cold" is reset at top-level contracts, and "warm" is passed
-    // down to all child contract calls.  Reverted contracts undo their
-    // "warming" touches as if they never happened.
-    private AdrKey getSlot(Address adr, UInt256 key) {
-        return ADRKEYS.get().get(adr, key);
-    }
-
-    // Is AdrKey warm?  If not, warm it and stack it in case of revert
-    private boolean isWarm(AdrKey ak) {
-        if( ak._warm) return true;
-        _warmAdrStk.add(ak); // Record for revert
-        ak._warm = true;
-        return false; // Was cold, but warmed-up afterward
-    }
-    // Is Address warm?  Make an AdrKey with null UInt256 and check normally
-    boolean isWarm(Address adr) {
-        return _gasCalc.isPrecompile(adr) || isWarm(getSlot(adr, null));
-    }
-
     // Load from the global/permanent store
     private ExceptionalHaltReason customSLoad() {
         UInt256 key = popUInt256();
@@ -1585,15 +1484,14 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        AdrKey ak = getSlot(_recvAddr, key);
         long gas = _gasCalc.getSloadOperationGasCost()
-            + (isWarm(ak) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
+            + (_top.isWarm(_recvAddr,key) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt != null ) return halt;
 
         // Get value via the key
         UInt256 val = _recvAcct.getStorageValue(key);
-        if( _hasStateSideCar && _tracker != null )
+        if( _top._hasStateSideCar && _tracker != null )
             _tracker.trackIfFirstRead(_contractId, key, val);
 
         return push(val);
@@ -1602,7 +1500,7 @@ class BEVM {
     // Store into the global/permanent store
     private ExceptionalHaltReason customSStore() {
         // Mutable version of receiver
-        MutableAccount recv = _updater.getAccount(_recvAddr);
+        AbstractMutableEvmAccount recv = _updater.getAccount(_recvAddr);
         if( recv == null ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // Attempt to write to read-only
@@ -1617,8 +1515,7 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        AdrKey ak = getSlot(_recvAddr, key);
-        long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) + (isWarm(ak) ? 0 : _gasCalc.getColdSloadCost());
+        long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) + (_top.isWarm(_recvAddr, key) ? 0 : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt != null) return halt;
 
@@ -1631,7 +1528,7 @@ class BEVM {
         _lastSVal = val;
 
         // Record update in sidecar
-        if( _hasStateSideCar && _tracker != null )
+        if( _top._hasStateSideCar && _tracker != null )
             _tracker.trackIfFirstRead(_contractId, key, _wrap1._u);
 
         return null;
@@ -1652,7 +1549,7 @@ class BEVM {
 
     // Push an array of immediate bytes onto the stack
     private ExceptionalHaltReason push(int pc, int newpc) {
-        return push(_code._codes, pc, newpc - pc);
+        return push(_code._codes, pc+_code._off, newpc - pc);
     }
 
     // Duplicate nth word
@@ -1686,28 +1583,27 @@ class BEVM {
         for (int i = 0; i < ntopics; i++)
             ary.add(LogTopic.create(popBytes()));
 
-        if( _updater instanceof ProxyWorldUpdater pwu ) {
-            // Since these are consumed by mirror nodes, which always want to know the Hedera id
-            // of the emitting contract, we always resolve to a long-zero address for the log
-            var loggerAddress = ConversionUtils.isLongZero(_recvAddr)
-                ? _recvAddr
-                : ConversionUtils.asLongZeroAddress(pwu.getHederaContractId(_recvAddr).contractNumOrThrow());
-            _frame.addLog(new Log(loggerAddress, data, ary));
-        }
+        // Since these are consumed by mirror nodes, which always want to know the Hedera id
+        // of the emitting contract, we always resolve to a long-zero address for the log
+        var loggerAddress = ConversionUtils.isLongZero(_recvAddr)
+            ? _recvAddr
+            : ConversionUtils.asLongZeroAddress(_updater.getHederaContractId(_recvAddr).contractNumOrThrow());
+        _frame.addLog(new Log(loggerAddress, data, ary));
         return null;
     }
 
     // This call will create the "to" address, so it doesn't need to be present
     boolean mustBePresent(Address to, boolean hasValue) {
+        AddressChecks adrChk = _top._bonneville._adrChk;
         return !ConversionUtils.isLongZero(to)
             && hasValue
-            && _adrChk != null
-            && !_adrChk.isPresent(to, _frame)
-            && _flags.isImplicitCreationEnabled()
+            && adrChk != null
+            && !adrChk.isPresent(to, _frame)
+            && _top._bonneville._flags.isImplicitCreationEnabled()
             // Let system accounts calls or if configured to allow calls to
             // non-existing contract address calls go through so the message
             // call processor can fail in a more legible way
-            && !_adrChk.isSystemAccount(to)
+            && !adrChk.isSystemAccount(to)
             && contractRequired(to);
     }
 
@@ -1718,8 +1614,8 @@ class BEVM {
         Long longZeroAddr = ConversionUtils.isLongZeroAddress(bs)
             ? ConversionUtils.numberOfLongZero(bs)
             : null;
-        ContractsConfig ccfg = _config.getConfigData(ContractsConfig.class);
-        return !_flags.isAllowCallsToNonContractAccountsEnabled(ccfg, longZeroAddr);
+        ContractsConfig ccfg = _top._config.getConfigData(ContractsConfig.class);
+        return !_top._bonneville._flags.isAllowCallsToNonContractAccountsEnabled(ccfg, longZeroAddr);
     }
 }
 // spotless:on

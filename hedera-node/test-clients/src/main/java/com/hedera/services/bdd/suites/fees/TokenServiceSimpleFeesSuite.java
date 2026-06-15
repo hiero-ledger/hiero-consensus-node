@@ -50,10 +50,12 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -67,7 +69,10 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -929,5 +934,58 @@ public class TokenServiceSimpleFeesSuite {
                         .blankMemo()
                         .via("updateTxn"),
                 validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("BASELINE: Valid single fungible token transfer charged correct token fee")
+    final Stream<DynamicTest> validFungibleTransferUndercharged() {
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                tokenCreate("fungibleToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury("payer")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("payer"),
+                tokenAssociate("receiver", "fungibleToken"),
+                cryptoTransfer(moving(2000, "fungibleToken").between("payer", "receiver"))
+                        .payingWith("payer")
+                        .signedBy("payer")
+                        .fee(ONE_HBAR)
+                        .via("baselineTxn")
+                        .memo("baselineTxn")
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
+                validateChargedUsd("baselineTxn", TOKEN_TRANSFER_FEE),
+                cryptoTransfer((spec, b) -> {
+                            final var attackerInfo = spec.registry().getAccountID("payer");
+                            final var receiverInfo = spec.registry().getAccountID("receiver");
+                            final var bogusTokenId = TokenID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm())
+                                    .setTokenNum(9_000_001L)
+                                    .build();
+                            final var ttl = TokenTransferList.newBuilder()
+                                    .setToken(bogusTokenId)
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(attackerInfo)
+                                            .setAmount(-1L)
+                                            .build())
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(receiverInfo)
+                                            .setAmount(1L)
+                                            .build())
+                                    .build();
+                            b.addTokenTransfers(ttl);
+                        })
+                        .memo("attackTxn")
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("attackTxn")
+                        .hasKnownStatus(INVALID_TOKEN_ID),
+                // verify that the regular fee is charged even though the transfer failed due to an invalid token id
+                validateChargedUsd("attackTxn", TOKEN_TRANSFER_FEE),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 }
