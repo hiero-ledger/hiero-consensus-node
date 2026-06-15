@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class TokenGetNftInfoUsageTest {
     private final String memo = "Hope";
-    private final NftID id = IdUtils.asNftID("0.0.75231", 1);
+    private final NftID id = IdUtils.asNftID(75231L, 1);
 
     private TokenGetNftInfoUsage subject;
 

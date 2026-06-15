@@ -16,7 +16,9 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -61,6 +63,12 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
         return delegate.getCurrentChainOfTrustProof(metadata);
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        return delegate.doGenesisSetup(writableStates, configuration);
     }
 
     @Override

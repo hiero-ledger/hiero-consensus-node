@@ -4,7 +4,6 @@ package com.swirlds.platform.builder;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
@@ -19,17 +18,14 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -51,11 +47,6 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  * @param appVersion                             the current version of the running application
  * @param initialState                           the initial state of the platform
  * @param rosterHistory                          the roster history provided by the application to use at startup
- * @param applicationCallbacks                   the callbacks that the platform will call when certain events happen
- * @param preconsensusEventConsumer              the consumer for preconsensus events, null if publishing this data has
- *                                               not been enabled
- * @param snapshotOverrideConsumer               the consumer for snapshot overrides, null if publishing this data has
- *                                               not been enabled
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param secureRandomSupplier                   a source of secure random number generator instances
@@ -99,9 +90,6 @@ public record PlatformBuildingBlocks(
         @NonNull SemanticVersion appVersion,
         @NonNull ReservedSignedState initialState,
         @NonNull RosterHistory rosterHistory,
-        @NonNull ApplicationCallbacks applicationCallbacks,
-        @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
-        @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull FreezePeriodChecker freezeChecker,
@@ -131,7 +119,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(appVersion);
         requireNonNull(initialState);
         requireNonNull(rosterHistory);
-        requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(secureRandomSupplier);
         requireNonNull(freezeChecker);

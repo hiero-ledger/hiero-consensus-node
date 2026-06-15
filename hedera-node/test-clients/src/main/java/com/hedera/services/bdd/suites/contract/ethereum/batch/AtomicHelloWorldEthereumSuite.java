@@ -72,6 +72,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -166,8 +167,8 @@ class AtomicHelloWorldEthereumSuite {
                                 .alsoSigningWithFullPrefix(cryptoKey)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),
-                // Finally confirm we ALSO succeed when providing the admin key's
-                // signature via an EthereumTransaction signature
+                // Batch will fail due to the alias signing the eth transaction
+                // is different from the admin key
                 cryptoCreate(RELAYER).balance(10 * THOUSAND_HBAR),
                 sourcing(() -> atomicBatch(ethereumCall(
                                         contract,
@@ -182,8 +183,10 @@ class AtomicHelloWorldEthereumSuite {
                                 .maxGasAllowance(ONE_HBAR * 10)
                                 .gasLimit(5_000_000L)
                                 .via("creationActivatingAdminKeyViaEthTxSig")
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)),
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
                         CONTRACT_REVERT_EXECUTED,
@@ -193,7 +196,7 @@ class AtomicHelloWorldEthereumSuite {
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
                 getTxnRecord("creationActivatingAdminKeyViaEthTxSig")
                         .exposingTokenCreationsTo(
-                                createdIds -> assertFalse(createdIds.isEmpty(), "EthTx sig creation failed")));
+                                createdIds -> assertTrue(createdIds.isEmpty(), "EthTx sig creation failed")));
     }
 
     @HapiTest
