@@ -1332,6 +1332,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
+        if (!fatalShutdownRequested) {
+            log.warn("awaitFatalShutdown called without a prior notifyFatalEvent; ignoring");
+            return;
+        }
         if (!roundInProgress) {
             log.fatal("No round in progress at fatal shutdown; flushing open and pending blocks for triage directly");
             flushOpenAndPendingBlocksForTriage();
