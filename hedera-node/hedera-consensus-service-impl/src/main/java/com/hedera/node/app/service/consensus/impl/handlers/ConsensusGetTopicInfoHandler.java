@@ -35,7 +35,6 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -156,19 +155,6 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             info.ledgerId(ledgerId);
             return Optional.of(info.build());
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var topicStore = queryContext.createStore(ReadableTopicStore.class);
-        final var op = query.consensusGetTopicInfoOrThrow();
-        final var topicId = op.topicIDOrElse(TopicID.DEFAULT);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var topic = topicStore.getTopic(topicId);
-
-        return queryContext.feeCalculator().legacyCalculate(ignored -> usageGivenTypeAndTopic(topic, responseType));
     }
 
     private FeeData usageGivenTypeAndTopic(@Nullable final Topic topic, @NonNull final ResponseType responseType) {
