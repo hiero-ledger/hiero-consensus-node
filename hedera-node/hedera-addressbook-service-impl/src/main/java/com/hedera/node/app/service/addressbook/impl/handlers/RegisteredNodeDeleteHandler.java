@@ -4,18 +4,14 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkRegisteredNodesEnabled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -88,16 +84,5 @@ public class RegisteredNodeDeleteHandler implements TransactionHandler {
         validateFalse(isAssociated, REGISTERED_NODE_STILL_ASSOCIATED);
 
         registeredNodeStore.remove(registeredNodeId);
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext, "feeContext must not be null");
-        checkRegisteredNodesEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
     }
 }

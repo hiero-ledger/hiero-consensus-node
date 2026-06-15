@@ -9,8 +9,8 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.internal.merkle;
     exports com.swirlds.virtualmap.config;
     exports com.swirlds.virtualmap.sync;
-    exports com.swirlds.virtualmap.sync.stats;
     exports com.swirlds.virtualmap.sync.streams;
+    exports com.swirlds.virtualmap.sync.stats;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
@@ -29,9 +29,7 @@ open module com.swirlds.virtualmap {
             com.swirlds.platform.core.test.fixtures,
             com.hedera.state.validator;
     exports com.swirlds.virtualmap.internal.reconnect to
-            com.hedera.state.validator,
-            com.swirlds.common.test.fixtures,
-            org.hiero.consensus.reconnect.impl;
+            com.hedera.state.validator;
     exports com.swirlds.virtualmap.internal.hash to
             com.hedera.state.validator;
 
