@@ -25,7 +25,6 @@ import com.hedera.node.app.service.file.FileMetadata;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.file.impl.base.FileQueryBase;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
@@ -79,19 +78,6 @@ public class FileGetInfoHandler extends FileQueryBase {
         if (!op.hasFileID()) {
             throw new PreCheckException(INVALID_FILE_ID);
         }
-    }
-
-    @Override
-    public @NonNull Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var fileStore = queryContext.createStore(ReadableFileStore.class);
-        final var op = query.fileGetInfoOrThrow();
-        final var fileId = op.fileIDOrElse(FileID.DEFAULT);
-        final File file = fileStore.getFileLeaf(fileId);
-
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), file));
     }
 
     @Override
