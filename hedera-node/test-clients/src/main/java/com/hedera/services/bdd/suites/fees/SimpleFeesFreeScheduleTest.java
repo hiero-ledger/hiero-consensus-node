@@ -31,7 +31,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
-import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedContractCreateSimpleFeesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.getChargedGasForContractCreate;
@@ -59,7 +58,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -283,13 +281,9 @@ public class SimpleFeesFreeScheduleTest {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(3L))
-                ,
-                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get()))
-
-        );
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(3L)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
     }
-
 
     private static void swapSimpleFeeSchedule(HapiSpec spec, ByteString newFeeSchedule) {
         allRunFor(spec, updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, newFeeSchedule));
