@@ -119,7 +119,8 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     private long transactionFloorGas(final int payloadSize, final int zeros) {
         final long tokensInCallData =
                 saturatedAdd(zeros, saturatedMultiply((long) (payloadSize - zeros), STANDARD_TOKENS_PER_NON_ZERO_BYTE));
-        return saturatedAdd(getMinimumTransactionCost(), saturatedMultiply(tokensInCallData, TOTAL_COST_FLOOR_PER_TOKEN));
+        return saturatedAdd(
+                getMinimumTransactionCost(), saturatedMultiply(tokensInCallData, TOTAL_COST_FLOOR_PER_TOKEN));
     }
 
     private static long saturatedAdd(final long a, final long b) {

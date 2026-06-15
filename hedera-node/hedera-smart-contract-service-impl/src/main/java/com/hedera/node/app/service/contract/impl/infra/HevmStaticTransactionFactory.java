@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;

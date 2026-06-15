@@ -53,7 +53,8 @@ class HederaGasCalculatorImplTest {
         // A non-zero backing offset must be respected (Bytes can wrap a slice of a larger array).
         final var backing = randomBytesOf(random, 200);
         final var sliced = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(backing, 37, 91);
-        assertEquals(naiveZeroCount(Arrays.copyOfRange(backing, 37, 37 + 91)), HederaGasCalculator.payloadZeroBytes(sliced));
+        assertEquals(
+                naiveZeroCount(Arrays.copyOfRange(backing, 37, 37 + 91)), HederaGasCalculator.payloadZeroBytes(sliced));
     }
 
     private static void assertSwarMatchesNaive(final byte[] data) {

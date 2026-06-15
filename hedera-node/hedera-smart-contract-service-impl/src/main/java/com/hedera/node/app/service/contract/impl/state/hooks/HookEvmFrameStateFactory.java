@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,14 +19,17 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
     private final HederaOperations hederaOperations;
     private final HederaNativeOperations hederaNativeOperations;
     private final EvmHookState hook;
+    private final ContractCodeCache codeCache;
 
     public HookEvmFrameStateFactory(
             @NonNull final HederaOperations hederaOperations,
             @NonNull final HederaNativeOperations hederaNativeOperations,
-            @NonNull final EvmHookState hook) {
+            @NonNull final EvmHookState hook,
+            @NonNull final ContractCodeCache codeCache) {
         this.hederaOperations = Objects.requireNonNull(hederaOperations);
         this.hederaNativeOperations = Objects.requireNonNull(hederaNativeOperations);
         this.hook = Objects.requireNonNull(hook);
+        this.codeCache = Objects.requireNonNull(codeCache);
     }
 
     @Override
@@ -34,7 +38,8 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
                 hederaNativeOperations,
                 hederaOperations.getStore(),
                 hederaNativeOperations.writableEvmHookStore(),
-                hook);
+                hook,
+                codeCache);
     }
 
     @Override

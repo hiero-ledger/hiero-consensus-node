@@ -41,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,7 +58,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -66,11 +66,10 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * contract storage and bytecode, and a {@link HandleHederaNativeOperations} for additional influence over
  * the non-contract Hedera state in the current scope.
  *
- * <p>Almost every access requires a conversion from a PBJ type to a Besu type. At some
- * point it might be necessary to cache the converted values and invalidate them when
- * the state changes.
- * <p>
- * TODO - get a little further to clarify DI strategy, then bring back a code cache.
+ * <p>Almost every access requires a conversion from a PBJ type to a Besu type. Parsed contract
+ * {@link org.hyperledger.besu.evm.Code} (with its Keccak code hash and jump-dest analysis) is served from a
+ * content-keyed {@link ContractCodeCache}, so those derivations are computed once per distinct bytecode rather
+ * than once per call.
  */
 public class DispatchingEvmFrameState implements EvmFrameState {
     /**
@@ -82,6 +81,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     private final HederaNativeOperations nativeOperations;
     private final HederaEntityResolver hederaEntityResolver;
     final ContractStateStore contractStateStore;
+    private final ContractCodeCache codeCache;
 
     /**
      * @param nativeOperations   the Hedera native operation
@@ -89,10 +89,12 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     public DispatchingEvmFrameState(
             @NonNull final HederaNativeOperations nativeOperations,
-            @NonNull final ContractStateStore contractStateStore) {
+            @NonNull final ContractStateStore contractStateStore,
+            @NonNull final ContractCodeCache codeCache) {
         this.nativeOperations = requireNonNull(nativeOperations);
         this.hederaEntityResolver = new HederaEntityResolver(nativeOperations);
         this.contractStateStore = requireNonNull(contractStateStore);
+        this.codeCache = requireNonNull(codeCache);
     }
 
     /**
@@ -230,7 +232,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (numberedBytecode == null) {
             return Hash.EMPTY;
         } else {
-            return new Code(pbjToTuweniBytes(numberedBytecode.code())).getCodeHash();
+            return codeCache.getCode(numberedBytecode.code()).getCodeHash();
         }
     }
 

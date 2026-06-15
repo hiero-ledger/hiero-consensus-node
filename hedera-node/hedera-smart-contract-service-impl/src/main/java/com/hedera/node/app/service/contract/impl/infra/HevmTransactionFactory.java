@@ -34,7 +34,6 @@ import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.hapi.node.base.AccountID;

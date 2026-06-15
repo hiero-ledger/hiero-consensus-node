@@ -71,8 +71,7 @@ public interface HederaGasCalculator extends GasCalculator {
         final long wordLimit = length - Long.BYTES + 1;
         for (; i < wordLimit; i += Long.BYTES) {
             final long v = payload.getLong(i);
-            final long nonZeroFlags =
-                    (((v & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL) | v) & 0x8080808080808080L;
+            final long nonZeroFlags = (((v & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL) | v) & 0x8080808080808080L;
             zeros += Long.BYTES - Long.bitCount(nonZeroFlags);
         }
         for (; i < length; i++) {
