@@ -122,7 +122,7 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         final long nanosTick = nanoClock.getAsLong();
-        if (stats.openedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats.markOpened(nanosTick)) {
             getThroughputBucket(nanosTick).blocksOpened.increment();
         }
     }
@@ -144,11 +144,11 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         final long nanosTick = nanoClock.getAsLong();
-        if (stats.items.putIfAbsent(itemIndex, new BlockItemStats(sizeInBytes, nanosTick)) == null) {
+        if (stats.recordItem(itemIndex, sizeInBytes, nanosTick)) {
             getThroughputBucket(nanosTick).itemsCreated.add(sizeInBytes);
         }
         if (isBlockProof) {
-            stats.proofAddedNanosTick.compareAndSet(-1, nanosTick);
+            stats.markProofAdded(nanosTick);
         }
     }
 
@@ -175,9 +175,9 @@ public class BlockStreamingObs implements AutoCloseable {
         final ThroughputBucket throughputBucket = getThroughputBucket(nanosTickStart);
 
         for (int index = itemIndexStart; index <= itemIndexEnd; ++index) {
-            final BlockItemStats itemStats = stats.items.get(index);
-            if (itemStats != null && itemStats.itemSendNanosTicks.compareAndSet(null, ticks)) {
-                throughputBucket.itemsSent.add(itemStats.itemSizeInBytes);
+            final long sentSize = stats.markItemSent(index, ticks);
+            if (sentSize >= 0) {
+                throughputBucket.itemsSent.add(sentSize);
             }
         }
     }
@@ -190,7 +190,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.endSentNanosTicks.compareAndSet(null, new StartAndEndTicks(nanosTickStart, nanosTickEnd));
+            stats.markEndSent(nanosTickStart, nanosTickEnd);
         }
     }
 
@@ -206,7 +206,7 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         final long nanosTick = nanoClock.getAsLong();
-        if (stats.closedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats.markClosed(nanosTick)) {
             getThroughputBucket(nanosTick).blocksClosed.increment();
         }
     }
@@ -227,7 +227,7 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         final long nanosTick = nanoClock.getAsLong();
-        if (stats.ackedNanosTick.compareAndSet(-1, nanosTick)) {
+        if (stats.markAcked(nanosTick)) {
             getThroughputBucket(nanosTick).blocksAcked.increment();
         }
     }
@@ -240,7 +240,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.proofCreatedNanosTick.compareAndSet(-1, nanoClock.getAsLong());
+            stats.markProofCreated(nanoClock.getAsLong());
         }
     }
 
@@ -252,7 +252,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.headerSentNanosTicks.compareAndSet(null, new StartAndEndTicks(nanosTickStart, nanosTickEnd));
+            stats.markHeaderSent(nanosTickStart, nanosTickEnd);
         }
     }
 
@@ -264,7 +264,7 @@ public class BlockStreamingObs implements AutoCloseable {
 
         final BlockStats stats = blockStatistics.get(blockNumber);
         if (stats != null) {
-            stats.footerNanosTick.compareAndSet(-1, nanoClock.getAsLong());
+            stats.markFooterCreated(nanoClock.getAsLong());
         }
     }
 
@@ -370,11 +370,10 @@ public class BlockStreamingObs implements AutoCloseable {
             final BlockStats blockStats = it.next().getValue();
             // only blocks acked before the threshold are eligible; the ack is terminal, so by now
             // no other thread is still recording events for the block, and it is safe to aggregate
-            final long ackedNanosTick = blockStats.ackedNanosTick.get();
-            if (ackedNanosTick != -1 && ackedNanosTick <= thresholdNanosTick) {
+            if (blockStats.isAckedAtOrBefore(thresholdNanosTick)) {
                 it.remove();
                 aggregation.add(blockStats);
-            } else if (ackedNanosTick == -1 && nanosTick - blockStats.initNanosTick >= ABANDONED_AFTER_NANOS) {
+            } else if (blockStats.isUnackedOlderThan(nanosTick, ABANDONED_AFTER_NANOS)) {
                 // never acked and too old: evict without aggregating (other threads may still be
                 // mutating the block, so its probes must not be touched) and only count it
                 it.remove();

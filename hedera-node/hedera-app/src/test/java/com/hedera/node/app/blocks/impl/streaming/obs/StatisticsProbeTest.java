@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming.obs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.within;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -53,15 +52,15 @@ class StatisticsProbeTest {
 
     @Test
     void stdDev_computedCorrectly() {
-        // Classic example: [2, 4, 4, 4, 5, 5, 7, 9], population stdDev = 2
+        // Classic example: [2, 4, 4, 4, 5, 5, 7, 9], population stdDev = 2, avg = 5
         final StatisticsProbe probe = new StatisticsProbe("p", ObsUnit.NANOS);
         for (final long v : new long[] {2, 4, 4, 4, 5, 5, 7, 9}) {
             probe.add(v);
         }
         final Statistics stats = probe.aggregate();
 
-        assertThat(stats.avg().doubleValue()).isCloseTo(5.0, within(0.0001));
-        assertThat(stats.stdDev().doubleValue()).isCloseTo(2.0, within(0.0001));
+        assertThat(stats.stdDev().doubleValue()).isEqualTo(2.0);
+        assertThat(stats.avg().doubleValue()).isEqualTo(5.0);
     }
 
     @Test

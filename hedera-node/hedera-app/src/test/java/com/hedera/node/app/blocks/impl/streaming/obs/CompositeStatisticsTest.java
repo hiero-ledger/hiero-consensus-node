@@ -20,7 +20,6 @@ class CompositeStatisticsTest {
 
     @Test
     void nilComponent_doesNotCauseDivisionByZero() {
-        // Regression test for the missing `return` bug in calculateCompositeStatistics.
         final CompositeStatistics composite = new CompositeStatistics(ObsUnit.NANOS);
         composite.add(FixedStatistics.nil(ObsUnit.NANOS));
 

@@ -35,56 +35,49 @@ class BlockStatsAggregation {
         // computes the per-item probes and blockSize; must only ever run on the gather thread
         blockStats.aggregate();
 
-        // any tick may still be the -1 "never recorded" sentinel; a probe gets a sample only when every
-        // tick it depends on was recorded, otherwise a garbage value would pollute the window
-        final long opened = blockStats.openedNanosTick.get();
-        final long closed = blockStats.closedNanosTick.get();
-        final long proofCreated = blockStats.proofCreatedNanosTick.get();
-        final long proofAdded = blockStats.proofAddedNanosTick.get();
-        final long footerCreated = blockStats.footerNanosTick.get();
-        final StartAndEndTicks endTicks = blockStats.endSentNanosTicks.get();
-        final StartAndEndTicks headerTicks = blockStats.headerSentNanosTicks.get();
-
-        if (opened != -1) {
+        // a span gets a sample only when every tick it depends on was recorded; the availability
+        // predicates keep the -1/null "not recorded" sentinel knowledge inside BlockStats, and skipping
+        // an unavailable span avoids polluting the window with a garbage value
+        if (blockStats.hasOpened()) {
             initToOpen.add(blockStats.initToOpen());
             openToAck.add(blockStats.openToAck());
-            if (closed != -1) {
+            if (blockStats.hasClosed()) {
                 openToClose.add(blockStats.openToClose());
             }
-            if (proofAdded != -1) {
+            if (blockStats.hasProofAdded()) {
                 openToProofAdded.add(blockStats.openToProofAdded());
             }
-            if (proofCreated != -1) {
+            if (blockStats.hasProofCreated()) {
                 openToProofCreated.add(blockStats.openToProofCreated());
             }
-            if (endTicks != null) {
+            if (blockStats.hasEndSent()) {
                 openToEndSent.add(blockStats.openToEndSent());
             }
         }
-        if (closed != -1) {
+        if (blockStats.hasClosed()) {
             closedToAck.add(blockStats.closedToAck());
         }
-        if (footerCreated != -1 && proofCreated != -1) {
+        if (blockStats.hasFooterCreated() && blockStats.hasProofCreated()) {
             footerCreatedToProofCreated.add(blockStats.footerCreatedToProofCreated());
         }
-        if (endTicks != null) {
+        if (blockStats.hasEndSent()) {
             endSentToAck.add(blockStats.endSentToAck());
         }
-        if (headerTicks != null) {
+        if (blockStats.hasHeaderSent()) {
             headerSendStartedToAck.add(blockStats.headerSendStartedToAck());
             headerSentToAck.add(blockStats.headerSentToAck());
-            if (endTicks != null) {
+            if (blockStats.hasEndSent()) {
                 headerSentToEndSent.add(blockStats.headerSentToEndSent());
             }
         }
 
-        itemIdleComposite.add(blockStats.itemIdleProbe.aggregate());
-        itemSendLatencyComposite.add(blockStats.itemSendLatencyProbe.aggregate());
-        itemSizeComposite.add(blockStats.itemSizeProbe.aggregate());
-        itemsNeverSent += blockStats.itemsNeverSent;
+        itemIdleComposite.add(blockStats.itemIdleStatistics());
+        itemSendLatencyComposite.add(blockStats.itemSendLatencyStatistics());
+        itemSizeComposite.add(blockStats.itemSizeStatistics());
+        itemsNeverSent += blockStats.itemsNeverSent();
 
-        blockSize.add(blockStats.blockSize);
-        itemsPerBlock.add(blockStats.items.size());
+        blockSize.add(blockStats.blockSize());
+        itemsPerBlock.add(blockStats.itemCount());
     }
 
     /** Counts a block evicted without ever being acked; its probes are never touched. */
