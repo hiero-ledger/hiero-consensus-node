@@ -142,16 +142,18 @@ public abstract class AbstractLongList<C> implements LongList {
         checkCapacity(capacity);
         this.capacity = capacity;
         this.longsPerChunk = merkleDbConfig.longListChunkSize();
+        // multiplyExact throws exception if we overflow and int
+        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
-        // multiplyExact throws exception if we overflow and int
-        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
     }
 
     /**
      * Create a new long list with the specified chunk size, capacity, and reserved
      * buffer size.
+     *
+     * <p>This constructor is used for testing purposes.
      *
      * @param longsPerChunk Number of longs to store in each chunk of memory allocated
      * @param capacity Maximum number of longs permissible for this long list
@@ -163,73 +165,21 @@ public abstract class AbstractLongList<C> implements LongList {
         this.capacity = capacity;
         checkLongsPerChunk(longsPerChunk);
         this.longsPerChunk = longsPerChunk;
+        // multiplyExact throws exception if we overflow and int
+        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
         this.reservedBufferSize = reservedBufferSize;
 
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
-        // multiplyExact throws exception if we overflow and int
-        memoryChunkSize = Math.multiplyExact(this.longsPerChunk, Long.BYTES);
     }
 
     /**
-     * Create a new long list from a file that was saved and the specified capacity. Number of
-     * longs per chunk and reserved buffer size are read from the provided configuration.
+     * Loads index data from a file, which was previously saved using {@link #writeToFile(Path)}.
      *
-     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
-     * is thrown.
-     *
-     * @param file The file to load the long list from
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
-     *
-     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     * @param file The file to load from
+     * @throws IOException
      */
-    public AbstractLongList(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
-            throws IOException {
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        checkCapacity(capacity);
-        this.capacity = capacity;
-        this.longsPerChunk = merkleDbConfig.longListChunkSize();
-        this.memoryChunkSize = longsPerChunk * Long.BYTES;
-        this.reservedBufferSize = merkleDbConfig.longListReservedBufferSize();
-
-        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(this.capacity));
-        loadFromFile(file, configuration);
-    }
-
-    /**
-     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
-     * buffer size. The file must exist.
-     *
-     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
-     * is thrown.
-     *
-     * @param path The file to load the long list from
-     * @param longsPerChunk Number of longs to store in each chunk
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
-     *
-     * @throws IOException If the file doesn't exist or there was a problem reading the file
-     */
-    protected AbstractLongList(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            @NonNull final Configuration configuration)
-            throws IOException {
-        this.longsPerChunk = longsPerChunk;
-        this.memoryChunkSize = longsPerChunk * Long.BYTES;
-        this.capacity = capacity;
-        this.reservedBufferSize = reservedBufferSize;
-
-        chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(this.capacity));
-        loadFromFile(path, configuration);
-    }
-
-    private void loadFromFile(@NonNull final Path file, @NonNull Configuration configuration) throws IOException {
+    protected void loadFromFile(@NonNull final Path file) throws IOException {
         requireNonNull(file);
-        requireNonNull(configuration);
         if (!Files.exists(file)) {
             throw new IOException("Cannot load index, file doesn't exist: " + file.toAbsolutePath());
         }
@@ -284,7 +234,7 @@ public abstract class AbstractLongList<C> implements LongList {
                         "Failed to read index from file, " + "size=" + size.get() + ", capacity=" + capacity);
             }
 
-            readBodyFromFileChannelOnInit(file.getFileName().toString(), fileChannel, configuration);
+            readBodyFromFileChannelOnInit(fileChannel);
         }
     }
 
@@ -292,14 +242,10 @@ public abstract class AbstractLongList<C> implements LongList {
      * Initializes the list from the given file channel. At the moment of the call all the class metadata
      * is already initialized from the file header.
      *
-     * @param sourceFileName the name of the file from which the list is initialized
      * @param fileChannel the file channel to read the list body from
-     * @param configuration the configuration of the system
      * @throws IOException if there was a problem reading the file
      */
-    protected void readBodyFromFileChannelOnInit(
-            final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
-            throws IOException {
+    protected void readBodyFromFileChannelOnInit(final FileChannel fileChannel) throws IOException {
         if (minValidIndex.get() < 0) {
             // Empty list, nothing to read
             return;
@@ -382,11 +328,11 @@ public abstract class AbstractLongList<C> implements LongList {
     }
 
     /**
-     * Loads the long at the given index.
+     * Loads a long value at the given index.
      *
-     * @param index        the index of the long
+     * @param index The index of the long value
      * @param defaultValue The value to return if nothing is stored for the long
-     * @return the loaded long
+     * @return The loaded long value
      * @throws IndexOutOfBoundsException if the index is negative or beyond current capacity of the list
      */
     @Override
@@ -394,7 +340,7 @@ public abstract class AbstractLongList<C> implements LongList {
         if (index < 0 || index >= capacity) {
             throw new IndexOutOfBoundsException(index);
         }
-        if (index >= size.get()) {
+        if ((index < minValidIndex.get()) || (index > maxValidIndex.get())) {
             return defaultValue;
         }
         final int chunkIndex = toIntExact(index / longsPerChunk);
