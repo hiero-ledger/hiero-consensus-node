@@ -402,6 +402,25 @@ class FileBlockItemWriterTest {
     }
 
     @Test
+    void flushIncompleteBlockSwallowsRenameFailure() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        subject.openBlock(1);
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build())
+                .toByteArray());
+
+        // Pre-create the .iss.gz target so the rename fails; the flush must swallow it (best-effort, never throws).
+        Files.writeString(tempDir.resolve("block-0.0.3").resolve(ISS_GZ), "blocker");
+        assertDoesNotThrow(subject::flushIncompleteBlock);
+    }
+
+    @Test
     void loadContiguousPendingBlocksDeserializesSignedTransaction() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);

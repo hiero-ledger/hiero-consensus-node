@@ -219,4 +219,47 @@ class GrpcBlockItemWriterTest {
         assertThat(parsedBlock.items()).hasSize(1);
         assertThat(parsedBlock.items().getFirst().blockHeader().number()).isEqualTo(blockNumber);
     }
+
+    @Test
+    void flushIncompleteBlockIsNoOpWhenNoBlockState() {
+        final var blockNumber = 7L;
+        // getBlockState is unstubbed -> null, so the flush writes nothing and does not throw.
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".iss.gz")))
+                .isFalse();
+    }
+
+    @Test
+    void flushIncompleteBlockIsNoOpWhenNoItems() {
+        final var blockNumber = 7L;
+        when(blockBufferService.getBlockState(blockNumber)).thenReturn(new BlockState(blockNumber));
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".iss.gz")))
+                .isFalse();
+    }
+
+    @Test
+    void flushIncompleteBlockSwallowsExceptions() {
+        final var blockNumber = 7L;
+        when(blockBufferService.getBlockState(blockNumber)).thenThrow(new RuntimeException("boom"));
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        // Best-effort contract: the exception is caught, not propagated.
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".iss.gz")))
+                .isFalse();
+    }
 }
