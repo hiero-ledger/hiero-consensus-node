@@ -53,6 +53,11 @@ public interface BlockItemWriter {
      * Implementations that never persist to disk may no-op; implementations that buffer the block stream in memory
      * (e.g. {@code GrpcBlockItemWriter}) must persist the open block here, or its contents are lost when the node
      * stops. Best-effort; implementations must not throw.
+     * <p>
+     * The artifact contains only the items written so far and may therefore END WITH A PARTIAL ROUND: if the failure
+     * arrived mid-round, trailing items (and the round's state-changes/footer) can be missing. Consumers must tolerate
+     * an incomplete final round — e.g. read each round by its leading {@code RoundHeader} rather than assuming a clean
+     * round boundary at end-of-file.
      */
     void flushIncompleteBlock();
 

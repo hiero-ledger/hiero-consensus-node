@@ -91,9 +91,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -219,6 +221,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * block stream and trigger the one-shot triage flush at the next round boundary.
      */
     private volatile boolean fatalShutdownRequested = false;
+
+    private volatile boolean roundInProgress = false;
     /**
      * Completed once the triage flush has run (by the handler thread, or by the status-thread fallback in
      * {@link #awaitFatalShutdown}). Pre-allocated and never reassigned; {@code isDone()} (checked under
@@ -440,10 +444,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
+        roundInProgress = true;
         // After catastrophic failure the block stream is stopped; capture any open/pending blocks for triage (once)
         // and do not open a new block.
         if (fatalShutdownRequested) {
             flushOpenAndPendingBlocksForTriage();
+            roundInProgress = false;
             return;
         }
 
@@ -638,6 +644,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean willCloseBlock(@NonNull final State state, final long roundNum) {
+        if (fatalShutdownRequested) {
+            return false;
+        }
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -655,6 +664,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // and issues no new signing request during shutdown.
         if (fatalShutdownRequested) {
             flushOpenAndPendingBlocksForTriage();
+            roundInProgress = false;
             return false;
         }
         if (closesBlock) {
@@ -870,6 +880,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndexInBlock.clear();
             eventIndex = 0;
         }
+        // The round is finished; the handler is no longer mutating the writer/worker until the next startRound.
+        roundInProgress = false;
         return closesBlock;
     }
 
@@ -1320,37 +1332,32 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void awaitFatalShutdown(@NonNull final java.time.Duration timeout) {
         requireNonNull(timeout);
-        // The flush of the in-progress block runs on the handler thread (from startRound/endRound) so it cannot race
-        // round processing. Here, on the status thread, we only WAIT for that flush, bounded by the timeout — using
-        // get(...) rather than completeOnTimeout(...) so we never complete the future ourselves. Completing it here
-        // would trip the one-shot done-guard and make a later handler round boundary skip the flush, leaving the
-        // in-progress block unwritten. If the handler never reaches a boundary within the timeout, we flush any
-        // already-closed pending blocks ourselves (race-free; never touching the handler-owned in-progress writer).
-        log.fatal("Awaiting handler-thread flush of open/pending blocks for triage within {}", timeout);
-        try {
-            fatalShutdownFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.fatal("Interrupted while awaiting triage flush", e);
-        } catch (final Exception e) {
-            // TimeoutException (handler idle) or ExecutionException: fall through to the pending-only fallback below
-            log.fatal(
-                    "Did not observe handler-thread triage flush within {}; flushing pending blocks directly", timeout);
+        if (!roundInProgress) {
+            log.fatal("No round in progress at fatal shutdown; flushing open and pending blocks for triage directly");
+            flushOpenAndPendingBlocksForTriage();
+        } else {
+            log.fatal("Awaiting handler-thread triage flush (round in progress) within {}", timeout);
+            try {
+                fatalShutdownFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.fatal("Interrupted while awaiting triage flush", e);
+            } catch (final TimeoutException e) {
+                log.fatal(
+                        "Open in-progress block NOT captured for triage: handler still in a round after {}; "
+                                + "flushing already-closed pending blocks only",
+                        timeout);
+            } catch (final ExecutionException e) {
+                log.fatal("Triage flush failed while awaiting it", e);
+            }
+            flushPendingBlocksOnlyForTriage();
         }
-        flushPendingBlocksOnlyForTriage();
         log.fatal("Block stream fatal shutdown complete");
     }
 
     /**
      * One-shot, idempotent flush of the in-progress block plus all pending blocks to local disk for triage (e.g. ISS
-     * diagnosis). Runs on the HANDLER thread (from {@link #startRound}/{@link #endRound}), so it cannot race round
-     * processing. Pending blocks (already closed and awaiting a proof) are flushed as recoverable pending blocks; the
-     * in-progress block, which has no proof yet, is closed best-effort so its contents are preserved on disk. Every
-     * step is guarded so a single failure cannot prevent the rest of the contents from reaching disk.
-     * <p>
-     * The inner {@code synchronized(this)} excludes {@link #finishProofWithSignature} from the shared writers; the
-     * {@code fatalShutdownLock} done-guard ensures the body runs at most once and completes {@link #fatalShutdownFuture}
-     * exactly once across the handler thread and the status-thread fallback.
+     * diagnosis).
      */
     private void flushOpenAndPendingBlocksForTriage() {
         synchronized (fatalShutdownLock) {

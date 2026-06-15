@@ -2113,8 +2113,9 @@ class BlockStreamManagerImplTest {
 
     @Test
     void awaitFatalShutdownFallbackFlushesPendingBlocksWhenHandlerIdle() {
-        // If no round boundary occurs after catastrophic failure, awaitFatalShutdown's status-thread fallback still
-        // flushes already-closed pending blocks (race-free; it never touches the in-progress writer).
+        // If no round boundary occurs after catastrophic failure, awaitFatalShutdown performs the triage flush itself.
+        // Here the block already closed to a pending block, so only the pending flush is exercised; the open-block
+        // case is covered by awaitFatalShutdownCapturesOpenBlockWhenNoRoundBoundaryFollows.
         givenSubjectWith(
                 1,
                 0,
@@ -2145,6 +2146,39 @@ class BlockStreamManagerImplTest {
 
         verify(aWriter).flushPendingBlock(any());
         verify(aWriter, never()).closeCompleteBlock();
+    }
+
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenNoRoundBoundaryFollows() {
+        // The lost-open-block case this design exists to prevent: a block is left OPEN between rounds (e.g. a
+        // time-based block) and catastrophic failure arrives with NO further consensus round. The handler never
+        // reaches another startRound/endRound boundary, so awaitFatalShutdown itself captures the open block for
+        // triage (the Dekker handshake proves no round is mutating the writer, so this is race-free).
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        // The round finishes without closing the block (it stays open); no further round will arrive.
+        final boolean closed = subject.endRound(state, ROUND_NO);
+        assertFalse(closed);
+
+        subject.notifyFatalEvent();
+        // No handler round boundary after the failure — awaitFatalShutdown must flush the open block itself.
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+
+        verify(aWriter).flushIncompleteBlock();
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
     }
 
     @Test
