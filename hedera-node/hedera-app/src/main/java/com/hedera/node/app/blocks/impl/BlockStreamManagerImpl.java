@@ -52,7 +52,6 @@ import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;

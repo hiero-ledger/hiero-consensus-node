@@ -270,7 +270,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockHashSigner blockHashSigner,
