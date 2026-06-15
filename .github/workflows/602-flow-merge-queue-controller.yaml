@@ -25,6 +25,14 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   trigger-mats-tests:
     name: MQ MATS
     needs:
@@ -49,11 +57,12 @@ jobs:
     name: MQ XTS
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
       branch-name: ${{ github.ref_name }}
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
       solo-ge-0440: "true"
       helm-release-name: "mirror-1"
       custom-job-label: "Merge Queue XTS:"
@@ -86,11 +95,12 @@ jobs:
     name: MQPT
     needs:
       - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ vars.MQPT_CLUSTER }}"
+      test-asset: "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.citr-solo-version }}"
       nlg-accounts: "20000000"
       nlg-time: "60"
       add-app-props: ""
