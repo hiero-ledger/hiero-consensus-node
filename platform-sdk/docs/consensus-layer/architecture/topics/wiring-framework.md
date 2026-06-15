@@ -159,4 +159,4 @@ A few specifics worth pinning down. The default `unhandledTaskCapacity` on the f
 
 ## Future state (sidebar)
 
-> A planned **module-API-level** backpressure will operate above wire-level backpressure, not in place of it. Execution will drive a `nextRound` pull that throttles Consensus end-to-end across the module boundary. The two layers compose: wire-level backpressure remains the per-component mechanism; the `nextRound` pull is an additional throttle at the Consensus / Execution boundary. See `../interfaces/consensus-execution-boundary.md` *(planned)* for where the module-API backpressure differs from the wire-level mechanism described above.
+> A planned **module-API-level** backpressure (the `nextRound` pull; see the [overview's Future state](../overview.md#future-state)) will operate *above* wire-level backpressure, not in place of it. The two compose: wire-level backpressure stays the per-component mechanism, and the `nextRound` pull adds a throttle at the Consensus / Execution boundary. See [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md) for the boundary view.

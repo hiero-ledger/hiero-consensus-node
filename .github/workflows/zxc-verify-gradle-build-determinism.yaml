@@ -328,38 +328,27 @@ jobs:
     if: ${{ !cancelled() && always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
-          egress-policy: audit
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Failure Mode
         id: set-failure-mode
-        run: |
-          job_statuses=(
-            "${{ needs.generate-baseline.result || 'skipped' }}"
-            "${{ needs.generate-matrix.result || 'skipped' }}"
-            "${{ needs.verify-artifacts.result || 'skipped' }}"
-          )
-
-          job_failure_modes=(
-            "${{ needs.generate-baseline.outputs.failure-mode || 'none' }}"
-            "${{ needs.generate-matrix.outputs.failure-mode || 'none' }}"
-            "${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}"
-          )
-
-          failure_mode="none"
-
-          for i in "${!job_statuses[@]}"; do
-            if [[ "${job_statuses[$i]}" == "failure" ]]; then
-              mode="${job_failure_modes[$i]}"
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="${mode}"
-              elif [[ "${mode}" == "workflow" ]]; then
-                failure_mode="workflow"
-              fi
-            fi
-          done
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.generate-baseline.result }}
+            ${{ needs.generate-matrix.result }}
+            ${{ needs.verify-artifacts.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
+            ${{ needs.generate-matrix.outputs.failure-mode || 'none' }}
+            ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            generate-baseline
+            generate-matrix
+            verify-artifacts
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

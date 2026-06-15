@@ -28,17 +28,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CryptoApproveAllowanceMetaTest {
-    private final AccountID proxy = asAccount("0.0.1234");
+    private final AccountID proxy = asAccount(1234L);
     private final CryptoAllowance cryptoAllowances =
             CryptoAllowance.newBuilder().setSpender(proxy).setAmount(10L).build();
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
             .setSpender(proxy)
             .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
             .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L, 2L, 3L))
             .build();
     private Map<Long, Long> cryptoAllowancesMap = new HashMap<>();
