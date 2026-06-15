@@ -86,6 +86,26 @@ on:
         type: string
         required: false
         default: "temurin"
+      tck-version:
+        description: "The TCK version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      js-sdk-version:
+        description: "The JavaScript SDK version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      bn-release-version:
+        description: "The Block Node release version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      mn-release-version:
+        description: "The Mirror Node release version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
     secrets:
       access-token:
         description: "Github Access Token"
@@ -348,8 +368,10 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
-      solo-version: ${{ inputs.solo-version }}
+      solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
@@ -399,8 +421,12 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
-      solo-version: ${{ inputs.solo-version }}
+      solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
+      bn-release-version: "${{ inputs.bn-release-version }}"
+      mn-release-version: "${{ inputs.mn-release-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}

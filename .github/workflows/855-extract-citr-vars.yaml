@@ -23,6 +23,14 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.citr-solo-version }}
       mqpt-cluster:
         value: ${{ jobs.extract-citr-vars.outputs.mqpt-cluster }}
+      tck-version:
+        value: ${{ jobs.extract-citr-vars.outputs.tck-version }}
+      js-sdk-version:
+        value: ${{ jobs.extract-citr-vars.outputs.js-sdk-version }}
+      bn-release-version:
+        value: ${{ jobs.extract-citr-vars.outputs.block-node-version }}
+      mn-release-version:
+        value: ${{ jobs.extract-citr-vars.outputs.mirror-node-version }}
 
 permissions:
   contents: read
@@ -41,6 +49,10 @@ jobs:
       citr-mirror-node-version: ${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version: ${{ steps.get-citr-vars.outputs.citr-solo-version }}
       mqpt-cluster: ${{ steps.get-citr-vars.outputs.mqpt-cluster }}
+      tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
+      js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
+      block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
+      mirror-node-version: ${{ steps.get-citr-vars.outputs.mirror-node-version }}
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -65,3 +77,14 @@ jobs:
             echo "${key}=${value}" | tee -a "${GITHUB_OUTPUT}"
           done < "${ENV_FILE}"
           echo "::endgroup::"
+
+      - name: Verify Extracted CITR vars
+        if:
+          ${{ steps.get-citr-vars.outputs.adhoc-solo-version == '' || steps.get-citr-vars.outputs.adhoc-xts-solo-version == '' ||
+          steps.get-citr-vars.outputs.citr-mirror-node-version == '' || steps.get-citr-vars.outputs.citr-solo-version == '' ||
+          steps.get-citr-vars.outputs.mqpt-cluster == '' || steps.get-citr-vars.outputs.tck-version == '' ||
+          steps.get-citr-vars.outputs.js-sdk-version == '' || steps.get-citr-vars.outputs.block-node-version == '' ||
+          steps.get-citr-vars.outputs.mirror-node-version == '' }}
+        run: |
+          echo "::error::One or more required CITR variables are missing or empty. Please ensure .citr-env contains all necessary variables."
+          exit 1
