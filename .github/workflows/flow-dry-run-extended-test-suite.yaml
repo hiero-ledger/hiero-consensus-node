@@ -112,7 +112,8 @@ jobs:
         id: params
         run: |
           SOLO_VERSION="${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}"
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          SOLO_VERSION_BARE="${SOLO_VERSION#v}"
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION_BARE}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
           HELM_NAME="mirror"
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
@@ -132,6 +133,7 @@ jobs:
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable HAPI Tests BLOCKS Suite: ${{ inputs.enable-hapi-tests-blocks-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version >= 0.44.0 (gates Migration Testing + Block Node Regression): ${SOLO_GE_0440}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
           echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
