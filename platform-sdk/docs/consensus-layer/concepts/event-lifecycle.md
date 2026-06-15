@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Event lifecycle
-kind: concept
 last_reviewed: TBD
 ---
 

@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Quiescence
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

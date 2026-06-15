@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Gossip
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

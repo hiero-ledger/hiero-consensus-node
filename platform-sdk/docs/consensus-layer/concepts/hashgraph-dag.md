@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Hashgraph DAG
-kind: concept
 last_reviewed: TBD
 ---
 

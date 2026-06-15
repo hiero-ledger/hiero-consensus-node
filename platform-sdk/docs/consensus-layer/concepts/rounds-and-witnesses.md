@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Rounds and witnesses
-kind: concept
 last_reviewed: TBD
 ---
 

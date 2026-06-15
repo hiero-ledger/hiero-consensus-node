@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Health monitor and backpressure
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

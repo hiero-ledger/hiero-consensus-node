@@ -1,4 +1,5 @@
 ---
+type: rule
 id: RUL-001
 title: A SignedState must remain reserved while any consumer can still access it
 class: structural

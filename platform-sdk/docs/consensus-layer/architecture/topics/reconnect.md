@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Reconnect
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

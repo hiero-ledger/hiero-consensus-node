@@ -1,4 +1,5 @@
 ---
+type: scenario
 id: SCN-001
 title: A round's judge exempted from clearing has another same-round judge in its ancestry — consensus stalls after roster change
 symptoms: [ SYM-001 ]

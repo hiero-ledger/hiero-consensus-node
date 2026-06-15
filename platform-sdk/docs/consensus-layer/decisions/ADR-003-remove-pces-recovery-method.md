@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-003
 title: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
 topics: [pces]

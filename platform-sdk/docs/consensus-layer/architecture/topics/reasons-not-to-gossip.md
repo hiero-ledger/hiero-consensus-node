@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Reasons not to gossip
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

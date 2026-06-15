@@ -1,6 +1,7 @@
 ---
+type: glossary
 title: Glossary
-kind: glossary
+description: Canonical one-line definitions for vocabulary used across the consensus-layer KB, with disambiguation for overloaded terms (round, ancient, stale, falling behind).
 last_reviewed: TBD
 ---
 

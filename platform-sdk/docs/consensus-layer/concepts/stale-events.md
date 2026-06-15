@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Stale events
-kind: concept
 last_reviewed: TBD
 ---
 

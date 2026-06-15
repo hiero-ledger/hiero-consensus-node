@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Judges
-kind: concept
 last_reviewed: TBD
 ---
 

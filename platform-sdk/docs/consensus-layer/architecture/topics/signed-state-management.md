@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Signed state management
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

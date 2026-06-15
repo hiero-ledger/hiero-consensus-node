@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Branching
-kind: concept
 last_reviewed: TBD
 ---
 

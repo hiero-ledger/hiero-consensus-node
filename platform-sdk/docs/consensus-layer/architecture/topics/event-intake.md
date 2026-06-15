@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Event intake
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

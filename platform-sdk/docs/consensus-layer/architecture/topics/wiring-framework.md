@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Wiring framework
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

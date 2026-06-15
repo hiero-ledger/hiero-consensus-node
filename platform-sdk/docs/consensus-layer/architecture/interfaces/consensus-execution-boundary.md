@@ -1,6 +1,6 @@
 ---
+type: architecture-interface
 title: Consensus / Execution boundary
-kind: architecture-interface
 last_reviewed: TBD
 ---
 

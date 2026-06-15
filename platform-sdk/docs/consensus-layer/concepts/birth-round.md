@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Birth round
-kind: concept
 last_reviewed: TBD
 ---
 

@@ -1,6 +1,6 @@
 ---
+type: architecture-topic
 title: Freeze and upgrade
-kind: architecture-topic
 last_reviewed: TBD
 ---
 

@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Coin rounds
-kind: concept
 last_reviewed: TBD
 ---
 

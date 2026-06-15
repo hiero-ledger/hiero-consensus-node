@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-001
 title: roundCreated is monotonic along ancestry — a parent's round never exceeds its child's
 class: safety

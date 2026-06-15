@@ -1,6 +1,6 @@
 ---
+type: concept
 title: Strongly-seeing
-kind: concept
 last_reviewed: TBD
 ---
 
