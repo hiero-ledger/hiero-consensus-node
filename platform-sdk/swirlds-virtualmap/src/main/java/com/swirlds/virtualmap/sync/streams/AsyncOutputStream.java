@@ -118,8 +118,8 @@ public class AsyncOutputStream {
     /**
      * Start the background writer thread. This method can be called only once.
      *
-     * @throws IllegalStateException          if the stream has already been started or terminated
-     * @throws Exception if the background thread cannot be submitted for execution
+     * @throws IllegalStateException if the stream has already been started or terminated
+     * @throws RuntimeException if the background thread cannot be submitted for execution
      */
     public void start(final @NonNull StandardWorkGroup workGroup) {
         Objects.requireNonNull(workGroup, "workGroup must not be null");

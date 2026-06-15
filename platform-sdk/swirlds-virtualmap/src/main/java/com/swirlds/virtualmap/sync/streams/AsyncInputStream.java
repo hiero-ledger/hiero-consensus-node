@@ -109,7 +109,7 @@ public class AsyncInputStream {
      * This method can be called only once.
      *
      * @throws IllegalStateException if background thread is already started or terminated
-     * @throws Exception if background thread cannot be submitted for execution
+     * @throws RuntimeException if background thread cannot be submitted for execution
      */
     public void start(final @NonNull StandardWorkGroup workGroup) {
         Objects.requireNonNull(workGroup, "workGroup must not be null");
