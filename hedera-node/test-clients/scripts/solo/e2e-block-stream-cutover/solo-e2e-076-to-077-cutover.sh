@@ -55,23 +55,21 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
-# v0.75.0-rc.3 matches the baseline the full cutover script (step 6) deploys.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.3}"
+# v0.75.0-rc.5 matches the baseline the full cutover script (step 6) deploys.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.5}"
 
 # Both upgrades use the local build. The --upgrade-version label must point at a
 # published Solo tag (Solo resolves it before applying --local-build-path), but
 # the actual binary always comes from LOCAL_BUILD_PATH. Solo accepts re-using
 # the same label across upgrades when --local-build-path is supplied, so we
-# reuse v0.75.0-rc.3 for both the 0.76 and 0.77 upgrades.
-UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.3}"
+# reuse v0.75.0-rc.5 for both the 0.76 and 0.77 upgrades.
+UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.5}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
 WRAPS_TARBALL_CACHE_PATH="${WRAPS_TARBALL_CACHE_PATH:-${HOME}/.solo/cache/wraps-v1.0.0.tar.gz}"
 WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
-WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}"
-WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
 # upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
@@ -184,20 +182,12 @@ require_cmd() {
   }
 }
 
-stop_wraps_proving_key_server() {
-  if command -v docker >/dev/null 2>&1; then
-    docker rm -f "${WRAPS_SERVER_CONTAINER_NAME}" >/dev/null 2>&1 || true
-  fi
-}
-
 cleanup() {
   local ec=$?
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
-    # Only tear down the WRAPS proving-key server + the mirror REST/explorer UI port-forwards when we
-    # are actually deleting the cluster. When the cluster is kept (KEEP_NETWORK=true, incl. on a
-    # failed exit), leave them up so the network stays fully functional (CNs keep fetching the WRAPS
-    # proving key) and the explorer stays reachable for inspection.
-    stop_wraps_proving_key_server
+    # Only tear down the mirror REST/explorer UI port-forwards when we are actually deleting the
+    # cluster. When the cluster is kept (KEEP_NETWORK=true, incl. on a failed exit), leave them up
+    # so the explorer stays reachable for inspection.
     [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
     [[ -n "${EXPLORER_INGRESS_PORT_FORWARD_PID}" ]] && kill "${EXPLORER_INGRESS_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
@@ -235,9 +225,9 @@ wait_for_haproxy_ready() {
   done
 }
 
-# Cache the WRAPS tarball alongside the extracted dir so the local nginx server
-# can serve it without re-downloading. Mirrors ensure_wraps_artifacts_downloaded
-# in the main cutover script.
+# Cache the WRAPS tarball + extracted artifacts on the host so verify_wraps can
+# count the expected files. The CNs download the archive themselves from the
+# tss.wrapsProvingKeyDownloadUrl in resources/0.76|0.77 application.properties.
 ensure_wraps_artifacts_downloaded() {
   local file_count="" tmp_dir="" extract_dir="" extracted_root=""
   local extracted_dirs="" extracted_entries=""
@@ -274,28 +264,6 @@ ensure_wraps_artifacts_downloaded() {
   mkdir -p "${WRAPS_KEY_PATH}"
   find "${extracted_root}" -maxdepth 1 -type f -exec cp '{}' "${WRAPS_KEY_PATH}/" ';'
   rm -rf "${tmp_dir}"
-}
-
-ensure_wraps_proving_key_server() {
-  local server_url
-  server_url="http://127.0.0.1:${WRAPS_SERVER_PORT}/$(basename "${WRAPS_TARBALL_CACHE_PATH}")"
-
-  if curl -sfI "${server_url}" >/dev/null 2>&1; then
-    log "Wraps proving key server already serving ${server_url}"
-    return 0
-  fi
-
-  require_cmd docker
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    echo "Wraps tarball cache not found: ${WRAPS_TARBALL_CACHE_PATH}" >&2
-    return 1
-  fi
-
-  log "Starting wraps proving key server (nginx Docker on port ${WRAPS_SERVER_PORT})"
-  WRAPS_TAR_PATH="${WRAPS_TARBALL_CACHE_PATH}" \
-  WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT}" \
-  WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME}" \
-    "${SCRIPT_DIR}/start-wraps-proving-key-server.sh"
 }
 
 configured_wraps_artifacts_container_dir() {
@@ -856,6 +824,7 @@ deploy_block_node() {
     --deployment "${SOLO_DEPLOYMENT}"
     --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
     --quiet-mode
+    --force-port-forward false
     --priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}"
   )
   [[ -n "${BLOCK_NODE_CHART_VERSION}" ]] && add_args+=(--chart-version "${BLOCK_NODE_CHART_VERSION}")
@@ -1329,7 +1298,6 @@ establish_076_baseline() {
   log "=== Establishing 0.76 baseline: upgrade to local build with 0.76 properties (TSS, mock signatures) ==="
 
   ensure_wraps_artifacts_downloaded
-  ensure_wraps_proving_key_server
   inject_wraps_env_into_statefulsets
 
   local upgrade_cmd=(
@@ -1461,7 +1429,7 @@ deploy_mirror_and_explorer() {
   log "=== Deploying mirror node + explorer (ENABLE_EXPLORER=true) ==="
   write_mirror_node_values_override
   if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
-      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress \
+      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --force-port-forward false \
       --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     if mirror_node_failed_only_on_restjava; then
       log "Mirror node add failed only on REST Java readiness; required mirror services are up — continuing"
@@ -1473,7 +1441,7 @@ deploy_mirror_and_explorer() {
     fi
   fi
   if ! run_command_with_timeout "${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS}" \
-      solo explorer node add --deployment "${SOLO_DEPLOYMENT}"; then
+      solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false; then
     echo "explorer: 'solo explorer node add' failed" >&2; return 1
   fi
   start_explorer_ingress_port_forward || log "WARN: explorer UI tunnel unavailable; explorer may be inaccessible"
@@ -1532,7 +1500,6 @@ update_mirror_node_for_block_cutover() {
   fi
 }
 
-# nginx proving-key server stays up from establish_076_baseline.
 upgrade_to_local_077() {
   log "=== 0.77 cutover: upgrade to local build with 0.77 properties (BLOCKS-only, real TSS signatures, state proofs) ==="
 
