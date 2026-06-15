@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Signed state management
-last_reviewed: TBD
+last_reviewed: 2026-05-28
 ---
 
 # Signed state management

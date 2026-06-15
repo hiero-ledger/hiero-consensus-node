@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Strongly-seeing
-last_reviewed: TBD
+last_reviewed: 2026-05-22
 ---
 
 # Strongly-seeing

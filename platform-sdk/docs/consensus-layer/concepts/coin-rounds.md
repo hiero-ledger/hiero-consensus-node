@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Coin rounds
-last_reviewed: TBD
+last_reviewed: 2026-05-22
 ---
 
 # Coin rounds

@@ -1,7 +1,7 @@
 ---
 type: architecture-overview
 title: Architecture overview
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Architecture overview

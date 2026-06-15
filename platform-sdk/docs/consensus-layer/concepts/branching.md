@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Branching
-last_reviewed: TBD
+last_reviewed: 2026-06-08
 ---
 
 # Branching

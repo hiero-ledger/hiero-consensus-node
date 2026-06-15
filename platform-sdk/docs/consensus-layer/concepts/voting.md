@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Voting
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Voting

@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Rounds and witnesses
-last_reviewed: TBD
+last_reviewed: 2026-05-22
 ---
 
 # Rounds and witnesses

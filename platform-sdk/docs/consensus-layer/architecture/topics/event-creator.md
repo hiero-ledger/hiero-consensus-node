@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event creator
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Event creator

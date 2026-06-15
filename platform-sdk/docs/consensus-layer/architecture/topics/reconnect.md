@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Reconnect
-last_reviewed: TBD
+last_reviewed: 2026-05-28
 ---
 
 # Reconnect

@@ -1,7 +1,7 @@
 ---
 type: concept
 title: Hashgraph DAG
-last_reviewed: TBD
+last_reviewed: 2026-05-22
 ---
 
 # Hashgraph DAG

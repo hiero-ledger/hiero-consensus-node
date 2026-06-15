@@ -2,7 +2,7 @@
 type: glossary
 title: Glossary
 description: Canonical one-line definitions for vocabulary used across the consensus-layer KB, with disambiguation for overloaded terms (round, ancient, stale, falling behind).
-last_reviewed: TBD
+last_reviewed: 2026-06-08
 ---
 
 # Glossary

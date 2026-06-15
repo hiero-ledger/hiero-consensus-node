@@ -1,7 +1,7 @@
 ---
 type: architecture-interface
 title: Consensus / Execution boundary
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Consensus / Execution boundary
