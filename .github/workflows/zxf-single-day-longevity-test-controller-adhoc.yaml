@@ -343,6 +343,7 @@ jobs:
           checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
+          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         env:
@@ -422,15 +423,6 @@ jobs:
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
 
       - name: Build Slack Payload Message
         id: payload
