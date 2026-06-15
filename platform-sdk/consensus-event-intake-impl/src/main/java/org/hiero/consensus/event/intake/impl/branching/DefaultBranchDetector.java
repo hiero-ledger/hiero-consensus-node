@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.branching;
+package org.hiero.consensus.event.intake.impl.branching;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;

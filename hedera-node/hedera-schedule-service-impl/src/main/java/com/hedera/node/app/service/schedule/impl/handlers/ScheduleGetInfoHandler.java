@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -23,7 +22,6 @@ import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.schedule.ExtantScheduleContext;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -66,22 +64,6 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
         Objects.requireNonNull(header);
         final var response = ScheduleGetInfoResponse.newBuilder().header(header);
         return Response.newBuilder().scheduleGetInfo(response).build();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        // Need to work out if this is correct, note we effectively (much) more than double total effort
-        // here just to calculate fees based on a single instance of that effort...
-        final Schedule found = findSchedule(context);
-        if (found != null) {
-            final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
-            buildFromSchedule(builder, found, context.ledgerId());
-            return context.feeCalculator()
-                    .legacyCalculate(sigValueObj -> usageGiven(fromPbj(context.query()), fromPbj(builder.build())));
-        } else {
-            return context.feeCalculator().calculate();
-        }
     }
 
     @Override
