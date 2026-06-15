@@ -17,10 +17,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CryptoDeleteAllowanceMetaTest {
-    private final AccountID proxy = asAccount("0.0.1234");
+    private final AccountID proxy = asAccount(1234L);
     private final NftRemoveAllowance nftAllowances = NftRemoveAllowance.newBuilder()
             .setOwner(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L, 2L, 3L))
             .build();
 
