@@ -1,9 +1,8 @@
 ---
-
 title: Voting
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Voting
 
@@ -25,8 +24,10 @@ is a *first vote* — does the voter directly see the candidate? If
 the prior-round witnesses that the voter strongly sees, with fame
 decided when a super-majority of weight lands on either side. When *d*
 is a multiple of the configured coin frequency the round is a *coin
-round*: the vote cannot decide fame, and a stalled vote falls back to
-a pseudo-random bit derived from the witness signature.
+round*: the vote cannot decide fame, and a voter that does not strongly
+see a super-majority falls back to a pseudo-random bit. The source of
+that bit and the rest of the coin-round mechanics live in
+[`coin-rounds.md`](coin-rounds.md).
 
 ## Example
 

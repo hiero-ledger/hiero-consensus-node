@@ -1,9 +1,8 @@
 ---
-
 title: Event lifecycle
 kind: concept
 last_reviewed: TBD
-------------------
+---
 
 # Event lifecycle
 

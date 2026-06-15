@@ -29,8 +29,6 @@ import java.time.Duration;
  *                                             sentinel
  * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
- * @param branchDetector                       configuration for the branch detector scheduler
- * @param branchReporter                       configuration for the branch reporter scheduler
  */
 @ConfigData("platformSchedulers")
 public record PlatformSchedulersConfig(
@@ -91,10 +89,4 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration platformMonitor,
 
-        @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration branchDetector,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration branchReporter) {}
+        @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool) {}

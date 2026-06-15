@@ -131,17 +131,26 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   run-single-day-performance-test:
     name: Performance Test
     needs:
       - verify-tag
       - extract-jdk-version
+      - extract-citr-vars
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref || github.ref }}"
-      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
@@ -240,11 +249,11 @@ jobs:
           COMMIT=$(git rev-list -n 1 "${{ inputs.ref || github.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
-          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
-          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
   report-success:
     name: Report SDPT execution success
@@ -261,9 +270,42 @@ jobs:
       inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+
+      - name: Checkout Templates
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/workflows/templates
+          sparse-checkout-cone-mode: false
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":tada: Hiero Consensus Node - Single Day Performance Test Passing Report"
+          STATUS_TEXT: "*SDPT Job Succeeded. Test panel status below*"
+          VERIFY_TAG_LABEL: "Verify Tag for SDPT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
+          RUN_TEST_LABEL: "Run Single Day Performance Test"
+          RUN_TEST_RESULT: ${{ needs.run-single-day-performance-test.outputs.result }}
+          TAG_LABEL: "Tag SDPT Passing"
+          TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-success.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -271,104 +313,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - Single Day Performance Test Passing Report",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*SDPT Job Succeeded. Test panel status below*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Verify Tag for SDPT"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.verify-tag.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.run-single-day-performance-test.outputs.result  }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Tag SDPT Passing"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.tag-sdpt-result.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow, Tag, and Commit Information*"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Tag*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.get-commit-info.outputs.commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report SDPT execution failure
@@ -395,6 +340,7 @@ jobs:
           checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
+          setup-gomplate: "true"
 
       - name: Collect run logs in a log file
         env:
@@ -461,7 +407,7 @@ jobs:
 
       - name: Create Rootly Alert
         if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -477,122 +423,22 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":grey_exclamation: Hiero Consensus Node - Single Day Performance Test Error Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*SDPT Job Resulted in failure. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Verify Tag for SDPT"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.verify-tag.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.run-single-day-performance-test.outputs.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag SDPT Passing"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.tag-sdpt-result.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Get Commit Information"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.get-commit-info.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow, Tag, and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Tag*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.get-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.get-commit-info.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          HEADER_TEXT: ":grey_exclamation: Hiero Consensus Node - Single Day Performance Test Error Report"
+          STATUS_TEXT: "*SDPT Job Resulted in failure. See status below.*"
+          VERIFY_TAG_LABEL: "Verify Tag for SDPT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
+          RUN_TEST_LABEL: "Run Single Day Performance Test"
+          RUN_TEST_RESULT: ${{ needs.run-single-day-performance-test.outputs.result }}
+          TAG_LABEL: "Tag SDPT Passing"
+          TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
+          COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-failure.json.tpl -o slack_payload.json
 
       - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0

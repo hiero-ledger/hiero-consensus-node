@@ -7,7 +7,7 @@ on:
       ref:
         description: "The git ref to read gradle/toolchain-versions.properties from (branch, tag, or commit SHA)."
         type: string
-        default: "main"
+        default: ""
     secrets:
       github-token:
         required: true
@@ -31,7 +31,7 @@ jobs:
       jdk-version: ${{ steps.get-jdk-version.outputs.jdk-version }}
     steps:
       - name: Initialize Job
-        uses: PandasWhoCode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-token: "${{ secrets.github-token }}"

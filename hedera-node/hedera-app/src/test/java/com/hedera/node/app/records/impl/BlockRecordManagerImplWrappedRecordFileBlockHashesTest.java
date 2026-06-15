@@ -37,6 +37,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.roster.NodeSignature;
 import com.hedera.hapi.node.state.roster.RosterSignatures;
@@ -58,7 +59,10 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceCommands;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -82,6 +86,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -89,6 +94,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase {
     private static final Bytes LEGACY_RECORD_FILE_HASH = Bytes.wrap("legacy-record-file-hash");
@@ -1749,12 +1755,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // Two block boundaries crossed => two writer instances
         assertEquals(2, handedOutWriters.size(), "expected one writer per WRB block boundary");
 
-        // Each writer must have received: openBlock -> writePbjItem(header) -> writePbjItem(recordFile),
+        // Each writer must have received: openBlock -> writePbjItemAndBytes(header) ->
+        // writePbjItemAndBytes(recordFile),
         // and must NOT have been closed (block proof / footer is produced by a follow-up).
         for (final var w : handedOutWriters) {
             final var ordered = inOrder(w);
             ordered.verify(w).openBlock(anyLong());
-            ordered.verify(w, times(2)).writePbjItem(any());
+            ordered.verify(w, times(2)).writePbjItemAndBytes(any(), any());
             ordered.verifyNoMoreInteractions();
             verify(w, never()).closeCompleteBlock();
             verify(w, never()).flushPendingBlock(any(PendingProof.class));
@@ -1763,7 +1770,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // The two items written to each writer must be a BlockHeader followed by a RecordFile
         for (final var w : handedOutWriters) {
             final var captor = ArgumentCaptor.forClass(BlockItem.class);
-            verify(w, times(2)).writePbjItem(captor.capture());
+            verify(w, times(2)).writePbjItemAndBytes(captor.capture(), any());
             final var items = captor.getAllValues();
             assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
             assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
@@ -1892,8 +1899,18 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertDoesNotThrow(() -> noOpenWrbWritersFuture.get(1, TimeUnit.SECONDS));
 
         final var captor = ArgumentCaptor.forClass(BlockItem.class);
-        verify(writer, times(4)).writePbjItem(captor.capture());
+        final var bytesCaptor = ArgumentCaptor.forClass(Bytes.class);
+        verify(writer, times(4)).writePbjItemAndBytes(captor.capture(), bytesCaptor.capture());
         final var items = captor.getAllValues();
+        // Each WRB item must be forwarded with serialized bytes that exactly match the item: the buffer stores these
+        // bytes but derives the item type from the item, so any mismatch would corrupt what is streamed and persisted.
+        final var forwardedBytes = bytesCaptor.getAllValues();
+        for (int i = 0; i < items.size(); i++) {
+            assertEquals(
+                    BlockItem.PROTOBUF.toBytes(items.get(i)),
+                    forwardedBytes.get(i),
+                    "forwarded bytes must equal the serialized item at index " + i);
+        }
         assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
         assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
         final var footer = items.get(2).blockFooterOrThrow();
@@ -1960,12 +1977,81 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var writer = handedOutWriters.getFirst();
         signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));
 
-        verify(writer, timeout(1_000).times(3)).writePbjItem(any());
+        verify(writer, timeout(1_000).times(3)).writePbjItemAndBytes(any(), any());
         verify(writer, never()).closeCompleteBlock();
 
         mgr.close();
 
         verify(writer).flushPendingBlock(PendingProof.DEFAULT);
+    }
+
+    @Test
+    void logsAtInfoNotWarnWhenWrbSigningCancelled() throws Exception {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                    .build();
+
+            seedRequiredState(app);
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var recordFileHashFuture = new CompletableFuture<Bytes>();
+            final var producer = new FakeStreamProducer(recordFileHashFuture);
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var blockHashSigner = mock(BlockHashSigner.class);
+            final var signatureListFuture = new CompletableFuture<Bytes>();
+            final var submissionFuture = new CompletableFuture<Void>();
+            when(blockHashSigner.sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES)))
+                    .thenReturn(new BlockHashSigner.Attempt(null, null, signatureListFuture, submissionFuture));
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    blockHashSigner,
+                    InitTrigger.RECONNECT)) {
+                final var t0 = InstantUtils.instant(10, 1);
+                mgr.startUserTransaction(t0, state);
+                mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+                mgr.closeCurrentRecordFileIfOpen(state);
+
+                recordFileHashFuture.complete(LEGACY_RECORD_FILE_HASH);
+                verify(blockHashSigner, timeout(1_000))
+                        .sign(eq(LEGACY_RECORD_FILE_HASH), eq(LIST_OF_PARTIAL_SIGNATURES));
+
+                // Simulate the BEHIND status handler cancelling all in-flight RSA signings
+                signatureListFuture.cancel(false);
+
+                final long deadline = System.currentTimeMillis() + 2_000;
+                while (System.currentTimeMillis() < deadline
+                        && logCaptor.infoLogs().stream().noneMatch(s -> s.contains("Signing cancelled for WRB block"))
+                        && logCaptor.warnLogs().stream()
+                                .noneMatch(s -> s.contains("Unhandled exception while signing WRB block"))) {
+                    Thread.sleep(10);
+                }
+                assertTrue(
+                        logCaptor.infoLogs().stream().anyMatch(s -> s.contains("Signing cancelled for WRB block")),
+                        "expected INFO log for cancelled WRB signing");
+                assertTrue(
+                        logCaptor.warnLogs().stream()
+                                .noneMatch(s -> s.contains("Unhandled exception while signing WRB block")),
+                        "cancellation must not be logged at WARN");
+            }
+        } finally {
+            logCaptor.stopCapture();
+        }
     }
 
     @Test
@@ -2044,5 +2130,284 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
                 .commit();
+    }
+
+    private void seedRequiredStateMidVoting(
+            final AppTestBase.App app, final List<MigrationWrappedHashes> queuedHashes) {
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(false)
+                                .votingCompletionDeadlineBlockNumber(10)
+                                .migrationWrappedHashes(queuedHashes)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+    }
+
+    @Test
+    void seedsLiveHasherFromMigrationResultWhenStateUnvoted() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            seedRequiredStateMidVoting(app, List.of());
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationPrevHash = Bytes.fromHex("ab".repeat(48));
+            final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                    migrationPrevHash, List.of(Bytes.fromHex("cd".repeat(48))), 2L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // construction triggers seeding branch
+            }
+
+            assertTrue(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Seeded live wrapped-record hash chain from migration result")));
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void replaysQueuedMigrationWrappedHashesOnInit() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            final var queued = List.of(
+                    new MigrationWrappedHashes(1L, Bytes.fromHex("11".repeat(48)), Bytes.fromHex("22".repeat(48))),
+                    new MigrationWrappedHashes(2L, Bytes.fromHex("33".repeat(48)), Bytes.fromHex("44".repeat(48))));
+            seedRequiredStateMidVoting(app, queued);
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationResult =
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // construction triggers seed + replay
+            }
+
+            assertTrue(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Replayed 2 queued migration wrapped-hash entries")));
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void doesNotSeedFromMigrationResultWhenVotingComplete() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockRecordManagerImpl.class));
+        try {
+            final var app = appBuilder()
+                    .withService(new BlockRecordService())
+                    .withService(new PlatformStateService())
+                    .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                    .build();
+            seedRequiredState(app); // votingComplete=true
+
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            final var producer = new FakeStreamProducer();
+            final var controller = new QuiescenceController(
+                    new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+            final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+            final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+            final var migrationResult =
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
+
+            try (final var mgr = new BlockRecordManagerImpl(
+                    app.configProvider(),
+                    state,
+                    producer,
+                    controller,
+                    heartbeat,
+                    app.platform(),
+                    diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
+                    InitTrigger.RECONNECT,
+                    Mockito.mock(BlockRecordManager.Lifecycle.class),
+                    migrationResult)) {
+                // votingComplete=true → seed branch skipped
+            }
+
+            assertFalse(logCaptor.infoLogs().stream()
+                    .anyMatch(s -> s.contains("Seeded live wrapped-record hash chain from migration result")));
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    /**
+     * Restarting in the middle of the migration root-hash voting period must reconstruct exactly the
+     * same live wrapped-record hash chain a node would have had if it never restarted. A node that
+     * restarts after saving state mid-voting seeds the live hasher from the migration result and
+     * replays the queued wrapped hashes; it must then keep folding blocks closed after construction,
+     * so the final cumulative root matches the no-restart baseline. This guards against the live
+     * hasher diverging from the chain {@link MigrationRootHashVoteHandler} agrees on once voting
+     * completes (issue 25424).
+     */
+    @Test
+    void restartMidVotingProducesSameWrappedRootAsNoRestart() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.fromHex("ab".repeat(48)), List.of(Bytes.fromHex("cd".repeat(48))), 1L);
+        final long[] votingBlockSeconds = {10, 13, 16, 19};
+        final long finalBlockSeconds = 22;
+
+        // Run A: a node that never restarts folds every block, then voting completes.
+        final Bytes noRestartRoot;
+        {
+            final var app = newJumpstartApp();
+            seedRequiredStateMidVoting(app, List.of());
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            try (final var mgr = newSeededManager(app, state, migrationResult)) {
+                for (final long seconds : votingBlockSeconds) {
+                    closeVotingBlock(mgr, state, seconds);
+                }
+                noRestartRoot = finalizeVotingAndCloseBlock(app, mgr, state, finalBlockSeconds);
+            }
+        }
+
+        // Run B: identical block sequence, but the node restarts after the first two blocks while
+        // state is still mid-voting. Construction re-seeds + replays the queue; the rest fold live.
+        final Bytes restartRoot;
+        {
+            final var app = newJumpstartApp();
+            seedRequiredStateMidVoting(app, List.of());
+            final var state = requireNonNullState(app.workingStateAccessor().getState());
+            try (final var mgr = newSeededManager(app, state, migrationResult)) {
+                closeVotingBlock(mgr, state, votingBlockSeconds[0]);
+                closeVotingBlock(mgr, state, votingBlockSeconds[1]);
+            }
+            // Restart: new manager rebuilds the live hasher from the saved mid-voting state.
+            try (final var mgr = newSeededManager(app, state, migrationResult)) {
+                closeVotingBlock(mgr, state, votingBlockSeconds[2]);
+                closeVotingBlock(mgr, state, votingBlockSeconds[3]);
+                restartRoot = finalizeVotingAndCloseBlock(app, mgr, state, finalBlockSeconds);
+            }
+        }
+
+        assertNotEquals(Bytes.EMPTY, noRestartRoot);
+        assertNotEquals(HASH_OF_ZERO, noRestartRoot);
+        assertEquals(
+                noRestartRoot,
+                restartRoot,
+                "Restart mid-voting must reconstruct the same wrapped-record root as a node that never restarted");
+    }
+
+    private AppTestBase.App newJumpstartApp() {
+        return appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
+                .build();
+    }
+
+    private BlockRecordManagerImpl newSeededManager(
+            final AppTestBase.App app,
+            final State state,
+            final WrappedRecordBlockHashMigration.Result migrationResult) {
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        return new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                new FakeStreamProducer(),
+                controller,
+                new QuiescedHeartbeat(controller, app.platform()),
+                app.platform(),
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
+                InitTrigger.RECONNECT,
+                Mockito.mock(BlockRecordManager.Lifecycle.class),
+                migrationResult);
+    }
+
+    private static void closeVotingBlock(final BlockRecordManagerImpl mgr, final State state, final long seconds) {
+        final var t = InstantUtils.instant(seconds, 1);
+        mgr.startUserTransaction(t, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t, List.of())), state);
+        mgr.closeCurrentRecordFileIfOpen(state);
+    }
+
+    private static Bytes finalizeVotingAndCloseBlock(
+            final AppTestBase.App app, final BlockRecordManagerImpl mgr, final State state, final long seconds) {
+        final var t = InstantUtils.instant(seconds, 1);
+        mgr.startUserTransaction(t, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t, List.of())), state);
+        // Flip the open block to voting-complete so closeCurrentRecordFileIfOpen persists the live
+        // cumulative wrapped-record root to BlockInfo (the only point it is written to state).
+        final var openInfo = requireNonNull(state.getReadableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get());
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        openInfo.copyBuilder().votingComplete(true).build())
+                .commit();
+        mgr.closeCurrentRecordFileIfOpen(state);
+        return requireNonNull(state.getReadableStates(BlockRecordService.NAME)
+                        .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                        .get())
+                .previousWrappedRecordBlockRootHash();
     }
 }

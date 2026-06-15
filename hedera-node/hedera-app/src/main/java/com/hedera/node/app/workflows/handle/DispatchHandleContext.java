@@ -25,6 +25,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
@@ -77,6 +78,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ObjLongConsumer;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * The {@link HandleContext} implementation.
@@ -249,6 +251,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return config;
     }
 
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        final var historyStore = storeFactory.readableStore(ReadableHistoryStore.class);
+        if (historyStore != null) {
+            final var externalizedLedgerId = historyStore.getLedgerId();
+            if (externalizedLedgerId != null) {
+                return externalizedLedgerId;
+            }
+        }
+        return HandleContext.super.ledgerId();
+    }
+
     @Nullable
     @Override
     public Authorizer authorizer() {
@@ -285,6 +300,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusNow);
+    }
+
+    @NonNull
+    @Override
+    public FeeSchedule simpleFeesSchedule() {
+        return feeManager.getSimpleFeesSchedule();
     }
 
     @Override
