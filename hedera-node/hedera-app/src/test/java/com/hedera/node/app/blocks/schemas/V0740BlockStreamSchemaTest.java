@@ -126,7 +126,7 @@ class V0740BlockStreamSchemaTest {
     }
 
     @Test
-    void skipsCutoverWhenNoRecordBlockHashes() {
+    void throwsWhenBlockHashesTooShort() {
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .blockHashes(Bytes.EMPTY) // no hashes at all
@@ -147,9 +147,8 @@ class V0740BlockStreamSchemaTest {
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
 
-        // No record block hashes to cut over from (a genesis-BLOCKS network): restart() now skips the cutover
-        // gracefully instead of throwing, and must not signal the cutover marker.
-        assertDoesNotThrow(() -> subject.restart(ctx));
+        final var ex = assertThrows(IllegalStateException.class, () -> subject.restart(ctx));
+        assertTrue(ex.getMessage().contains("at least one record block hash"));
         assertFalse(markerCalled.get());
     }
 
@@ -460,7 +459,7 @@ class V0740BlockStreamSchemaTest {
     }
 
     @Test
-    void skipsCutoverWhenBlockHashesShorterThanOneHash() {
+    void throwsWhenBlockHashesShorterThanOneHash() {
         // Fewer bytes than a single hash should fail the guard
         final var partialHash = new byte[HASH_SIZE - 1];
         final var blockInfo = BlockInfo.newBuilder()
@@ -483,9 +482,8 @@ class V0740BlockStreamSchemaTest {
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
 
-        // No record block hashes to cut over from (a genesis-BLOCKS network): restart() now skips the cutover
-        // gracefully instead of throwing, and must not signal the cutover marker.
-        assertDoesNotThrow(() -> subject.restart(ctx));
+        final var ex = assertThrows(IllegalStateException.class, () -> subject.restart(ctx));
+        assertTrue(ex.getMessage().contains("at least one record block hash"));
         assertFalse(markerCalled.get());
     }
 

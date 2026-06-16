@@ -118,17 +118,9 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         // prevBlockHash to trailingBlockHashes, so write all but the final record hash to avoid an off-by-one
         final var fullBlockHashes = blockInfo.blockHashes().toByteArray();
         if (fullBlockHashes.length < HASH_SIZE) {
-            // A network that genesis'd directly in BLOCKS mode never produced a record stream, so BlockInfo has
-            // no trailing record block hashes to cut over from — there is nothing to migrate. Skip the cutover
-            // gracefully (only a network upgrading from a record/preview stream reaches the reshape below).
-            // previewStreamOverwritten is intentionally left unset; a later restart simply re-evaluates and skips
-            // again. No state has been mutated at this point, so returning here is safe.
-            log.info(
-                    "No record block hashes in BlockInfo (found {} bytes, need >= {}); nothing to cut over from, "
-                            + "skipping cutover logic",
-                    fullBlockHashes.length,
-                    HASH_SIZE);
-            return;
+            throw new IllegalStateException(
+                    "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
+                            + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
         }
         final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
         // 2.2. Running hashes
