@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
@@ -290,7 +291,8 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeBirthRound()) {
-            s += " " + event.getBirthRound();
+            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE ?
+                    event.getEventInfo().getGen() : event.getBirthRound());
         }
 
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
@@ -305,7 +307,8 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeDeGen()) {
-            s += " " + event.getDeGen();
+            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE ?
+                    event.getEventInfo().getGen() : event.getDeGen());
         }
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s, g);

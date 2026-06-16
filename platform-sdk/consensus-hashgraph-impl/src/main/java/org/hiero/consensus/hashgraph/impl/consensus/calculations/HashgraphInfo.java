@@ -1101,7 +1101,7 @@ public final class HashgraphInfo {
                     if (e1.gen > e2.gen) {
                         return 1;
                     }
-                    return Integer.compare(e1.searchOrder, e2.searchOrder);
+                    return Integer.compare(e1.searchOrder, e2.searchOrder); // f is search order
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
@@ -1113,6 +1113,7 @@ public final class HashgraphInfo {
                     if (e1 == e2) {
                         return 0;
                     } // an event is <= itself (comparing the actual references)
+                    // f is the extended median, with ties broken by search order
                     for (int i = 0; i < roundJudgesArray.length; i++) { // compare extended median
                         int k = m - ((i % 2) * 2 - 1) * ((i + 1) / 2); // k is m, m-1, m+1, m-2, m+2, m-3, m+3, ...
                         Instant t1 = e1.receivedTime[k];
