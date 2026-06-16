@@ -32,6 +32,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
+      workflow-files-changed: ${{ steps.classify.outputs.workflow-files-changed }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -88,12 +89,20 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
+  workflow-unit-tests:
+    name: Workflow File Tests
+    needs:
+      - detect-change-type
+    if: ${{ needs.detect-change-type.outputs.workflow-files-changed == 'true' }}
+    uses: ./.github/workflows/857-call-workflow-unit-tests.yaml
+
   ci-complete:
     name: CI Complete
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
+      - workflow-unit-tests
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
@@ -105,6 +114,11 @@ jobs:
         run: |
           echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
           echo "MATS result: ${{ needs.mats-pr-checks.result }}"
+          
+          if [[ "${{ needs.workflow-unit-tests.result }}" == "failure" ]]; then
+            echo "Workflow file tests failed."
+            exit 1
+          fi
 
           if [[ "${{ needs.mats-pr-checks.result }}" == "success" ]]; then
             echo "All required checks passed."
@@ -120,6 +134,7 @@ jobs:
     needs:
       - detect-change-type
       - mats-pr-checks
+      - workflow-unit-tests
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -148,6 +163,7 @@ jobs:
             echo "------------------------------------"
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
+            echo "- **Workflow File Tests:** ${{ needs.workflow-unit-tests.result }}"          
             echo "------------------------------------"
             if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
                 echo "### MATS Test Failures"
