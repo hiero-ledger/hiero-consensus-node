@@ -275,7 +275,7 @@ jobs:
   create-github-release:
     name: Create GitHub Release
     if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true && github.event.repository.private == false }}
-    uses: ./.github/workflows/zxc-create-github-release.yaml
+    uses: ./.github/workflows/853-call-create-github-release.yaml
     needs:
       - create-new-tag
     with:

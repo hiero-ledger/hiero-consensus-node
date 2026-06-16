@@ -62,7 +62,7 @@ jobs:
     needs:
       - detect-change-type
       - extract-jdk-version
-    uses: ./.github/workflows/zxc-mats-tests.yaml
+    uses: ./.github/workflows/800-call-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}

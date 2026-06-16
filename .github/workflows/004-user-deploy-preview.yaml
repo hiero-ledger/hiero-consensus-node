@@ -67,7 +67,7 @@ jobs:
 
   deploy-tag:
     name: Deploy Tag
-    uses: ./.github/workflows/node-zxc-deploy-preview.yaml
+    uses: ./.github/workflows/851-call-deploy-preview.yaml
     needs:
       - prepare-deploy-preview
     with:

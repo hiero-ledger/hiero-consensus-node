@@ -277,7 +277,7 @@ jobs:
     needs:
       - fetch-xts-candidate
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
@@ -289,7 +289,7 @@ jobs:
       - state-validator-uberjar
       - extract-jdk-version
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-xts-tests.yaml
+    uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
@@ -329,7 +329,7 @@ jobs:
       - extract-jdk-version
       - extract-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-xts-tests.yaml
+    uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}

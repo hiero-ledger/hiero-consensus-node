@@ -543,7 +543,7 @@ jobs:
 
   gcp-production-image:
     name: Publish Production Image
-    uses: ./.github/workflows/zxc-publish-production-image.yaml
+    uses: ./.github/workflows/852-call-publish-production-image.yaml
     needs:
       - validate
       - build-artifact
@@ -563,7 +563,7 @@ jobs:
 
   jfr-production-image:
     name: Publish Production Image
-    uses: ./.github/workflows/zxc-publish-production-image.yaml
+    uses: ./.github/workflows/852-call-publish-production-image.yaml
     needs:
       - validate
       - build-artifact
@@ -906,7 +906,7 @@ jobs:
   create-github-release:
     name: Create GitHub Release
     if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
-    uses: ./.github/workflows/zxc-create-github-release.yaml
+    uses: ./.github/workflows/853-call-create-github-release.yaml
     needs:
       - publish
       - validate

@@ -158,7 +158,7 @@ jobs:
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
     if: ${{ inputs.execute-state-validator-build == true }}
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
       ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
@@ -169,7 +169,7 @@ jobs:
       - parameters
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-xts-tests.yaml
+    uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
       branch-name: ${{ inputs.branch-name }}

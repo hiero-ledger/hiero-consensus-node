@@ -37,7 +37,7 @@ jobs:
     name: MQ MATS
     needs:
       - extract-jdk-version
-    uses: ./.github/workflows/zxc-mats-tests.yaml
+    uses: ./.github/workflows/800-call-mats-tests.yaml
     with:
       ref: ${{ github.ref }}
       enable-snyk-scan: "true" # for Snyk
@@ -58,7 +58,7 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-xts-tests.yaml
+    uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
       branch-name: ${{ github.ref_name }}
@@ -96,7 +96,7 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
+    uses: ./.github/workflows/830-call-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}"
       ref: "${{ github.ref }}"

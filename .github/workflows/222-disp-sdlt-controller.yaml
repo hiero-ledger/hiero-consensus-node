@@ -75,7 +75,7 @@ jobs:
       - verify-tag
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
+    uses: ./.github/workflows/833-call-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       test-asset: "SDLT2" # TODO: Once Chewie application is installed we can remove this input.

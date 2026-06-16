@@ -30,7 +30,7 @@ jobs:
 
   mats-tests:
     name: MATS Tests
-    uses: ./.github/workflows/zxc-mats-tests.yaml
+    uses: ./.github/workflows/800-call-mats-tests.yaml
     needs:
       - extract-jdk-version
     with:

@@ -52,7 +52,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - extract-jdk-version
-    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
+    uses: ./.github/workflows/850-call-build-release-artifact.yaml
     with:
       version-policy: branch-commit
       trigger-env-deploy: none

@@ -79,7 +79,7 @@ jobs:
     name: MATS Tests
     needs:
       - extract-jdk-version
-    uses: ./.github/workflows/zxc-mats-tests.yaml
+    uses: ./.github/workflows/800-call-mats-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
       enable-dependency-check: "${{ inputs.enable-dependency-check || 'false' }}"

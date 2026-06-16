@@ -145,7 +145,7 @@ jobs:
       - verify-tag
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    uses: ./.github/workflows/831-call-single-day-performance-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.

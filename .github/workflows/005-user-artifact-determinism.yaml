@@ -61,7 +61,7 @@ jobs:
     needs:
       - commit-info
       - extract-jdk-version
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+    uses: ./.github/workflows/823-call-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -75,7 +75,7 @@ jobs:
     needs:
       - commit-info
       - extract-jdk-version
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
+    uses: ./.github/workflows/822-call-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}

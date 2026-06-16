@@ -1160,7 +1160,7 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - performance-NftTransferLoadTest-report
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1178,7 +1178,7 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - performance-HCSLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1196,7 +1196,7 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - performance-CryptoTransferLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1214,7 +1214,7 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - performance-SmartContractLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"

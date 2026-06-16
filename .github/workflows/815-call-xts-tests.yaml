@@ -173,7 +173,7 @@ jobs:
 
   build:
     name: Compile and Spotless Check
-    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
+    uses: ./.github/workflows/802-call-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:
@@ -191,7 +191,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-timing-sensitive-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
+    uses: ./.github/workflows/806-call-execute-timing-sensitive-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
@@ -206,7 +206,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-hammer-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
+    uses: ./.github/workflows/807-call-execute-hammer-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
@@ -221,7 +221,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       enable-hapi-tests-misc: "false"
@@ -254,7 +254,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-hapi-tests-blocks-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       enable-hapi-tests-misc: "true"
@@ -282,7 +282,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-otter-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
       enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
@@ -300,7 +300,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-chaos-otter-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-chaos-otter-tests: true
       enable-network-log-capture: true
@@ -317,7 +317,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-hedera-node-jrs-panel == 'true' }}
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
+    uses: ./.github/workflows/817-call-jrs-regression.yaml
     with:
       custom-job-name: "${{ inputs.custom-job-label }} Abbrev Update Test"
       ref: ${{ needs.commit-info.outputs.sha }}
@@ -344,7 +344,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-sdk-tck-regression-panel == 'true' }}
-    uses: ./.github/workflows/zxc-tck-regression.yaml
+    uses: ./.github/workflows/819-call-tck-regression.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
@@ -361,7 +361,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-mirror-node-regression-panel == 'true' }}
-    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    uses: ./.github/workflows/820-call-mirror-node-regression.yaml.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
@@ -379,7 +379,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-rpc-relay-regression-panel == 'true' }}
-    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    uses: ./.github/workflows/818-call-json-rpc-relay-regression.yaml.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
@@ -395,7 +395,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
-    uses: ./.github/workflows/zxc-block-node-regression.yaml
+    uses: ./.github/workflows/821-call-block-node-regression.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"

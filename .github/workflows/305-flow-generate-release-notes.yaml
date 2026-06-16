@@ -32,7 +32,7 @@ permissions:
 jobs:
   generate-release-notes-tag:
     name: Generate Release Notes (Tag)
-    uses: ./.github/workflows/zxc-create-github-release.yaml
+    uses: ./.github/workflows/853-call-create-github-release.yaml
     if: ${{ github.event_name == 'push' }}
     with:
       ref: ${{ github.sha }}
@@ -44,7 +44,7 @@ jobs:
 
   generate-release-notes-dispatch:
     name: Generate Release Notes (Workflow Dispatch)
-    uses: ./.github/workflows/zxc-create-github-release.yaml
+    uses: ./.github/workflows/853-call-create-github-release.yaml
     if: ${{ github.event_name == 'workflow_dispatch' }}
     with:
       ref: ${{ inputs.ref || github.sha }}

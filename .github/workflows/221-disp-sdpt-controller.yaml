@@ -75,7 +75,7 @@ jobs:
       - verify-tag
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    uses: ./.github/workflows/831-call-single-day-performance-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       test-asset: "SDPT1" # TODO: Once Chewie application is installed we can remove this input.

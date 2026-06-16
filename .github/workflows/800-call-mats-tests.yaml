@@ -154,7 +154,7 @@ jobs:
 
   compile-and-spotless:
     name: "${{ inputs.custom-job-label }} Compile and Spotless"
-    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
+    uses: ./.github/workflows/802-call-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:
@@ -169,7 +169,7 @@ jobs:
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
     if: ${{ inputs.enable-dependency-check == 'true' }}
-    uses: ./.github/workflows/zxc-dependency-module-check.yaml
+    uses: ./.github/workflows/809-call-dependency-module-check.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -184,7 +184,7 @@ jobs:
   mats-unit-tests:
     name: Unit Tests
     if: ${{ inputs.enable-unit-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-unit-tests.yaml
+    uses: ./.github/workflows/803-call-execute-unit-tests.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -202,7 +202,7 @@ jobs:
   mats-integration-tests:
     name: Integration Tests
     if: ${{ inputs.enable-integration-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-integration-tests.yaml
+    uses: ./.github/workflows/804-call-execute-integration-tests.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -219,7 +219,7 @@ jobs:
   mats-hapi-tests:
     name: HAPI Tests
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -247,7 +247,7 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
@@ -265,7 +265,7 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/zxc-snyk-scan.yaml
+    uses: ./.github/workflows/801-call-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
@@ -282,7 +282,7 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+    uses: ./.github/workflows/823-call-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
@@ -298,7 +298,7 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
+    uses: ./.github/workflows/822-call-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"

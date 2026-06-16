@@ -108,7 +108,7 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
+    uses: ./.github/workflows/830-call-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref }}"
