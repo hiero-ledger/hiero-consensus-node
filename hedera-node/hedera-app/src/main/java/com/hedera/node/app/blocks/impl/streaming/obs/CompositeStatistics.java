@@ -21,7 +21,9 @@ import java.util.List;
  * where {@code N} is the total sample count across all components.
  *
  * <p>{@link #add(Statistics)} only accumulates the component; the aggregate is computed lazily on
- * the first read after an add. All methods are {@code synchronized}.
+ * the first read after an add.
+ *
+ * <p>Not thread-safe: instances are built and read on the gather thread only.
  */
 public class CompositeStatistics implements Statistics {
 
@@ -41,13 +43,13 @@ public class CompositeStatistics implements Statistics {
      *
      * @param stats the component statistics to include in the aggregate
      */
-    public synchronized void add(@NonNull final Statistics stats) {
+    public void add(@NonNull final Statistics stats) {
         requireNonNull(stats);
         componentStatistics.add(stats);
         composite = null; // invalidate; recomputed lazily on the next read
     }
 
-    private synchronized Statistics composite() {
+    private Statistics composite() {
         if (composite == null) {
             composite = calculateCompositeStatistics();
         }
@@ -101,32 +103,32 @@ public class CompositeStatistics implements Statistics {
     }
 
     @Override
-    public synchronized BigInteger numSamples() {
+    public BigInteger numSamples() {
         return composite().numSamples();
     }
 
     @Override
-    public synchronized BigInteger sum() {
+    public BigInteger sum() {
         return composite().sum();
     }
 
     @Override
-    public synchronized BigInteger min() {
+    public BigInteger min() {
         return composite().min();
     }
 
     @Override
-    public synchronized BigInteger max() {
+    public BigInteger max() {
         return composite().max();
     }
 
     @Override
-    public synchronized BigDecimal avg() {
+    public BigDecimal avg() {
         return composite().avg();
     }
 
     @Override
-    public synchronized BigDecimal stdDev() {
+    public BigDecimal stdDev() {
         return composite().stdDev();
     }
 }
