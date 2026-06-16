@@ -67,9 +67,6 @@ public class BlockStreamEventBuilder {
     /** The index of the current event within the current block. */
     private int eventIndexWithinBlock = 0;
 
-    /** The consumer to receive each completed event during {@link #processBlock}. */
-    private Consumer<PlatformEvent> currentConsumer;
-
     /**
      * Processes a single block, reconstructing events from its items and delivering each completed
      * event to the given consumer. Only the current block's events are held in memory; once this
@@ -81,14 +78,13 @@ public class BlockStreamEventBuilder {
     public void processBlock(@NonNull final Block block, @NonNull final Consumer<PlatformEvent> eventConsumer) {
         requireNonNull(block);
         requireNonNull(eventConsumer);
-        this.currentConsumer = eventConsumer;
 
         startOfBlock();
 
         for (final BlockItem item : block.items()) {
             final var itemKind = item.item().kind();
             switch (itemKind) {
-                case EVENT_HEADER -> eventHeader(item.item().as());
+                case EVENT_HEADER -> eventHeader(item.item().as(), eventConsumer);
                 case SIGNED_TRANSACTION -> signedTransaction(item.item().as());
                 case REDACTED_ITEM -> redactedItem(item.item().as());
                 default -> {
@@ -97,8 +93,7 @@ public class BlockStreamEventBuilder {
             }
         }
 
-        endOfBlock();
-        this.currentConsumer = null;
+        endOfBlock(eventConsumer);
     }
 
     /**
@@ -114,9 +109,6 @@ public class BlockStreamEventBuilder {
 
     /**
      * Parses and returns the transaction body from PBJ bytes.
-     *
-     * @param transactionBytes the transaction bytes
-     * @return the parsed transaction body
      */
     public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
@@ -135,9 +127,9 @@ public class BlockStreamEventBuilder {
         eventIndexToEvent.clear();
     }
 
-    private void eventHeader(@NonNull final EventHeader eventHeader) {
+    private void eventHeader(@NonNull final EventHeader eventHeader, @NonNull final Consumer<PlatformEvent> consumer) {
         if (currentEventHeader != null) {
-            completeEvent();
+            completeEvent(consumer);
             eventIndexWithinBlock++;
         }
         currentEventHeader = eventHeader;
@@ -158,30 +150,21 @@ public class BlockStreamEventBuilder {
                 + "Event reconstruction requires full transaction bytes.");
     }
 
-    private void endOfBlock() {
+    private void endOfBlock(@NonNull final Consumer<PlatformEvent> consumer) {
         if (currentEventHeader != null) {
-            completeEvent();
+            completeEvent(consumer);
         }
     }
 
     /** Assembles the current event, emits it to the consumer, and records it for in-block lookups. */
-    private void completeEvent() {
+    private void completeEvent(@NonNull final Consumer<PlatformEvent> consumer) {
         final PlatformEvent platformEvent =
                 createEventFromData(currentEventHeader, new ArrayList<>(currentTransactions), eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
-        currentConsumer.accept(platformEvent);
+        consumer.accept(platformEvent);
         currentEventHeader = null;
     }
 
-    /**
-     * Creates a {@link PlatformEvent} from {@link EventHeader} and transaction data. Resolves parent
-     * hashes using the event index lookup.
-     *
-     * @param eventHeader the event header containing core event data
-     * @param transactions the list of transaction bytes
-     * @param eventIndexToEvent map for looking up parent events
-     * @return reconstructed {@link PlatformEvent} with calculated hash
-     */
     private PlatformEvent createEventFromData(
             @NonNull final EventHeader eventHeader,
             @NonNull final List<Bytes> transactions,

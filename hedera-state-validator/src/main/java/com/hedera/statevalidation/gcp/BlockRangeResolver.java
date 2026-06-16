@@ -147,7 +147,12 @@ public final class BlockRangeResolver {
         }
         final long firstBlock = blockNumberFromUri(firstFileUri);
         final long lastBlock = blockNumberFromUri(lastFileUri);
-        log.info(CONSOLE, "  Block stream range: [{}, {}] ({} blocks)", firstBlock, lastBlock, lastBlock - firstBlock + 1);
+        log.info(
+                CONSOLE,
+                "  Block stream range: [{}, {}] ({} blocks)",
+                firstBlock,
+                lastBlock,
+                lastBlock - firstBlock + 1);
 
         final ExecutorService executor = Executors.newFixedThreadPool(PROBE_THREAD_POOL_SIZE);
         try {
