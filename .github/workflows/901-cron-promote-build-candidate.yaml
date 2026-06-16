@@ -174,26 +174,26 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: "Trigger ZXF: [CITR] Single Day Performance Test (SDPT)"
+      - name: "Trigger 221: [DISP] CITR SDPT Controller"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
+          workflow: .github/workflows/221-disp-sdpt-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
+      - name: "Trigger 222: [DISP] CITR SDLT Controller"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/zxf-single-day-longevity-test-controller.yaml
+          workflow: .github/workflows/222-disp-sdlt-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: "Trigger ZXF: [CITR] Single Day Canonical Test (SDCT)"
+      - name: "Trigger 223: [DISP] CITR SDCT Controller"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/zxf-single-day-canonical-test.yaml
+          workflow: .github/workflows/223-disp-sdct-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}

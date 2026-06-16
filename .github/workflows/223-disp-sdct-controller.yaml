@@ -256,7 +256,7 @@ jobs:
 
           # Summary
           {
-            echo "# ZXF Canonical Test Workflow Summary"
+            echo "# 223: [DISP] SDCT Controller Workflow Summary"
             echo
             echo "## Overall Status: ${OVERALL_STATUS}"
             echo
