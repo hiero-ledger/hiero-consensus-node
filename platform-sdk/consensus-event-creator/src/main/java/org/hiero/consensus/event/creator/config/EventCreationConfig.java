@@ -43,4 +43,4 @@ public record EventCreationConfig(
         @ConfigProperty(defaultValue = "1024") int eventIntakeThrottle,
         @ConfigProperty(defaultValue = "1s") Duration maximumPermissibleUnhealthyDuration,
         @ConfigProperty(defaultValue = "15") int maxAllowedSyncLag,
-        @ConfigProperty(defaultValue = "1") int maxOtherParents) {}
+        @ConfigProperty(defaultValue = "4") int maxOtherParents) {}
