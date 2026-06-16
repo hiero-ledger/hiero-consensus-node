@@ -1,4 +1,4 @@
-|                  File Name                   |           Workflow Name            |                  Deprecated File Name                  |                     Deprecated Workflow Name                      |
+| File Name                                    | Workflow Name                      | Deprecated File Name                                   | Deprecated Workflow Name                                          |
 |----------------------------------------------|------------------------------------|--------------------------------------------------------|-------------------------------------------------------------------|
 | # USER (0-99)                                |                                    |                                                        |                                                                   |
 | 000-user-dry-run-mats-suite.yaml             | 000: [USER] CITR MATS Dry Run      | flow-dry-run-mats-suite.yaml                           | [CITR] MATS Dry Run                                               |
@@ -76,6 +76,7 @@
 | 854-call-extract-jdk-version.yaml            | 854: [CALL] Extract JDK Version    | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   |
 | 855-call-extract-citr-vars.yaml              | 855: [CALL] Extract CITR Vars      | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     |
 | 856-call-solo-ge044.yaml                     | 856: [CALL] Compute solo-ge-0440   | 857-call-solo-ge044.yaml                               | 857: [CALL] Compute solo-ge-0440 Gate                             |
+| 857-call-workflow-unit-tests.yaml            | 857: [CALL] Workflow Unit Tests    |                                                        |                                                                   |
 |                                              |                                    |                                                        |                                                                   |
 | # CRON (900-999)                             |                                    |                                                        |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite    | zxcron-extended-test-suite.yaml                        | ZXCron: [CITR] Extended Test Suite                                |
