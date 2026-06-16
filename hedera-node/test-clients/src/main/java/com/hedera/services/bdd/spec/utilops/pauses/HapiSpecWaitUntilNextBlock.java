@@ -63,7 +63,11 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        if (isWriterModeGrpcOnly(spec)) {
+        // Read the next block from block nodes only when the node streams over gRPC AND a block node network
+        // actually exists to read from. Embedded networks never have a block node (they write blocks to disk),
+        // so they fall through to the disk path even though their configured writerMode resolves as GRPC. This
+        // mirrors the guard StreamValidationOp already uses.
+        if (isWriterModeGrpcOnly(spec) && resolveBlockNodeNetwork() != null) {
             return submitOpViaBlockNodes(spec);
         }
         return submitOpViaDisk(spec);
