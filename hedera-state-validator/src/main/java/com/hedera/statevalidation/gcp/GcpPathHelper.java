@@ -28,8 +28,8 @@ import org.apache.logging.log4j.MarkerManager;
  */
 public final class GcpPathHelper {
 
-    private static final String GCLOUD = System.getProperty("os.name", "")
-            .toLowerCase().contains("windows") ? "gcloud.cmd" : "gcloud";
+    private static final String GCLOUD =
+            System.getProperty("os.name", "").toLowerCase().contains("windows") ? "gcloud.cmd" : "gcloud";
 
     private static final Logger log = LogManager.getLogger(GcpPathHelper.class);
 
