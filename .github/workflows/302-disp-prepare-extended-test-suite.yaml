@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: [CITR] Prepare Extended Test Suite"
+name: "302: [DISP] CITR Prepare XTS"
 on:
   workflow_dispatch:
     inputs:

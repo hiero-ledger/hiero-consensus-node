@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: Node: Build Application"
+name: "300: [FLOW] Build Application"
 on:
   push:
     branches:

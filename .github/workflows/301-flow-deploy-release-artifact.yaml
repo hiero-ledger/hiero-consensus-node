@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXF: Deploy Production Release"
+name: "301: [FLOW] Deploy Prod Release"
 on:
   push:
     tags:
