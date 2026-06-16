@@ -1,4 +1,4 @@
-| File Name                                    | Workflow Name                      | Deprecated File Name                                   | Deprecated Workflow Name                                          |
+|                  File Name                   |           Workflow Name            |                  Deprecated File Name                  |                     Deprecated Workflow Name                      |
 |----------------------------------------------|------------------------------------|--------------------------------------------------------|-------------------------------------------------------------------|
 | # USER (0-99)                                |                                    |                                                        |                                                                   |
 | 000-user-dry-run-mats-suite.yaml             | 000: [USER] CITR MATS Dry Run      | flow-dry-run-mats-suite.yaml                           | [CITR] MATS Dry Run                                               |
