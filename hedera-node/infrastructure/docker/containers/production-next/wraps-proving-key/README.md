@@ -29,7 +29,7 @@ runner images or downloading it per job. It is consumed by the `hapiTestWraps` a
 
 The image is published to this repository's ghcr.io namespace
 (`ghcr.io/hiero-ledger/hiero-consensus-node/wraps-proving-key`) by dispatching the
-`ZXF: Publish WRAPS Proving Key Image` workflow, which downloads the tarball, verifies its
+`105: [USER] Publish Wraps Proving Key Image` workflow, which downloads the tarball, verifies its
 hash, builds with the `Containerfile` here, pushes, and re-verifies the published image by
 digest. To build manually instead:
 

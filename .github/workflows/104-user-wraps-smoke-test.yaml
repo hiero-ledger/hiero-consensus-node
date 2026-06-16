@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [Adhoc] WRAPS Runner Smoke Test"
+name: "104: [USER] WRAPS Runner Smoke Test"
 # Validates that a runner pool exposes the WRAPS proving-key artifacts expected by the
 # hapi-tests-wraps job in zxc-execute-hapi-tests.yaml: four files at the mount path whose
 # SHA-384 hashes match the published artifact set (see
@@ -62,4 +62,4 @@ jobs:
               status=1
             fi
           done
-          exit $status
+          exit "${status}"

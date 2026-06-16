@@ -14,6 +14,8 @@
 | flow-trigger-release.yaml                              | [Release] Create New Release                                      | 101-user-trigger-release.yaml                | 101: [USER] Trigger Release        |
 | 050-user-memory-profile-ctrl.yaml                      | 050: [USER] Memory Profile Ctrl                                   | 102-user-memory-profile-ctrl.yaml            | 102: [USER] Memory Profile Ctrl    |
 | 200-user-adhoc-solo-tests.yaml                         | 200: [USER] Ad Hoc Solo Tests                                     | 103-user-adhoc-solo-tests.yaml               | 103: [USER] Ad Hoc Solo Tests      |
+| 104-user-wraps-smoke-test.yaml                         | 104: [USER] WRAPS Runner Smoke Test                               | 104-user-wraps-smoke-test.yaml               | 104: [USER] WRAPS Runner Smoke Test |
+| 105-user-publish-wraps-key.yaml                        | 105: [USER] Publish Wraps Proving Key Image                       | 105-user-publish-wraps-key.yaml              | 105: [USER] Publish Wraps Proving Key Image |
 |                                                        |                                                                   |                                              |                                    |
 | # CITR (200-299)                                       |                                                                   |                                              |                                    |
 | zxf-merge-queue-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller       | 200-user-mqpt-controller-adhoc.yaml          | 200: [USER] CITR MQPT Ctrl Adhoc   |
