@@ -261,14 +261,4 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
 
         return createFungibleTransfer(tokenId, accountID, tokenRelation.balance(), token.treasuryAccountId());
     }
-
-    //    private SubType getSubType(final int numOfNFTRejections) {
-    //        return numOfNFTRejections != 0 ? TOKEN_NON_FUNGIBLE_UNIQUE : TOKEN_FUNGIBLE_COMMON;
-    //    }
-    //
-    //    private long calculateBytesPerTransaction(
-    //            final int weightedTokensInvolved, final int weightedFungibleTokens, final int numNFTRejections) {
-    //        return TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-    //                weightedTokensInvolved, weightedFungibleTokens, numNFTRejections);
-    //    }
 }
