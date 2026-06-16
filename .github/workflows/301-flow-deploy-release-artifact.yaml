@@ -220,15 +220,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
+          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="302: [DISP] CITR Prepare XTS")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
           echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Trigger ZXF Prepare Extended Test Suite
+      - name: "Trigger 302: [DISP] CITR Prepare XTS"
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
+          workflow: .github/workflows/302-disp-prepare-extended-test-suite.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -259,11 +259,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
+          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="303: [DISP] Deploy Integration")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
           echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Trigger ZXF Deploy Integration
+      - name: "Trigger 303: [DISP] Deploy Integration"
         if: >-
           ${{
             inputs.dry-run-enabled == false &&
@@ -273,7 +273,7 @@ jobs:
           }}
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/node-zxf-deploy-integration.yaml
+          workflow: .github/workflows/303-disp-deploy-integration.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}

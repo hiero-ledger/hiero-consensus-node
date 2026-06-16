@@ -89,10 +89,10 @@ jobs:
           echo "Using workflow reference: ${RESOLVED_REF}"
           echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
 
-      - name: Trigger ZXF Deploy Production Release
+      - name: "Trigger 301: [FLOW] Deploy Prod Release"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
+          workflow: .github/workflows/301-flow-deploy-release-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ steps.resolve-ref.outputs.workflow-ref }} # ensure we are always using the correct workflow definition. Default to main.
           token: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -151,7 +151,7 @@ jobs:
 
       # Classify the failure so each category gets a distinct Slack payload and
       # routing (e.g. test failures ping the commit author, environment issues
-      # go to citr-failures). The "workflow" failure-mode is set by zxc-mats-tests
+      # go to citr-failures). The "workflow" failure-mode is set by 800-call-mats-tests.yaml
       # when a non-test step (spotless, module-info check, etc.) fails.
       - name: Determine Report Category
         id: report-category
