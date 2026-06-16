@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 200: [USER] Ad Hoc Solo Tests"
+name: "103: [USER] Adhoc Solo Tests"
 
 on:
   workflow_dispatch:
