@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -308,18 +307,16 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /**
-     * Drains and reports all data eligible for this window. Package-private so tests can drive the
-     * gather cycle directly.
-     *
-     * @return the report that was logged, or {@code null} if obs is disabled or nothing was recorded
+     * Drains all data eligible for this window and logs the report at {@code INFO}. Nothing is logged
+     * when obs is disabled or no data was recorded. Package-private so tests can drive the gather
+     * cycle directly.
      */
-    @Nullable
-    String gatherAndLogObsData() {
+    void gatherAndLogObsData() {
         if (!isEnabled) {
             // enhanced obs may have been dynamically disabled... clear everything and exit
             blockStatistics.clear();
             throughputBuckets.clear();
-            return null;
+            return;
         }
 
         // calculate the seconds tick that will act as the threshold for what data to process
@@ -334,14 +331,11 @@ public class BlockStreamingObs implements AutoCloseable {
 
         if (buckets.isEmpty() && blocksAggregation.isEmpty()) {
             // nothing was recorded in this window; skip the report entirely
-            return null;
+            return;
         }
 
         blocksAggregation.complete();
-
-        final String report = formatReport(ThroughputSummary.of(buckets), blocksAggregation);
-        log.info("{}", report);
-        return report;
+        log.info("{}", formatReport(ThroughputSummary.of(buckets), blocksAggregation));
     }
 
     /** Removes and returns all throughput buckets at or before the threshold second. */

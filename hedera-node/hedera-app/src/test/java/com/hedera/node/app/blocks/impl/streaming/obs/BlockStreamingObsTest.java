@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming.obs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -15,7 +16,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,10 +34,17 @@ class BlockStreamingObsTest {
 
     private final TestClock clock = new TestClock();
     private final List<BlockStreamingObs> created = new ArrayList<>();
+    private LogCaptor logCaptor;
+
+    @BeforeEach
+    void setUp() {
+        logCaptor = new LogCaptor(LogManager.getLogger(BlockStreamingObs.class));
+    }
 
     @AfterEach
     void tearDown() {
         created.forEach(BlockStreamingObs::close);
+        logCaptor.stopCapture();
     }
 
     // ── full lifecycle aggregation values ───────────────────────────────────────
@@ -63,7 +73,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(blockNumber);
 
         clock.set(secs(10)); // move past the 2-second gather grace period
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         // block lifecycle spans (exact line for the simplest probe; prefixes elsewhere)
@@ -109,7 +119,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(1L);
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("OpenToProofCreated { (Unit:NANOS|Samples:1|Sum:4000000|");
@@ -128,7 +138,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(1L);
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("InitToOpen { (Unit:NANOS|Samples:0|");
@@ -159,7 +169,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(6L);
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         // all three items count toward size...
@@ -185,7 +195,7 @@ class BlockStreamingObsTest {
         obs.onBlockItemAdd(1L, 2, 300, false); // next second -> second bucket
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         // buckets at seconds 1 and 2 -> the window spans 2 seconds, not 1 (fencepost regression guard)
@@ -209,14 +219,14 @@ class BlockStreamingObsTest {
         stubConfig(false);
         obs.refreshEnabledFlag();
         clock.set(secs(10));
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
 
         // flag flips back; the late ack refers to a cleared block and must be a no-op
         stubConfig(true);
         obs.refreshEnabledFlag();
         obs.onBlockAcknowledge(1L);
         clock.set(secs(20));
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
     }
 
     @Test
@@ -235,7 +245,7 @@ class BlockStreamingObsTest {
         stubConfig(true);
         obs.refreshEnabledFlag();
         clock.set(secs(10));
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
     }
 
     // ── leak guard / abandoned blocks ───────────────────────────────────────────
@@ -248,14 +258,14 @@ class BlockStreamingObsTest {
         obs.onBlockInit(1L); // never acked (e.g. block node down)
 
         clock.set(secs((5 * 60) + 1)); // past the 5-minute abandon threshold
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
         assertThat(report).isNotNull();
         assertThat(report).contains("Abandoned { (Unit:COUNT|Sum:1) }");
 
         // the entry is gone: a later ack is a no-op and a later gather has nothing to report
         obs.onBlockAcknowledge(1L);
         clock.set(secs(400));
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
     }
 
     @Test
@@ -266,12 +276,12 @@ class BlockStreamingObsTest {
         obs.onBlockInit(1L);
 
         clock.set(secs(100)); // older than the gather grace, far younger than the abandon threshold
-        assertThat(obs.gatherAndLogObsData()).isNull(); // not abandoned, no buckets -> nothing to report
+        assertThat(gather(obs)).isNull(); // not abandoned, no buckets -> nothing to report
 
         // the block can still complete its lifecycle later
         obs.onBlockAcknowledge(1L);
         clock.set(secs(110));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
         assertThat(report).isNotNull();
         assertThat(report).contains("Acknowledged { (Unit:COUNT|Sum:1) }");
     }
@@ -296,7 +306,7 @@ class BlockStreamingObsTest {
 
         obs.onBlockAcknowledge(1L);
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("ItemsPerBlock { (Unit:COUNT|Samples:1|Sum:800|");
@@ -322,7 +332,7 @@ class BlockStreamingObsTest {
 
         obs.onBlockAcknowledge(1L);
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("ItemsPerBlock { (Unit:COUNT|Samples:1|Sum:100|");
@@ -355,9 +365,9 @@ class BlockStreamingObsTest {
 
         // a final gather drains whatever remains; after that there must be nothing left
         clock.advanceSeconds(10);
-        assertThat(obs.gatherAndLogObsData()).isNotNull();
+        assertThat(gather(obs)).isNotNull();
         clock.advanceSeconds(10);
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
     }
 
     // ── idempotency / unknown-block smoke tests ─────────────────────────────────
@@ -375,7 +385,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(1L);
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("InitToOpen { (Unit:NANOS|Samples:1|Sum:1000000|");
@@ -394,7 +404,7 @@ class BlockStreamingObsTest {
         obs.onBlockAcknowledge(1L);
 
         clock.set(secs(10));
-        final String report = obs.gatherAndLogObsData();
+        final String report = gather(obs);
 
         assertThat(report).isNotNull();
         assertThat(report).contains("ItemsPerBlock { (Unit:COUNT|Samples:1|Sum:1|");
@@ -419,7 +429,7 @@ class BlockStreamingObsTest {
         obs.onBlockFooterCreate(999L);
 
         clock.set(secs(10));
-        assertThat(obs.gatherAndLogObsData()).isNull();
+        assertThat(gather(obs)).isNull();
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────
@@ -429,6 +439,19 @@ class BlockStreamingObsTest {
         final BlockStreamingObs obs = new BlockStreamingObs(configProvider, clock);
         created.add(obs);
         return obs;
+    }
+
+    /**
+     * Drives one gather cycle and returns the report it logged on this call, or {@code null} if it
+     * logged nothing. Reads the captured INFO output, so the test verifies what is actually logged
+     * rather than a returned value.
+     */
+    private String gather(final BlockStreamingObs obs) {
+        final int before = logCaptor.infoLogs().size();
+        obs.gatherAndLogObsData();
+        final List<String> logs = logCaptor.infoLogs();
+        assertThat(logs.size()).isLessThanOrEqualTo(before + 1); // a gather logs at most one report
+        return logs.size() > before ? logs.get(logs.size() - 1) : null;
     }
 
     private void stubConfig(final boolean enabled) {
