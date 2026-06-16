@@ -117,7 +117,8 @@ public class ProcessUtils {
         return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
                 .map(testOverrides -> Arrays.stream(testOverrides.split(","))
                         .map(override -> override.split("="))
-                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1])))
+                        // Last-wins on duplicate keys so later overrides supersede earlier ones instead of throwing.
+                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1], (first, last) -> last)))
                 .orElse(Map.of());
     }
 
@@ -186,10 +187,11 @@ public class ProcessUtils {
             }
         }
         // Write GC logs to the node's output dir so multi-second stalls can be diagnosed as long stop-the-world GC
-        // pauses (or ruled out)
+        // pauses (or ruled out). %p (PID) gives each (re)started node JVM its own file, so restart/reconnect tests
+        // that bounce the node many times don't overwrite or rotate away the early session that holds the failure.
         final var gcLogPath = metadata.workingDirOrThrow()
                 .resolve(OUTPUT_DIR)
-                .resolve("gc.log")
+                .resolve("gc-%p.log")
                 .toAbsolutePath();
         commandLine.add("-Xlog:gc*:file=" + gcLogPath + ":time,uptime,level,tags");
         // Only activate JDWP if not in CI

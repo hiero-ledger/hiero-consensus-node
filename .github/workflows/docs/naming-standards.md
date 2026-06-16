@@ -14,21 +14,29 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix |     Category / Description     |        Notes / Subcategory        |
-  |--------|--------------------------------|-----------------------------------|
-  | 000    | User-centric workflows         | Sorted by priority/use            |
-  | 100    | Operational workflows          | Manual-run RE flows               |
-  | 200    | CITR workflows (all workflows) |                                   |
-  | 200    | CITR manual run                | Adhoc runs                        |
-  | 220    | CITR daily runs                | Automatic daily runs              |
-  | 240    | CITR longer runs               | Multi-day runs                    |
-  | 300    | Trigger-based `main` workflows |                                   |
-  | 400    | TBD                            |                                   |
-  | 500    | TBD                            |                                   |
-  | 600    | TBD                            |                                   |
-  | 700    | AI Helpers                     | Helpers for AI workflows          |
-  | 800    | Reusable workflows             |                                   |
-  | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
+  | Prefix |     Category / Description     |             Notes / Subcategory              |
+  |--------|--------------------------------|----------------------------------------------|
+  | 000    | User-centric workflows         | Sorted by priority/use                       |
+  | 100    | Operational workflows          | Manual-run RE flows                          |
+  | 200    | CITR workflows (all workflows) |                                              |
+  | 200    | CITR Manual Runs               | Adhoc runs                                   |
+  | 220    | CITR Daily Workflows           | Automatic daily runs                         |
+  | 240    | CITR Multi-Day Runs            | Multi-day runs                               |
+  | 260    | CITR Reserved                  |                                              |
+  | 300    | Trigger-based `main` workflows |                                              |
+  | 400    | TBD                            |                                              |
+  | 500    | TBD                            |                                              |
+  | 600    | Test Helpers                   |                                              |
+  | 700    | AI Helpers                     | Helpers for AI workflows                     |
+  | 800    | Reusable workflows (all)       |                                              |
+  | 800    | Reusable workflows  (MATS)     | Workflows related to MATS execution          |
+  | 815    | Reusable workflows (XTS)       | Workflows related to XTS execution           |
+  | 830    | Reusable workflows (CITR)      | Callable workflows relating to CITR          |
+  | 850    | Reusable workflows (Release)   | Reusable workflows for the release pipelines |
+  | 800    | Reusable workflows (MATS)      | Workflows related to MATS execution          |
+  | 815    | Reusable workflows (XTS)       | Workflows related to XTS execution           |
+  | 830    | Reusable workflows (CITR)      | Workflows related to CITR                    |
+  | 850    | Reusable workflows (Release)   | Workflows related to release pipelines       |
 
 - Followed by `: ` (colon and a space)
 

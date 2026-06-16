@@ -1,3 +1,10 @@
+---
+type: tunable-catalog
+title: Tunables — Catalog
+description: Catalog of consensus-layer configurable parameters (TUN-NNN) organised by config record, with key, type, default, effect, range, and fragility columns.
+last_reviewed: TBD
+---
+
 # Tunables — Catalog
 
 Catalog of consensus-layer configurable parameters, referenced from other KB
