@@ -7,6 +7,10 @@ plugins {
 
 description = "Hedera Application - Implementation"
 
+// Map the bucky S3 client's JPMS module name to its artifact (not in gradlex's built-in catalog).
+// The version comes from the 'com.hedera.bucky' constraint in hiero-dependency-versions.
+javaModuleDependencies { moduleNameToGA.put("com.hedera.bucky", "com.hedera.bucky:bucky-client") }
+
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
 
@@ -24,6 +28,7 @@ mainModuleInfo {
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
     requires("com.google.protobuf")
+    requires("com.hedera.bucky")
     requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.test.fixtures")
@@ -44,6 +49,7 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("jdk.httpserver")
     requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")

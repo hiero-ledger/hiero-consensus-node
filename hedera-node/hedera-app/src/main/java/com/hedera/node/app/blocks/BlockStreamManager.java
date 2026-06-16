@@ -11,8 +11,10 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -207,6 +209,17 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for the open/pending blocks to be flushed to disk
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Returns the contents files ({@code .iss.gz} for the open block, {@code .pnd.gz} for pending blocks) that the
+     * triage flush wrote to local disk after a catastrophic failure, for upload by the ISS-block-upload pipeline.
+     * Empty until a triage flush has run (and on nodes that never flushed). Safe to read after
+     * {@link #awaitFatalShutdown(Duration)} returns.
+     *
+     * @return the flushed triage block-contents files, oldest pending blocks first then the open block
+     */
+    @NonNull
+    List<Path> flushedTriageBlockFiles();
 
     /**
      * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.

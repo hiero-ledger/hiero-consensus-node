@@ -1967,6 +1967,35 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void flushedTriageBlockFilesExposesTheFlushedOpenBlockPath() {
+        // The triage flush records the path the writer wrote, so the ISS-block-upload pipeline can find it.
+        final java.nio.file.Path issPath = java.nio.file.Path.of("000000000000000000000000000000000007.iss.gz");
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(aWriter.flushIncompleteBlock()).willReturn(issPath);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // Nothing flushed yet
+        assertTrue(subject.flushedTriageBlockFiles().isEmpty());
+
+        subject.notifyFatalEvent();
+        subject.endRound(state, ROUND_NO);
+
+        // After the flush, the open block's path is exposed for upload
+        final var flushed = subject.flushedTriageBlockFiles();
+        assertEquals(1, flushed.size());
+        assertEquals(issPath, flushed.get(0));
+    }
+
+    @Test
     void startRoundStopsOpeningNewBlocksAfterFatalEvent() {
         // After catastrophic failure the block stream is stopped: startRound opens no new block and writeItem is a
         // no-op (does not NPE on the released worker).

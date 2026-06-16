@@ -38,6 +38,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
@@ -113,10 +114,14 @@ public final class NoOpDependencies {
         public void closeCompleteBlock() {}
 
         @Override
-        public void flushPendingBlock(@NonNull PendingProof pendingProof) {}
+        public Path flushPendingBlock(@NonNull PendingProof pendingProof) {
+            return null;
+        }
 
         @Override
-        public void flushIncompleteBlock() {}
+        public Path flushIncompleteBlock() {
+            return null;
+        }
     }
 
     /** No-op StoreMetricsService - can be used with real BoundaryStateChangeListener */

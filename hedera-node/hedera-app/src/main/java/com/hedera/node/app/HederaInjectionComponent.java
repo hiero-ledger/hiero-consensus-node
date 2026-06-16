@@ -8,6 +8,8 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.cloud.uploader.IssBlockUploadCoordinator;
+import com.hedera.node.app.blocks.cloud.uploader.IssBlockUploadModule;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
@@ -94,6 +96,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
             AuthorizerInjectionModule.class,
             BlockRecordInjectionModule.class,
             BlockStreamModule.class,
+            IssBlockUploadModule.class,
             PlatformModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class
@@ -143,6 +146,8 @@ public interface HederaInjectionComponent {
     BlockBufferService blockBufferService();
 
     BlockStreamManager blockStreamManager();
+
+    IssBlockUploadCoordinator issBlockUploadCoordinator();
 
     NodeRewardManager nodeRewardManager();
 

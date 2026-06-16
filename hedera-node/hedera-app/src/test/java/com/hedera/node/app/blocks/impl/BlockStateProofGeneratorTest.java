@@ -371,13 +371,13 @@ class BlockStateProofGeneratorTest {
         }
 
         @Override
-        public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
-            // No-op
+        public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
+            return null;
         }
 
         @Override
-        public void flushIncompleteBlock() {
-            // No-op
+        public Path flushIncompleteBlock() {
+            return null;
         }
     }
 }

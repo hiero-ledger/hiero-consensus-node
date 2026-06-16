@@ -42,6 +42,7 @@ module com.hedera.node.app {
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
+    requires com.hedera.bucky;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
@@ -113,6 +114,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.state.recordcache;
     exports com.hedera.node.app.records;
     exports com.hedera.node.app.blocks;
+    exports com.hedera.node.app.blocks.cloud.uploader;
     exports com.hedera.node.app.fees;
     exports com.hedera.node.app.throttle;
     exports com.hedera.node.app.blocks.impl;

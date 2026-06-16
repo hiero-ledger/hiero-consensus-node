@@ -11,7 +11,9 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.FileSystem;
+import java.nio.file.Path;
 
 /**
  * Writes serialized block items to files and streams bidirectionally for the publishBlockStream rpc in BlockStreamService.
@@ -72,16 +74,18 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+    @Nullable
+    public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
-        this.fileBlockItemWriter.flushPendingBlock(pendingProof);
+        return this.fileBlockItemWriter.flushPendingBlock(pendingProof);
     }
 
     @Override
-    public void flushIncompleteBlock() {
+    @Nullable
+    public Path flushIncompleteBlock() {
         // The file writer persists the open block as a ".iss.gz" triage artifact. The gRPC buffer block is left as-is
         // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
-        this.fileBlockItemWriter.flushIncompleteBlock();
+        return this.fileBlockItemWriter.flushIncompleteBlock();
     }
 
     @Override

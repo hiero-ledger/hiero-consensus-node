@@ -10,6 +10,7 @@ dependencies {
 
 val besu = "25.2.2"
 val bouncycastle = "1.83"
+val bucky = "0.1.0-rc5"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
@@ -52,6 +53,7 @@ dependencies.constraints {
     api("com.google.jimfs:jimfs:1.3.1") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
+    api("com.hedera.bucky:bucky-client:$bucky") { because("com.hedera.bucky") }
     api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
         because("com.hedera.pbj.grpc.client.helidon")
     }
