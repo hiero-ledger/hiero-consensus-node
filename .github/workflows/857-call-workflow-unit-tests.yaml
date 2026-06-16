@@ -25,4 +25,5 @@ jobs:
           setup-gomplate: "true"
 
       - name: Test Templates
-        run: bash .github/workflows/support/tests/test-gomplate-templates.sh
+        run: bash ./.github/workflows/support/tests/test-gomplate-templates.sh
+
