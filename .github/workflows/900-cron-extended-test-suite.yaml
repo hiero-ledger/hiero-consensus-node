@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXCron: [CITR] Extended Test Suite"
+name: "900: [CRON] CITR Ext Test Suite"
 on:
   workflow_dispatch:
     inputs:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: CronClean Latitude Namespaces"
+name: "903: [CRON] Clean Latitude NS"
 permissions:
   contents: read
   id-token: write

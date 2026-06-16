@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXCron: Automatic Release Branching"
+name: "904: [CRON] Release Branching"
 on:
   schedule:
     - cron: "*/10 * * * *"
