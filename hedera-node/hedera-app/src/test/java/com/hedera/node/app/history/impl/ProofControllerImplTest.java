@@ -1148,7 +1148,8 @@ class ProofControllerImplTest {
 
         setField("targetMetadata", metadata);
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
-        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), metadata, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), metadata, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
         subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
 
         verify(historyLibrary, times(2))

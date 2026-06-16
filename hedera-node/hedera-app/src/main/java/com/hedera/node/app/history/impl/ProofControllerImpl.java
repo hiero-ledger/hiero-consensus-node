@@ -126,7 +126,9 @@ public class ProofControllerImpl implements ProofController {
     }
 
     private record RecursiveProofValidationKey(
-            @NonNull Bytes proofTag, @NonNull Bytes ledgerId, @NonNull Bytes metadata) {
+            @NonNull Bytes proofTag,
+            @NonNull Bytes ledgerId,
+            @NonNull Bytes metadata) {
         private RecursiveProofValidationKey {
             requireNonNull(proofTag);
             requireNonNull(ledgerId);
