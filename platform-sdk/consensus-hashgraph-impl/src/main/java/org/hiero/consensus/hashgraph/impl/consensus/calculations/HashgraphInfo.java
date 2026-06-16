@@ -737,7 +737,7 @@ public final class HashgraphInfo {
             // put in the h.parents list only parents that are non-ancient descendents of judges in the prev round
             h.parents.clear();
             for (EventInfo parent : parentsSigned) {
-                if (parent != null && parent.prevJudgeDesc) {
+                if (parent != null && parent.maxJudgeRound >= r.pendingRound - 1) {
                     h.parents.add(parent);
                 }
             }
@@ -745,7 +745,7 @@ public final class HashgraphInfo {
             selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != creator) ? null : h.parents.getFirst();
 
             // function prevJudgeDesc /---------------------------------------------------------------------------
-            // also set maxJudgeRound, which is the max round of all judges that are ancestors of x, or 1 if none.
+            // also set maxJudgeRound = the max voting round of all prev judges that are ancestors of x, or 1 if none
             maxJudgeRound = prevJudge ? (r.pendingRound - 1) : 1;
             for (EventInfo parent : h.parents) {
                 maxJudgeRound = Math.max(maxJudgeRound, parent.maxJudgeRound);
@@ -1073,10 +1073,10 @@ public final class HashgraphInfo {
 
             // function isReceived /------------------------------------------------------------------------------
             // function reachedCon /------------------------------------------------------------------------------
-            // function receivedEvents /--------------------------------------------------------------------------
+            // function receivedEvent /--------------------------------------------------------------------------
             // function isConsensus /-----------------------------------------------------------------------------
             // graphSearch finds each new event that reaches consensus (so isReceived and reachedCon are true),
-            // sets isConsensus for it, finds all its receivedEvents, and sets its receivedTim[] to be the
+            // sets isConsensus for it, finds all its receivedEvent events, and sets its receivedTim[] to be the
             // times from those received events.
             consensusEvents = new ArrayList<>(3 * numNodes);
             h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
