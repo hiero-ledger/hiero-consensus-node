@@ -63,7 +63,6 @@
 | 821-call-block-node-regression.yaml          | 821: [CALL] Block Node Regression  | zxc-block-node-regression.yaml                         | ZXC: Block Node Explorer Regression                               |
 | 822-call-verify-docker-determinism.yaml      | 822: [CALL] Verify Docker Build    | zxc-verify-docker-build-determinism.yaml               | ZXC: Verify Docker Build Determinism                              |
 | 823-call-verify-gradle-determinism.yaml      | 823: [CALL] Verify Gradle Build    | zxc-verify-gradle-build-determinism.yaml               | ZXC: Verify Gradle Build Determinism                              |
-| 824-call-set-failure-mode.yaml               | 824: [CALL] Set Failure Mode       | 810-call-set-failure-mode.yaml                         | 810: [CALL] Set Failure Mode                                      |
 | 825-call-migration-testing.yaml              | 825: [CALL] Migration Testing      | zxc-migration-testing-yaml                             | ZXC: Migration Testing                                            |
 | 830-call-merge-queue-performance-test.yaml   | 830: [CALL] CITR Exec MQ Perf Test | zxc-merge-queue-performance-test.yaml                  | ZXC: [CITR] Merge Queue Performance Test                          |
 | 831-call-single-day-performance-test.yaml    | 831: [CALL] CITR Exec SDPT         | zxc-single-day-performance-test.yaml                   | ZXC: [CITR] Single Day Performance Test                           |

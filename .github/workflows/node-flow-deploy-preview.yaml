@@ -22,10 +22,6 @@ defaults:
   run:
     shell: bash
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
   prepare-deploy-preview:
     name: Prepare for Deploy
