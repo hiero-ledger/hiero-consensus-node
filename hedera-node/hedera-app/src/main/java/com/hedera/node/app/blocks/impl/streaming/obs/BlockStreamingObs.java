@@ -70,7 +70,12 @@ public class BlockStreamingObs implements AutoCloseable {
         this(configProvider, System::nanoTime);
     }
 
-    /** Package-private for tests: allows substituting the clock that all timestamps are read from. */
+    /**
+     * Package-private for tests: allows substituting the clock that all timestamps are read from.
+     *
+     * @param configProvider provides the {@link BlockStreamConfig} that gates and tunes the feature
+     * @param nanoClock the source of monotonic nanosecond timestamps (normally {@code System::nanoTime})
+     */
     BlockStreamingObs(@NonNull final ConfigProvider configProvider, @NonNull final LongSupplier nanoClock) {
         this.configProvider = requireNonNull(configProvider);
         this.nanoClock = requireNonNull(nanoClock);
@@ -100,7 +105,11 @@ public class BlockStreamingObs implements AutoCloseable {
         scheduledExecutorService.shutdownNow();
     }
 
-    /** Called when a block is first created; opens the block stats entry. */
+    /**
+     * Called when a block is first created; opens the block stats entry.
+     *
+     * @param blockNumber the block number
+     */
     public void onBlockInit(final long blockNumber) {
         if (!isEnabled) {
             return;
@@ -109,7 +118,11 @@ public class BlockStreamingObs implements AutoCloseable {
         blockStatistics.put(blockNumber, new BlockStats(nanoClock.getAsLong()));
     }
 
-    /** Called when a block transitions to the open/buffered state */
+    /**
+     * Called when a block transitions to the open/buffered state.
+     *
+     * @param blockNumber the block number
+     */
     public void onBlockOpen(final long blockNumber) {
         if (!isEnabled) {
             return;
@@ -130,6 +143,11 @@ public class BlockStreamingObs implements AutoCloseable {
      * Called when a block item is added to the buffer. {@code sizeInBytes} is used to compute
      * per-second byte throughput and the per-item size distribution. When {@code isBlockProof} is
      * {@code true}, the block's proof-added timestamp is recorded as well.
+     *
+     * @param blockNumber the block number
+     * @param itemIndex the index of the item within the block
+     * @param sizeInBytes the serialized size of the item in bytes
+     * @param isBlockProof {@code true} if the item is the block proof
      */
     public void onBlockItemAdd(
             final long blockNumber, final int itemIndex, final int sizeInBytes, final boolean isBlockProof) {
@@ -154,6 +172,12 @@ public class BlockStreamingObs implements AutoCloseable {
     /**
      * Called when a range of block items [{@code itemIndexStart}, {@code itemIndexEnd}] have been
      * written to the gRPC stream. Records idle time (buffered-to-send) and send latency per item.
+     *
+     * @param blockNumber the block number
+     * @param itemIndexStart the index of the first item in the send range (inclusive)
+     * @param itemIndexEnd the index of the last item in the send range (inclusive)
+     * @param nanosTickStart the {@code nanoTime} when the send started
+     * @param nanosTickEnd the {@code nanoTime} when the send completed
      */
     public void onBlockItemsSend(
             final long blockNumber,
@@ -181,7 +205,13 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    /** Records when the {@code BlockEnd} message for a block was written to the gRPC stream. */
+    /**
+     * Records when the {@code BlockEnd} message for a block was written to the gRPC stream.
+     *
+     * @param blockNumber the block number
+     * @param nanosTickStart the {@code nanoTime} when the send started
+     * @param nanosTickEnd the {@code nanoTime} when the send completed
+     */
     public void onBlockEndSend(final long blockNumber, final long nanosTickStart, final long nanosTickEnd) {
         if (!isEnabled) {
             return;
@@ -193,7 +223,11 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    /** Records when a block transitioned to the closed state (all items written to the buffer). */
+    /**
+     * Records when a block transitioned to the closed state (all items written to the buffer).
+     *
+     * @param blockNumber the block number
+     */
     public void onBlockClose(final long blockNumber) {
         if (!isEnabled) {
             return;
@@ -214,6 +248,8 @@ public class BlockStreamingObs implements AutoCloseable {
      * Called when a block is acknowledged by the block node. Per-block aggregation is deliberately
      * NOT done here: it happens only on the gather thread, once the ack is older than the grace
      * period, so the ack thread can never race the gather task inside the probes.
+     *
+     * @param blockNumber the block number
      */
     public void onBlockAcknowledge(final long blockNumber) {
         if (!isEnabled) {
@@ -231,7 +267,11 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    /** Records when the block proof item was created by the consensus layer. */
+    /**
+     * Records when the block proof item was created by the consensus layer.
+     *
+     * @param blockNumber the block number
+     */
     public void onBlockProofCreate(final long blockNumber) {
         if (!isEnabled) {
             return;
@@ -243,7 +283,13 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    /** Records when the block header item was written to the gRPC stream. */
+    /**
+     * Records when the block header item was written to the gRPC stream.
+     *
+     * @param blockNumber the block number
+     * @param nanosTickStart the {@code nanoTime} when the send started
+     * @param nanosTickEnd the {@code nanoTime} when the send completed
+     */
     public void onBlockHeaderSend(final long blockNumber, final long nanosTickStart, final long nanosTickEnd) {
         if (!isEnabled) {
             return;
@@ -255,7 +301,11 @@ public class BlockStreamingObs implements AutoCloseable {
         }
     }
 
-    /** Records when the block footer item was created. */
+    /**
+     * Records when the block footer item was created.
+     *
+     * @param blockNumber the block number
+     */
     public void onBlockFooterCreate(final long blockNumber) {
         if (!isEnabled) {
             return;
@@ -337,7 +387,12 @@ public class BlockStreamingObs implements AutoCloseable {
         log.info("{}", formatReport(ThroughputSummary.of(buckets), blocksAggregation));
     }
 
-    /** Removes and returns all throughput buckets at or before the threshold second. */
+    /**
+     * Removes and returns all throughput buckets at or before the threshold second.
+     *
+     * @param thresholdSecondTick the newest second-tick (inclusive) eligible to be drained
+     * @return the drained buckets
+     */
     private List<ThroughputBucket> drainThroughputBuckets(final long thresholdSecondTick) {
         final List<ThroughputBucket> drained = new ArrayList<>();
         final Iterator<Map.Entry<Long, ThroughputBucket>> it =
@@ -353,7 +408,13 @@ public class BlockStreamingObs implements AutoCloseable {
         return drained;
     }
 
-    /** Removes terminal blocks from {@link #blockStatistics} and aggregates the acked ones. */
+    /**
+     * Removes terminal blocks from {@link #blockStatistics} and aggregates the acked ones.
+     *
+     * @param nanosTick the current {@code nanoTime}, used to detect abandoned blocks
+     * @param thresholdNanosTick blocks acked at or before this tick are eligible to aggregate
+     * @return the aggregation of the acked blocks drained this cycle
+     */
     private BlockStatsAggregation drainBlocks(final long nanosTick, final long thresholdNanosTick) {
         final BlockStatsAggregation aggregation = new BlockStatsAggregation();
         final Iterator<Map.Entry<Long, BlockStats>> it =

@@ -75,6 +75,9 @@ class BlockStats {
     /**
      * Records a newly-buffered item.
      *
+     * @param index the item's index within the block
+     * @param sizeInBytes the serialized size of the item in bytes
+     * @param bufferedTick the {@code nanoTime} when the item was buffered
      * @return {@code true} if the item was newly added (the index was not already present)
      */
     boolean recordItem(final int index, final long sizeInBytes, final long bufferedTick) {
@@ -84,6 +87,8 @@ class BlockStats {
     /**
      * Marks the item at {@code index} as sent, if it is present and not already marked.
      *
+     * @param index the item's index within the block
+     * @param ticks the send window (start/end {@code nanoTime}) to record
      * @return the item's size in bytes if this call recorded the send, or {@code -1} otherwise
      * (item not found, or already marked as sent)
      */
@@ -95,13 +100,20 @@ class BlockStats {
         return -1;
     }
 
-    /** @return {@code true} if the block was acked at or before {@code thresholdNanosTick} */
+    /**
+     * @param thresholdNanosTick the newest ack {@code nanoTime} (inclusive) considered eligible
+     * @return {@code true} if the block was acked at or before {@code thresholdNanosTick}
+     */
     boolean isAckedAtOrBefore(final long thresholdNanosTick) {
         final long acked = ackedNanosTick.get();
         return acked != -1 && acked <= thresholdNanosTick;
     }
 
-    /** @return {@code true} if the block was never acked and was inited at least {@code ageNanos} ago */
+    /**
+     * @param nowNanosTick the current {@code nanoTime}
+     * @param ageNanos the minimum age since init for the block to be considered abandoned
+     * @return {@code true} if the block was never acked and was inited at least {@code ageNanos} ago
+     */
     boolean isUnackedOlderThan(final long nowNanosTick, final long ageNanos) {
         return ackedNanosTick.get() == -1 && nowNanosTick - initNanosTick >= ageNanos;
     }

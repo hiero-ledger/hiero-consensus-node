@@ -14,7 +14,12 @@ public final class ObsUtils {
     /** 10-significant-digit precision used across all statistics computations. */
     static final MathContext MATH_CONTEXT_10 = new MathContext(10, RoundingMode.HALF_EVEN);
 
-    /** Formats a decimal for the report output: 4 decimal places, HALF_EVEN, no scientific notation. */
+    /**
+     * Formats a decimal for the report output: 4 decimal places, HALF_EVEN, no scientific notation.
+     *
+     * @param value the value to format
+     * @return the formatted plain-string representation
+     */
     static String format(final BigDecimal value) {
         return value.setScale(4, RoundingMode.HALF_EVEN).toPlainString();
     }

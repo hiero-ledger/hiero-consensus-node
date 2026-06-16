@@ -18,7 +18,13 @@ public record FixedStatistics(
         BigDecimal avg,
         BigDecimal stdDev)
         implements Statistics {
-    /** An empty result (no samples) labelled with the given unit. All numeric fields are zero. */
+
+    /**
+     * Creates an empty result (no samples) labeled with the given unit. All numeric fields are zero.
+     *
+     * @param unit the unit to label the empty result with
+     * @return an all-zero {@link FixedStatistics} with the given unit
+     */
     public static FixedStatistics nil(final ObsUnit unit) {
         return new FixedStatistics(
                 unit,

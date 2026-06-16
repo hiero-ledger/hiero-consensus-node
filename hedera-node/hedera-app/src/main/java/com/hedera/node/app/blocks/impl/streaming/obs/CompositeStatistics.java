@@ -29,10 +29,18 @@ public class CompositeStatistics implements Statistics {
     private final List<Statistics> componentStatistics = new ArrayList<>();
     private Statistics composite = null;
 
+    /**
+     * @param unit the unit of the combined statistics
+     */
     public CompositeStatistics(@NonNull final ObsUnit unit) {
         this.unit = requireNonNull(unit);
     }
 
+    /**
+     * Adds a component to the aggregate. The combined result is recomputed lazily on the next read.
+     *
+     * @param stats the component statistics to include in the aggregate
+     */
     public synchronized void add(@NonNull final Statistics stats) {
         requireNonNull(stats);
         componentStatistics.add(stats);

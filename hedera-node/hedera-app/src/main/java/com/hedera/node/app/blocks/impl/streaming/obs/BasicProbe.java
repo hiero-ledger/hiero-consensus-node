@@ -42,7 +42,11 @@ public class BasicProbe extends Probe {
         return statsRef.get();
     }
 
-    /** Seals the probe and computes the final statistics. Idempotent after the first call. */
+    /**
+     * Seals the probe and computes the final statistics. Idempotent after the first call.
+     *
+     * @return the aggregated statistics, or {@link FixedStatistics#nil(ObsUnit)} if no samples were recorded
+     */
     @Override
     public @NonNull Statistics aggregate() {
         final Statistics existing = statsRef.get();
@@ -71,7 +75,11 @@ public class BasicProbe extends Probe {
         return statsRef.get();
     }
 
-    /** Lock-free and allocation-free; each accumulator is updated independently. */
+    /**
+     * Lock-free and allocation-free; each accumulator is updated independently.
+     *
+     * @param value the value to record
+     */
     @Override
     protected void doAdd(final long value) {
         count.increment();

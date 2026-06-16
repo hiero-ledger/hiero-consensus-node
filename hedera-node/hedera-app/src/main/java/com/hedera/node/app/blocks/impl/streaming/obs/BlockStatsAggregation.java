@@ -89,7 +89,9 @@ class BlockStatsAggregation {
         return blocksAggregated == 0 && blocksAbandoned == 0;
     }
 
-    /** The per-block probes, in the order they appear in the {@code BlockDetails} report section. */
+    /**
+     * @return the per-block probes, in the order they appear in the {@code BlockDetails} report section
+     */
     List<StatisticsProbe> blockProbes() {
         return List.of(
                 initToOpen,

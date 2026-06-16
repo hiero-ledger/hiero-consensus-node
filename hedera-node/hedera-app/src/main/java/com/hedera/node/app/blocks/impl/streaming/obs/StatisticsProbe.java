@@ -92,7 +92,11 @@ public class StatisticsProbe extends Probe {
         return statistics;
     }
 
-    /** Thread-safe via {@link ConcurrentLinkedQueue}. */
+    /**
+     * Thread-safe via {@link ConcurrentLinkedQueue}.
+     *
+     * @param value the value to record
+     */
     @Override
     protected void doAdd(final long value) {
         values.add(value);
