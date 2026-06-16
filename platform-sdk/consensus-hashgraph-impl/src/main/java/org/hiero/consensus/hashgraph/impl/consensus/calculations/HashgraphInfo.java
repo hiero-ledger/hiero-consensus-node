@@ -310,7 +310,7 @@ public final class HashgraphInfo {
         private int creator; // index into the nodes array of this event's creator
         private final long birthRound;
         private boolean[] ancestorJudge;
-        private boolean prevJudgeDesc;
+//        private boolean prevJudgeDesc;
         private long gen; // also called dGen
         private EventInfo[] lastSee;
         private EventInfo[] stronglySeeP;
@@ -487,10 +487,10 @@ public final class HashgraphInfo {
             return coin;
         }
 
-        public boolean isPrevJudgeDesc() {
-            return prevJudgeDesc;
-        }
-
+//        public boolean isPrevJudgeDesc() {
+//            return prevJudgeDesc;
+//        }
+//
         public int[] getVoteIndex() {
             return voteIndex;
         }
@@ -750,7 +750,7 @@ public final class HashgraphInfo {
             for (EventInfo parent : h.parents) {
                 maxJudgeRound = Math.max(maxJudgeRound, parent.maxJudgeRound);
             }
-            prevJudgeDesc = (maxJudgeRound >= r.pendingRound - 1); // use alg in paper comments, not equations
+//            prevJudgeDesc = (maxJudgeRound >= r.pendingRound - 1); // use alg in paper comments, not equations
 
             // function ancestorJudge  /--------------------------------------------------------------------------
             // (for each y that is the index of the judge in prevJudge(r))
