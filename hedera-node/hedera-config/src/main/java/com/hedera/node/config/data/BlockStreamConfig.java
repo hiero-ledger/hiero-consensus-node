@@ -72,7 +72,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NodeProperty
         boolean enhancedObservabilityEnabled) {
 
     /**
