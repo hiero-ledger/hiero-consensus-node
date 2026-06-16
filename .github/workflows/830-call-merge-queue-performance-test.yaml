@@ -105,7 +105,7 @@ jobs:
   acquire-kubernetes-resources:
     # TODO: This will use the chewie-action as chewie develops.
     name: Acquire Kubernetes Resources
-    uses: ./.github/workflows/801-read-chewie-response.yaml
+    uses: ./.github/workflows/834-call-read-chewie-response.yaml
     with:
       ref: ${{ inputs.ref }}
       test-asset: ${{ inputs.test-asset }}
