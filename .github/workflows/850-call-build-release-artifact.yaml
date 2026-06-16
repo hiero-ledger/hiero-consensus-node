@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: [Node] Deploy Release Artifacts"
+name: "850: [CALL] Build Release Art"
 on:
   workflow_call:
     inputs:

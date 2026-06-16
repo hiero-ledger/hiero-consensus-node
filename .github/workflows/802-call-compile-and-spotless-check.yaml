@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "802: [CALL] Compile And Spotless"
 on:
   workflow_call:
     inputs:
@@ -35,7 +35,7 @@ on:
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.execute-hammer-tests.outputs.failure-mode }}
+        value: ${{ jobs.compile-and-spotless-check.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,9 +56,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  execute-hammer-tests:
-    name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+  compile-and-spotless-check:
+    name: "Compile and Spotless Check"
+    runs-on: hl-cn-compile-app-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -68,8 +68,8 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -79,56 +79,21 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
+      - name: Compile Application Code
+        id: compile-source
+        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
 
-      - name: Publish Hammer Test Report
-        id: publish-test-report
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
-        with:
-          check_name: "Node: Hammer Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Hammer Test Report Artifacts
-        id: upload-test-report-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
-          retention-days: 7
+      - name: Spotless Check
+        id: spotless-check
+        if: ${{ steps.compile-source.outcome == 'success' }}
+        run: ${GRADLE_EXEC} spotlessCheck
 
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          workflow_statuses=(
-            "${{ steps.prepare-runner.outcome || 'skipped' }}"
-            "${{ steps.publish-test-report.outcome || 'skipped' }}"
-            "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
-          )
-          test_statuses=(
-            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
-          )
-
-          failure_mode="none"
-
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${test_statuses[@]}"; then
-            failure_mode="test"
-          fi
-
-          if has_failure "${workflow_statuses[@]}"; then
-            failure_mode="workflow"
-          fi
-
-          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+        env:
+          INPUT_TEST_OUTCOMES: >-
+            ${{ steps.compile-source.outcome }}
+            ${{ steps.spotless-check.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "804: [CALL] Exec Integration Tests"
 on:
   workflow_call:
     inputs:
@@ -22,6 +22,11 @@ on:
         type: string
         required: false
         default: "20"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: string
+        required: false
+        default: "false"
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -35,7 +40,7 @@ on:
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.execute-hammer-tests.outputs.failure-mode }}
+        value: ${{ jobs.execute-integration-tests.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,9 +61,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  execute-hammer-tests:
-    name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+  execute-integration-tests:
+    name: "Integration Tests"
+    runs-on: hl-cn-integration-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -69,7 +74,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
-          checkout-token: ${{ secrets.access-token }}
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -79,25 +84,43 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
+      - name: Integration Tests
+        id: gradle-integration-tests
+        run: ${GRADLE_EXEC} testIntegration
 
-      - name: Publish Hammer Test Report
+      - name: Publish Integration Test Report
         id: publish-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: Hammer Test Results"
+          check_name: "Node: Integration Test Results"
           json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
+          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload Hammer Test Report Artifacts
+      - name: Upload Integration Test Report Artifacts
         id: upload-test-report-artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
+          name: Integration Test Report
+          path: "**/build/test-results/testIntegration/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Turtle Logs
+        id: upload-otter-turtle-integration-logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
+        with:
+          name: Otter Integration Tests Turtle Logs
+          path: platform-sdk/consensus-otter-tests/build/turtle
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Container Logs
+        id: upload-otter-container-integration-logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
+        with:
+          name: Otter Integration Tests Container Logs
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: Set Failure Mode Output
@@ -108,9 +131,11 @@ jobs:
             "${{ steps.prepare-runner.outcome || 'skipped' }}"
             "${{ steps.publish-test-report.outcome || 'skipped' }}"
             "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
+            "${{ steps.upload-otter-turtle-integration-logs.outcome || 'skipped' }}"
+            "${{ steps.upload-otter-container-integration-logs.outcome || 'skipped' }}"
           )
           test_statuses=(
-            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.gradle-integration-tests.outcome || 'skipped' }}"
           )
 
           failure_mode="none"

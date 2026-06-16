@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Execute Hammer Tests"
+name: "801: [CALL] Snyk Scan"
 on:
   workflow_call:
     inputs:
@@ -32,10 +32,13 @@ on:
       gradle-cache-password:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
+      snyk-token:
+        description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities "
+        required: false
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.execute-hammer-tests.outputs.failure-mode }}
+        value: ${{ jobs.snyk-checks.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,9 +59,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  execute-hammer-tests:
-    name: "Hammer Tests"
-    runs-on: hl-cn-hammer-lin
+  snyk-checks:
+    name: "Snyk Checks"
+    runs-on: hl-cn-snyk-check-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -68,8 +71,8 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -79,26 +82,61 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
+      - name: Setup Snyk
+        id: setup-snyk
+        if: ${{ github.event.repository.private == false }}
+        run: ${CG_EXEC} npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
 
-      - name: Publish Hammer Test Report
-        id: publish-test-report
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
-        with:
-          check_name: "Node: Hammer Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+      - name: Snyk Version
+        id: snyk-version
+        if: ${{ github.event.repository.private == false }}
+        run: snyk --version
 
-      - name: Upload Hammer Test Report Artifacts
-        id: upload-test-report-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
-          retention-days: 7
+      - name: Snyk Scan
+        id: snyk-scan
+        if: ${{ github.event.repository.private == false }}
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+        run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
+
+      - name: Snyk Code
+        id: snyk-code
+        if: ${{ github.event.repository.private == false }}
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+        run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json --org=hiero-consensus-node
+
+      - name: Publish Snyk Results
+        id: publish-snyk-report
+        if: ${{ github.event.repository.private == false }}
+        run: |
+          if [[ -f "snyk-test.json" && -n "$(cat snyk-test.json | tr -d '[:space:]')" ]]; then
+            snyk-to-html -i snyk-test.json -o snyk-test.html --summary
+            html-to-markdown snyk-test.html -o snyk
+            cat snyk/snyk-test.html.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ -f "snyk-code.json" && -n "$(cat snyk-code.json | tr -d '[:space:]')" ]]; then
+            snyk-to-html -i snyk-code.json -o snyk-code.html --summary
+            html-to-markdown snyk-code.html -o snyk
+            cat snyk/snyk-code.html.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check Snyk Files
+        id: check-snyk-files
+        if: ${{ github.event.repository.private == false && always() }}
+        run: |
+          echo "::group::Snyk File List"
+            ls -lah snyk* || true
+          echo "::endgroup::"
+
+          echo "::group::Snyk Test Contents"
+            cat snyk-test.json || true
+          echo "::endgroup::"
+
+          echo "::group::Snyk Code Contents"
+            cat snyk-code.json || true
+          echo "::endgroup::"
 
       - name: Set Failure Mode Output
         id: set-failure-mode
@@ -106,11 +144,13 @@ jobs:
         run: |
           workflow_statuses=(
             "${{ steps.prepare-runner.outcome || 'skipped' }}"
-            "${{ steps.publish-test-report.outcome || 'skipped' }}"
-            "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
+            "${{ steps.setup-snyk.outcome || 'skipped' }}"
+            "${{ steps.publish-snyk-report.outcome || 'skipped' }}"
+            "${{ steps.check-snyk-files.outcome || 'skipped' }}"
           )
           test_statuses=(
-            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.snyk-scan.outcome || 'skipped' }}"
+            "${{ steps.snyk-code.outcome || 'skipped' }}"
           )
 
           failure_mode="none"

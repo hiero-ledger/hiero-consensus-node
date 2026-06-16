@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Publish Production Image"
+name: "852: [CALL] Publish Prod Image"
 on:
   workflow_call:
     inputs:

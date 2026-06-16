@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Snyk Scan"
+name: "Deprecated: ZXC: Snyk Scan"
 on:
   workflow_call:
     inputs:

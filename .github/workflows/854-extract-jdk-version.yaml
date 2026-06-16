@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 802: [CALL] Extract JDK Version"
+name: "854: [CALL] Extract JDK Version"
 
 on:
   workflow_call:

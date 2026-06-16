@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Verify Docker Build Determinism"
+name: "822: [CALL] Verify Docker Build"
 on:
   workflow_call:
     inputs:

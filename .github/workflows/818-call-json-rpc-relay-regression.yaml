@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: TCK Regression"
+name: "818: [CALL] JSON-RPC Relay Reg"
 on:
   workflow_call:
     inputs:
@@ -15,30 +15,26 @@ on:
         description: "The version of solo to install (if not specified, latest will be used):"
         required: false
         type: string
-      java-version:
-        description: "Java JDK Version:"
-        type: string
-        required: false
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
         required: false
         default: "temurin"
-
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
         required: true
-      slack-tck-report-webhook:
-        description: "Slack Webhook URL for TCK Group Monitoring."
-        required: true
       slack-detailed-report-webhook:
-        description: "Slack Webhook URL for TCK Monitoring."
+        description: "Slack Webhook URL for detailed test report."
         required: true
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.tck-regression.outputs.failure-mode }}
+        value: ${{ jobs.json-rpc-relay-regression.outputs.failure-mode }}
 
 defaults:
   run:
@@ -52,18 +48,18 @@ permissions:
   id-token: write
 
 env:
-  SOLO_CLUSTER_NAME: "solo-tck-e2e"
-  SOLO_NAMESPACE: "solo-tck-e2e"
-  SOLO_DEPLOYMENT: "solo-tck-deployment"
+  SOLO_CLUSTER_NAME: "solo-rpc-relay-e2e"
+  SOLO_NAMESPACE: "solo-rpc-relay-e2e"
+  SOLO_DEPLOYMENT: "solo-rpc-relay-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
-  RUN_LOG_NAME: "run.tck-regression.log"
+  RUN_LOG_NAME: "run.json-rpc-relay-regression.log"
 
 jobs:
-  # Execute TCK Regression Tests using specified version of hiero-consensus-node
-  tck-regression:
+  # Execute JSON-RPC Relay Regression Tests using specified version of hiero-consensus-node
+  json-rpc-relay-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-sdk-tck-lin-lg
+    runs-on: hl-cn-rpc-relay-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -76,125 +72,100 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-java: "true"
-          java-version: "${{ inputs.java-version }}"
-
-          java-distribution: "${{ inputs.java-distribution }}"
-
+          java-distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "20.18.0"
+          node-version: "22"
 
-      #  Checkout the sdk-tck repository and the TCK SDK Client
-      - name: Checkout Regression Code
+      #  Checkout the json-rpc-relay repository
+      - name: Checkout JSON-RPC Relay
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          path: platform-sdk/regression
-          repository: hiero-ledger/hiero-sdk-tck
+          path: regression-tests/json-rpc-relay
+          repository: hiero-ledger/hiero-json-rpc-relay
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Checkout Latest Tag (TCK)
-        run: |
-          cd platform-sdk/regression
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
-
-      # Checkout the JS-SDK server
-      - name: Checkout JS-SDK Server
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: platform-sdk/sdk-server
-          repository: hiero-ledger/hiero-sdk-js
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Checkout Latest Tag (JS-SDK)
-        run: |
-          cd platform-sdk/sdk-server
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
-
-      - name: Setup PNPM
-        run: |
-          npm install -g pnpm
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
 
-      # Set up the npm dependencies and cache on the tck-client
-      - name: Set up the tck-client
-        run: |
-          npm cache clean --force
-          npm install
-        working-directory: platform-sdk/regression
+      # Set up the npm dependencies and cache on the json-rpc-relay repository
+      - name: Install NodeJS Dependencies (json-rpc-relay)
+        run: npm ci
+        working-directory: regression-tests/json-rpc-relay
 
-      # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS Dependencies (sdk-server)
-        id: start-sdk-server
-        run: |
-          # Extract package versions from the parent package.json
-          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
-          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../packages/proto/package.json').version)")
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
+        run: npm install -g @hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}
 
-          echo "Using SDK version: ${SDK_VERSION}"
-          echo "Using long version: ${LONG_VERSION}"
-          echo "Using proto version: ${PROTO_VERSION}"
-
-          # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
-          pnpm install
-          nohup pnpm start &
-          server_pid=$!
-          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
-        working-directory: platform-sdk/sdk-server/tck
-
-      # Prepare Hiero Solo
-      - name: Prepare Hiero Solo
-        id: solo-action
-        timeout-minutes: 20
-        uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
-          installMirrorNode: true
-          mirrorNodeVersion: v0.138.0
-          soloVersion: ${{ inputs.solo-version || 'latest' }}
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
 
-      # Start the TCK client
-      - name: Start tck-client
-        id: run-tck-tests
-        env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
-          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
-          NODE_IP: "127.0.0.1:50211"
-          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
-          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
-          NODE_TIMEOUT: "30000"
-          MIRROR_NETWORK: "127.0.0.1:5600"
-          NODE_ACCOUNT_ID: "0.0.3"
+      # Set up solo
+      - name: Configure and run solo
         run: |
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          # initialize solo
+          solo init
+
+          # check solo version
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            echo "::debug::Solo version ($version) is >= 0.44.0"
+            solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+            solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+            solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
+            solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror node add  --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            echo "::debug::Solo version ($version) is < 0.44.0"
+            solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+            solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+            solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+            solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo node start --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
           fi
-          cp .env.custom_node .env
-          npm run test
-        working-directory: platform-sdk/regression # required
 
-      - name: SDK TCK Regression Test Report
+      # Perform JSON-RPC Relay regression tests
+      - name: Start json-rpc-relay-test-client
+        id: run-rpc-relay-tests
+        env:
+          CHAIN_ID: "0x12a"
+          MIRROR_NODE_URL: "http://127.0.0.1:8081"
+          HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
+          OPERATOR_ID_MAIN: 0.0.2
+          OPERATOR_KEY_MAIN: 302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
+          REDIS_ENABLED: false
+          USE_ASYNC_TX_PROCESSING: false
+        run: npm run build && npm run acceptancetest:xts
+        working-directory: regression-tests/json-rpc-relay
+
+      - name: JSON-RPC Relay Regression Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: SDK TCK Regression Test Report
-          path: "**/platform-sdk/regression/mochawesome-report/mochawesome.*"
+          name: JSON-RPC Relay Regression Test Report
+          path: "**/regression-tests/platform-sdk/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
       # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
@@ -220,30 +191,29 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
-          name: SDK TCK Run Logs
+          name: JSON RPC Relay Run Logs
           path: ${{ env.RUN_LOG_NAME }}
 
-      # Stop the TCK server
-      - name: Stop tck-server
+      # Stop the solo nodes
+      - name: Stop solo
         if: ${{ always() }}
         run: |
-          echo ${{ steps.start-sdk-server.outputs.pid }}
-          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
         working-directory: ${{ github.workspace }}
         env:
-          INPUT_TEST_OUTCOMES: ${{ steps.run-tck-tests.outcome }}
+          INPUT_TEST_OUTCOMES: ${{ steps.run-rpc-relay-tests.outcome }}
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-  report-tck-regression-status:
+  report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-sdk-tck-lin-sm
+    runs-on: hl-cn-rpc-relay-lin-sm
     needs:
-      - tck-regression
+      - json-rpc-relay-regression
     if: ${{ always() }}
     steps:
       - name: Harden Runner
@@ -270,24 +240,24 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         env:
-          HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
-          STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"
-          PANEL_LABEL: "TCK Regression Panel Result"
-          RESULT: ${{ needs.tck-regression.result }}
+          HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - JSON-RPC Relay Regression Test Report"
+          STATUS_TEXT: "*JSON-RPC Relay Regression Panel was executed. See status below.*"
+          PANEL_LABEL: "JSON-RPC Relay Regression Panel Result"
+          RESULT: ${{ needs.json-rpc-relay-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           COLOR="#FF0000"
-          if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
+          if [[ "${{ needs.json-rpc-relay-regression.result }}" == "success" ]]; then
             COLOR="#00FF00"
-          elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
+          elif [[ "${{ needs.json-rpc-relay-regression.result }}" == "cancelled" ]]; then
             COLOR="#555555"
           fi
           export SLACK_COLOR="${COLOR}"
           gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
 
-      - name: Report Status to CITR Detailed Test Results
+      - name: Report Status to Detailed Test Reports Channel
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}

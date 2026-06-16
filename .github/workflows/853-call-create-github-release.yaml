@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: ZXC: Create Github Release"
+name: "853: [CALL] Create Github Release"
 on:
   workflow_call:
     inputs:
