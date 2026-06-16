@@ -861,26 +861,24 @@ public final class HashgraphInfo {
                     for (int y = 0; y < rp.prevJudges.length; y++) {
                         b = b && (this != rp.prevJudges[y]) && ancestorJudge[y];
                     }
-                    if (r.pendingRound == p + 1) {
-                        votingRound = b ? p + 1 : p;
-                    } else if ((r.pendingRound == p) && r.firstVotingRoundSee && (h.voteD == 1)) { // if q
-                        long stakeSum = 0;
-                        for (int m = 0; m < r.nodes.length; m++) {
-                            stakeSum += (((creator == m) && (selfParent != null) && (selfParent.votingRound == p))
-                                            || ((creator != m)
-                                                    && (lastSee[m] != null)
-                                                    && (lastSee[m].votingRound == p)))
-                                    ? r.stake[m]
-                                    : 0;
-                        }
-                        votingRound = (stakeSum >= h.supermajorityThreshold) ? p + 1 : p;
-                    } else { // not q
-                        long s = 0;
-                        for (int m = 0; m < r.nodes.length; m++) {
-                            s += (stronglySeeP[m] != null) ? r.stake[m] : 0;
-                        }
-                        votingRound = (s >= h.supermajorityThreshold) ? p + 1 : p;
+                    votingRound = b ? p + 1 : p;
+                } else if ((r.pendingRound == p) && r.firstVotingRoundSee && (h.voteD == 1)) { // if q
+                    long stakeSum = 0;
+                    for (int m = 0; m < r.nodes.length; m++) {
+                        stakeSum += (((creator == m) && (selfParent != null) && (selfParent.votingRound == p))
+                                || ((creator != m)
+                                && (lastSee[m] != null)
+                                && (lastSee[m].votingRound == p)))
+                                ? r.stake[m]
+                                : 0;
                     }
+                    votingRound = (stakeSum >= h.supermajorityThreshold) ? p + 1 : p;
+                } else { // not q
+                    long s = 0;
+                    for (int m = 0; m < r.nodes.length; m++) {
+                        s += (stronglySeeP[m] != null) ? r.stake[m] : 0;
+                    }
+                    votingRound = (s >= h.supermajorityThreshold) ? p + 1 : p;
                 }
             }
 
