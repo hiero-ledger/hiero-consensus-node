@@ -10,6 +10,7 @@
           "milliOpsPerSec": 10500000,
           "operations": [
             "ScheduleCreate",
+            "CryptoCreate",
             "CryptoTransfer",
             "TokenAirdrop",
             "CryptoUpdate",
@@ -193,20 +194,6 @@
           "milliOpsPerSec": 1000000000,
           "operations": [
             "TransactionGetReceipt"
-          ]
-        }
-      ]
-    },
-    {
-      "burstPeriod": 0,
-      "burstPeriodMs": 1000,
-      "name": "BalanceQueryLimits",
-      "throttleGroups": [
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 0,
-          "operations": [
-            "CryptoGetAccountBalance"
           ]
         }
       ]
