@@ -24,6 +24,8 @@ defaults:
 
 permissions:
   statuses: write
+  contents: read
+  pull-requests: read
 
 jobs:
   title-check:
