@@ -611,7 +611,6 @@ public final class HashgraphInfo {
 
             // If this is the first time update has ever been called on this hashgraph.
             if (h.pendingRound == 0) {
-                h.pendingRound = r.pendingRound;
                 h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
             }
 
@@ -628,6 +627,7 @@ public final class HashgraphInfo {
                     h.candStake = new long[2 * h.numNodes];
                     for (int i = 0; i < h.numNodes; i++) {
                         ArrayList<Integer> list = new ArrayList<>(2);
+                        h.candIndex.add(list);
                     }
                 }
 
