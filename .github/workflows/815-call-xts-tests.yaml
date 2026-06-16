@@ -361,7 +361,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-mirror-node-regression-panel == 'true' }}
-    uses: ./.github/workflows/820-call-mirror-node-regression.yaml.yaml
+    uses: ./.github/workflows/820-call-mirror-node-regression.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
@@ -379,7 +379,7 @@ jobs:
       - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-rpc-relay-regression-panel == 'true' }}
-    uses: ./.github/workflows/818-call-json-rpc-relay-regression.yaml.yaml
+    uses: ./.github/workflows/818-call-json-rpc-relay-regression.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"

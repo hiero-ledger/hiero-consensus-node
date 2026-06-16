@@ -25,7 +25,7 @@ permissions:
 jobs:
   extract-jdk-version:
     name: Extract Java Version
-    uses: ./.github/workflows/854-extract-jdk-version.yaml
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
     secrets:
@@ -33,7 +33,7 @@ jobs:
 
   extract-citr-vars:
     name: Extract CITR Vars
-    uses: ./.github/workflows/855-extract-citr-vars.yaml
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
       ref: ${{ github.ref }}
     secrets:

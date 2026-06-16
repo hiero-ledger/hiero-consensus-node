@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 855: [CALL] Extract CITR Vars"
+name: "855: [CALL] Extract CITR Vars"
 
 on:
   workflow_call:

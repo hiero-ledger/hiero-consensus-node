@@ -29,7 +29,7 @@ permissions:
 jobs:
   extract-jdk-version:
     name: Extract Java Version
-    uses: ./.github/workflows/854-extract-jdk-version.yaml
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
       ref: ${{ inputs.ref || github.sha }}
     secrets:
@@ -61,7 +61,7 @@ jobs:
     needs:
       - commit-info
       - extract-jdk-version
-    uses: ./.github/workflows/823-call-verify-gradle-build-determinism.yaml
+    uses: ./.github/workflows/823-call-verify-gradle-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -75,7 +75,7 @@ jobs:
     needs:
       - commit-info
       - extract-jdk-version
-    uses: ./.github/workflows/822-call-verify-docker-build-determinism.yaml
+    uses: ./.github/workflows/822-call-verify-docker-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}

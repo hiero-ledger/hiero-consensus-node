@@ -74,8 +74,8 @@
 | 851-call-deploy-preview.yaml                 | 851: [CALL] Deploy Preview         | node-zxc-deploy-preview.yaml                           | ZXC: [Node] Deploy Preview Network Release                        |
 | 852-call-publish-production-image.yaml       | 852: [CALL] Publish Prod Image     | zxc-publish-production-image.yaml                      | ZXC: Publish Production Image                                     |
 | 853-call-create-github-release.yaml          | 853: [CALL] Create Github Release  | zxc-create-github-release.yaml                         | ZXC: Create Github Release                                        |
-| 854-extract-jdk-version.yaml                 | 854: [CALL] Extract JDK Version    | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   |
-| 855-extract-citr-vars.yaml                   | 855: [CALL] Extract CITR Vars      | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     |
+| 854-call-extract-jdk-version.yaml            | 854: [CALL] Extract JDK Version    | 802-extract-jdk-version.yaml                           | 802: [CALL] Extract JDK Version                                   |
+| 855-call-extract-citr-vars.yaml              | 855: [CALL] Extract CITR Vars      | 855-extract-citr-vars.yaml                             | 855: [CALL] Extract CITR Vars                                     |
 | 857-call-solo-ge044.yaml                     | 857: [CALL] Compute solo-ge-0440   | 857-call-solo-ge044.yaml                               | 857: [CALL] Compute solo-ge-0440 Gate                             |
 |                                              |                                    |                                                        |                                                                   |
 | # CRON (900-999)                             |                                    |                                                        |                                                                   |
