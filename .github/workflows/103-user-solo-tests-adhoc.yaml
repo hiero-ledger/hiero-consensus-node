@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "103: [USER] Adhoc Solo Tests"
+name: "103: [USER] Solo Tests Adhoc"
 
 on:
   workflow_dispatch:
@@ -85,7 +85,7 @@ env:
 jobs:
   extract-jdk-version:
     name: Extract Java Version
-    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    uses: ./.github/workflows/854-extract-jdk-version.yaml
     with:
       ref: ${{ github.ref }}
     secrets:

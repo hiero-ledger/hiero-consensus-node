@@ -149,7 +149,7 @@ jobs:
 
   extract-jdk-version:
     name: Extract Java Version
-    uses: ./.github/workflows/802-extract-jdk-version.yaml
+    uses: ./.github/workflows/854-extract-jdk-version.yaml
     with:
       ref: ${{ inputs.ref }}
     secrets:
