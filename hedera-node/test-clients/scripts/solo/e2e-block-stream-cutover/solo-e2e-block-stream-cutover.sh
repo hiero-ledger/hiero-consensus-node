@@ -75,12 +75,14 @@ Environment:
                             --local-build-path), but the binary always comes from the local build.
                             Solo accepts reusing the same label across local-build upgrades.
                             (default: v0.75.0-rc.6)
-  UPGRADE_076_VERSION        Solo upgrade-version label for the local-build 0.76 step
-                            (default: v0.75.0-rc.6)
-  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step
-                            (default: v0.75.0-rc.6)
+  UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
+                            release image (no --local-build-path), so the 0.76 step exercises the
+                            tag's own default config. (default: v0.76.0-rc.1)
+  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
+                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
+                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
-  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 local-build upgrade (default: 900)
+  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
   KEEP_PORT_FORWARD_WATCHDOG true|false; keep CN/mirror/grafana forwards healthy post-run (default: true)
   EXPLORER_INGRESS_LOCAL_PORT Local port for explorer UI tunnel (default: 38080)
@@ -155,8 +157,11 @@ APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/applicati
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
 UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.6}"
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.6}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
+# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
+# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
+# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
+UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -1595,6 +1600,29 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
+# Verifies each consensus node runs a release whose Implementation-Version contains the expected
+# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# rather than the local build, so the local-build version check does not apply.
+verify_release_version_on_consensus_nodes() {
+  local expected_substr="$1"
+  local node pod pod_version
+  local nodes=()
+
+  echo "Verifying release version on each consensus node (expected to contain '${expected_substr}')"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${pod_version}" == *"${expected_substr}"* ]]; then
+      echo "  ${pod}: ${pod_version} OK"
+    else
+      echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
+      return 1
+    fi
+  done
+}
+
 run_command_with_timeout() {
   local timeout_secs="$1"
   shift
@@ -1844,7 +1872,6 @@ run_076_upgrade() {
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --upgrade-version "${UPGRADE_076_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_076_FILE}"
     --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
@@ -1855,16 +1882,16 @@ run_076_upgrade() {
   # the JAR cp and restarts them after, so the previous JAR-staging race that
   # forced the stuck-pod recovery dance is gone. We let any non-zero Solo exit
   # (timeout, deploy validation, ACTIVE check failure) propagate via set -e.
-  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (local build, 0.76 properties)" \
+  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (release image, 0.76 properties)" \
     run_command_with_timeout "${SOLO_076_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
-  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
+  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify 0.76 release version ---"
   # Solo's `consensus network upgrade` rolls haproxy via its chart upgrade but
   # doesn't wait for the rollout — explicitly wait here so the next port-forward
   # step finds populated endpoints.
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_local_build_on_consensus_nodes
+  verify_release_version_on_consensus_nodes "0.76"
 
   # The TSS ceremony (proof key publication → CRS contribution → adoption →
   # proof construction) stalls without new rounds, and rounds don't advance
@@ -3804,7 +3831,7 @@ fi
 
 # FUTURE enable when TSS support is ready and tested
 if should_run_step 10; then
-  print_banner "Step 10/12: Upgrade local build with 0.76 properties as ${UPGRADE_076_VERSION}"
+  print_banner "Step 10/12: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade

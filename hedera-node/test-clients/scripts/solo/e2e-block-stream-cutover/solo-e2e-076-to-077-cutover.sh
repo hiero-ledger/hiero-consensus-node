@@ -8,21 +8,18 @@
 # cutover. This script skips all of that and goes straight to the transition we
 # care about.
 #
-# There is no published 0.76 release tag, and Solo's `consensus network deploy`
-# does NOT accept --local-build-path (only the upgrade command does). So we
-# cannot start directly at 0.76. Instead we establish the 0.76 baseline the
-# same way step 10 does, then perform the focused 0.77 cutover:
+# We deploy the network directly at the published 0.76 release tag (genesis: TSS + WRAPS,
+# mock signatures) — now that a 0.76 tag exists there's no need to deploy 0.75 first and
+# upgrade into 0.76 — then perform the focused 0.77 cutover:
 #
-#   1. Deploy a baseline CN network at the published v0.75.0-rc.1 release tag
-#      with resources/0.75/application.properties.
-#   2. Upgrade in place to the local build with resources/0.76/application.properties
-#      + application.env, enabling TSS with tss.forceMockSignatures=true (the
-#      0.76 "dual-write, mock signatures" state). WRAPS env is pre-injected so
-#      all nodes initialize the WRAPS library in lockstep.
-#   3. Upgrade in place to the local build with resources/0.77/application.properties
+#   1. Deploy a CN network at the published v0.76.0-rc.1 release tag with
+#      resources/0.76/application.properties, enabling TSS with tss.forceMockSignatures=true
+#      (the 0.76 "dual-write, mock signatures" state). The WRAPS env is injected before the
+#      JVMs start so all nodes initialize the WRAPS library in lockstep at genesis.
+#   2. Upgrade in place to the local build with resources/0.77/application.properties
 #      — BLOCKS-only (streamMode=BLOCKS, writerMode=GRPC), real TSS signatures
 #      (tss.forceMockSignatures=false), state proofs on. WRAPS env + on-disk
-#      artifacts carry forward from step 2 (no re-injection, matching the main
+#      artifacts carry forward from step 1 (no re-injection, matching the main
 #      script's run_077_upgrade).
 #
 # Verifications after the 0.77 cutover:
@@ -53,17 +50,16 @@ SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
-# Initial deploy pulls a real published binary at this release tag.
-# Solo's `consensus network deploy` does not accept --local-build-path.
-# v0.75.0-rc.6 matches the baseline the full cutover script (step 6) deploys.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.6}"
+# We deploy the network directly at the published 0.76 release tag (genesis at 0.76 with TSS +
+# WRAPS, mock signatures), then upgrade to the local 0.77 build for the focused cutover test.
+# Now that a 0.76 release tag exists, there's no need to deploy 0.75 first and upgrade into 0.76.
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.76.0-rc.1}"
 
-# Both upgrades use the local build. The --upgrade-version label must point at a
-# published Solo tag (Solo resolves it before applying --local-build-path), but
-# the actual binary always comes from LOCAL_BUILD_PATH. Solo accepts re-using
-# the same label across upgrades when --local-build-path is supplied, so we
-# reuse v0.75.0-rc.6 for both the 0.76 and 0.77 upgrades.
-UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-v0.75.0-rc.6}"
+# The 0.77 upgrade uses the local build. Its --upgrade-version label must point at a published Solo
+# tag (Solo resolves it before applying --local-build-path) and must be >= the network's current
+# version (the deployed ${DEPLOY_RELEASE_TAG}) or Solo rejects it as a downgrade. Default to the
+# deploy tag so it tracks automatically if that tag is bumped.
+UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-${DEPLOY_RELEASE_TAG}}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
@@ -78,7 +74,6 @@ WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # 4 nodes (4 x 3 = 12), avoiding oversubscription. Set empty (or 0) to use all cores.
 WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-3}"
 
-APP_PROPS_075_FILE="${APP_PROPS_075_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 APP_PROPS_076_FILE="${APP_PROPS_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.properties}"
 APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.env}"
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
@@ -352,6 +347,29 @@ verify_local_build_on_consensus_nodes() {
       echo "  ${pod}: ${pod_version} OK"
     else
       echo "  ${pod}: expected ${local_version}, found ${pod_version:-unknown}" >&2
+      return 1
+    fi
+  done
+}
+
+# Verifies each consensus node runs a release whose Implementation-Version contains the expected
+# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# rather than the local build, so the local-build version check does not apply.
+verify_release_version_on_consensus_nodes() {
+  local expected_substr="$1"
+  local node pod pod_version
+  local nodes=()
+
+  log "Verifying release version on each consensus node (expected to contain '${expected_substr}')"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${pod_version}" == *"${expected_substr}"* ]]; then
+      echo "  ${pod}: ${pod_version} OK"
+    else
+      echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
       return 1
     fi
   done
@@ -1260,8 +1278,14 @@ setup_cluster_prereqs() {
     --quiet-mode
 }
 
-deploy_baseline_075() {
-  log "Deploying baseline consensus network at released ${DEPLOY_RELEASE_TAG} with 0.75 properties"
+# Deploy the network directly at the 0.76 release tag (genesis: TSS + WRAPS enabled, mock
+# signatures). Now that a published 0.76 tag exists we no longer deploy 0.75 first and upgrade
+# into 0.76 — this is the prerequisite state the 0.77 cutover upgrades from.
+deploy_076() {
+  log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures)"
+
+  # verify_wraps reads the expected on-disk artifact count from this host-side cache.
+  ensure_wraps_artifacts_downloaded
 
   solo keys consensus generate \
     --gossip-keys \
@@ -1272,7 +1296,7 @@ deploy_baseline_075() {
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
-    --application-properties "${APP_PROPS_075_FILE}" \
+    --application-properties "${APP_PROPS_076_FILE}" \
     --log4j2-xml "${LOG4J2_XML_PATH}" \
     --pvcs true \
     --release-tag "${DEPLOY_RELEASE_TAG}"
@@ -1282,6 +1306,12 @@ deploy_baseline_075() {
     --node-aliases "${NODE_ALIASES}" \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
+  # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet BEFORE starting the JVMs so every node
+  # boots with the same artifacts path. consensus network deploy does not accept --application-env,
+  # so the env is set here via kubectl. All nodes come up together via the single
+  # `consensus node start` below, so the genesis WRAPS ceremony runs in lockstep.
+  inject_wraps_env_into_statefulsets
+
   solo consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
@@ -1289,39 +1319,17 @@ deploy_baseline_075() {
 
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
+  verify_release_version_on_consensus_nodes "0.76"
 }
 
-# Establish the 0.76 TSS+WRAPS baseline (mock signatures) — equivalent to
-# step 10 of the main cutover script. This is the prerequisite state the 0.77
-# cutover upgrades from; we cannot deploy 0.76 directly.
-establish_076_baseline() {
-  log "=== Establishing 0.76 baseline: upgrade to local build with 0.76 properties (TSS, mock signatures) ==="
-
-  ensure_wraps_artifacts_downloaded
-  inject_wraps_env_into_statefulsets
-
-  local upgrade_cmd=(
-    solo consensus network upgrade
-    --deployment "${SOLO_DEPLOYMENT}"
-    --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION_LABEL}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
-    --application-properties "${APP_PROPS_076_FILE}"
-    --application-env "${APP_ENV_076_FILE}"
-    --quiet-mode
-    --force
-  )
-  run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
-
-  log "--- 0.76 check 1/3: wait for consensus pods + haproxy + verify local-build version ---"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  verify_local_build_on_consensus_nodes
-
-  log "--- 0.76 check 2/3: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
+# Verify the genesis 0.76 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
+# needs them), then confirm WRAPS proof construction on every node. Run after the BN is deployed so
+# the ledger id the BN later seeds from has been published.
+verify_076_wraps_baseline() {
+  log "--- 0.76 check 1/2: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
   nudge_consensus_with_transactions
 
-  log "--- 0.76 check 3/3: verify WRAPS runtime + proof construction on every consensus node ---"
+  log "--- 0.76 check 2/2: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
 }
 
@@ -1560,7 +1568,6 @@ if [[ "${ENABLE_EXPLORER}" == "true" ]]; then
   require_cmd curl
 fi
 
-[[ -f "${APP_PROPS_075_FILE}" ]] || { echo "Missing file: ${APP_PROPS_075_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_076_FILE}" ]] || { echo "Missing file: ${APP_PROPS_076_FILE}" >&2; exit 1; }
 [[ -f "${APP_ENV_076_FILE}" ]] || { echo "Missing file: ${APP_ENV_076_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_077_FILE}" ]] || { echo "Missing file: ${APP_PROPS_077_FILE}" >&2; exit 1; }
@@ -1575,27 +1582,27 @@ validate_local_build_path "${LOCAL_BUILD_PATH}" || {
 create_cluster
 configure_solo
 setup_cluster_prereqs
-deploy_baseline_075
+deploy_076
 
 if [[ "${ENABLE_EXPLORER}" == "true" ]]; then
-  # Deploy mirror node + explorer on the 0.75 baseline FIRST (before the BN) so the importer is
-  # wired to read RECORD streams from MinIO (the CN writes records in 0.75/0.76). If the BN were
-  # deployed first, Solo would auto-wire it as the importer's only block source and the importer
-  # would stall trying to fetch block 0 from a mid-chain BN. After the 0.77 cutover the importer is
-  # switched to BLOCKS/BN mode (update_mirror_node_for_block_cutover). Best-effort: a failure here
-  # must not abort the core cutover test.
+  # Deploy mirror node + explorer on the 0.76 network FIRST (before the BN) so the importer is
+  # wired to read RECORD streams from MinIO (the CN writes records in 0.76 / streamMode=BOTH). If
+  # the BN were deployed first, Solo would auto-wire it as the importer's only block source and the
+  # importer would stall trying to fetch block 0 from a mid-chain BN. After the 0.77 cutover the
+  # importer is switched to BLOCKS/BN mode (update_mirror_node_for_block_cutover). Best-effort: a
+  # failure here must not abort the core cutover test.
   deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; continuing with the core 0.76 -> 0.77 cutover test"
 fi
 
 if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
-  # Deploy the BN now (mid-chain, on the 0.75 WRB-streaming baseline) so it verifies the
-  # mock-sig (RSA WRB) blocks via the bootstrap roster through the 0.76 phase.
+  # Deploy the BN now (on the 0.76 genesis network) so it verifies the mock-sig (RSA WRB) blocks
+  # via the bootstrap roster before the 0.77 cutover.
   log "=== Deploying Block Node ${BLOCK_NODE_ID} (will verify mock-sig blocks, then seeded for real-TSS) ==="
   deploy_block_node
   verify_block_node_has_blocks 180
 fi
 
-establish_076_baseline
+verify_076_wraps_baseline
 
 if [[ "${ENABLE_BLOCK_NODE}" == "true" ]]; then
   # The ledger id is published during 0.76 (history/WRAPS construction completes). Seed it

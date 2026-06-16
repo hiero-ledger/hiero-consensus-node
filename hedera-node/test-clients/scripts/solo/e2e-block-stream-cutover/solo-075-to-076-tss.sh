@@ -3,10 +3,9 @@
 #
 # End-to-end test for the 0.75 -> 0.76 (TSS enablement, mock signatures) upgrade.
 #
-# There is no published 0.76 release tag, and Solo's `consensus network deploy`
-# does NOT accept --local-build-path (only the upgrade command does). So we
-# cannot start directly at 0.76. Instead we deploy a published 0.75 baseline
-# and upgrade in place to the local 0.76 build:
+# Solo's `consensus network deploy` does not accept --local-build-path, so we deploy a published
+# 0.75 baseline and upgrade in place to 0.76 — to the published v0.76.0-rc.1 release by default, or
+# to the local build when UPGRADE_TAG=local:
 #
 #   1. Deploy a baseline CN network at the published v0.75.0-rc.5 release tag
 #      with resources/0.75/application.properties.
@@ -15,15 +14,13 @@
 #      reads RECORD streams from MinIO).
 #   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks
 #      streamed by the CN through the RSA bootstrap roster.
-#   4. Upgrade in place to the local build with resources/0.76/application.properties
-#      + application.env, enabling TSS with tss.forceMockSignatures=true (the
-#      0.76 "dual-write, mock signatures" state). The 0.76 properties are
-#      regenerated at runtime so tss.wrapsProvingKeyDownloadUrl points at the
-#      public mirror (https://builds.hedera.com/...) instead of the local nginx
-#      server used by the wider cutover scripts; the shared resources/0.76/
-#      file on disk stays untouched. WRAPS env (TSS_LIB_WRAPS_ARTIFACTS_PATH +
-#      TSS_LIB_NUM_OF_CORES) is pre-injected so all nodes initialize the WRAPS
-#      library in lockstep across the freeze-restart.
+#   4. Upgrade in place to v0.76.0-rc.1 (or the local build when UPGRADE_TAG=local) with
+#      resources/0.76/application.properties + application.env, enabling TSS with
+#      tss.forceMockSignatures=true (the 0.76 "dual-write, mock signatures" state). The CN
+#      self-downloads the WRAPS proving key from tss.wrapsProvingKeyDownloadUrl in the 0.76
+#      properties (the public mirror, https://builds.hedera.com/...). WRAPS env
+#      (TSS_LIB_WRAPS_ARTIFACTS_PATH + TSS_LIB_NUM_OF_CORES) is pre-injected so all nodes
+#      initialize the WRAPS library in lockstep across the freeze-restart.
 #
 # Verifications after the 0.76 upgrade:
 #   - local-build version on all consensus nodes
@@ -49,17 +46,17 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 # Solo's `consensus network deploy` does not accept --local-build-path.
 DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.5}"
 
-# Target version for the 0.76 upgrade.
-#   Blank (default): upgrade in place to the LOCAL build at LOCAL_BUILD_PATH
-#     (--local-build-path). Solo still requires --upgrade-version to be a published
-#     tag; we reuse DEPLOY_RELEASE_TAG as that label.
-#   Non-blank: upgrade to the published Solo tag named here (no --local-build-path).
-UPGRADE_TAG="${UPGRADE_TAG:-}"
+# Target for the 0.76 upgrade.
+#   Blank (default): upgrade to the published v0.76.0-rc.1 release (no --local-build-path).
+#   "local": upgrade in place to the LOCAL build at LOCAL_BUILD_PATH (--local-build-path). Solo
+#     still requires --upgrade-version to be a published tag; we reuse DEPLOY_RELEASE_TAG as that label.
+#   Any other value: upgrade to the published Solo tag named here (no --local-build-path).
+UPGRADE_TAG="${UPGRADE_TAG:-v0.76.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
-# The CN downloads + extracts the WRAPS proving-key archive itself from this URL during the
-# upgrade (tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true).
-WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
+# The CN downloads + extracts the WRAPS proving-key archive itself during the upgrade, using the
+# tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the 0.76
+# application.properties (which already point at the public mirror).
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
@@ -126,7 +123,6 @@ CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
 RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
 BLOCK_NODE_GENERATED_VALUES_FILE="${WORK_DIR}/block-node-values.yaml"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
-APP_PROPS_076_GENERATED_FILE="${WORK_DIR}/application-076-public-wraps.properties"
 MIRROR_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
 
@@ -190,16 +186,6 @@ configured_wraps_artifacts_container_dir() {
   else
     printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
   fi
-}
-
-# Writes a copy of the shared 0.76 application.properties with tss.wrapsProvingKeyDownloadUrl set to
-# WRAPS_ARTIFACTS_DOWNLOAD_URL (the public mirror by default; override the env var to serve from a
-# local host). The shared resources/0.76/application.properties is left untouched so the wider
-# cutover scripts that rely on their own URL still work.
-generate_076_application_properties_with_wraps_url() {
-  sed -E "s#^tss.wrapsProvingKeyDownloadUrl=.*#tss.wrapsProvingKeyDownloadUrl=${WRAPS_ARTIFACTS_DOWNLOAD_URL}#" \
-    "${APP_PROPS_076_FILE}" > "${APP_PROPS_076_GENERATED_FILE}"
-  log "Generated 0.76 application.properties with WRAPS download URL ${WRAPS_ARTIFACTS_DOWNLOAD_URL} at ${APP_PROPS_076_GENERATED_FILE}"
 }
 
 # Pre-inject TSS_LIB_WRAPS_ARTIFACTS_PATH into every consensus StatefulSet's
@@ -1004,34 +990,33 @@ deploy_mirror_and_explorer() {
 
 # The focus of this script: the 0.75 -> 0.76 upgrade with TSS enabled in mock-signature mode.
 # Solo's `consensus network deploy` does not accept --local-build-path, so we deploy a published
-# 0.75 baseline first and then upgrade in place — to the local 0.76 build by default, or to a
-# published Solo tag when UPGRADE_TAG is set.
+# 0.75 baseline first and then upgrade in place — to the published v0.76.0-rc.1 release by default,
+# or to the local build when UPGRADE_TAG=local (or any other published Solo tag named in UPGRADE_TAG).
 upgrade_to_local_076() {
-  generate_076_application_properties_with_wraps_url
   inject_wraps_env_into_statefulsets
 
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --application-properties "${APP_PROPS_076_GENERATED_FILE}"
+    --application-properties "${APP_PROPS_076_FILE}"
     --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
     --force
   )
-  if [[ -n "${UPGRADE_TAG}" ]]; then
-    log "=== 0.76 upgrade: upgrade to published tag ${UPGRADE_TAG} with 0.76 properties (TSS, mock signatures) ==="
-    upgrade_cmd+=(--upgrade-version "${UPGRADE_TAG}")
-  else
+  if [[ "${UPGRADE_TAG}" == "local" ]]; then
     log "=== 0.76 upgrade: upgrade to local build at ${LOCAL_BUILD_PATH} (label ${DEPLOY_RELEASE_TAG}) with 0.76 properties (TSS, mock signatures) ==="
     upgrade_cmd+=(--upgrade-version "${DEPLOY_RELEASE_TAG}" --local-build-path "${LOCAL_BUILD_PATH}")
+  else
+    log "=== 0.76 upgrade: upgrade to published tag ${UPGRADE_TAG} with 0.76 properties (TSS, mock signatures) ==="
+    upgrade_cmd+=(--upgrade-version "${UPGRADE_TAG}")
   fi
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   log "--- 0.76 check 1/3: wait for consensus pods + haproxy + verify upgrade target ---"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  if [[ -z "${UPGRADE_TAG}" ]]; then
+  if [[ "${UPGRADE_TAG}" == "local" ]]; then
     verify_local_build_on_consensus_nodes
   else
     log "Skipping local-build version check (UPGRADE_TAG=${UPGRADE_TAG}); Solo's ACTIVE gate is the upgrade success signal"
@@ -1068,11 +1053,11 @@ validate_block_node_repo || {
 [[ -f "${APP_ENV_076_FILE}" ]] || { echo "Missing file: ${APP_ENV_076_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 
-if [[ -z "${UPGRADE_TAG}" ]]; then
+if [[ "${UPGRADE_TAG}" == "local" ]]; then
   validate_local_build_path "${LOCAL_BUILD_PATH}" || {
     echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
     echo "Expected ${LOCAL_BUILD_PATH}/apps/HederaNode.jar and ${LOCAL_BUILD_PATH}/lib" >&2
-    echo "(Set UPGRADE_TAG to a published Solo tag to skip the local-build requirement.)" >&2
+    echo "(Leave UPGRADE_TAG blank to upgrade to the published v0.76.0-rc.1 release instead.)" >&2
     exit 1
   }
 fi
