@@ -1,0 +1,354 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "823: [CALL] Verify Gradle Build"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or commit to checkout:"
+        type: string
+        required: false
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+
+    secrets:
+      github-token:
+        description: "GitHub Token with permissions to checkout the repository."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  GRADLE_MANIFEST_PATH: ${{ github.workspace }}/.manifests/gradle
+  GRADLE_MANIFEST_GENERATOR: .github/workflows/support/scripts/generate-gradle-artifact-baseline.sh
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  LC_ALL: C.UTF-8
+
+jobs:
+  generate-baseline:
+    name: "Gradle: Generate Baseline"
+    runs-on: hl-cn-gradle-determinism-lin-md
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      path: ${{ steps.baseline.outputs.path }}
+      file: ${{ steps.baseline.outputs.file }}
+      name: ${{ steps.baseline.outputs.name }}
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Retrieve Commit Hash
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Baseline Existence Check
+        id: baseline
+        run: |
+          BASELINE_NAME="${{ steps.commit.outputs.sha }}.tar.gz"
+          BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/gradle/baselines"
+          BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
+          BASELINE_EXISTS="false"
+
+          if gsutil ls "${BASELINE_FILE}" 2>&1; then
+             BASELINE_EXISTS="true"
+          fi
+
+          echo "exists=${BASELINE_EXISTS}" >> "${GITHUB_OUTPUT}"
+          echo "path=${BASELINE_PATH}" >> "${GITHUB_OUTPUT}"
+          echo "name=${BASELINE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "file=${BASELINE_FILE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Artifacts
+        id: gradle-build
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: ./gradlew assemble
+
+      - name: Generate Manifest
+        id: manifest
+        env:
+          MANIFEST_PATH: ${{ env.GRADLE_MANIFEST_PATH }}
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: ${{ env.GRADLE_MANIFEST_GENERATOR }}
+
+      - name: Upload Baseline
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
+  generate-matrix:
+    name: "Gradle: Generate OS Matrix"
+    runs-on: hl-cn-gradle-determinism-lin-ss
+    outputs:
+      os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Set OS Matrix
+        id: set-matrix
+        run: |
+          ALWAYS_RUN=(
+            "ubuntu-24.04"
+            "ubuntu-22.04"
+            "hl-cn-gradle-determinism-lin-md"
+            "hl-cn-gradle-determinism-lin-u24-md"
+            "hl-cn-gradle-determinism-lin-d12-md"
+            "hl-cn-gradle-determinism-lin-lg"
+            "hl-cn-gradle-determinism-lin-u24-lg"
+            "hl-cn-gradle-determinism-lin-d12-lg"
+          )
+
+          PUBLIC_ONLY=(
+            "windows-2022"
+            "windows-2025"
+          )
+
+          if [[ "${{ github.event.repository.private }}" == "true" ]]; then
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}")
+            echo "Using Linux runners only (private repo)"
+          else
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}" "${PUBLIC_ONLY[@]}")
+            echo "Using all runners including Windows (public repo)"
+          fi
+
+          printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
+          MATRIX="{\"os\":[${joined%,}]}"
+
+          echo "----------------------------------------"
+          echo "Selected runners (${#ALL_RUNNERS[@]} total):"
+          printf ' - %s\n' "${ALL_RUNNERS[@]}"
+          echo "----------------------------------------"
+          echo "Matrix JSON:"
+          echo "$MATRIX"
+          echo "----------------------------------------"
+
+          # Set the output (simplified name)
+          echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
+  verify-artifacts:
+    name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    runs-on: ${{ matrix.os }}
+    needs:
+      - generate-baseline
+      - generate-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.os-matrix) }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Standardize Git Line Endings
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+
+      - name: Install Python (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3 python3-venv python3-pip
+
+      - name: Install Python
+        if: ${{ runner.os != 'Linux' }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Setup CoreUtils (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        run: brew install coreutils
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        env:
+          CLOUDSDK_PYTHON: ${{ format('{0}{1}', env.pythonLocation, runner.os == 'Windows' && '\python.exe' || '/bin/python3') }}
+
+      - name: Download Baseline
+        env:
+          CLOUDSDK_PYTHON: ${{ format('{0}{1}', env.pythonLocation, runner.os == 'Windows' && '\python.exe' || '/bin/python3') }}
+        run: |
+          mkdir -p "${GRADLE_MANIFEST_PATH}"
+          cd "${GRADLE_MANIFEST_PATH}"
+          gsutil cp "${{ needs.generate-baseline.outputs.file }}" .
+          tar -xzf "${{ needs.generate-baseline.outputs.name }}"
+
+      - name: Build Artifacts
+        id: gradle-build
+        run: ./gradlew assemble --no-build-cache
+
+      - name: Regenerate Manifest
+        id: regen-manifest
+        env:
+          MANIFEST_PATH: ${{ env.GRADLE_MANIFEST_PATH }}/regenerated
+        run: ${{ env.GRADLE_MANIFEST_GENERATOR }}
+
+      - name: Validate Libraries
+        working-directory: ${{ github.workspace }}/hedera-node/data/lib
+        run: sha256sum -c "${GRADLE_MANIFEST_PATH}/libraries.sha256"
+
+      - name: Validate Applications
+        working-directory: ${{ github.workspace }}/hedera-node/data/apps
+        run: sha256sum -c "${GRADLE_MANIFEST_PATH}/applications.sha256"
+
+      - name: Compare Library Manifests
+        id: compare-library-manifests
+        run: |
+          if ! diff -u "${GRADLE_MANIFEST_PATH}/libraries.sha256" "${{ steps.regen-manifest.outputs.libraries }}" >/dev/null 2>&1; then
+            echo "::group::Library Manifest Differences"
+            diff -u "${GRADLE_MANIFEST_PATH}/libraries.sha256" "${{ steps.regen-manifest.outputs.libraries }}"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Compare Application Manifests
+        id: compare-application-manifests
+        run: |
+          if ! diff -u "${GRADLE_MANIFEST_PATH}/applications.sha256" "${{ steps.regen-manifest.outputs.applications }}" >/dev/null 2>&1; then
+            echo "::group::Application Manifest Differences"
+            diff -u "${GRADLE_MANIFEST_PATH}/applications.sha256" "${{ steps.regen-manifest.outputs.applications }}"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Publish Manifests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.regen-manifest.conclusion == 'success' && failure() && !cancelled() }}
+        with:
+          name: Gradle Manifests [${{ join(matrix.os, ', ') }}]
+          path: ${{ env.GRADLE_MANIFEST_PATH }}/**
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.compare-library-manifests.outcome || 'skipped' }}" == "failure" || "${{ steps.compare-application-manifests.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-gradle-determinism-lin-ss
+    needs:
+      - generate-baseline
+      - generate-matrix
+      - verify-artifacts
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.generate-baseline.result }}
+            ${{ needs.generate-matrix.result }}
+            ${{ needs.verify-artifacts.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.generate-baseline.outputs.failure-mode || 'none' }}
+            ${{ needs.generate-matrix.outputs.failure-mode || 'none' }}
+            ${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            generate-baseline
+            generate-matrix
+            verify-artifacts
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
