@@ -10,6 +10,10 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +30,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamingObsTest {
+
+    // gatherAndLogObsData() and refreshEnabledFlag() are private; tests drive the gather cycle via these handles.
+    private static final MethodHandle gatherHandle;
+    private static final MethodHandle refreshEnabledFlagHandle;
+
+    static {
+        try {
+            final Lookup lookup = MethodHandles.lookup();
+
+            final Method gather = BlockStreamingObs.class.getDeclaredMethod("gatherAndLogObsData");
+            gather.setAccessible(true);
+            gatherHandle = lookup.unreflect(gather);
+
+            final Method refreshEnabledFlag = BlockStreamingObs.class.getDeclaredMethod("refreshEnabledFlag");
+            refreshEnabledFlag.setAccessible(true);
+            refreshEnabledFlagHandle = lookup.unreflect(refreshEnabledFlag);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private static final long MILLI = 1_000_000L;
 
@@ -217,13 +241,13 @@ class BlockStreamingObsTest {
 
         // flag flips to disabled before the next gather cycle: everything is cleared
         stubConfig(false);
-        obs.refreshEnabledFlag();
+        invokeRefreshEnabledFlag(obs);
         clock.set(secs(10));
         assertThat(gather(obs)).isNull();
 
         // flag flips back; the late ack refers to a cleared block and must be a no-op
         stubConfig(true);
-        obs.refreshEnabledFlag();
+        invokeRefreshEnabledFlag(obs);
         obs.onBlockAcknowledge(1L);
         clock.set(secs(20));
         assertThat(gather(obs)).isNull();
@@ -243,7 +267,7 @@ class BlockStreamingObsTest {
 
         // even when re-enabled, nothing was tracked
         stubConfig(true);
-        obs.refreshEnabledFlag();
+        invokeRefreshEnabledFlag(obs);
         clock.set(secs(10));
         assertThat(gather(obs)).isNull();
     }
@@ -358,7 +382,7 @@ class BlockStreamingObsTest {
                 if (t == 0) {
                     obs.onBlockAcknowledge(blockNum);
                 } else {
-                    obs.gatherAndLogObsData();
+                    invokeGather(obs);
                 }
             });
         }
@@ -448,10 +472,28 @@ class BlockStreamingObsTest {
      */
     private String gather(final BlockStreamingObs obs) {
         final int before = logCaptor.infoLogs().size();
-        obs.gatherAndLogObsData();
+        invokeGather(obs);
         final List<String> logs = logCaptor.infoLogs();
         assertThat(logs.size()).isLessThanOrEqualTo(before + 1); // a gather logs at most one report
         return logs.size() > before ? logs.get(logs.size() - 1) : null;
+    }
+
+    /** Invokes the private {@code gatherAndLogObsData()}; thread-safe (MethodHandles are immutable). */
+    private static void invokeGather(final BlockStreamingObs obs) {
+        try {
+            gatherHandle.invoke(obs);
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    /** Invokes the private {@code refreshEnabledFlag()} so tests can simulate a config toggle. */
+    private static void invokeRefreshEnabledFlag(final BlockStreamingObs obs) {
+        try {
+            refreshEnabledFlagHandle.invoke(obs);
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     private void stubConfig(final boolean enabled) {

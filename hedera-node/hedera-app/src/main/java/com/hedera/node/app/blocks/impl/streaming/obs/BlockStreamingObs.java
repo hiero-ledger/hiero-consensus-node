@@ -87,7 +87,7 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /** Re-reads the feature flag from config; called by the periodic task before every gather. */
-    void refreshEnabledFlag() {
+    private void refreshEnabledFlag() {
         isEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
@@ -308,10 +308,9 @@ public class BlockStreamingObs implements AutoCloseable {
 
     /**
      * Drains all data eligible for this window and logs the report at {@code INFO}. Nothing is logged
-     * when obs is disabled or no data was recorded. Package-private so tests can drive the gather
-     * cycle directly.
+     * when obs is disabled or no data was recorded.
      */
-    void gatherAndLogObsData() {
+    private void gatherAndLogObsData() {
         if (!isEnabled) {
             // enhanced obs may have been dynamically disabled... clear everything and exit
             blockStatistics.clear();
