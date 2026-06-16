@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1072,6 +1073,89 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(lowerNodeProof));
         verify(prover)
                 .observeProofVote(eq(SELF_ID), eq(lowerNodeVote), eq(true), eq(ProofVoteCategory.VALID_RECURSIVE));
+    }
+
+    @Test
+    void recursiveProofValidationCacheIncludesLedgerAndMetadataContext() throws Exception {
+        final var proof = recursiveProof("compressed", "uncompressed");
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        final var ledgerId1 = Bytes.wrap("ledger-1");
+        final var ledgerId2 = Bytes.wrap("ledger-2");
+        final var metadata1 = Bytes.wrap("metadata-1");
+        final var metadata2 = Bytes.wrap("metadata-2");
+
+        given(writableHistoryStore.getLedgerId()).willReturn(ledgerId1, ledgerId2);
+        given(weights.sourceWeightThreshold()).willReturn(1L);
+
+        setField("targetMetadata", metadata1);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        setField("targetMetadata", metadata2);
+        subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(historyLibrary)
+                .verifyCompressedProof(
+                        aryEq(Bytes.wrap("compressed").toByteArray()),
+                        aryEq(ledgerId1.toByteArray()),
+                        aryEq(metadata1.toByteArray()));
+        verify(historyLibrary)
+                .verifyCompressedProof(
+                        aryEq(Bytes.wrap("compressed").toByteArray()),
+                        aryEq(ledgerId2.toByteArray()),
+                        aryEq(metadata2.toByteArray()));
+    }
+
+    @Test
+    void recursiveProofValidationCacheIsClearedOnRetry() throws Exception {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+        final var proof = recursiveProof("compressed", "uncompressed");
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        final var ledgerId = Bytes.wrap("ledger");
+        final var metadata = Bytes.wrap("metadata");
+        final var restarted = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                .wrapsRetryCount(1)
+                .build();
+
+        given(writableHistoryStore.getLedgerId()).willReturn(ledgerId);
+        given(weights.sourceWeightThreshold()).willReturn(1L);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any()))
+                .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
+        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+                .willReturn(restarted);
+
+        setField("targetMetadata", metadata);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), metadata, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
+
+        verify(historyLibrary, times(2))
+                .verifyCompressedProof(
+                        aryEq(Bytes.wrap("compressed").toByteArray()),
+                        aryEq(ledgerId.toByteArray()),
+                        aryEq(metadata.toByteArray()));
     }
 
     @Test
