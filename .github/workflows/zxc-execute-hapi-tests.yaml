@@ -1264,7 +1264,7 @@ jobs:
             ${{ needs.hapi-tests-bn-comms.result }}
             ${{ needs.hapi-tests-state-throttling.result }}
             ${{ needs.hapi-tests-crypto-and-misc-serial.result }}
-            "${{ needs.hapi-tests-wraps.result }}"
+            ${{ needs.hapi-tests-wraps.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
@@ -1287,5 +1287,6 @@ jobs:
             hapi-tests-restart
             hapi-tests-bn-comms
             hapi-tests-state-throttling
+            hapi-tests-crypto-and-misc-serial
             hapi-tests-wraps
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
