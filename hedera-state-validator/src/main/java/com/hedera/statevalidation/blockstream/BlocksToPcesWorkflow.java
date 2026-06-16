@@ -99,9 +99,7 @@ public final class BlocksToPcesWorkflow {
      * @throws IOException if reading blocks or writing PCES files fails
      */
     public static long convert(
-            @NonNull final Path blockStreamDirectory,
-            @NonNull final Path pcesOutputDir,
-            final long originRound)
+            @NonNull final Path blockStreamDirectory, @NonNull final Path pcesOutputDir, final long originRound)
             throws IOException {
         requireNonNull(blockStreamDirectory);
         requireNonNull(pcesOutputDir);
@@ -115,7 +113,11 @@ public final class BlocksToPcesWorkflow {
         }
 
         final int workers = Math.max(1, PARALLELISM);
-        log.info(CONSOLE, "Reconstructing events from {} blocks using {} worker thread(s)", orderedFiles.size(), workers);
+        log.info(
+                CONSOLE,
+                "Reconstructing events from {} blocks using {} worker thread(s)",
+                orderedFiles.size(),
+                workers);
 
         final CommonPcesWriter writer = createPcesWriter(pcesOutputDir, originRound);
 
