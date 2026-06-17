@@ -29,7 +29,9 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImplDAB;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
@@ -107,7 +109,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * The consensus implementation for determining birth rounds of events.
      */
-    private ConsensusImpl consensus;
+    private Consensus consensus;
 
     /** Used to assign nGen values to events. This value is used by consensus, so it must be set. */
     private OrphanBuffer orphanBuffer;
@@ -276,7 +278,12 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     private void initializeInternalConsensus() {
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        if (consensusConfig.useDABConsensusAlgorithm()) {
+            consensus = new ConsensusImplDAB(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
+        } else {
+            consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
+        }
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
     }

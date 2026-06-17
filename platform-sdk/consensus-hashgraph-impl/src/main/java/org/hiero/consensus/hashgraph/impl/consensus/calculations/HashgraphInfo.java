@@ -4,7 +4,6 @@ package org.hiero.consensus.hashgraph.impl.consensus.calculations;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -638,7 +637,7 @@ public final class HashgraphInfo {
                     h.candIndex.get(m).clear(); // forget old list of candidates for node with index m
                     h.candIndex.get(m).add(m); // add back the entry for the null candidate
                     h.candEventInfo[m] = null; // index m represents a vote that node m have a judge of null
-                    Arrays.fill(h.candStake,0L); // this could be skipped, but it's cheap and safer to do it
+                    Arrays.fill(h.candStake, 0L); // this could be skipped, but it's cheap and safer to do it
                     h.candStake[m] = r.stake[m];
                 }
 
@@ -867,9 +866,7 @@ public final class HashgraphInfo {
                     long stakeSum = 0;
                     for (int m = 0; m < r.nodes.length; m++) {
                         stakeSum += (((creator == m) && (selfParent != null) && (selfParent.votingRound == p))
-                                || ((creator != m)
-                                && (lastSee[m] != null)
-                                && (lastSee[m].votingRound == p)))
+                                        || ((creator != m) && (lastSee[m] != null) && (lastSee[m].votingRound == p)))
                                 ? r.stake[m]
                                 : 0;
                     }
@@ -1040,7 +1037,7 @@ public final class HashgraphInfo {
             }
             if (!h.roundDecided) {
                 h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
-                h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE_COUNT] ++;
+                h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE_COUNT]++;
                 return null;
             }
 

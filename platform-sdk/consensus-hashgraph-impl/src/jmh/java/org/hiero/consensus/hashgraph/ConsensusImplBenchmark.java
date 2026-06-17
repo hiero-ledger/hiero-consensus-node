@@ -7,9 +7,11 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImplDAB;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
@@ -72,7 +74,13 @@ public class ConsensusImplBenchmark {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Time time = Time.getCurrent();
 
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        if (consensusConfig.useDABConsensusAlgorithm()) {
+            consensus =
+                    new ConsensusImplDAB(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
+        } else {
+            consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
+        }
     }
 
     @Benchmark

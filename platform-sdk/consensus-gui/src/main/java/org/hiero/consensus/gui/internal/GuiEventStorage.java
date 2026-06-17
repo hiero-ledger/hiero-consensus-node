@@ -32,7 +32,7 @@ import org.hiero.consensus.round.EventWindowUtils;
  */
 public class GuiEventStorage {
     /** true iff these GUI files should use the updated consensus code for dynamic address book */
-    //TODO make this false before merging the dynamic-address-book branch into main
+    // TODO make this false before merging the dynamic-address-book branch into main
     public static final boolean USE_DYNAMIC_ADDRESS_BOOK_UPDATE = true;
 
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class
@@ -55,10 +55,11 @@ public class GuiEventStorage {
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
         this.configuration = Objects.requireNonNull(configuration);
         if (USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
-            this.consensus = new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+            this.consensus =
+                    new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
         } else {
-            this.consensus = new ConsensusImpl(configuration, Time.getCurrent(),
-                    new NoOpConsensusMetrics(), roster, 0L);
+            this.consensus =
+                    new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
         }
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
