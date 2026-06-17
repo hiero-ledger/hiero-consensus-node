@@ -24,6 +24,14 @@ on:
         type: string
         required: false
         default: "temurin"
+      tck-version:
+        description: "The version of the TCK to test against:"
+        required: true
+        type: string
+      js-sdk-version:
+        description: "The version of the JS-SDK to test against:"
+        required: true
+        type: string
 
     secrets:
       access-token:
@@ -94,13 +102,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (TCK)
+      - name: Checkout TCK Tag
         run: |
           cd platform-sdk/regression
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # if ${{ inputs.tck-version }} is in the tags check it out.
+          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version: ${{ inputs.tck-version }}"
+            git checkout "tags/${{ inputs.tck-version }}"
+          else
+            echo "Specified TCK version ${{ inputs.tck-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -111,13 +125,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (JS-SDK)
+      - name: Checkout JS-SDK Tag
         run: |
           cd platform-sdk/sdk-server
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
+          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
+            git checkout "tags/${{ inputs.js-sdk-version }}"
+          else
+            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       - name: Setup PNPM
         run: |
