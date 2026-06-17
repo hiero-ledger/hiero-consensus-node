@@ -17,11 +17,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapLearner;
-import com.swirlds.virtualmap.sync.LearnerTreeView;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -58,7 +54,7 @@ public class ReconnectStateLearner {
     private final ReconnectMetrics statistics;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final Configuration configuration;
-    private final Metrics metrics;
+    private final LearningSynchronizer synchronizer;
 
     private SigSet sigSet;
 
@@ -66,8 +62,6 @@ public class ReconnectStateLearner {
      * After reconnect is finished, restore the socket timeout to the original value.
      */
     private int originalSocketTimeout;
-
-    private final ThreadManager threadManager;
 
     /**
      *
@@ -91,16 +85,19 @@ public class ReconnectStateLearner {
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
+        requireNonNull(metrics);
+        requireNonNull(threadManager);
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
         this.configuration = requireNonNull(configuration);
-        this.metrics = requireNonNull(metrics);
-        this.threadManager = requireNonNull(threadManager);
         this.connection = requireNonNull(connection);
         this.currentState = requireNonNull(currentState);
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.statistics = requireNonNull(statistics);
+
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+        synchronizer = new LearningSynchronizer(threadManager, reconnectConfig, metrics);
 
         // Save some of the current state data for validation
     }
@@ -201,25 +198,16 @@ public class ReconnectStateLearner {
         final DataOutputStream out = new DataOutputStream(connection.getDos());
 
         connection.getDis().byteCounter().getAndReset();
+        VirtualMap syncedVirtualMap;
 
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-
-        final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(currentState.getRoot(), reconnectConfig, mapStats);
-        final LearnerTreeView learnerView = vmapLearner.getLearnerView();
-        final LearningSynchronizer synchronizer =
-                new LearningSynchronizer(threadManager, in, out, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
         try {
-            synchronizer.synchronize();
-            logger.info(RECONNECT.getMarker(), mapStats::format);
+            syncedVirtualMap = synchronizer.synchronize(currentState.getRoot(), in, out, connection::disconnect);
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
-            vmapLearner.abortOnException();
             throw e;
         } catch (final Exception e) {
-            vmapLearner.abortOnException();
             throw new ReconnectStateException(e);
         }
 
@@ -228,7 +216,7 @@ public class ReconnectStateLearner {
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
                 .toString());
 
-        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(vmapLearner.getVirtualMap());
+        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(syncedVirtualMap);
         final SignedState newSignedState = new SignedState(
                 configuration,
                 CryptoUtils::verifySignature,

@@ -58,7 +58,7 @@ class TokenUpdateUsageTest {
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
     private final AccountID treasury = IdUtils.asAccount("1.2.3");
     private final AccountID autoRenewAccount = IdUtils.asAccount("3.2.1");
-    private final TokenID id = IdUtils.asToken("0.0.75231");
+    private final TokenID id = IdUtils.asToken(75231L);
 
     private TokenUpdateTransactionBody op;
     private TransactionBody txn;

@@ -3,7 +3,7 @@
 #
 # Steps 1-3 of issue hiero-ledger/hiero-consensus-node#25552 (Migration Testing
 # Regression Panel) as a stand-alone driver. Trimmed from the e2e-solo-cutover
-# branch's solo-e2e-075-to-076-tss.sh — TSS/WRAPS-specific plumbing removed.
+# branch's solo-075-to-076-tss.sh — TSS/WRAPS-specific plumbing removed.
 #
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,

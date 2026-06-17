@@ -1,13 +1,5 @@
-# Consensus Layer Knowledge Base
-
-`consensus-pces-noop-impl` is part of the **consensus layer** — the no-op implementation of
-PCES-file handling. When working here, consult the consensus-layer knowledge base at
-[`../docs/consensus-layer/`](../docs/consensus-layer/) — it documents the current
-implementation as canonical, anchored to specific files, classes, and methods.
-
-**Most relevant to this module:**
-
-- [`architecture/topics/restart-and-pces.md`](../docs/consensus-layer/architecture/topics/restart-and-pces.md) — Pre-Consensus Event Stream durability and replay; understand what behavior this no-op variant omits.
+Read [`README.md`](README.md) for this module's description, dependency rules, and links to
+the relevant consensus-layer knowledge base docs.
 
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and

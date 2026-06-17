@@ -1,57 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "PR Formatting"
+name: "Deprecated: PR Formatting"
 on:
-  pull_request_target:
-    types:
-      - assigned
-      - unassigned
-      - labeled
-      - unlabeled
-      - opened
-      - reopened
-      - edited
-      - converted_to_draft
-      - ready_for_review
-      - review_requested
-      - review_request_removed
-      - locked
-      - unlocked
-      - synchronize
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  statuses: write
+  contents: read
 
 jobs:
-  title-check:
-    name: Title Check
+  print-deprecated:
+    name: Print Deprecated Warning
     runs-on: hl-cn-default-lin-sm
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Check PR Title
-        uses: step-security/action-semantic-pull-request@75d2dd5deafa3e9fccc1626ecd58d076ed1d2c79 # v6.1.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  assignee-check:
-    name: Assignee Check
-    runs-on: hl-cn-default-lin-sm
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Check Assignee
-        if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
+      - name: Print Deprecation Warning
         run: |
-          echo "Assignee is not set. Failing the workflow."
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
           exit 1
