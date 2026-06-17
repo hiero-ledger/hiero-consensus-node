@@ -68,6 +68,7 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
   NLG_VERSION: 0.14.3
+  java-version: "25.0.2"
 
 defaults:
   run:
@@ -76,9 +77,6 @@ defaults:
 permissions:
   contents: write
   id-token: write
-
-env:
-  java-version: "25.0.2"
 
 jobs:
   performance-test:
