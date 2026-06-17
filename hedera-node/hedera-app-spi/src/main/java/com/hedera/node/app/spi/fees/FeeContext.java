@@ -6,7 +6,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -103,23 +102,6 @@ public interface FeeContext {
      * @return the computed fees
      */
     Fees dispatchComputeFees(@NonNull TransactionBody txBody, @NonNull AccountID syntheticPayerId);
-
-    /**
-     * Dispatches the computation of fees for the given transaction body and synthetic payer ID,
-     * using the serialized size of {@code overrideSignatureMap} (when non-null) instead of the
-     * context-derived signature map size.
-     *
-     * @param txBody the transaction body
-     * @param syntheticPayerId the synthetic payer ID
-     * @param overrideSignatureMap when non-null, its serialized size replaces the default value
-     * @return the computed fees
-     */
-    default Fees dispatchComputeFees(
-            @NonNull TransactionBody txBody,
-            @NonNull AccountID syntheticPayerId,
-            @Nullable SignatureMap overrideSignatureMap) {
-        return dispatchComputeFees(txBody, syntheticPayerId);
-    }
 
     /**
      * Returns the active Exchange Rate.

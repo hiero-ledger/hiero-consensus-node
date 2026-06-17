@@ -70,6 +70,32 @@ class SystemContractGasCalculatorTest {
         assertEquals(123L, subject.topLevelGasPriceInTinyBars());
     }
 
+    @Test
+    void gasRequirementDelegatesToFourArgWithNullSignatureMap() {
+        given(dispatchPrices.canonicalPriceInTinycents(DispatchType.ASSOCIATE)).willReturn(0L);
+        given(feeCalculator.computeFee(TransactionBody.DEFAULT, AccountID.DEFAULT, null))
+                .willReturn(0L);
+        given(tinybarValues.asTinycents(0L)).willReturn(0L);
+        given(tinybarValues.childTransactionTinycentGasPrice()).willReturn(1L);
+
+        final var via3Arg = subject.gasRequirement(TransactionBody.DEFAULT, DispatchType.ASSOCIATE, AccountID.DEFAULT);
+        final var via4Arg =
+                subject.gasRequirement(TransactionBody.DEFAULT, DispatchType.ASSOCIATE, AccountID.DEFAULT, null);
+        assertEquals(via3Arg, via4Arg);
+    }
+
+    @Test
+    void gasRequirementWithTinycentsDelegatesToFourArgWithNullSignatureMap() {
+        given(feeCalculator.computeFee(TransactionBody.DEFAULT, AccountID.DEFAULT, null))
+                .willReturn(0L);
+        given(tinybarValues.asTinycents(0L)).willReturn(0L);
+        given(tinybarValues.childTransactionTinycentGasPrice()).willReturn(1L);
+
+        final var via3Arg = subject.gasRequirementWithTinycents(TransactionBody.DEFAULT, AccountID.DEFAULT, 500L);
+        final var via4Arg = subject.gasRequirementWithTinycents(TransactionBody.DEFAULT, AccountID.DEFAULT, 500L, null);
+        assertEquals(via3Arg, via4Arg);
+    }
+
     /**
      * Verifies that providing a non-null {@code signatureMap} override to
      * {@link SystemContractGasCalculator#gasRequirement} results in higher gas than passing

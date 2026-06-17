@@ -55,6 +55,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
@@ -570,6 +571,29 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var feeContext = captor.getValue();
             assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
+        }
+
+        @Test
+        void overrideSignatureMapIsUsedInsteadOfContextMap() {
+            // txnInfo uses SignatureMap.DEFAULT (0 bytes). An override with sig pairs produces
+            // a non-zero signatureMapSize, which is reflected in ChildFeeContext.numTxnBytes().
+            final var sigPair = SignaturePair.newBuilder()
+                    .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                    .ed25519(Bytes.wrap(new byte[64]))
+                    .build();
+            final var overrideSigMap =
+                    SignatureMap.newBuilder().sigPair(sigPair).build();
+            final var fees = new Fees(1L, 2L, 3L);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
+            final var captor = ArgumentCaptor.forClass(FeeContext.class);
+
+            subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO, overrideSigMap);
+
+            verify(dispatcher).dispatchComputeFees(captor.capture());
+            final var feeContext = (ChildFeeContext) captor.getValue();
+            final var expectedSigMapSize = SignatureMap.PROTOBUF.measureRecord(overrideSigMap);
+            final var expectedTxnBytes = TransactionBody.PROTOBUF.measureRecord(txBody) + expectedSigMapSize;
+            assertThat(feeContext.numTxnBytes()).isEqualTo(expectedTxnBytes);
         }
 
         @SuppressWarnings("ConstantConditions")
