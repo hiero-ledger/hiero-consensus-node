@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.services.bdd.GenesisSubProcessTest;
-import com.hedera.services.bdd.GenesisSubProcessTest.SubProcessNodeConfig;
+import com.hedera.services.bdd.GenesisSubprocessTest;
+import com.hedera.services.bdd.GenesisSubprocessTest.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -68,7 +68,7 @@ public class UpdateNodeAccountTestSubprocess {
         // files to disk for the assertions below.
         @Tag(ONLY_SUBPROCESS)
         @HapiTest
-        @GenesisSubProcessTest(
+        @GenesisSubprocessTest(
                 subProcessNodeConfigs = {
                     @SubProcessNodeConfig(
                             nodeId = 0,

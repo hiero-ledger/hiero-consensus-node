@@ -14,7 +14,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.services.bdd.GenesisSubProcessTest;
+import com.hedera.services.bdd.GenesisSubprocessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -114,9 +114,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             HighVolumePricingValidator.validateGenesisFeeSchedule();
 
             // Skip standard setup if any test in the plan starts its own per-method subprocess network
-            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class, GenesisSubProcessTest.class))) {
+            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class, GenesisSubprocessTest.class))) {
                 log.info(
-                        "Test plan includes HapiBlockNode or GenesisSubProcessTest annotation, skipping shared network startup.");
+                        "Test plan includes HapiBlockNode or GenesisSubprocessTest annotation, skipping shared network startup.");
                 embedding = Embedding.NA;
                 return;
             }

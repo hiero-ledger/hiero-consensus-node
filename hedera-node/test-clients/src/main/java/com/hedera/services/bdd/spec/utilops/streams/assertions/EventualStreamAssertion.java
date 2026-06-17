@@ -5,6 +5,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -161,7 +162,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
 
     private static StreamMode resolveStreamMode(@NonNull final HapiSpec spec) {
         try {
-            return spec.startupProperties().getStreamMode("blockStream.streamMode");
+            return BlockSourceFactory.effectiveStartupProperties(spec).getStreamMode("blockStream.streamMode");
         } catch (final Exception e) {
             return StreamMode.BOTH;
         }

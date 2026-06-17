@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Chooses the appropriate {@link BlockSource} for a {@link HapiSpec}.
@@ -35,11 +41,36 @@ public final class BlockSourceFactory {
     @NonNull
     public static BlockSource blockSourceFor(@NonNull final HapiSpec spec) {
         final var blockNodeNetwork = resolveBlockNodeNetwork();
-        if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
+        if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null && !blockNodeNetwork.isEmpty()) {
             return new BlockNodeBlockSource(blockNodeNetwork);
         }
         return new FileSystemBlockSource(
                 spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR));
+    }
+
+    /**
+     * Returns the <em>effective</em> startup properties for the spec's first node: the node's on-disk
+     * {@code application.properties} (which includes any per-node {@code @GenesisSubprocessTest} overrides
+     * written during {@code start()}) layered in priority over {@link HapiSpec#startupProperties()}. The
+     * node file wins for keys it defines; {@code startupProperties()} supplies the rest. Falls back to
+     * {@link HapiSpec#startupProperties()} when the node file is missing or unreadable.
+     *
+     * @param spec the spec
+     * @return the effective startup properties
+     */
+    @NonNull
+    public static HapiPropertySource effectiveStartupProperties(@NonNull final HapiSpec spec) {
+        final var startupProperties = spec.startupProperties();
+        try {
+            final Path appPropertiesPath =
+                    spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(APPLICATION_PROPERTIES);
+            if (appPropertiesPath != null && Files.isReadable(appPropertiesPath)) {
+                return inPriorityOrder(new JutilPropertySource(appPropertiesPath), startupProperties);
+            }
+        } catch (final Exception ignore) {
+            // Fall back to the spec's startup properties below
+        }
+        return startupProperties;
     }
 
     @Nullable
@@ -53,7 +84,7 @@ public final class BlockSourceFactory {
 
     private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
         try {
-            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
+            final var writerMode = effectiveStartupProperties(spec).get("blockStream.writerMode");
             return BlockStreamWriterMode.GRPC.name().equals(writerMode);
         } catch (final Exception e) {
             return false;
