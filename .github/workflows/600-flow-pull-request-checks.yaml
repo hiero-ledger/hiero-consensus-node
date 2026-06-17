@@ -135,6 +135,7 @@ jobs:
       - detect-change-type
       - mats-pr-checks
       - workflow-unit-tests
+    if: ${{ !cancelled() && always() }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
