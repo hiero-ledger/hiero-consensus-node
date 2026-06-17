@@ -507,6 +507,9 @@ jobs:
           # Generate the init-containers-values7.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
+          # Generate the block-node-values.yaml inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/block-node-values.yaml block-node-values.yaml
+
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
@@ -514,9 +517,11 @@ jobs:
           # Update Init Containers values
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" block-node-values.yaml
 
           NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
 
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
@@ -543,26 +548,6 @@ jobs:
           export NODE_COPY_CONCURRENT=1
 
           task
-          task_code=${?}
-          task solo:node:logs
-          if [[ ${task_code} -ne 0 ]]
-          then
-             echo "ERROR! log:"
-             tail -n 100 "${HOME}"/.solo/logs/solo.log
-          fi
-
-          sleep 30
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
-          cd "${{ github.workspace }}"
-
-          mkdir solo_deploy
-          cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-
-          exit "${task_code}"
 
       - name: Add BlockNodes
         run: |
