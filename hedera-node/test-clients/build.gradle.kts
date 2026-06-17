@@ -153,8 +153,9 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
-        "hapiTestBlockNodeCommunication" to "BLOCK_NODE|GENESIS_SUBPROCESS",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
+        "hapiTestGenesisSubProcess" to "GENESIS_SUBPROCESS",
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
         "hapiTestMiscRecordsSerial" to miscTagsSerial,
@@ -205,6 +206,7 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestGenesisSubProcess" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -314,7 +316,11 @@ tasks.register<Test>("testSubprocess") {
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
+            else if (
+                ciTagExpression.contains("ISS") ||
+                    ciTagExpression.contains("BLOCK_NODE") ||
+                    ciTagExpression.contains("GENESIS_SUBPROCESS")
+            )
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)"
         )
@@ -478,7 +484,11 @@ tasks.register<Test>("testSubprocessConcurrent") {
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
+            else if (
+                ciTagExpression.contains("ISS") ||
+                    ciTagExpression.contains("BLOCK_NODE") ||
+                    ciTagExpression.contains("GENESIS_SUBPROCESS")
+            )
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )

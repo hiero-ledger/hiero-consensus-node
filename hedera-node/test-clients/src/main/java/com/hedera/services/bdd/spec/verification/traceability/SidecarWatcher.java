@@ -13,6 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.support.BlockNodeBlockSource;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -77,6 +82,16 @@ public class SidecarWatcher {
     @Nullable
     private final Path blockStreamPath;
 
+    /**
+     * The block node network to pull blocks from in the synchronous drain when the BLOCKS-mode source
+     * is the block node over gRPC ({@code writerMode=GRPC}). Resolved once at construction so the live
+     * subscription ({@link #subscribeBlocks}) and the drain ({@link #drainUnseenSidecarsFromBlocks()})
+     * agree on the source. Null in legacy RECORDS/BOTH mode and in non-GRPC BLOCKS mode (where the
+     * source is {@code .blk} files on disk).
+     */
+    @Nullable
+    private final BlockNodeNetwork blockNodeNetwork;
+
     private final long shard;
     private final long realm;
     /**
@@ -116,14 +131,15 @@ public class SidecarWatcher {
         if (streamMode == BLOCKS) {
             final var network = spec.targetNetworkOrThrow();
             final var blockStreamLoc = network.getRequiredNode(byNodeId(0)).getExternalPath(BLOCK_STREAMS_DIR);
-            return new SidecarWatcher(streamsLoc, blockStreamLoc, network.shard(), network.realm());
+            return new SidecarWatcher(spec, streamsLoc, blockStreamLoc, network.shard(), network.realm());
         }
         return new SidecarWatcher(streamsLoc);
     }
 
     public SidecarWatcher(@NonNull final Path path) {
         // shard/realm are unused on this overload — only consulted when blockStreamPath != null.
-        this(path, null, 0L, 0L);
+        // The spec is only needed in BLOCKS mode (to resolve the gRPC block source), so it is null here.
+        this(null, path, null, 0L, 0L);
     }
 
     /**
@@ -141,7 +157,11 @@ public class SidecarWatcher {
      * directory to scan during the final cleanup pass) even when the block-stream source is used.
      */
     public SidecarWatcher(
-            @NonNull final Path path, @Nullable final Path blockStreamPath, final long shard, final long realm) {
+            @Nullable final HapiSpec spec,
+            @NonNull final Path path,
+            @Nullable final Path blockStreamPath,
+            final long shard,
+            final long realm) {
         this.streamFilesPath = guaranteedExtantDir(path);
         this.blockStreamPath = blockStreamPath;
         this.shard = shard;
@@ -149,10 +169,17 @@ public class SidecarWatcher {
         if (blockStreamPath != null) {
             // Block-stream-only mode: skip the record-stream listener entirely; the legacy dir is
             // empty under streamMode=BLOCKS so it would deliver nothing anyway.
+            //
+            // Resolve the block source once here so the live subscription and the synchronous drain
+            // agree: under writerMode=GRPC with a block node network, both read from the block node
+            // over gRPC; otherwise both read .blk files from disk. We capture the resolved network
+            // (non-null only in the gRPC case) so drainUnseenSidecarsFromBlocks() can pull from it.
+            this.blockNodeNetwork = resolveGrpcBlockNodeNetwork(spec);
             this.unsubscribe = () -> {};
-            this.unsubscribeBlocks = subscribeBlocks(blockStreamPath, shard, realm);
+            this.unsubscribeBlocks = subscribeBlocks(spec, blockStreamPath, shard, realm);
         } else {
             // Legacy mode: V6 sidecar files are the only source.
+            this.blockNodeNetwork = null;
             this.unsubscribe = STREAM_FILE_ACCESS.subscribe(streamFilesPath, new StreamDataListener() {
                 @Override
                 public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
@@ -163,14 +190,45 @@ public class SidecarWatcher {
         }
     }
 
-    private Runnable subscribeBlocks(@NonNull final Path blockStreamPath, final long shard, final long realm) {
+    /**
+     * Resolves the block node network to pull from when the BLOCKS-mode source is the block node over
+     * gRPC, or {@code null} when the source is {@code .blk} files on disk. Mirrors
+     * {@code BlockSourceFactory}/{@code HapiSpecWaitUntilNextBlock}: returns a non-null network only
+     * when {@code writerMode=GRPC} <em>and</em> a block node network exists (resolved from the
+     * thread-local {@link HapiSpec#TARGET_BLOCK_NODE_NETWORK}, falling back to
+     * {@link NetworkTargetingExtension#SHARED_BLOCK_NODE_NETWORK}). Keeping this in lock-step with the
+     * live subscription's source choice ensures both read from the same place.
+     */
+    @Nullable
+    private static BlockNodeNetwork resolveGrpcBlockNodeNetwork(@Nullable final HapiSpec spec) {
+        if (spec == null || !isWriterModeGrpcOnly(spec)) {
+            return null;
+        }
+        var network = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
+        if (network == null) {
+            network = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        }
+        return network;
+    }
+
+    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
+        try {
+            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
+            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
+    private Runnable subscribeBlocks(
+            @Nullable final HapiSpec spec, @NonNull final Path blockStreamPath, final long shard, final long realm) {
         // One translator/split owned by this subscription so alias and nonce state persist
         // across blocks (BaseTranslator is stateful).
         final var translator = new BlockTransactionalUnitTranslator(shard, realm);
         final var split = new RoleFreeBlockUnitSplit();
         // Single-element array used as a mutable boolean captured by the listener lambda.
         final boolean[] foundGenesis = {false};
-        return STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(blockStreamPath), new StreamDataListener() {
+        final StreamDataListener listener = new StreamDataListener() {
             // Replay so genesis sidecars (emitted before this subscription) are still picked up.
             @Override
             public boolean replayExistingFiles() {
@@ -192,7 +250,15 @@ public class SidecarWatcher {
             public String name() {
                 return "SidecarWatcher#blockStreamPump";
             }
-        });
+        };
+        // Pick the live source the same way the drain does: under writerMode=GRPC with a block node
+        // network, blocks arrive from the block node over gRPC (BlockNodeBlockSource); otherwise they
+        // are watched as .blk files on disk (FileSystemBlockSource). BlockSourceFactory makes this
+        // choice. When no spec is available (legacy callers), fall back to the on-disk watcher.
+        if (spec != null) {
+            return BlockSourceFactory.blockSourceFor(spec).subscribe(listener);
+        }
+        return STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(blockStreamPath), listener);
     }
 
     /**
@@ -377,8 +443,12 @@ public class SidecarWatcher {
             return false;
         }
         try {
-            // Only marker-backed (fully written) blocks, so we never translate a half-flushed block.
-            final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamPath);
+            // Under writerMode=GRPC no .blk files are written to disk, so pull every block from the
+            // block node over gRPC; otherwise re-read the marker-backed (fully written) blocks from
+            // disk so we never translate a half-flushed block. Both yield blocks in ascending order.
+            final List<Block> blocks = blockNodeNetwork != null
+                    ? BlockNodeBlockSource.fetchAllBlocks(blockNodeNetwork)
+                    : BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamPath);
             final var translator = new BlockTransactionalUnitTranslator(shard, realm);
             final var split = new RoleFreeBlockUnitSplit();
             final boolean[] foundGenesis = {false};
