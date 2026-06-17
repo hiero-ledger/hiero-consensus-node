@@ -256,7 +256,7 @@ public class ServicesMain {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera)
+                .withStaleEventConsumer(hedera)
                 .withTransactionOffsetNanos(transactionOffsetNanos);
         final var platform = platformBuilder.build();
 

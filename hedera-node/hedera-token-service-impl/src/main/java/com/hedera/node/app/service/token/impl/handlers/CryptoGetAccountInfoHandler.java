@@ -33,7 +33,6 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.AccountSummariesApi;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -177,18 +176,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
                     instantSource.instant()));
             return Optional.of(info.build());
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var accountStore = queryContext.createStore(ReadableAccountStore.class);
-        final var op = query.cryptoGetInfoOrThrow();
-        final var accountId = op.accountIDOrElse(AccountID.DEFAULT);
-        final var account = accountStore.getAliasedAccountById(accountId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, account));
     }
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {

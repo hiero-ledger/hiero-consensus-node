@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-001
 title: roundCreated is monotonic along ancestry — a parent's round never exceeds its child's
 class: safety
@@ -16,9 +17,11 @@ source: >
   invariant is a direct consequence: `round(x) ≥ r ≥ round(p)` for every
   parent `p`.
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — `recalculateAndVote` (the per-round metadata-clearing step that preserves the property across roster changes)
+provenance: extracted-2026-05-21
+curated_by: Kelly Greco (@poulok)
 ---
 
-# INV-001 — `roundCreated` is monotonic along ancestry
+# INV-001 — `roundCreated` is monotonic along ancestry — a parent's round never exceeds its child's
 
 ## Statement
 
